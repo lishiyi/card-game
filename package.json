@@ -1,0 +1,13 @@
+{
+  "name": "slay-the-spire-lite",
+  "version": "1.0.0",
+  "description": "简化版《杀戮尖塔》(Slay the Spire Lite) 纯前端卡牌肉鸽策略游戏",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "python3 -m http.server 4173"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
