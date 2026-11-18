@@ -310,11 +310,11 @@ button:disabled {
 .map-board {
   position: relative;
   width: min(620px, 100%);
-  margin: 10px auto;
+  margin: 4px auto;
   padding: 0;
   display: flex;
   flex-direction: column-reverse;
-  gap: 16px;
+  gap: 6px;
 }
 
 .map-edges-svg {
@@ -329,7 +329,7 @@ button:disabled {
 .map-row {
   position: relative;
   z-index: 1;
-  height: 52px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -343,17 +343,17 @@ button:disabled {
 .map-floor-tag {
   position: absolute;
   left: 4px;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-family: var(--font-mono);
   color: var(--text-ash);
 }
 
 .map-node-btn {
-  width: 148px;
-  padding: 10px 12px;
+  width: 152px;
+  padding: 4px 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   border-radius: var(--radius-md);
   background: var(--bg-cavern);
   border: 1px solid var(--border-muted);
@@ -375,20 +375,53 @@ button:disabled {
 }
 
 .map-node-btn.available:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   background: linear-gradient(180deg, hsl(34, 28%, 28%), hsl(30, 20%, 21%));
 }
 
 .node-icon-wrap {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-abyss);
+  border: 1px solid hsla(34, 22%, 40%, 0.45);
   color: var(--accent-brass);
   flex-shrink: 0;
+}
+
+.node-icon-wrap.node-type-combat {
+  color: hsl(156, 56%, 64%);
+  border-color: hsla(156, 46%, 44%, 0.55);
+}
+
+.node-icon-wrap.node-type-elite {
+  color: hsl(8, 86%, 66%);
+  border-color: hsla(8, 74%, 52%, 0.7);
+  background: radial-gradient(circle, hsl(8, 42%, 18%), var(--bg-abyss));
+}
+
+.node-icon-wrap.node-type-rest {
+  color: hsl(26, 92%, 64%);
+  border-color: hsla(26, 72%, 48%, 0.58);
+}
+
+.node-icon-wrap.node-type-shop {
+  color: hsl(45, 94%, 64%);
+  border-color: hsla(45, 72%, 48%, 0.58);
+}
+
+.node-icon-wrap.node-type-event {
+  color: hsl(268, 78%, 76%);
+  border-color: hsla(268, 56%, 52%, 0.58);
+}
+
+.node-icon-wrap.node-type-boss {
+  color: hsl(40, 98%, 66%);
+  border-color: hsla(38, 84%, 56%, 0.8);
+  background: radial-gradient(circle, hsl(14, 48%, 20%), var(--bg-abyss));
 }
 
 .node-text {
@@ -398,13 +431,15 @@ button:disabled {
 }
 
 .node-title {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .node-hint {
-  font-size: 0.73rem;
+  font-size: 0.71rem;
   color: var(--text-sand);
+  line-height: 1.2;
 }
 
 /* === Combat Arena === */
@@ -1032,6 +1067,33 @@ button:disabled {
   border: 1px solid var(--border-stone);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
+}
+
+.modal-confirm-sheet {
+  width: min(520px, 100%);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-danger-subtle {
+  border-color: hsla(12, 54%, 44%, 0.65);
+  color: hsl(12, 82%, 78%);
+}
+
+.card-type-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.card-type-icon {
+  flex-shrink: 0;
 }
 
 .modal-header {

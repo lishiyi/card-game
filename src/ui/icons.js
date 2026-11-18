@@ -134,6 +134,89 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'fungi_beast':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="106" rx="38" ry="6" fill="hsla(0,0%,0%,0.44)" />
+          <!-- Beast Body -->
+          <path d="M28 96 Q30 62 60 60 Q90 62 92 96 Z" fill="hsl(268, 24%, 28%)" stroke="hsl(274, 34%, 48%)" stroke-width="2" />
+          <!-- Mushroom Cap -->
+          <path d="M20 62 Q60 18 100 62 Q60 72 20 62 Z" fill="hsl(342, 58%, 40%)" stroke="hsl(346, 72%, 62%)" stroke-width="2.2" />
+          <circle cx="44" cy="46" r="5" fill="hsl(44, 88%, 76%)" />
+          <circle cx="62" cy="38" r="6" fill="hsl(44, 88%, 76%)" />
+          <circle cx="78" cy="49" r="4.5" fill="hsl(44, 88%, 76%)" />
+          <!-- Glowing Eyes -->
+          <circle cx="48" cy="78" r="4" fill="hsl(42, 95%, 62%)" />
+          <circle cx="72" cy="78" r="4" fill="hsl(42, 95%, 62%)" />
+        </svg>
+      `;
+
+    case 'slaver_blue':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="36" ry="6" fill="hsla(0,0%,0%,0.46)" />
+          <!-- Cobalt Cloak & Armor -->
+          <path d="M32 42 Q60 30 84 44 L90 104 L28 104 Z" fill="hsl(214, 48%, 28%)" stroke="hsl(208, 62%, 52%)" stroke-width="2" />
+          <!-- Hood & Mask -->
+          <path d="M42 18 Q60 10 76 20 L78 44 Q60 50 40 44 Z" fill="hsl(216, 42%, 22%)" stroke="hsl(206, 48%, 54%)" stroke-width="1.8" />
+          <circle cx="53" cy="32" r="3" fill="hsl(38, 92%, 62%)" />
+          <circle cx="66" cy="32" r="3" fill="hsl(38, 92%, 62%)" />
+          <!-- Hooked Polearm -->
+          <line x1="92" y1="18" x2="84" y2="102" stroke="hsl(32, 26%, 56%)" stroke-width="3" />
+          <path d="M92 18 L104 28 L90 36 Q98 44 84 46" fill="none" stroke="hsl(204, 30%, 78%)" stroke-width="2.6" stroke-linecap="round" />
+        </svg>
+      `;
+
+    case 'looter':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="34" ry="6" fill="hsla(0,0%,0%,0.45)" />
+          <!-- Rogue Cloak -->
+          <path d="M34 46 Q60 36 86 46 L82 102 L36 102 Z" fill="hsl(28, 24%, 22%)" stroke="hsl(34, 38%, 46%)" stroke-width="2" />
+          <!-- Bandana & Hood -->
+          <circle cx="60" cy="30" r="14" fill="hsl(26, 20%, 26%)" stroke="hsl(34, 34%, 52%)" stroke-width="1.8" />
+          <path d="M46 31 Q60 36 74 31 L71 43 Q60 47 49 43 Z" fill="hsl(8, 56%, 36%)" />
+          <circle cx="54" cy="27" r="2.8" fill="hsl(44, 96%, 64%)" />
+          <circle cx="66" cy="27" r="2.8" fill="hsl(44, 96%, 64%)" />
+          <!-- Twin Daggers -->
+          <path d="M22 68 L36 56 L30 74 Z" fill="hsl(206, 26%, 82%)" stroke="hsl(32, 40%, 48%)" stroke-width="1.4" />
+          <path d="M98 64 L84 54 L90 72 Z" fill="hsl(206, 26%, 82%)" stroke="hsl(32, 40%, 48%)" stroke-width="1.4" />
+        </svg>
+      `;
+
+    case 'mad_gremlin':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="106" rx="28" ry="5" fill="hsla(0,0%,0%,0.42)" />
+          <!-- Imp Horns -->
+          <polygon points="40,42 26,20 48,36" fill="hsl(36, 40%, 76%)" />
+          <polygon points="80,42 94,20 72,36" fill="hsl(36, 40%, 76%)" />
+          <!-- Imp Body -->
+          <path d="M36 52 Q60 34 84 52 L78 100 L42 100 Z" fill="hsl(12, 62%, 38%)" stroke="hsl(20, 74%, 58%)" stroke-width="2" />
+          <!-- Angry Eyes & Jagged Mouth -->
+          <polygon points="45,56 56,61 46,64" fill="hsl(46, 98%, 62%)" />
+          <polygon points="75,56 64,61 74,64" fill="hsl(46, 98%, 62%)" />
+          <polyline points="46,76 53,71 60,77 67,71 74,76" fill="none" stroke="hsl(42, 40%, 90%)" stroke-width="2.2" />
+        </svg>
+      `;
+
+    case 'lagavulin':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="46" ry="7" fill="hsla(0,0%,0%,0.5)" />
+          <!-- Spiked Bronze Carapace -->
+          <polygon points="36,36 44,18 54,34 64,16 74,34 84,20 88,40" fill="hsl(36, 56%, 58%)" />
+          <path d="M18 92 Q22 34 62 32 Q100 34 102 92 Z" fill="hsl(28, 36%, 28%)" stroke="hsl(38, 62%, 60%)" stroke-width="2.5" />
+          <!-- Inner Shadow Cavity & Glowing Eyes -->
+          <ellipse cx="56" cy="72" rx="22" ry="15" fill="hsl(16, 30%, 10%)" stroke="hsl(34, 42%, 46%)" stroke-width="1.8" />
+          <circle cx="48" cy="71" r="4" fill="hsl(8, 92%, 60%)" />
+          <circle cx="64" cy="71" r="4" fill="hsl(8, 92%, 60%)" />
+          <!-- Heavy Pincer Claws -->
+          <path d="M12 88 Q8 70 26 72 L32 96 Z" fill="hsl(12, 56%, 40%)" stroke="hsl(36, 54%, 64%)" stroke-width="1.8" />
+          <path d="M108 88 Q112 70 94 72 L88 96 Z" fill="hsl(12, 56%, 40%)" stroke="hsl(36, 54%, 64%)" stroke-width="1.8" />
+        </svg>
+      `;
+
     case 'the_guardian':
       if (mode === 'defensive') {
         return `
@@ -177,17 +260,42 @@ export function getCharacterSvg(artKey, mode = 'normal') {
 export function getNodeIconSvg(type) {
   switch (type) {
     case 'combat':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M9.5 17.5L21 6V3h-3L6.5 14.5"/><path d="M11 19l-6-6"/><path d="M8 16l-4 4"/></svg>`;
+      // 普通战斗：圆润史莱姆/小怪兽（触角 + 圆眼 + 小尖牙）
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="combat" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7L7.5 4M15 7l1.5-3"/><path d="M4 18c0-5.2 3.4-9 8-9s8 3.8 8 9c-2.4 1.2-5 1.5-8 1.5S6.4 19.2 4 18z" fill="currentColor" fill-opacity="0.16"/><circle cx="9.2" cy="13.5" r="1.3" fill="currentColor"/><circle cx="14.8" cy="13.5" r="1.3" fill="currentColor"/><path d="M9.5 16.6q2.5 1.4 5 0"/></svg>`;
     case 'elite':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4l3 4h8l3-4"/><rect x="5" y="8" width="14" height="10" rx="4"/><circle cx="9.5" cy="13" r="1.5"/><circle cx="14.5" cy="13" r="1.5"/><path d="M9 18v3M12 18v3M15 18v3"/></svg>`;
+      // 精英强敌：双角恶魔巨怪（威猛弯角 + 凶戾斜眼 + 獠牙，与普通小怪明显区分）
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="elite" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 9C3.5 7.5 2.5 4.2 4 2.8c1.2 2 2.8 3.2 4.8 3.7"/><path d="M17.5 9c3-1.5 4-4.8 2.5-6.2-1.2 2-2.8 3.2-4.8 3.7"/><path d="M6 10.5c0-2.5 2.7-4.5 6-4.5s6 2 6 4.5v5.5c0 2.2-2.7 4-6 4s-6-1.8-6-4z" fill="currentColor" fill-opacity="0.2"/><path d="M8.5 11.8l2.5 1.2M15.5 11.8L13 13"/><path d="M8.8 18.5l1.2-2.6 1.2 2.4M15.2 18.5L14 15.9l-1.2 2.4"/></svg>`;
     case 'rest':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2.5 3.5 5 6.2 5 9.5a5 5 0 0 1-10 0C7 9.2 9.5 6.5 12 3z"/><path d="M4 20l16-3M4 17l16 3"/></svg>`;
+      // 篝火营地：跃动火焰与交叉木柴
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="rest" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2.6 3.2 4.8 5.8 4.8 9a4.8 4.8 0 0 1-9.6 0C7.2 8.8 9.4 6.2 12 3z" fill="currentColor" fill-opacity="0.2"/><path d="M12 9.5c1 1.4 1.8 2.4 1.8 3.6a1.8 1.8 0 0 1-3.6 0c0-1.2.8-2.2 1.8-3.6z"/><path d="M4.5 20.5l15-3M4.5 17.5l15 3"/></svg>`;
     case 'shop':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4h6l-1.5 3h-3L9 4z"/><path d="M6 11a6 6 0 0 1 12 0c0 4-2 9-6 9s-6-5-6-9z"/><path d="M12 11v5M10 13.5h4"/></svg>`;
+      // 神秘商人：束口金币钱袋
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="shop" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.5h6l-1.3 3.2h-3.4L9 3.5z"/><path d="M6 12.2C6 8.8 8.7 6.7 12 6.7s6 2.1 6 5.5c0 4.4-2.2 7.8-6 7.8s-6-3.4-6-7.8z" fill="currentColor" fill-opacity="0.16"/><path d="M12 10.2v5.6M10.2 11.8c0-.9.8-1.4 1.8-1.4s1.8.5 1.8 1.3-.8 1.2-1.8 1.4-1.8.5-1.8 1.4.8 1.4 1.8 1.4 1.8-.5 1.8-1.4"/></svg>`;
     case 'event':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><circle cx="12" cy="18.5" r="0.8" fill="currentColor"/></svg>`;
+      // 未知事件：秘仪菱纹与问号
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="event" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12,2.5 21.5,12 12,21.5 2.5,12" fill="currentColor" fill-opacity="0.14"/><path d="M9.8 9.4a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.5"/><circle cx="12" cy="16.8" r="0.9" fill="currentColor"/></svg>`;
     case 'boss':
-      return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18l-2-11-5 4-2-6-2 6-5-4-2 11z"/><path d="M4 21h16"/></svg>`;
+      // 尖塔首领：王冠首领魔像
+      return `<svg viewBox="0 0 24 24" width="22" height="22" data-node-icon="boss" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5L6.5 4l3.5 3 2-4 2 4 3.5-3L20 9.5z" fill="currentColor" fill-opacity="0.24"/><path d="M5 9.5h14l-1.4 8.5L12 21l-5.6-3z" fill="currentColor" fill-opacity="0.14"/><circle cx="9.4" cy="14" r="1.2" fill="currentColor"/><circle cx="14.6" cy="14" r="1.2" fill="currentColor"/></svg>`;
+    default:
+      return '';
+  }
+}
+
+export function getCardTypeIconSvg(cardType) {
+  switch (cardType) {
+    case 'attack':
+      // 攻击牌：利剑图标 🗡
+      return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="attack" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.8 2.2L13.8 2.2 13.8 4.2 6.6 11.4 4.6 9.4z" fill="currentColor" fill-opacity="0.28"/><path d="M3.4 8.4l4.2 4.2"/><path d="M4.8 11.2L2.3 13.7"/></svg>`;
+    case 'skill':
+      // 技能牌：纹章护盾图标 🛡
+      return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="skill" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8l5 2v4.1c0 3.3-2.1 5.4-5 6.5-2.9-1.1-5-3.2-5-6.5V3.8L8 1.8z" fill="currentColor" fill-opacity="0.24"/><path d="M8 4.8v6.2M5.8 7.4h4.4"/></svg>`;
+    case 'power':
+      // 能力牌：雷霆威能图标 ⚡
+      return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="power" fill="currentColor" fill-opacity="0.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="9.2,1.6 3.8,8.8 7.8,8.8 6.8,14.4 12.2,7.2 8.2,7.2"/></svg>`;
+    case 'status':
+      // 状态牌：暗蚀咒印图标
+      return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="status" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>`;
     default:
       return '';
   }

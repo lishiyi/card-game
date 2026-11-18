@@ -152,26 +152,39 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 1. Verify SEO & 10-Floor Map Screen structure
-    const initialAudit = await cdp.evaluate(`({
-      h1Count: document.querySelectorAll('h1').length,
-      title: document.title,
-      floorIndicator: document.querySelector('.floor-indicator')?.textContent?.trim(),
-      mapRowCount: document.querySelectorAll('.map-row').length,
-      hasMapNode: Boolean(document.getElementById('map-node-f1_c0')),
-      hasBossFloor10: Boolean(document.getElementById('map-node-f10_c0')),
-      svgLines: document.querySelectorAll('.map-edges-svg line').length,
-      deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim(),
-    })`);
+    // 1. Verify SEO, 16-Floor Map Screen structure, and distinct monster icons for Combat vs Elite
+    const initialAudit = await cdp.evaluate(`(() => {
+      const nodeBtns = [...document.querySelectorAll('.map-node-btn')];
+      const combatIconWrap = document.querySelector('.node-icon-wrap.node-type-combat');
+      const eliteIconWrap = document.querySelector('.node-icon-wrap.node-type-elite');
+      return {
+        h1Count: document.querySelectorAll('h1').length,
+        title: document.title,
+        floorIndicator: document.querySelector('.floor-indicator')?.textContent?.trim(),
+        mapRowCount: document.querySelectorAll('.map-row').length,
+        hasMapNode: Boolean(document.getElementById('map-node-f1_c0')),
+        hasBossFloor16: Boolean(document.getElementById('map-node-f16_c0')),
+        svgLines: document.querySelectorAll('.map-edges-svg line').length,
+        deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim(),
+        allNodesHaveIcons: nodeBtns.length > 0 && nodeBtns.every((b) => Boolean(b.querySelector('[data-node-icon]'))),
+        combatSvgMarkup: combatIconWrap?.innerHTML || '',
+        eliteSvgMarkup: eliteIconWrap?.innerHTML || '',
+        combatIconColor: combatIconWrap ? getComputedStyle(combatIconWrap).color : '',
+        eliteIconColor: eliteIconWrap ? getComputedStyle(eliteIconWrap).color : '',
+      };
+    })()`);
 
     assert.equal(initialAudit.h1Count, 1, 'Should have exactly 1 h1');
     assert.ok(initialAudit.title.includes('杀戮尖塔'));
-    assert.equal(initialAudit.floorIndicator, '第 1 / 10 层');
-    assert.equal(initialAudit.mapRowCount, 10);
+    assert.equal(initialAudit.floorIndicator, '第 1 / 16 层');
+    assert.equal(initialAudit.mapRowCount, 16);
     assert.equal(initialAudit.hasMapNode, true);
-    assert.equal(initialAudit.hasBossFloor10, true);
-    assert.ok(initialAudit.svgLines >= 14, 'Expected 10-floor Spire map SVG route lines');
+    assert.equal(initialAudit.hasBossFloor16, true);
+    assert.ok(initialAudit.svgLines >= 22, 'Expected 16-floor Spire map SVG route lines');
     assert.equal(initialAudit.deckBtnText, '牌组 (10)');
+    assert.equal(initialAudit.allNodesHaveIcons, true, 'Every map node must render an icon');
+    assert.notEqual(initialAudit.combatSvgMarkup, initialAudit.eliteSvgMarkup, 'Normal combat and Elite must use distinct monster icons');
+    assert.notEqual(initialAudit.combatIconColor, initialAudit.eliteIconColor, 'Normal combat and Elite icons must have distinct color accents');
 
     // Optional screenshot export when SCRATCH_SCREENSHOT_DIR env is provided
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
@@ -501,6 +514,94 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
         Buffer.from(shotEvent.data, 'base64')
       );
     }
+
+    // 5. Verify Attack / Skill / Power cards render distinct card-type icons beside their labels
+    const cardTypeAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.deck = [
+        { instanceId: 't_atk', cardId: 'strike', upgraded: false },
+        { instanceId: 't_skl', cardId: 'defend', upgraded: false },
+        { instanceId: 't_pwr', cardId: 'inflame', upgraded: false },
+      ];
+      app.openModal('deck');
+      const atkIcon = document.querySelector('#modal-card-t_atk [data-card-type-icon="attack"]')?.outerHTML || '';
+      const sklIcon = document.querySelector('#modal-card-t_skl [data-card-type-icon="skill"]')?.outerHTML || '';
+      const pwrIcon = document.querySelector('#modal-card-t_pwr [data-card-type-icon="power"]')?.outerHTML || '';
+      const atkText = document.querySelector('#modal-card-t_atk .card-type-label')?.textContent?.trim() || '';
+      const sklText = document.querySelector('#modal-card-t_skl .card-type-label')?.textContent?.trim() || '';
+      const pwrText = document.querySelector('#modal-card-t_pwr .card-type-label')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal').click();
+      return { atkIcon, sklIcon, pwrIcon, atkText, sklText, pwrText };
+    })()`);
+    assert.ok(cardTypeAudit.atkIcon.length > 0, 'Attack card must render sword icon');
+    assert.ok(cardTypeAudit.sklIcon.length > 0, 'Skill card must render shield icon');
+    assert.ok(cardTypeAudit.pwrIcon.length > 0, 'Power card must render power icon');
+    assert.notEqual(cardTypeAudit.atkIcon, cardTypeAudit.sklIcon);
+    assert.notEqual(cardTypeAudit.sklIcon, cardTypeAudit.pwrIcon);
+    assert.equal(cardTypeAudit.atkText, '攻击');
+    assert.equal(cardTypeAudit.sklText, '技能');
+    assert.equal(cardTypeAudit.pwrText, '能力');
+
+    // 6. Verify Reward Screen prompts on unclaimed Gold / Relic, and does NOT prompt on unclaimed Potion / Card!
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'reward';
+      st.reward = {
+        role: 'elite',
+        gold: 48,
+        goldClaimed: false,
+        relicId: 'vajra',
+        relicClaimed: false,
+        potionId: 'block_potion',
+        potionClaimed: false,
+        cardChoices: [
+          { instanceId: 'rw_1', cardId: 'cleave', upgraded: false },
+          { instanceId: 'rw_2', cardId: 'shrug_it_off', upgraded: false },
+          { instanceId: 'rw_3', cardId: 'inflame', upgraded: false },
+        ],
+        cardClaimed: false,
+        pickedCardId: null,
+      };
+      app.render();
+      document.getElementById('btn-proceed-reward').click();
+    })()`);
+
+    const promptAudit = await cdp.evaluate(`({
+      screen: window.__SPIRE_APP__.getState().screen,
+      hasPromptModal: Boolean(document.getElementById('reward-unclaimed-modal')),
+      promptText: document.getElementById('reward-skip-desc')?.textContent?.trim() || '',
+    })`);
+    assert.equal(promptAudit.screen, 'reward', 'Must stay on reward screen when Gold/Relic unclaimed');
+    assert.equal(promptAudit.hasPromptModal, true, 'Must show unclaimed loot prompt modal');
+    assert.ok(promptAudit.promptText.includes('48 金币'));
+    assert.ok(promptAudit.promptText.includes('金刚杵'));
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotPrompt = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'reward_unclaimed_prompt.png'),
+        Buffer.from(shotPrompt.data, 'base64')
+      );
+    }
+
+    // Click "返回拾取" -> closes modal, manually claim Gold & Relic, leave Potion & Card unclaimed -> Proceed succeeds without modal!
+    await cdp.evaluate(`(() => {
+      document.getElementById('btn-cancel-skip-reward').click();
+      document.getElementById('btn-claim-gold').click();
+      document.getElementById('btn-claim-relic').click();
+      document.getElementById('btn-proceed-reward').click();
+    })()`);
+
+    const afterProceedAudit = await cdp.evaluate(`({
+      screen: window.__SPIRE_APP__.getState().screen,
+      hasPromptModal: Boolean(document.getElementById('reward-unclaimed-modal')),
+      hasVajra: window.__SPIRE_APP__.getState().player.relics.includes('vajra'),
+    })`);
+    assert.equal(afterProceedAudit.screen, 'map', 'Leaving Potion and Card unclaimed must NOT block proceeding to Map');
+    assert.equal(afterProceedAudit.hasPromptModal, false);
+    assert.equal(afterProceedAudit.hasVajra, true);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

@@ -259,7 +259,7 @@ test('Gremlin Nob Enrage reacts to Skills and Boss Guardian Mode Shift cycles Of
   bossState.combat.hand = [bludgeon, strike];
 
   playCard(bossState, bludgeon.instanceId, guardian.id);
-  assert.equal(guardian.hp, 103);
+  assert.equal(guardian.hp, 123);
   assert.equal(guardian.mode, 'defensive');
   assert.equal(guardian.block, 16);
   assert.equal(guardian.statuses.sharpHide, 3);
@@ -279,6 +279,64 @@ test('Gremlin Nob Enrage reacts to Skills and Boss Guardian Mode Shift cycles Of
   assert.equal(guardian.mode, 'offensive');
   assert.equal(guardian.statuses.sharpHide, undefined);
   assert.equal(guardian.statuses.modeShift, 35);
+});
+
+test('New monsters: Fungi Beast Spore Cloud, Mad Gremlin Angry, and Elite Lagavulin Metallicize & Siphon Soul', () => {
+  // 1. Fungi Beast Spore Cloud applies 2 Vulnerable to player on death when an ally survives
+  const fungiState = setupCustomCombat(818, {
+    id: 'fungi_test',
+    name: '菌兽测试',
+    enemies: [{ templateId: 'fungi_beast' }, { templateId: 'slaver_blue' }],
+  });
+  const fungi = fungiState.combat.enemies[0];
+  fungi.hp = 6;
+  const strike = createCardInstance(fungiState, 'strike', false);
+  fungiState.combat.hand = [strike];
+  playCard(fungiState, strike.instanceId, fungi.id);
+  assert.equal(fungi.hp, 0);
+  assert.equal(fungiState.player.statuses.vulnerable, 2);
+
+  // 2. Mad Gremlin Angry gains +1 Strength per unblocked attack hit
+  const gremState = setupCustomCombat(828, {
+    id: 'grem_test',
+    name: '狂怒地精测试',
+    enemies: [{ templateId: 'mad_gremlin' }],
+  });
+  const grem = gremState.combat.enemies[0];
+  grem.hp = 22;
+  const twin = createCardInstance(gremState, 'twin_strike', false);
+  gremState.combat.hand = [twin];
+  playCard(gremState, twin.instanceId, grem.id);
+  // Hit 1: 5 dmg -> Angry +1 Str; Hit 2: 5 dmg -> Angry +1 Str => total Strength 2
+  assert.equal(grem.hp, 12);
+  assert.equal(grem.statuses.strength, 2);
+
+  // 3. Elite Lagavulin starts with Metallicize 5 & 5 Block, gains block on Turn 1, and Siphon Soul drains -1 Str / -1 Dex on Turn 4
+  const lagaState = setupCustomCombat(838, {
+    id: 'laga_test',
+    name: '乐加维林测试',
+    enemies: [{ templateId: 'lagavulin' }],
+  });
+  const laga = lagaState.combat.enemies[0];
+  assert.equal(laga.statuses.metallicize, 5);
+  assert.equal(laga.block, 5);
+  assert.equal(laga.intent.id, 'shell_awaken');
+
+  endPlayerTurn(lagaState); // Turn 1: shell_awaken (8) + metallicize (5) = 13 block; next intent claw_crush
+  assert.equal(laga.block, 13);
+  assert.equal(laga.intent.id, 'claw_crush');
+
+  lagaState.player.block = 40;
+  endPlayerTurn(lagaState); // Turn 2: claw_crush -> next intent claw_crush
+  assert.equal(laga.intent.id, 'claw_crush');
+
+  lagaState.player.block = 40;
+  endPlayerTurn(lagaState); // Turn 3: claw_crush -> next intent siphon_soul
+  assert.equal(laga.intent.id, 'siphon_soul');
+
+  endPlayerTurn(lagaState); // Turn 4: siphon_soul applies -1 Strength & -1 Dexterity
+  assert.equal(lagaState.player.statuses.strength, -1);
+  assert.equal(lagaState.player.statuses.dexterity, -1);
 });
 
 test('Body Slam description and execution dynamically reflect live Block + Modifiers, and Potions work accurately', () => {

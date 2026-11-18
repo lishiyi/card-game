@@ -188,4 +188,16 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) => `每当玩家打出一张攻击牌，对玩家造成 ${v} 点反伤。`,
   },
+  sporeCloud: {
+    id: 'sporeCloud',
+    name: '孢子云',
+    polarity: 'buff',
+    describe: (v) => `被击败时爆裂毒孢，使玩家获得 ${v} 层易伤。`,
+  },
+  angry: {
+    id: 'angry',
+    name: '愤怒',
+    polarity: 'buff',
+    describe: (v) => `每当受到玩家的攻击伤害，立即获得 ${v} 点力量。`,
+  },
 });

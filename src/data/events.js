@@ -10,7 +10,7 @@ function deepFreeze(obj) {
   return obj;
 }
 
-export const TOTAL_FLOORS = 10;
+export const TOTAL_FLOORS = 16;
 
 export const EVENT_LIBRARY = deepFreeze({
   shining_light: {
@@ -109,18 +109,24 @@ export const NODE_TYPE_META = deepFreeze({
 });
 
 /**
- * Generates a 10-floor non-crossing, fully connected Spire map.
+ * Generates a 16-floor non-crossing, fully connected Spire map.
  */
 export function generateSpireMap(state) {
   const rowTemplates = [
     ['combat', 'combat'],
     nextRandom(state) < 0.5 ? ['combat', 'event'] : ['event', 'combat'],
     nextRandom(state) < 0.5 ? ['rest', 'shop'] : ['shop', 'rest'],
+    nextRandom(state) < 0.5 ? ['combat', 'event'] : ['event', 'combat'],
     nextRandom(state) < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'],
     nextRandom(state) < 0.5 ? ['event', 'combat'] : ['combat', 'event'],
     nextRandom(state) < 0.5 ? ['rest', 'shop'] : ['shop', 'rest'],
+    nextRandom(state) < 0.5 ? ['combat', 'event'] : ['event', 'combat'],
     nextRandom(state) < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'],
-    nextRandom(state) < 0.5 ? ['shop', 'event'] : ['event', 'shop'],
+    nextRandom(state) < 0.5 ? ['rest', 'event'] : ['event', 'rest'],
+    ['combat', 'combat'],
+    nextRandom(state) < 0.5 ? ['shop', 'rest'] : ['rest', 'shop'],
+    nextRandom(state) < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'],
+    nextRandom(state) < 0.5 ? ['event', 'shop'] : ['shop', 'event'],
     ['rest'],
     ['boss'],
   ];

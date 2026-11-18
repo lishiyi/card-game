@@ -23,6 +23,7 @@ import {
   createNewRun,
   discardPotion,
   getAvailableNodeIds,
+  getUnclaimedImportantRewards,
   getUpgradableDeckCards,
   leaveRestSite,
   leaveShop,
@@ -36,7 +37,12 @@ import {
   selectMapNode,
 } from '../engine/game.js';
 import { getEnemyIntentPreview } from '../engine/math.js';
-import { getCharacterSvg, getIntentIconSvg, getNodeIconSvg } from './icons.js';
+import {
+  getCardTypeIconSvg,
+  getCharacterSvg,
+  getIntentIconSvg,
+  getNodeIconSvg,
+} from './icons.js';
 
 const STORAGE_KEY = 'sts_lite_saved_run_v1';
 
@@ -265,7 +271,10 @@ export function mountSpireApp(rootEl) {
             ${typeof options.hotkey === 'number' ? `<span class="card-hotkey">[${options.hotkey}]</span>` : ''}
           </div>
           <div class="card-banner type-${escapeHtml(stats.type)}">
-            <span>${escapeHtml(CARD_TYPE_LABELS[stats.type] || stats.type)}</span>
+            <span class="card-type-label">
+              <span>${escapeHtml(CARD_TYPE_LABELS[stats.type] || stats.type)}</span>
+              ${getCardTypeIconSvg(stats.type)}
+            </span>
             <span class="rarity-badge rarity-${escapeHtml(stats.rarity)}">${escapeHtml(RARITY_LABELS[stats.rarity] || '')}</span>
           </div>
           <div class="card-desc ${descToneClass}">${escapeHtml(desc.text)}</div>
@@ -431,8 +440,8 @@ export function mountSpireApp(rootEl) {
     const availableIds = new Set(getAvailableNodeIds(state));
     const totalRows = state.map.length;
 
-    const rowHeight = 52;
-    const rowGap = 16;
+    const rowHeight = 38;
+    const rowGap = 6;
     const totalHeight = totalRows * rowHeight + (totalRows - 1) * rowGap;
 
     const nodeCoords = new Map();
@@ -476,6 +485,7 @@ export function mountSpireApp(rootEl) {
             const isCurrent = state.currentNodeId === node.id;
             const cls = [
               'map-node-btn',
+              `node-kind-${node.type}`,
               node.visited ? 'visited' : '',
               isAvailable ? 'available' : '',
             ]
@@ -495,11 +505,12 @@ export function mountSpireApp(rootEl) {
                 type="button"
                 id="map-node-${escapeHtml(node.id)}"
                 class="${cls}"
+                data-node-type="${escapeHtml(node.type)}"
                 data-action="select-node"
                 data-node-id="${escapeHtml(node.id)}"
                 ${isAvailable ? '' : 'disabled'}
               >
-                <span class="node-icon-wrap">${getNodeIconSvg(node.type)}</span>
+                <span class="node-icon-wrap node-type-${escapeHtml(node.type)}">${getNodeIconSvg(node.type)}</span>
                 <span class="node-text">
                   <span class="node-title">${escapeHtml(meta.label)}</span>
                   <span class="node-hint">${escapeHtml(statusNote)}</span>
@@ -1049,6 +1060,33 @@ export function mountSpireApp(rootEl) {
   function renderModal() {
     if (!ui.modal) return '';
 
+    if (ui.modal === 'confirm_skip_reward') {
+      const check = getUnclaimedImportantRewards(state);
+      if (!check.hasUnclaimed) {
+        ui.modal = null;
+        return '';
+      }
+      return `
+        <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="reward-skip-desc">
+          <div class="modal-sheet modal-confirm-sheet" id="reward-unclaimed-modal">
+            <div class="modal-header">
+              <div>
+                <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">还有战利品未拾取！</h2>
+                <p id="reward-skip-desc" class="stage-subtitle" style="margin-top:6px;font-size:0.94rem;color:var(--text-ivory);">
+                  ${escapeHtml(check.message)}
+                </p>
+              </div>
+            </div>
+            <div class="confirm-actions">
+              <button type="button" id="btn-cancel-skip-reward" class="btn-stone" data-action="close-modal">返回拾取</button>
+              <button type="button" id="btn-claim-and-proceed" class="btn-brass" data-action="claim-important-and-proceed">一键拾取并继续 →</button>
+              <button type="button" id="btn-confirm-skip-reward" class="btn-stone btn-danger-subtle" data-action="confirm-proceed-reward">放弃并继续</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     let title = '牌组总览';
     let subtitle = '';
     let cards = [];
@@ -1323,7 +1361,35 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'proceed-reward': {
-        proceedFromReward(state);
+        const res = proceedFromReward(state);
+        if (res.requiresConfirm) {
+          ui.modal = 'confirm_skip_reward';
+          setNotice(res.reason, 'warn');
+        } else {
+          ui.modal = null;
+          setNotice('');
+        }
+        render();
+        break;
+      }
+      case 'confirm-proceed-reward': {
+        proceedFromReward(state, { force: true });
+        ui.modal = null;
+        setNotice('');
+        render();
+        break;
+      }
+      case 'claim-important-and-proceed': {
+        if (state.reward) {
+          if (!state.reward.goldClaimed && state.reward.gold > 0) {
+            claimRewardGold(state);
+          }
+          if (state.reward.relicId && !state.reward.relicClaimed) {
+            claimRewardRelic(state);
+          }
+        }
+        proceedFromReward(state, { force: true });
+        ui.modal = null;
         setNotice('');
         render();
         break;

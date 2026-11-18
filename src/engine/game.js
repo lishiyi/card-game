@@ -43,6 +43,7 @@ export function createNewRun(options = {}) {
     floor: 0,
     currentNodeId: null,
     lastEncounterId: null,
+    lastEliteId: null,
     visitedEventIds: [],
     player: {
       name: '铁甲战士',
@@ -240,7 +241,12 @@ export function selectMapNode(state, nodeId) {
 
   switch (node.type) {
     case 'combat': {
-      const pool = node.floor === 1 ? ENCOUNTERS.floor1 : ENCOUNTERS.normal;
+      const pool =
+        node.floor <= 2
+          ? ENCOUNTERS.floor1
+          : node.floor <= 8
+            ? ENCOUNTERS.normal
+            : ENCOUNTERS.hardNormal;
       const nonRepeat = pool.filter((e) => e.id !== state.lastEncounterId);
       const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : pool);
       state.lastEncounterId = encounter.id;
@@ -248,7 +254,12 @@ export function selectMapNode(state, nodeId) {
       return { ok: true, screen: state.screen };
     }
     case 'elite': {
-      const encounter = pickRandom(state, ENCOUNTERS.elite);
+      const nonRepeat = ENCOUNTERS.elite.filter((e) => e.id !== state.lastEliteId);
+      const encounter = pickRandom(
+        state,
+        nonRepeat.length > 0 ? nonRepeat : ENCOUNTERS.elite
+      );
+      state.lastEliteId = encounter.id;
       state.lastEncounterId = encounter.id;
       startCombat(state, encounter, 'elite');
       return { ok: true, screen: state.screen };
@@ -383,9 +394,48 @@ export function claimRewardCard(state, instanceId) {
   return { ok: true, addedCard: added };
 }
 
-export function proceedFromReward(state) {
+export function getUnclaimedImportantRewards(state) {
+  const rw = state?.reward;
+  if (state?.screen !== 'reward' || !rw) {
+    return {
+      hasUnclaimed: false,
+      items: [],
+      hasGold: false,
+      hasRelic: false,
+      message: '',
+    };
+  }
+  const items = [];
+  const hasGold = rw.gold > 0 && !rw.goldClaimed;
+  const hasRelic = Boolean(rw.relicId) && !rw.relicClaimed;
+  if (hasGold) {
+    items.push(`【${rw.gold} 金币】`);
+  }
+  if (hasRelic) {
+    const relicName = RELIC_LIBRARY[rw.relicId]?.name ?? rw.relicId;
+    items.push(`遗物【${relicName}】`);
+  }
+  const hasUnclaimed = items.length > 0;
+  const message = hasUnclaimed
+    ? `你还有 ${items.join('、')} 尚未拾取，确定不拾取直接继续前进吗？`
+    : '';
+  return { hasUnclaimed, items, hasGold, hasRelic, message };
+}
+
+export function proceedFromReward(state, options = {}) {
   if (state.screen !== 'reward') {
     return { ok: false, reason: '当前不在战利品界面' };
+  }
+  if (!options.force) {
+    const check = getUnclaimedImportantRewards(state);
+    if (check.hasUnclaimed) {
+      return {
+        ok: false,
+        requiresConfirm: true,
+        unclaimedItems: check.items,
+        reason: check.message,
+      };
+    }
   }
   state.reward = null;
   state.combat = null;

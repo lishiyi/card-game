@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
-import { ENCOUNTERS } from '../src/data/enemies.js';
+import { ENCOUNTERS, ENEMY_TEMPLATES } from '../src/data/enemies.js';
 import { EVENT_LIBRARY } from '../src/data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../src/data/relics.js';
 import { canPlayCard, MAX_HAND_SIZE, startCombat } from '../src/engine/combat.js';
@@ -77,6 +77,12 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   }, TypeError);
   assert.throws(() => {
     EVENT_LIBRARY.shining_light.choices[0].label = 'tampered';
+  }, TypeError);
+  assert.throws(() => {
+    ENEMY_TEMPLATES.lagavulin.hpRange[0] = 1;
+  }, TypeError);
+  assert.throws(() => {
+    ENCOUNTERS.hardNormal[0].enemies[0].templateId = 'cultist';
   }, TypeError);
 });
 
@@ -187,7 +193,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
     assertRunInvariants(state, `init seed ${seed}`);
 
     let safetySteps = 0;
-    while (state.screen !== 'game_over' && safetySteps < 900) {
+    while (state.screen !== 'game_over' && safetySteps < 1600) {
       safetySteps += 1;
 
       if (state.screen === 'map') {
@@ -292,7 +298,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
       assertRunInvariants(state, `loop step ${safetySteps} seed ${seed}`);
     }
 
-    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 900 steps`);
+    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 1600 steps`);
     if (state.runOutcome === 'victory') victories += 1;
     else defeats += 1;
   }

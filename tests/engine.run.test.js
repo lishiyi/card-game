@@ -20,6 +20,7 @@ import {
   discardPotion,
   findMapNode,
   getAvailableNodeIds,
+  getUnclaimedImportantRewards,
   leaveShop,
   proceedFromReward,
   restHeal,
@@ -28,15 +29,15 @@ import {
   selectMapNode,
 } from '../src/engine/game.js';
 
-test('Spire map generator guarantees planar connectivity, zero orphan nodes, and Boss at floor 10 across 100 seeds', () => {
-  assert.equal(TOTAL_FLOORS, 10);
+test('Spire map generator guarantees planar connectivity, zero orphan nodes, and Boss at floor 16 across 100 seeds', () => {
+  assert.equal(TOTAL_FLOORS, 16);
   for (let seed = 1; seed <= 100; seed += 1) {
     const state = createNewRun({ seed });
-    assert.equal(state.map.length, 10);
-    assert.equal(state.map[8].length, 1);
-    assert.equal(state.map[8][0].type, 'rest');
-    assert.equal(state.map[9].length, 1);
-    assert.equal(state.map[9][0].type, 'boss');
+    assert.equal(state.map.length, 16);
+    assert.equal(state.map[14].length, 1);
+    assert.equal(state.map[14][0].type, 'rest');
+    assert.equal(state.map[15].length, 1);
+    assert.equal(state.map[15][0].type, 'boss');
 
     for (let r = 0; r < state.map.length - 1; r += 1) {
       const currRow = state.map[r];
@@ -71,7 +72,7 @@ test('Spire map generator guarantees planar connectivity, zero orphan nodes, and
   }
 });
 
-test('Combat victory transitions to Reward screen, handles loot claiming & Burning Blood, and returns to Map', () => {
+test('Combat victory transitions to Reward screen, warns on unclaimed Gold/Relic (never on Potion/Card), and returns to Map', () => {
   const state = createNewRun({ seed: 1234 });
   const firstNodeId = getAvailableNodeIds(state)[0];
   selectMapNode(state, firstNodeId);
@@ -89,35 +90,66 @@ test('Combat victory transitions to Reward screen, handles loot claiming & Burni
   assert.equal(state.player.hp, 66); // Burning Blood +6 HP!
   assert.equal(state.screen, 'reward');
 
+  // 1. Unclaimed Gold blocks proceedFromReward with requiresConfirm: true
+  const blockedGold = proceedFromReward(state);
+  assert.equal(blockedGold.ok, false);
+  assert.equal(blockedGold.requiresConfirm, true);
+  assert.ok(blockedGold.reason.includes('金币'));
+  assert.equal(state.screen, 'reward');
+
   // Claim Gold once (second attempt rejected)
   const goldBefore = state.player.gold;
   assert.equal(claimRewardGold(state).ok, true);
   assert.equal(state.player.gold > goldBefore, true);
   assert.equal(claimRewardGold(state).ok, false);
 
-  // Force relic & potion into reward to test claiming and full belt handling
+  // 2. Force unclaimed Relic -> proceedFromReward warns specifically about Relic
   state.reward.relicId = 'vajra';
   state.reward.relicClaimed = false;
+  const blockedRelic = proceedFromReward(state);
+  assert.equal(blockedRelic.ok, false);
+  assert.equal(blockedRelic.requiresConfirm, true);
+  assert.ok(blockedRelic.reason.includes('金刚杵'));
+  assert.equal(state.screen, 'reward');
+
   assert.equal(claimRewardRelic(state).ok, true);
   assert.ok(state.player.relics.includes('vajra'));
 
+  // 3. Force unclaimed Potion AND unclaimed Card while Gold & Relic ARE claimed -> NO warning!
   state.player.potions = ['block_potion', 'strength_potion'];
   state.reward.potionId = 'energy_potion';
   state.reward.potionClaimed = false;
+  assert.equal(state.reward.cardClaimed, false);
+  assert.equal(getUnclaimedImportantRewards(state).hasUnclaimed, false);
+
   assert.equal(claimRewardPotion(state).ok, false); // Belt full!
   assert.equal(discardPotion(state, 1).ok, true);
   assert.equal(claimRewardPotion(state).ok, true);
   assert.equal(state.player.potions[1], 'energy_potion');
 
-  // Claim 1 of 3 reward cards
-  const deckSizeBefore = state.player.deck.length;
-  const pickId = state.reward.cardChoices[0].instanceId;
-  assert.equal(claimRewardCard(state, pickId).ok, true);
-  assert.equal(state.player.deck.length, deckSizeBefore + 1);
-  assert.equal(claimRewardCard(state, state.reward.cardChoices[1].instanceId).ok, false);
-
+  // Leave Card unclaimed and verify proceedFromReward succeeds immediately without prompt!
+  assert.equal(state.reward.cardClaimed, false);
   assert.equal(proceedFromReward(state).ok, true);
   assert.equal(state.screen, 'map');
+
+  // 4. Verify { force: true } allows deliberately skipping unclaimed Gold/Relic
+  const skipState = createNewRun({ seed: 4321 });
+  skipState.screen = 'reward';
+  skipState.reward = {
+    role: 'elite',
+    gold: 50,
+    goldClaimed: false,
+    relicId: 'anchor',
+    relicClaimed: false,
+    potionId: null,
+    potionClaimed: true,
+    cardChoices: [],
+    cardClaimed: false,
+    pickedCardId: null,
+  };
+  assert.equal(proceedFromReward(skipState).requiresConfirm, true);
+  assert.equal(proceedFromReward(skipState, { force: true }).ok, true);
+  assert.equal(skipState.screen, 'map');
 });
 
 test('Rest site supports both 30% Max HP Heal and Card Upgrade (Smith)', () => {

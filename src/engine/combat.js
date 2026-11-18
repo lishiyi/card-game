@@ -149,6 +149,17 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
     enemy.block = 0;
     enemy.intent = null;
     pushCombatLog(combat, `【${enemy.name}】被击败！`, 'victory');
+    if ((enemy.statuses.sporeCloud ?? 0) > 0) {
+      const spores = enemy.statuses.sporeCloud;
+      applyStatus(state.player, 'vulnerable', spores, {
+        appliedDuringEnemyTurn: combat.phase === 'enemy',
+      });
+      pushCombatLog(
+        combat,
+        `【${enemy.name}】的【孢子云】爆裂，使你获得 ${spores} 层【易伤】！`,
+        'status'
+      );
+    }
     return hpLoss;
   }
 
@@ -158,6 +169,13 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
     delete enemy.statuses.curlUp;
     enemy.block += curlBlock;
     pushCombatLog(combat, `【${enemy.name}】触发【蜷缩】，获得 ${curlBlock} 点格挡！`, 'block');
+  }
+
+  // Mad Gremlin Angry trigger: unblocked attack damage grants Strength
+  if (options.isAttack && hpLoss > 0 && (enemy.statuses.angry ?? 0) > 0) {
+    const gain = enemy.statuses.angry;
+    applyStatus(enemy, 'strength', gain);
+    pushCombatLog(combat, `【${enemy.name}】触发【愤怒】，获得 ${gain} 点力量！`, 'status');
   }
 
   // Boss Guardian Mode Shift
@@ -672,7 +690,9 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
           const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
           pushCombatLog(
             combat,
-            `【${enemy.name}】对你施加 ${val} 层【${statusName}】。`,
+            val < 0
+              ? `【${enemy.name}】使你失去 ${Math.abs(val)} 点【${statusName}】！`
+              : `【${enemy.name}】对你施加 ${val} 层【${statusName}】。`,
             'status'
           );
         }
@@ -710,7 +730,7 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
       enemy.lastMoveId = intent.id;
     }
 
-    // Ritual triggers at end of enemy turn (except turn cast)
+    // Ritual & Metallicize trigger at end of enemy turn
     if ((enemy.statuses.ritual ?? 0) > 0) {
       if (enemy.skipRitualThisTurn) {
         enemy.skipRitualThisTurn = false;
@@ -719,6 +739,11 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
         applyStatus(enemy, 'strength', gain);
         pushCombatLog(combat, `【${enemy.name}】的【仪式】触发，获得 ${gain} 点力量！`, 'status');
       }
+    }
+    if ((enemy.statuses.metallicize ?? 0) > 0) {
+      const m = enemy.statuses.metallicize;
+      enemy.block += m;
+      pushCombatLog(combat, `【${enemy.name}】的【金属化】生效，获得 ${m} 点格挡。`, 'block');
     }
 
     enemy.turnIndex += 1;

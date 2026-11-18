@@ -1,6 +1,16 @@
 import { nextRandom, randomInt } from '../engine/rng.js';
 
-export const ENEMY_TEMPLATES = Object.freeze({
+function deepFreeze(obj) {
+  if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+    Object.freeze(obj);
+    for (const val of Object.values(obj)) {
+      deepFreeze(val);
+    }
+  }
+  return obj;
+}
+
+export const ENEMY_TEMPLATES = deepFreeze({
   cultist: {
     id: 'cultist',
     name: '邪教徒',
@@ -49,12 +59,44 @@ export const ENEMY_TEMPLATES = Object.freeze({
     hpRange: [28, 32],
     initialStatuses: {},
   },
+  fungi_beast: {
+    id: 'fungi_beast',
+    name: '真菌兽',
+    role: 'normal',
+    artKey: 'fungi_beast',
+    hpRange: [22, 26],
+    initialStatuses: { sporeCloud: 2 },
+  },
+  slaver_blue: {
+    id: 'slaver_blue',
+    name: '蓝衣奴隶贩',
+    role: 'normal',
+    artKey: 'slaver_blue',
+    hpRange: [44, 48],
+    initialStatuses: {},
+  },
+  looter: {
+    id: 'looter',
+    name: '尖塔劫匪',
+    role: 'normal',
+    artKey: 'looter',
+    hpRange: [42, 46],
+    initialStatuses: {},
+  },
+  mad_gremlin: {
+    id: 'mad_gremlin',
+    name: '狂怒地精',
+    role: 'normal',
+    artKey: 'mad_gremlin',
+    hpRange: [19, 23],
+    initialStatuses: { angry: 1 },
+  },
   gremlin_nob: {
     id: 'gremlin_nob',
     name: '地精大块头',
     role: 'elite',
     artKey: 'gremlin_nob',
-    hpRange: [72, 76],
+    hpRange: [74, 78],
     initialStatuses: {},
   },
   sentry: {
@@ -62,23 +104,36 @@ export const ENEMY_TEMPLATES = Object.freeze({
     name: '远古哨卫',
     role: 'elite',
     artKey: 'sentry',
-    hpRange: [33, 37],
+    hpRange: [34, 38],
     initialStatuses: {},
+  },
+  lagavulin: {
+    id: 'lagavulin',
+    name: '乐加维林',
+    role: 'elite',
+    artKey: 'lagavulin',
+    hpRange: [88, 92],
+    initialStatuses: { metallicize: 5 },
   },
   the_guardian: {
     id: 'the_guardian',
     name: '尖塔守护者',
     role: 'boss',
     artKey: 'the_guardian',
-    hpRange: [135, 135],
+    hpRange: [155, 155],
     initialStatuses: { modeShift: 25 },
   },
 });
 
-export const ENCOUNTERS = Object.freeze({
+export const ENCOUNTERS = deepFreeze({
   floor1: [
     { id: 'cultist_solo', name: '狂热仪式', enemies: [{ templateId: 'cultist' }] },
     { id: 'jaw_worm_solo', name: '地底颚虫', enemies: [{ templateId: 'jaw_worm' }] },
+    {
+      id: 'early_lice',
+      name: '虱虫前哨',
+      enemies: [{ templateId: 'red_louse' }, { templateId: 'green_louse' }],
+    },
   ],
   normal: [
     {
@@ -92,9 +147,59 @@ export const ENCOUNTERS = Object.freeze({
       enemies: [{ templateId: 'acid_slime' }, { templateId: 'spike_slime' }],
     },
     {
+      id: 'fungi_pair',
+      name: '毒孢菌丛',
+      enemies: [{ templateId: 'fungi_beast' }, { templateId: 'fungi_beast' }],
+    },
+    {
+      id: 'looter_solo',
+      name: '暗巷劫掠',
+      enemies: [{ templateId: 'looter' }],
+    },
+    {
+      id: 'slaver_solo',
+      name: '铁钩巡猎',
+      enemies: [{ templateId: 'slaver_blue' }],
+    },
+    {
+      id: 'gremlin_pack',
+      name: '地精袭扰小队',
+      enemies: [
+        { templateId: 'mad_gremlin' },
+        { templateId: 'mad_gremlin' },
+        { templateId: 'green_louse' },
+      ],
+    },
+  ],
+  hardNormal: [
+    {
       id: 'louse_and_cultist',
       name: '祭司与护卫虫',
       enemies: [{ templateId: 'red_louse' }, { templateId: 'cultist' }],
+    },
+    {
+      id: 'fungi_and_slaver',
+      name: '菌兽与奴隶贩',
+      enemies: [{ templateId: 'fungi_beast' }, { templateId: 'slaver_blue' }],
+    },
+    {
+      id: 'looter_and_gremlin',
+      name: '劫匪与狂怒地精',
+      enemies: [{ templateId: 'looter' }, { templateId: 'mad_gremlin' }],
+    },
+    {
+      id: 'jaw_worm_and_slime',
+      name: '地底共生体',
+      enemies: [{ templateId: 'jaw_worm' }, { templateId: 'spike_slime' }],
+    },
+    {
+      id: 'tri_lice_swarm',
+      name: '三色甲虫群',
+      enemies: [
+        { templateId: 'red_louse' },
+        { templateId: 'green_louse' },
+        { templateId: 'red_louse' },
+      ],
     },
   ],
   elite: [
@@ -110,6 +215,11 @@ export const ENCOUNTERS = Object.freeze({
         { templateId: 'sentry', variantIndex: 0 },
         { templateId: 'sentry', variantIndex: 1 },
       ],
+    },
+    {
+      id: 'lagavulin_elite',
+      name: '精英：乐加维林',
+      enemies: [{ templateId: 'lagavulin' }],
     },
   ],
   boss: [
@@ -128,6 +238,7 @@ export function createEnemyInstance(state, spec) {
   }
   state.nextUid = (state.nextUid ?? 1) + 1;
   const maxHp = randomInt(state, tpl.hpRange[0], tpl.hpRange[1]);
+  const initialBlock = tpl.initialStatuses?.metallicize ? tpl.initialStatuses.metallicize : 0;
 
   const enemy = {
     id: `enemy_${state.nextUid}`,
@@ -137,7 +248,7 @@ export function createEnemyInstance(state, spec) {
     artKey: tpl.artKey,
     hp: maxHp,
     maxHp,
-    block: 0,
+    block: initialBlock,
     statuses: { ...tpl.initialStatuses },
     skipStatusTick: {},
     skipRitualThisTurn: false,
@@ -368,6 +479,80 @@ export function rollEnemyIntent(state, enemy) {
       };
     }
 
+    case 'fungi_beast': {
+      if (enemy.lastMoveId !== 'grow' && roll < 0.35) {
+        return {
+          id: 'grow',
+          name: '菌丝膨胀',
+          type: 'buff',
+          applySelfStatuses: { strength: 3 },
+          summary: '意图：获得 3 点力量',
+        };
+      }
+      return {
+        id: 'bite',
+        name: '毒菌啃咬',
+        type: 'attack',
+        damage: 6,
+        hits: 1,
+      };
+    }
+
+    case 'slaver_blue': {
+      if (enemy.lastMoveId !== 'rake' && roll < 0.42) {
+        return {
+          id: 'rake',
+          name: '铁钩横扫',
+          type: 'attack_debuff',
+          damage: 7,
+          hits: 1,
+          applyPlayerStatuses: { weak: 1 },
+        };
+      }
+      return {
+        id: 'stab',
+        name: '长矛刺击',
+        type: 'attack',
+        damage: 12,
+        hits: 1,
+      };
+    }
+
+    case 'looter': {
+      if (enemy.turnIndex < 2) {
+        return {
+          id: 'mug',
+          name: '顺手牵羊',
+          type: 'attack',
+          damage: 10,
+          hits: 1,
+        };
+      }
+      if (enemy.turnIndex === 2) {
+        return {
+          id: 'lunge_guard',
+          name: '闪身架势',
+          type: 'defend_buff',
+          block: 6,
+          applySelfStatuses: { strength: 2 },
+          summary: '意图：获得 6 点格挡与 2 点力量',
+        };
+      }
+      return enemy.turnIndex % 2 === 1
+        ? { id: 'slash', name: '凶狠劈砍', type: 'attack', damage: 12, hits: 1 }
+        : { id: 'feint', name: '虚晃突刺', type: 'attack_block', damage: 8, hits: 1, block: 6 };
+    }
+
+    case 'mad_gremlin': {
+      return {
+        id: 'scratch',
+        name: '疯狂抓挠',
+        type: 'attack',
+        damage: 5,
+        hits: 1,
+      };
+    }
+
     case 'gremlin_nob': {
       if (enemy.turnIndex === 0) {
         return {
@@ -413,6 +598,33 @@ export function rollEnemyIntent(state, enemy) {
         name: '聚能光束',
         type: 'attack',
         damage: 9,
+        hits: 1,
+      };
+    }
+
+    case 'lagavulin': {
+      if (enemy.turnIndex === 0) {
+        return {
+          id: 'shell_awaken',
+          name: '甲壳苏醒',
+          type: 'defend',
+          block: 8,
+        };
+      }
+      if ((enemy.turnIndex - 1) % 3 === 2) {
+        return {
+          id: 'siphon_soul',
+          name: '灵魂虹吸',
+          type: 'debuff',
+          applyPlayerStatuses: { strength: -1, dexterity: -1 },
+          summary: '意图：吸取灵魂，使你本场战斗失去 1 点力量与 1 点敏捷',
+        };
+      }
+      return {
+        id: 'claw_crush',
+        name: '巨螯重击',
+        type: 'attack',
+        damage: 16,
         hits: 1,
       };
     }
