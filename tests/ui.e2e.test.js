@@ -1170,7 +1170,7 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     assert.equal(mobileMapAudit.tipShownOnFirstTap, true);
     assert.equal(mobileMapAudit.tipHiddenOnSecondTap, true);
 
-    // 2. Mobile 390x844 Combat audit: zero horizontal page overflow, scrollable hand tray, tap-to-inspect next-turn intent
+    // 2. Mobile 390x844 Combat audit: zero horizontal page overflow, left-player / right-enemies across 1v1, 1v2, 1v3, scrollable hand tray, tap-to-inspect next-turn intent
     const mobileCombatAudit = await cdp.evaluate(`(() => {
       document.querySelector('.map-node-btn.available').click();
       const docScrollWidth = document.documentElement.scrollWidth;
@@ -1182,6 +1182,7 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       const tip = document.getElementById('spire-tooltip');
       const tipOpen = !tip.hidden;
       const tipTag = tip.querySelector('.spire-tooltip-tag')?.textContent?.trim() || '';
+      if (!tip.hidden) nextHint.click();
 
       return { docScrollWidth, innerWidth, handOverflowX, tipOpen, tipTag };
     })()`);
@@ -1192,6 +1193,118 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     assert.equal(mobileCombatAudit.handOverflowX, 'auto');
     assert.equal(mobileCombatAudit.tipOpen, true);
     assert.equal(mobileCombatAudit.tipTag, '行动预判');
+
+    const auditSideBySideCombat = async (enemyCount) => {
+      return cdp.evaluate(`(() => {
+        const app = window.__SPIRE_APP__;
+        const st = app.getState();
+        const baseEnemy = st.combat.enemies[0];
+        st.combat.enemies = Array.from({ length: ${enemyCount} }, (_, idx) => ({
+          ...structuredClone(baseEnemy),
+          id: 'e_layout_' + idx,
+          name: idx === 0 ? '邪教徒' : idx === 1 ? '巨型尖刺史莱姆' : '远古哨卫',
+        }));
+        app.render();
+
+        const arena = document.querySelector('.combat-arena');
+        const arenaRect = arena.getBoundingClientRect();
+        const playerRect = document.getElementById('player-unit').getBoundingClientRect();
+        const enemyRects = [...document.querySelectorAll('[id^="enemy-unit-"]')].map((el) =>
+          el.getBoundingClientRect()
+        );
+        const minEnemyLeft = Math.min(...enemyRects.map((r) => r.left));
+        const maxEnemyRight = Math.max(...enemyRects.map((r) => r.right));
+
+        let enemyOverlapCount = 0;
+        for (let i = 0; i < enemyRects.length; i += 1) {
+          for (let j = i + 1; j < enemyRects.length; j += 1) {
+            const a = enemyRects[i];
+            const b = enemyRects[j];
+            const horizOverlap = a.left < b.right - 1.5 && b.left < a.right - 1.5;
+            const vertOverlap = a.top < b.bottom - 1.5 && b.top < a.bottom - 1.5;
+            if (horizOverlap && vertOverlap) enemyOverlapCount += 1;
+          }
+        }
+
+        return {
+          innerWidth: window.innerWidth,
+          docScrollWidth: document.documentElement.scrollWidth,
+          enemyDensityAttr: arena.dataset.enemyCount,
+          playerRight: playerRect.right,
+          playerLeft: playerRect.left,
+          arenaLeft: arenaRect.left,
+          arenaRight: arenaRect.right,
+          minEnemyLeft,
+          maxEnemyRight,
+          enemyOverlapCount,
+        };
+      })()`);
+    };
+
+    for (const count of [1, 2, 3]) {
+      const layout390 = await auditSideBySideCombat(count);
+      assert.equal(layout390.enemyDensityAttr, String(count));
+      assert.ok(
+        layout390.docScrollWidth <= layout390.innerWidth,
+        `390px 1v${count} overflowed horizontally: ${layout390.docScrollWidth} > ${layout390.innerWidth}`
+      );
+      assert.ok(
+        layout390.playerRight <= layout390.minEnemyLeft + 2,
+        `390px 1v${count} expected player on left of enemies, got playerRight=${layout390.playerRight}, minEnemyLeft=${layout390.minEnemyLeft}`
+      );
+      assert.ok(
+        layout390.maxEnemyRight <= layout390.arenaRight + 1.5 &&
+          layout390.playerLeft >= layout390.arenaLeft - 1.5,
+        `390px 1v${count} fighter overflowed arena bounds`
+      );
+      assert.equal(layout390.enemyOverlapCount, 0, `390px 1v${count} enemies must not overlap`);
+
+      if (process.env.SCRATCH_SCREENSHOT_DIR) {
+        fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+        const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+        fs.writeFileSync(
+          path.join(process.env.SCRATCH_SCREENSHOT_DIR, `combat_390_1v${count}.png`),
+          Buffer.from(shot.data, 'base64')
+        );
+      }
+    }
+
+    // 2b. Half-screen desktop / tablet 720x880 Combat audit (exact <=768px window class where vertical stacking previously occurred)
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 720,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await new Promise((r) => setTimeout(r, 120));
+
+    for (const count of [1, 2, 3]) {
+      const layout720 = await auditSideBySideCombat(count);
+      assert.equal(layout720.enemyDensityAttr, String(count));
+      assert.ok(
+        layout720.docScrollWidth <= layout720.innerWidth,
+        `720px 1v${count} overflowed horizontally: ${layout720.docScrollWidth} > ${layout720.innerWidth}`
+      );
+      assert.ok(
+        layout720.playerRight <= layout720.minEnemyLeft + 2,
+        `720px 1v${count} expected player on left of enemies, got playerRight=${layout720.playerRight}, minEnemyLeft=${layout720.minEnemyLeft}`
+      );
+      assert.ok(
+        layout720.maxEnemyRight <= layout720.arenaRight + 1.5 &&
+          layout720.playerLeft >= layout720.arenaLeft - 1.5,
+        `720px 1v${count} fighter overflowed arena bounds`
+      );
+      assert.equal(layout720.enemyOverlapCount, 0, `720px 1v${count} enemies must not overlap`);
+
+      if (process.env.SCRATCH_SCREENSHOT_DIR) {
+        const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+        fs.writeFileSync(
+          path.join(process.env.SCRATCH_SCREENSHOT_DIR, `combat_720_1v${count}.png`),
+          Buffer.from(shot.data, 'base64')
+        );
+      }
+    }
 
     // 3. Boot generated standalone single-file HTML bundle directly in Chromium & verify full interactivity
     await cdp.evaluate(`window.localStorage.clear()`);

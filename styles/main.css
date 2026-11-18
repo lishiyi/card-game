@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   /* Atmospheric Stone & Torchlight Palette (Warm Obsidian, Brass, Crimson, Steel, Jade) */
   --bg-abyss: hsl(24, 16%, 7%);
   --bg-cavern: hsl(25, 14%, 11%);
@@ -580,37 +581,67 @@ button:disabled {
 /* === Combat Arena === */
 .combat-arena {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.45fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.55fr);
   gap: 20px;
   align-items: end;
-  padding: 18px 22px;
+  padding: 16px 22px;
   background:
-    radial-gradient(ellipse 70% 50% at 50% 78%, hsla(30, 26%, 20%, 0.42), transparent 72%),
+    radial-gradient(ellipse 38% 48% at 24% 82%, hsla(30, 28%, 22%, 0.42), transparent 72%),
+    radial-gradient(ellipse 46% 48% at 74% 82%, hsla(18, 28%, 20%, 0.38), transparent 74%),
     linear-gradient(180deg, var(--surface-raised), var(--bg-cavern));
   border: 1px solid var(--border-stone);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft), var(--bevel-highlight);
 }
 
+.combat-arena[data-enemy-count='1'] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.combat-arena[data-enemy-count='2'] {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.58fr);
+}
+
+.combat-arena[data-enemy-count='3'] {
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.98fr);
+}
+
 .fighters-group {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 14px;
+  min-width: 0;
+}
+
+.fighters-group.player-side {
+  border-right: 1px dashed hsla(34, 24%, 38%, 0.38);
+  padding-right: 14px;
+}
+
+.fighters-group.enemy-side {
+  flex-wrap: nowrap;
 }
 
 .fighter-unit {
-  width: 205px;
-  padding: 12px 12px 14px;
+  flex: 0 1 196px;
+  width: 196px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 10px 11px 12px;
   border-radius: var(--radius-md);
   background: hsla(24, 14%, 10%, 0.62);
   border: 1px solid var(--border-muted);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   transition: transform 0.16s ease, background-color 0.16s ease;
+}
+
+.combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit {
+  flex: 1 1 0;
+  max-width: 184px;
 }
 
 .fighter-unit.enemy-targetable {
@@ -631,17 +662,31 @@ button:disabled {
 }
 
 .intent-badge {
-  min-height: 28px;
-  padding: 3px 10px;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 3px 9px;
   border-radius: var(--radius-sm);
   background: var(--surface-stone);
   border: 1px solid var(--border-stone);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  justify-content: center;
+  gap: 5px;
+  font-size: 0.79rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
+}
+
+.intent-badge svg {
+  flex-shrink: 0;
+}
+
+.intent-badge > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .intent-badge.attack {
@@ -657,8 +702,8 @@ button:disabled {
 }
 
 .unit-figure {
-  width: 112px;
-  height: 112px;
+  width: 98px;
+  height: 98px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -674,17 +719,27 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 4px;
   width: 100%;
-  font-size: 0.88rem;
+  min-width: 0;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
+.unit-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .block-pill {
+  flex-shrink: 0;
   padding: 1px 7px;
   border-radius: var(--radius-sm);
   background: var(--steel-deep);
   color: hsl(198, 86%, 82%);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1685,11 +1740,13 @@ button.loot-reward-card.loot-kind-potion:hover {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
 }
 
 .next-intent-hint {
-  max-width: 196px;
+  max-width: min(196px, 100%);
   padding: 2px 7px;
   border-radius: 4px;
   background: hsla(24, 16%, 10%, 0.86);
@@ -2237,6 +2294,42 @@ button.loot-reward-card.loot-kind-potion:hover {
   .map-node-btn.node-kind-boss {
     width: 146px;
   }
+
+  .combat-arena {
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .fighters-group {
+    gap: 10px;
+  }
+
+  .fighters-group.player-side {
+    padding-right: 10px;
+  }
+
+  .fighter-unit {
+    flex: 0 1 172px;
+    width: 172px;
+    padding: 9px 10px 11px;
+  }
+
+  .unit-figure {
+    width: 84px;
+    height: 84px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .fighter-unit {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 158px;
+    padding: 8px 8px 10px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .unit-figure {
+    width: 72px;
+    height: 72px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2299,24 +2392,76 @@ button.loot-reward-card.loot-kind-potion:hover {
   }
 
   .combat-arena {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
     padding: 12px;
+  }
+
+  .combat-arena[data-enemy-count='2'] {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.65fr);
+  }
+
+  .combat-arena[data-enemy-count='3'] {
+    grid-template-columns: minmax(0, 0.68fr) minmax(0, 2.02fr);
   }
 
   .fighters-group {
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .fighters-group.player-side {
+    padding-right: 8px;
   }
 
   .fighter-unit {
-    width: 158px;
-    padding: 8px 10px;
+    flex: 0 1 154px;
+    width: 154px;
+    padding: 8px 8px 10px;
+    gap: 5px;
   }
 
   .unit-figure {
-    width: 84px;
-    height: 84px;
+    width: 74px;
+    height: 74px;
+  }
+
+  .intent-badge {
+    min-height: 24px;
+    padding: 2px 7px;
+    font-size: 0.74rem;
+    gap: 4px;
+  }
+
+  .unit-name-row {
+    font-size: 0.8rem;
+  }
+
+  .combat-arena[data-enemy-count='2'] .enemy-side .fighter-unit {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 154px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .fighter-unit {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 146px;
+    padding: 7px 6px 9px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .unit-figure {
+    width: 62px;
+    height: 62px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .intent-badge {
+    padding: 2px 5px;
+    font-size: 0.7rem;
+  }
+
+  .combat-arena[data-enemy-count='3'] .next-intent-hint {
+    padding: 1px 5px;
+    font-size: 0.65rem;
   }
 
   .dock-controls {
@@ -2325,8 +2470,11 @@ button.loot-reward-card.loot-kind-potion:hover {
 
   .hand-tray {
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: safe center;
     overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(30, 14%, 28%) transparent;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
     padding: 12px 6px 8px;
@@ -2453,20 +2601,114 @@ button.loot-reward-card.loot-kind-potion:hover {
     white-space: nowrap;
   }
 
-  .fighter-unit {
-    width: min(148px, calc(50% - 6px));
-    min-width: 132px;
-    padding: 7px 8px;
+  .combat-arena {
+    gap: 8px;
+    padding: 10px 8px;
   }
 
-  .unit-figure {
-    width: 72px;
-    height: 72px;
+  .fighters-group {
+    gap: 6px;
+  }
+
+  .fighters-group.player-side {
+    padding-right: 6px;
+  }
+
+  .combat-arena[data-enemy-count='1'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .combat-arena[data-enemy-count='1'] .fighter-unit {
+    flex: 0 1 156px;
+    width: 100%;
+    min-width: 0;
+    padding: 7px 8px 9px;
+    gap: 4px;
+  }
+
+  .combat-arena[data-enemy-count='1'] .unit-figure {
+    width: 64px;
+    height: 64px;
+  }
+
+  .combat-arena[data-enemy-count='2'] {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.88fr);
+  }
+
+  .combat-arena[data-enemy-count='2'] .fighter-unit,
+  .combat-arena[data-enemy-count='2'] .enemy-side .fighter-unit {
+    flex: 1 1 0;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 6px 5px 8px;
+    gap: 4px;
+  }
+
+  .combat-arena[data-enemy-count='2'] .unit-figure {
+    width: 52px;
+    height: 52px;
+  }
+
+  .combat-arena[data-enemy-count='3'] {
+    grid-template-columns: minmax(96px, 0.84fr) minmax(0, 1.96fr);
+    align-items: center;
+  }
+
+  .combat-arena[data-enemy-count='3'] .fighters-group.enemy-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    align-items: end;
+  }
+
+  .combat-arena[data-enemy-count='3'] .fighter-unit {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 6px 5px 8px;
+    gap: 4px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .unit-figure {
+    width: 50px;
+    height: 50px;
+  }
+
+  .intent-badge {
+    min-height: 22px;
+    padding: 2px 5px;
+    font-size: 0.68rem;
+    gap: 3px;
+  }
+
+  .unit-name-row {
+    font-size: 0.74rem;
+  }
+
+  .hp-track {
+    height: 15px;
+  }
+
+  .hp-label {
+    font-size: 0.68rem;
+  }
+
+  .status-row {
+    min-height: 18px;
+    gap: 3px;
+  }
+
+  .status-chip {
+    padding: 1px 4px;
+    font-size: 0.64rem;
   }
 
   .next-intent-hint {
-    max-width: 128px;
-    font-size: 0.65rem;
+    max-width: 100%;
+    padding: 1px 5px;
+    font-size: 0.64rem;
   }
 
   .energy-orb {

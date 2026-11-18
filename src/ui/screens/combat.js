@@ -89,7 +89,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
             ${getCharacterSvg(enemy.artKey, enemy.mode)}
           </div>
           <div class="unit-name-row">
-            <span>${escapeHtml(enemy.name)}</span>
+            <span class="unit-name-text">${escapeHtml(enemy.name)}</span>
             ${
               enemy.block > 0
                 ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${enemy.block})`)}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="优先抵消受到的攻击伤害，下回合开始时清零。">盾 ${escapeHtml(enemy.block)}</span>`
@@ -147,10 +147,12 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
     bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}（数字键 1-9 快速出牌，E 键结束回合）`;
   }
 
+  const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
+
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
 
-    <section class="combat-arena" aria-label="战斗舞台">
+    <section class="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
       <div class="fighters-group player-side">
         <div class="fighter-unit" id="player-unit">
           <div class="intent-stack">
@@ -158,7 +160,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
           </div>
           <div class="unit-figure">${getCharacterSvg('ironclad')}</div>
           <div class="unit-name-row">
-            <span>${escapeHtml(state.player.name)}</span>
+            <span class="unit-name-text">${escapeHtml(state.player.name)}</span>
             ${
               state.player.block > 0
                 ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${state.player.block})`)}" data-tooltip-tag="自身" data-tooltip-desc="优先抵消敌方攻击伤害，下回合开始时清零。">盾 ${escapeHtml(state.player.block)}</span>`
