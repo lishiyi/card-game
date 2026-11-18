@@ -476,6 +476,9 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 22);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 10);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 46);
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -491,5 +494,243 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
     }
   }
 });
+
+test('Exhaust archetype: Feel No Pain, Dark Embrace, Charons Ashes, Corruption, Second Wind, True Grit+, and Fiend Fire', () => {
+  const state = setupCustomCombat(1501, {
+    id: 'exhaust_test',
+    name: '消耗流测试',
+    enemies: [{ templateId: 'slaver_blue' }],
+  });
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 120;
+  enemy.maxHp = 120;
+
+  state.player.relics.push('charons_ashes');
+  state.player.energy = 10;
+
+  const fnp = createCardInstance(state, 'feel_no_pain', false); // 3 block per exhaust
+  const de = createCardInstance(state, 'dark_embrace', false); // 1 draw per exhaust
+  const corr = createCardInstance(state, 'corruption', false); // skills cost 0 & exhaust
+  const shrug = createCardInstance(state, 'shrug_it_off', false); // skill: normally cost 1
+  state.combat.hand = [fnp, de, corr, shrug];
+  state.combat.drawPile = [
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'strike', false),
+  ];
+
+  playCard(state, fnp.instanceId);
+  playCard(state, de.instanceId);
+  playCard(state, corr.instanceId);
+
+  // Under Corruption, Shrug It Off displays cost 0, spends 0 energy, and exhausts -> triggers Feel No Pain (+3 block), Charon's Ashes (3 dmg), Dark Embrace (+1 draw)
+  const shrugDesc = formatCardDescription(shrug, { player: state.player });
+  assert.equal(shrugDesc.displayCost, '0');
+  assert.equal(shrugDesc.costReducedNow, true);
+
+  const energyBeforeShrug = state.player.energy;
+  playCard(state, shrug.instanceId);
+  assert.equal(state.player.energy, energyBeforeShrug);
+  assert.equal(state.player.block, 8 + 3); // 8 from Shrug + 3 from Feel No Pain
+  assert.equal(enemy.hp, 117); // 3 from Charon's Ashes
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === shrug.instanceId), true);
+  assert.equal(state.combat.hand.length, 2); // 1 drawn by Shrug + 1 drawn by Dark Embrace
+
+  // Second Wind exhausts all non-Attack cards in hand and grants block per card
+  delete state.player.statuses.corruption;
+  delete state.player.statuses.darkEmbrace;
+  state.player.block = 0;
+  const secondWind = createCardInstance(state, 'second_wind', false); // 5 block per non-attack
+  const wound = createCardInstance(state, 'slimed', false);
+  const curse = createCardInstance(state, 'regret', false);
+  const keepAtk = createCardInstance(state, 'strike', false);
+  state.combat.hand = [secondWind, wound, curse, keepAtk];
+  playCard(state, secondWind.instanceId);
+  // Exhausted wound + curse (2 cards) -> Second Wind +10 block, Feel No Pain +6 block = 16 block; Strike remains in hand!
+  assert.equal(state.player.block, 16);
+  assert.equal(state.combat.hand.length, 1);
+  assert.equal(state.combat.hand[0].instanceId, keepAtk.instanceId);
+
+  // True Grit+ smartly prefers exhausting Status/Curse cards in hand
+  const trueGritPlus = createCardInstance(state, 'true_grit', true);
+  const clumsy = createCardInstance(state, 'clumsy', false);
+  state.combat.hand = [trueGritPlus, keepAtk, clumsy];
+  playCard(state, trueGritPlus.instanceId);
+  assert.equal(state.combat.hand.length, 1);
+  assert.equal(state.combat.hand[0].instanceId, keepAtk.instanceId);
+
+  // Fiend Fire exhausts entire remaining hand and deals 7 dmg per exhausted card
+  enemy.hp = 80;
+  const fiendFire = createCardInstance(state, 'fiend_fire', false);
+  state.combat.hand = [
+    fiendFire,
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+  ];
+  state.player.energy = 5;
+  playCard(state, fiendFire.instanceId, enemy.id);
+  // 3 hand cards exhausted -> Charon's Ashes (3*3=9) + Fiend Fire hits (7*3=21) + Fiend Fire itself exhausts (Charon's Ashes +3) = 33 dmg!
+  assert.equal(enemy.hp, 80 - 33);
+  assert.equal(state.combat.hand.length, 0);
+});
+
+test('Block archetype & Keywords: Barricade, Entrench, Flame Barrier, Retain (Steadfast Guard), Ethereal (Ghostly Armor), Innate (Ambush Slash), Reaper, Armaments+, Anger, and Flex', () => {
+  // 1. Innate Ambush Slash is guaranteed in Turn 1 hand even in a 20-card deck
+  const deckSpecs = Array.from({ length: 19 }, () => 'strike').concat(['ambush_slash']);
+  const state = setupCustomCombat(1601, ENCOUNTERS.floor1[0], deckSpecs);
+  assert.equal(state.combat.hand.some((c) => c.cardId === 'ambush_slash'), true);
+
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 100;
+  enemy.maxHp = 100;
+  enemy.intent = { id: 'multi_poke', name: '二连刺', type: 'attack', damage: 4, hits: 2 };
+
+  // 2. Barricade + Flame Barrier + Entrench + Steadfast Guard (Retain) + Ghostly Armor (Ethereal)
+  state.player.energy = 10;
+  const barricade = createCardInstance(state, 'barricade', false);
+  const fb = createCardInstance(state, 'flame_barrier', false); // 12 block, 4 thorns per hit
+  const entrench = createCardInstance(state, 'entrench', false); // doubles block -> 24
+  const retainCard = createCardInstance(state, 'steadfast_guard', false);
+  const ghostly = createCardInstance(state, 'ghostly_armor', false);
+  state.combat.hand = [barricade, fb, entrench, retainCard, ghostly];
+
+  playCard(state, barricade.instanceId);
+  playCard(state, fb.instanceId);
+  playCard(state, entrench.instanceId);
+  assert.equal(state.player.block, 24);
+
+  // End Turn: Ghostly Armor exhausts (Ethereal), Steadfast Guard stays in hand (Retain), Enemy hits 4x2 (8 blocked -> 16 block left, takes 4x2=8 Flame Barrier damage), Barricade preserves remaining 16 block on Turn 2!
+  endPlayerTurn(state);
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === ghostly.instanceId), true);
+  assert.equal(state.combat.hand.some((c) => c.instanceId === retainCard.instanceId), true);
+  assert.equal(enemy.hp, 92);
+  assert.equal(state.player.block, 16);
+  assert.equal(state.player.statuses.flameBarrier, undefined);
+
+  // 3. Flex temporary +2 Strength decays at end of turn; Armaments+ upgrades entire hand; Anger copies self to discard; Reaper heals unblocked AoE damage
+  const flex = createCardInstance(state, 'flex', false);
+  const armPlus = createCardInstance(state, 'armaments', true);
+  const anger = createCardInstance(state, 'anger', false);
+  const reaper = createCardInstance(state, 'reaper', false);
+  state.player.hp = 50;
+  state.player.energy = 6;
+  state.combat.hand = [flex, armPlus, anger, reaper];
+  state.combat.discardPile = [];
+
+  playCard(state, flex.instanceId);
+  assert.equal(state.player.statuses.strength, 2);
+
+  playCard(state, armPlus.instanceId);
+  assert.equal(anger.upgraded, true);
+  assert.equal(reaper.upgraded, true); // Reaper+ base 5 + 2 Str = 7 dmg & 7 heal!
+
+  const discardBeforeAnger = state.combat.discardPile.length;
+  playCard(state, anger.instanceId, enemy.id);
+  // Anger itself + 1 copy = +2 cards in discardPile
+  assert.equal(state.combat.discardPile.length, discardBeforeAnger + 2);
+
+  playCard(state, reaper.instanceId);
+  assert.equal(state.player.hp, 57);
+
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff' };
+  endPlayerTurn(state);
+  assert.equal(state.player.statuses.strength ?? 0, 0);
+});
+
+test('Curses (Clumsy, Doubt, Regret), Burn status, Relics (Paper Phrog, Torii, Tungsten Rod, Horn Cleat, Velvet Choker, Meat on the Bone, Black Blood, Sacred Bark), Hexaghost, and Slime Boss 50% Split', () => {
+  // 1. Paper Phrog boosts Vulnerable to 1.75x
+  const phrogPlayer = { statuses: {}, relics: ['paper_phrog'] };
+  assert.equal(calculateAttackDamage(12, phrogPlayer, { statuses: { vulnerable: 1 } }), 21);
+
+  // 2. Curses, Burn, Torii, Tungsten Rod, Horn Cleat (Turn 2 +14 block), Velvet Choker (6-card limit), Sacred Bark (2x potions)
+  const state = setupCustomCombat(1701, {
+    id: 'relic_curse_test',
+    name: '遗物诅咒测试',
+    enemies: [{ templateId: 'hexaghost' }],
+  });
+  const hexa = state.combat.enemies[0];
+  assert.equal(hexa.intent.id, 'activate_flames'); // Hexaghost Turn 1 Activate Flames
+
+  state.player.relics.push('torii', 'tungsten_rod', 'horn_cleat', 'velvet_choker', 'sacred_bark');
+  state.player.hp = 60;
+  state.player.potions = ['swift_potion', 'explosive_potion'];
+
+  // Sacred Bark doubles Explosive Potion (10 -> 20 AoE damage) & Swift Potion (3 -> 6 draw)
+  const hpBeforePot = hexa.hp;
+  assert.equal(usePotion(state, 1).ok, true);
+  assert.equal(hexa.hp, hpBeforePot - 20);
+
+  // Velvet Choker blocks 7th card in the same turn
+  state.player.energy = 10;
+  state.combat.hand = Array.from({ length: 7 }, () => createCardInstance(state, 'anger', false));
+  for (let i = 0; i < 6; i += 1) {
+    assert.equal(playCard(state, state.combat.hand[0].instanceId, hexa.id).ok, true);
+  }
+  const seventhRes = playCard(state, state.combat.hand[0].instanceId, hexa.id);
+  assert.equal(seventhRes.ok, false);
+  assert.ok(seventhRes.reason.includes('天鹅绒项圈'));
+
+  // Put Burn (2 non-attack dmg -> Tungsten Rod reduces to 1), Regret (3 HP loss -> Tungsten Rod reduces to 2), Doubt (1 Weak), Clumsy (Ethereal) in hand
+  state.combat.hand = [
+    createCardInstance(state, 'burn', false),
+    createCardInstance(state, 'regret', false),
+    createCardInstance(state, 'doubt', false),
+    createCardInstance(state, 'clumsy', false),
+  ];
+  // Hexaghost Sear deals 6 attack dmg -> wait: make it deal 5 attack dmg to verify Torii (5 -> 1) + Tungsten Rod (1 -> 0)!
+  hexa.intent = {
+    id: 'sear',
+    name: '炙烤',
+    type: 'attack_debuff',
+    damage: 5,
+    addDiscardCards: [{ cardId: 'burn', count: 1 }],
+  };
+  const hpBeforeEnd = state.player.hp;
+  endPlayerTurn(state);
+
+  // Burn dealt 2-1=1, Regret lost 2-1=1, Hexaghost 5 attack reduced to 1 by Torii then 0 by Tungsten Rod => total HP loss = 2!
+  assert.equal(state.player.hp, hpBeforeEnd - 2);
+  assert.equal(state.player.statuses.weak, 1); // Doubt applied 1 Weak surviving into Turn 2
+  assert.equal(state.combat.exhaustPile.some((c) => c.cardId === 'clumsy'), true);
+  assert.equal(state.player.block, 14); // Horn Cleat granted 14 block on Turn 2!
+  assert.equal(state.combat.discardPile.some((c) => c.cardId === 'burn'), true);
+
+  // 3. Slime Boss interrupts intent at <= 50% HP and splits into 2 slimes inheriting current HP, plus Meat on the Bone + Black Blood victory healing
+  const slimeState = setupCustomCombat(1702, {
+    id: 'slime_boss_test',
+    name: '史莱姆老大测试',
+    enemies: [{ templateId: 'slime_boss' }],
+  });
+  slimeState.player.relics = ['black_blood', 'meat_on_the_bone'];
+  slimeState.player.hp = 30; // <= 50% of 80 -> Meat on the Bone (+12) + Black Blood (+12) on victory!
+
+  const boss = slimeState.combat.enemies[0];
+  boss.hp = 80;
+  boss.maxHp = 140;
+  const bludgeon = createCardInstance(slimeState, 'bludgeon', false); // 32 dmg -> drops boss to 48 HP (<= 70)
+  slimeState.combat.hand = [bludgeon];
+  playCard(slimeState, bludgeon.instanceId, boss.id);
+  assert.equal(boss.hp, 48);
+  assert.equal(boss.intent.id, 'split');
+
+  endPlayerTurn(slimeState);
+  assert.equal(slimeState.combat.enemies.length, 2);
+  assert.equal(slimeState.combat.enemies[0].hp, 48);
+  assert.equal(slimeState.combat.enemies[1].hp, 48);
+
+  // Defeat both split slimes -> verify Meat on the Bone (+12) + Black Blood (+12) heals 30 -> 54!
+  slimeState.combat.enemies[0].hp = 1;
+  slimeState.combat.enemies[1].hp = 10;
+  slimeState.player.hp = 30;
+  const cleave = createCardInstance(slimeState, 'cleave', true); // 11 AoE dmg
+  slimeState.combat.hand = [cleave];
+  playCard(slimeState, cleave.instanceId);
+  assert.equal(slimeState.combat.status, 'victory');
+  assert.equal(slimeState.player.hp, 54);
+});
+
 
 

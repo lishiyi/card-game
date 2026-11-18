@@ -248,6 +248,138 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'hexaghost':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="109" rx="38" ry="6" fill="hsla(160,60%,8%,0.55)" />
+          <!-- Six Ghost Flames -->
+          <path d="M60 8 Q66 16 60 24 Q54 16 60 8 Z" fill="hsl(154, 86%, 62%)" />
+          <path d="M96 28 Q102 36 96 44 Q90 36 96 28 Z" fill="hsl(154, 86%, 62%)" />
+          <path d="M96 72 Q102 80 96 88 Q90 80 96 72 Z" fill="hsl(154, 86%, 62%)" />
+          <path d="M60 92 Q66 100 60 108 Q54 100 60 92 Z" fill="hsl(154, 86%, 62%)" />
+          <path d="M24 72 Q30 80 24 88 Q18 80 24 72 Z" fill="hsl(154, 86%, 62%)" />
+          <path d="M24 28 Q30 36 24 44 Q18 36 24 28 Z" fill="hsl(154, 86%, 62%)" />
+          <!-- Hexagonal Iron Cage & Spectral Core -->
+          <polygon points="60,24 90,41 90,75 60,92 30,75 30,41" fill="hsl(168, 36%, 18%)" stroke="hsl(156, 62%, 52%)" stroke-width="2.4" />
+          <circle cx="60" cy="58" r="18" fill="hsl(156, 78%, 46%)" opacity="0.88" />
+          <circle cx="53" cy="55" r="3.5" fill="hsl(48, 100%, 88%)" />
+          <circle cx="67" cy="55" r="3.5" fill="hsl(48, 100%, 88%)" />
+        </svg>
+      `;
+
+    case 'slime_boss':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="48" ry="8" fill="hsla(0,0%,0%,0.5)" />
+          <!-- Colossal Slime Body -->
+          <path d="M12 98 Q10 38 60 36 Q110 38 108 98 Q84 106 60 103 Q36 106 12 98 Z" fill="hsl(134, 48%, 30%)" stroke="hsl(128, 66%, 56%)" stroke-width="2.6" />
+          <!-- Dapper Bowler Hat -->
+          <ellipse cx="60" cy="36" rx="28" ry="6" fill="hsl(24, 18%, 16%)" stroke="hsl(38, 52%, 54%)" stroke-width="1.6" />
+          <path d="M40 35 Q42 14 60 14 Q78 14 80 35 Z" fill="hsl(24, 16%, 20%)" stroke="hsl(38, 52%, 54%)" stroke-width="1.6" />
+          <!-- Glowing Eyes & Grin -->
+          <circle cx="43" cy="66" r="5.5" fill="hsl(46, 98%, 62%)" />
+          <circle cx="77" cy="66" r="5.5" fill="hsl(46, 98%, 62%)" />
+          <path d="M36 84 Q60 96 84 84" stroke="hsl(124, 72%, 78%)" stroke-width="3" fill="none" stroke-linecap="round" />
+        </svg>
+      `;
+
+    case 'centurion':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="38" ry="6" fill="hsla(0,0%,0%,0.48)" />
+          <!-- Plumed Crest -->
+          <path d="M44 20 Q60 4 78 20 L70 28 L50 28 Z" fill="hsl(8, 68%, 44%)" />
+          <!-- Plate Armor -->
+          <path d="M34 44 Q60 36 84 44 L80 102 L38 102 Z" fill="hsl(214, 18%, 34%)" stroke="hsl(210, 26%, 64%)" stroke-width="2" />
+          <rect x="46" y="22" width="28" height="22" rx="5" fill="hsl(212, 20%, 44%)" stroke="hsl(215, 18%, 20%)" stroke-width="1.8" />
+          <rect x="51" y="31" width="18" height="4" fill="hsl(38, 92%, 62%)" />
+          <!-- Tower Shield & Flail -->
+          <rect x="16" y="46" width="24" height="50" rx="5" fill="hsl(28, 38%, 32%)" stroke="hsl(38, 62%, 62%)" stroke-width="2.2" />
+          <line x1="92" y1="32" x2="92" y2="86" stroke="hsl(30, 22%, 52%)" stroke-width="3" />
+          <circle cx="98" cy="30" r="8" fill="hsl(210, 18%, 52%)" stroke="hsl(210, 28%, 78%)" stroke-width="1.6" />
+        </svg>
+      `;
+
+    case 'mystic':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="34" ry="6" fill="hsla(0,0%,0%,0.45)" />
+          <!-- Mystic Robes -->
+          <path d="M36 44 Q60 34 84 44 L90 104 L30 104 Z" fill="hsl(328, 36%, 26%)" stroke="hsl(332, 54%, 56%)" stroke-width="2" />
+          <!-- Hood -->
+          <path d="M44 18 Q60 8 76 18 L78 44 Q60 48 42 44 Z" fill="hsl(326, 38%, 20%)" stroke="hsl(38, 62%, 62%)" stroke-width="1.8" />
+          <circle cx="54" cy="33" r="2.8" fill="hsl(182, 90%, 68%)" />
+          <circle cx="66" cy="33" r="2.8" fill="hsl(182, 90%, 68%)" />
+          <!-- Orb Staff -->
+          <line x1="24" y1="26" x2="28" y2="104" stroke="hsl(34, 38%, 48%)" stroke-width="2.8" />
+          <circle cx="24" cy="22" r="7" fill="hsl(152, 76%, 56%)" stroke="hsl(44, 92%, 78%)" stroke-width="1.8" />
+        </svg>
+      `;
+
+    case 'book_of_stabbing':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="34" ry="5" fill="hsla(0,0%,0%,0.45)" />
+          <!-- Thrusting Daggers -->
+          <polygon points="14,38 42,46 38,54" fill="hsl(206, 30%, 84%)" stroke="hsl(210, 20%, 38%)" stroke-width="1.4" />
+          <polygon points="10,60 40,60 38,68" fill="hsl(206, 30%, 84%)" stroke="hsl(210, 20%, 38%)" stroke-width="1.4" />
+          <polygon points="16,82 42,72 40,80" fill="hsl(206, 30%, 84%)" stroke="hsl(210, 20%, 38%)" stroke-width="1.4" />
+          <!-- Levitating Crimson Grimoire -->
+          <polygon points="38,24 88,18 96,86 46,94" fill="hsl(352, 62%, 32%)" stroke="hsl(38, 72%, 62%)" stroke-width="2.4" />
+          <polygon points="44,28 84,23 90,81 50,88" fill="hsl(38, 36%, 82%)" opacity="0.2" />
+          <circle cx="68" cy="54" r="9" fill="hsl(42, 94%, 58%)" stroke="hsl(10, 70%, 28%)" stroke-width="2" />
+          <ellipse cx="68" cy="54" rx="2.5" ry="6" fill="hsl(10, 70%, 16%)" />
+        </svg>
+      `;
+
+    case 'slaver_taskmaster':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="38" ry="6" fill="hsla(0,0%,0%,0.48)" />
+          <path d="M30 42 Q60 28 88 42 L92 104 L28 104 Z" fill="hsl(8, 52%, 28%)" stroke="hsl(36, 56%, 56%)" stroke-width="2" />
+          <path d="M42 18 Q60 10 78 18 L80 42 Q60 48 40 42 Z" fill="hsl(22, 18%, 22%)" stroke="hsl(36, 52%, 58%)" stroke-width="2" />
+          <circle cx="54" cy="31" r="3.2" fill="hsl(8, 92%, 62%)" />
+          <circle cx="66" cy="31" r="3.2" fill="hsl(8, 92%, 62%)" />
+          <!-- Barbed Whip -->
+          <path d="M88 54 Q112 34 102 68 Q92 94 112 92" fill="none" stroke="hsl(24, 58%, 54%)" stroke-width="3" stroke-linecap="round" />
+        </svg>
+      `;
+
+    case 'bronze_automaton':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="46" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <!-- Floating Bronze Orbs -->
+          <circle cx="20" cy="30" r="9" fill="hsl(38, 66%, 52%)" stroke="hsl(188, 82%, 66%)" stroke-width="2" />
+          <circle cx="100" cy="30" r="9" fill="hsl(38, 66%, 52%)" stroke="hsl(188, 82%, 66%)" stroke-width="2" />
+          <!-- Towering Golden Chassis -->
+          <polygon points="32,30 60,14 88,30 84,102 36,102" fill="hsl(36, 48%, 36%)" stroke="hsl(43, 82%, 66%)" stroke-width="2.5" />
+          <rect x="46" y="20" width="28" height="16" rx="4" fill="hsl(34, 34%, 24%)" stroke="hsl(43, 76%, 64%)" stroke-width="1.8" />
+          <rect x="50" y="26" width="20" height="4" fill="hsl(186, 92%, 66%)" />
+          <!-- Hyperbeam Core -->
+          <circle cx="60" cy="58" r="13" fill="hsl(38, 96%, 62%)" stroke="hsl(24, 42%, 22%)" stroke-width="2.2" />
+          <circle cx="60" cy="58" r="6" fill="hsl(48, 100%, 90%)" />
+        </svg>
+      `;
+
+    case 'the_collector':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="46" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <!-- Throne Backrest & Emerald Soul Flames -->
+          <polygon points="24,22 36,18 40,98 22,98" fill="hsl(268, 22%, 20%)" stroke="hsl(40, 56%, 52%)" stroke-width="1.6" />
+          <polygon points="96,22 84,18 80,98 98,98" fill="hsl(268, 22%, 20%)" stroke="hsl(40, 56%, 52%)" stroke-width="1.6" />
+          <path d="M29 8 Q35 15 29 22 Q23 15 29 8 Z" fill="hsl(152, 88%, 58%)" />
+          <path d="M91 8 Q97 15 91 22 Q85 15 91 8 Z" fill="hsl(152, 88%, 58%)" />
+          <!-- Collector Cloak & Crown -->
+          <path d="M34 46 Q60 36 86 46 L92 104 L28 104 Z" fill="hsl(274, 38%, 22%)" stroke="hsl(154, 60%, 52%)" stroke-width="2" />
+          <polygon points="46,28 52,14 60,24 68,14 74,28" fill="hsl(42, 86%, 60%)" />
+          <circle cx="60" cy="35" r="11" fill="hsl(270, 28%, 14%)" stroke="hsl(42, 70%, 58%)" stroke-width="1.8" />
+          <circle cx="55" cy="35" r="2.8" fill="hsl(152, 95%, 64%)" />
+          <circle cx="65" cy="35" r="2.8" fill="hsl(152, 95%, 64%)" />
+        </svg>
+      `;
+
     default:
       return `
         <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
@@ -274,6 +406,9 @@ export function getNodeIconSvg(type) {
     case 'event':
       // 未知事件：秘仪菱纹与问号
       return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="event" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12,2.5 21.5,12 12,21.5 2.5,12" fill="currentColor" fill-opacity="0.14"/><path d="M9.8 9.4a2.3 2.3 0 0 1 4.4.8c0 1.5-2.2 2-2.2 3.5"/><circle cx="12" cy="16.8" r="0.9" fill="currentColor"/></svg>`;
+    case 'treasure':
+      // 远古宝箱：镶金宝箱与锁扣
+      return `<svg viewBox="0 0 24 24" width="20" height="20" data-node-icon="treasure" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5C3.5 7.5 6.5 5.5 12 5.5s8.5 2 8.5 5H3.5z" fill="currentColor" fill-opacity="0.22"/><rect x="3.5" y="10.5" width="17" height="8.5" rx="1.8" fill="currentColor" fill-opacity="0.14"/><rect x="10.3" y="9.2" width="3.4" height="4" rx="0.8" fill="currentColor"/></svg>`;
     case 'boss':
       // 尖塔首领：王冠首领魔像
       return `<svg viewBox="0 0 24 24" width="22" height="22" data-node-icon="boss" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5L6.5 4l3.5 3 2-4 2 4 3.5-3L20 9.5z" fill="currentColor" fill-opacity="0.24"/><path d="M5 9.5h14l-1.4 8.5L12 21l-5.6-3z" fill="currentColor" fill-opacity="0.14"/><circle cx="9.4" cy="14" r="1.2" fill="currentColor"/><circle cx="14.6" cy="14" r="1.2" fill="currentColor"/></svg>`;
@@ -296,6 +431,9 @@ export function getCardTypeIconSvg(cardType) {
     case 'status':
       // 状态牌：暗蚀咒印图标
       return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="status" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></svg>`;
+    case 'curse':
+      // 诅咒牌：深渊骷髅咒印图标
+      return `<svg viewBox="0 0 16 16" width="13" height="13" class="card-type-icon" data-card-type-icon="curse" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.2 8.2a3.8 3.8 0 1 1 7.6 0c0 1.4-.6 2.3-1.3 2.9v2.1H5.5v-2.1c-.7-.6-1.3-1.5-1.3-2.9z" fill="currentColor" fill-opacity="0.26"/><circle cx="6.6" cy="7.8" r="0.8" fill="currentColor"/><circle cx="9.4" cy="7.8" r="0.8" fill="currentColor"/></svg>`;
     default:
       return '';
   }

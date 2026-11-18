@@ -1,7 +1,7 @@
 import { calculateAttackDamage, calculateCardBlock } from '../engine/math.js';
 
 function deepFreeze(obj) {
-  if (obj && typeof obj === 'object') {
+  if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
     Object.freeze(obj);
     for (const value of Object.values(obj)) {
       deepFreeze(value);
@@ -43,7 +43,7 @@ export const CARD_LIBRARY = deepFreeze({
     upgraded: { cost: 2, damage: 10, hits: 1, applyEnemyStatuses: { vulnerable: 3 } },
   },
 
-  // === Common Cards ===
+  // === Common Cards (14) ===
   pommel_strike: {
     id: 'pommel_strike',
     name: '剑柄打击',
@@ -134,8 +134,59 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: 2, damage: 14, hits: 1, strengthMultiplier: 3 },
     upgraded: { cost: 2, damage: 14, hits: 1, strengthMultiplier: 5 },
   },
+  true_grit: {
+    id: 'true_grit',
+    name: '坚毅',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 54,
+    base: { cost: 1, block: 7, exhaustHandRandom: 1 },
+    upgraded: { cost: 1, block: 9, exhaustHandRandom: 1, exhaustHandSmart: true },
+  },
+  anger: {
+    id: 'anger',
+    name: '愤怒',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 50,
+    base: { cost: 0, damage: 6, hits: 1, copySelfToDiscard: true },
+    upgraded: { cost: 0, damage: 8, hits: 1, copySelfToDiscard: true },
+  },
+  flex: {
+    id: 'flex',
+    name: '活动肌肉',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 50,
+    base: { cost: 0, applySelfStatuses: { strength: 2, tempStrengthDown: 2 } },
+    upgraded: { cost: 0, applySelfStatuses: { strength: 4, tempStrengthDown: 4 } },
+  },
+  armaments: {
+    id: 'armaments',
+    name: '武装',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 55,
+    base: { cost: 1, block: 5, upgradeHandRandom: 1 },
+    upgraded: { cost: 1, block: 5, upgradeHandRandom: 0, upgradeAllHand: true },
+  },
+  steadfast_guard: {
+    id: 'steadfast_guard',
+    name: '磐石守备',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 58,
+    retain: true,
+    base: { cost: 1, block: 9, retain: true },
+    upgraded: { cost: 1, block: 13, retain: true },
+  },
 
-  // === Uncommon Cards ===
+  // === Uncommon Cards (15) ===
   whirlwind: {
     id: 'whirlwind',
     name: '旋风斩',
@@ -206,8 +257,90 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: 2, damage: 13, hits: 1, applyEnemyStatuses: { weak: 1, vulnerable: 1 } },
     upgraded: { cost: 2, damage: 13, hits: 1, applyEnemyStatuses: { weak: 2, vulnerable: 2 } },
   },
+  feel_no_pain: {
+    id: 'feel_no_pain',
+    name: '无惧疼痛',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 82,
+    base: { cost: 1, applySelfStatuses: { feelNoPain: 3 } },
+    upgraded: { cost: 1, applySelfStatuses: { feelNoPain: 4 } },
+  },
+  dark_embrace: {
+    id: 'dark_embrace',
+    name: '黑暗之拥',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 84,
+    base: { cost: 2, applySelfStatuses: { darkEmbrace: 1 } },
+    upgraded: { cost: 1, applySelfStatuses: { darkEmbrace: 1 } },
+  },
+  second_wind: {
+    id: 'second_wind',
+    name: '重振精神',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 76,
+    base: { cost: 1, exhaustNonAttacksBlockEach: 5 },
+    upgraded: { cost: 1, exhaustNonAttacksBlockEach: 7 },
+  },
+  entrench: {
+    id: 'entrench',
+    name: '巩固',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 78,
+    base: { cost: 2, doubleBlock: true },
+    upgraded: { cost: 1, doubleBlock: true },
+  },
+  flame_barrier: {
+    id: 'flame_barrier',
+    name: '火焰屏障',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 2, block: 12, applySelfStatuses: { flameBarrier: 4 } },
+    upgraded: { cost: 2, block: 16, applySelfStatuses: { flameBarrier: 6 } },
+  },
+  shockwave: {
+    id: 'shockwave',
+    name: '震荡波',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'all_enemies',
+    price: 84,
+    base: { cost: 2, applyEnemyStatuses: { weak: 3, vulnerable: 3 }, exhaust: true },
+    upgraded: { cost: 2, applyEnemyStatuses: { weak: 5, vulnerable: 5 }, exhaust: true },
+  },
+  ambush_slash: {
+    id: 'ambush_slash',
+    name: '先制猛袭',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 74,
+    innate: true,
+    base: { cost: 0, innate: true, damage: 11, hits: 1, exhaust: true },
+    upgraded: { cost: 0, innate: true, damage: 15, hits: 1, exhaust: true },
+  },
+  ghostly_armor: {
+    id: 'ghostly_armor',
+    name: '幽灵铠甲',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 72,
+    ethereal: true,
+    base: { cost: 1, ethereal: true, block: 10 },
+    upgraded: { cost: 1, ethereal: true, block: 13 },
+  },
 
-  // === Rare Cards ===
+  // === Rare Cards (8) ===
   impervious: {
     id: 'impervious',
     name: '岿然不动',
@@ -248,6 +381,46 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: 3, damage: 32, hits: 1 },
     upgraded: { cost: 3, damage: 42, hits: 1 },
   },
+  barricade: {
+    id: 'barricade',
+    name: '壁垒',
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 145,
+    base: { cost: 3, applySelfStatuses: { barricade: 1 } },
+    upgraded: { cost: 2, applySelfStatuses: { barricade: 1 } },
+  },
+  corruption: {
+    id: 'corruption',
+    name: '腐化',
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 142,
+    base: { cost: 3, applySelfStatuses: { corruption: 1 } },
+    upgraded: { cost: 2, applySelfStatuses: { corruption: 1 } },
+  },
+  fiend_fire: {
+    id: 'fiend_fire',
+    name: '恶魔之焰',
+    type: 'attack',
+    rarity: 'rare',
+    target: 'enemy',
+    price: 138,
+    base: { cost: 2, exhaustAllHandDamageEach: 7, exhaust: true },
+    upgraded: { cost: 2, exhaustAllHandDamageEach: 10, exhaust: true },
+  },
+  reaper: {
+    id: 'reaper',
+    name: '死神收割',
+    type: 'attack',
+    rarity: 'rare',
+    target: 'all_enemies',
+    price: 145,
+    base: { cost: 2, damage: 4, hits: 1, lifestealUnblocked: true, exhaust: true },
+    upgraded: { cost: 2, damage: 5, hits: 1, lifestealUnblocked: true, exhaust: true },
+  },
 
   // === Status Cards ===
   slimed: {
@@ -272,6 +445,53 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: null, unplayable: true, ethereal: true },
     upgraded: null,
   },
+  burn: {
+    id: 'burn',
+    name: '灼伤',
+    type: 'status',
+    rarity: 'status',
+    target: 'none',
+    unplayable: true,
+    price: 0,
+    base: { cost: null, unplayable: true, endOfTurnSelfDamage: 2 },
+    upgraded: null,
+  },
+
+  // === Curse Cards ===
+  clumsy: {
+    id: 'clumsy',
+    name: '笨拙',
+    type: 'curse',
+    rarity: 'curse',
+    target: 'none',
+    unplayable: true,
+    ethereal: true,
+    price: 0,
+    base: { cost: null, unplayable: true, ethereal: true },
+    upgraded: null,
+  },
+  doubt: {
+    id: 'doubt',
+    name: '疑虑',
+    type: 'curse',
+    rarity: 'curse',
+    target: 'none',
+    unplayable: true,
+    price: 0,
+    base: { cost: null, unplayable: true, endOfTurnWeak: 1 },
+    upgraded: null,
+  },
+  regret: {
+    id: 'regret',
+    name: '悔恨',
+    type: 'curse',
+    rarity: 'curse',
+    target: 'none',
+    unplayable: true,
+    price: 0,
+    base: { cost: null, unplayable: true, endOfTurnLoseHp: 2 },
+    upgraded: null,
+  },
 });
 
 export const REWARD_CARD_POOLS = deepFreeze({
@@ -285,6 +505,12 @@ export const REWARD_CARD_POOLS = deepFreeze({
     .filter((c) => c.rarity === 'rare')
     .map((c) => c.id),
 });
+
+export const CURSE_CARD_IDS = deepFreeze(
+  Object.values(CARD_LIBRARY)
+    .filter((c) => c.type === 'curse')
+    .map((c) => c.id)
+);
 
 export const STARTER_DECK_RECIPE = deepFreeze([
   'strike',
@@ -315,7 +541,7 @@ export function createCardInstance(state, cardId, upgraded = false) {
 export function canUpgradeCard(cardInstance) {
   if (!cardInstance || cardInstance.upgraded) return false;
   const def = CARD_LIBRARY[cardInstance.cardId];
-  return Boolean(def && def.upgraded && def.type !== 'status');
+  return Boolean(def && def.upgraded && def.type !== 'status' && def.type !== 'curse');
 }
 
 export function getCardStats(cardInstance) {
@@ -346,8 +572,19 @@ export function getCardStats(cardInstance) {
     price: def.price ?? 50,
     unplayable: Boolean(def.unplayable || rawStats.unplayable),
     ethereal: Boolean(def.ethereal || rawStats.ethereal),
+    innate: Boolean(def.innate || rawStats.innate),
+    retain: Boolean(def.retain || rawStats.retain),
     ...rawStats,
   };
+}
+
+export function getEffectiveCardCost(stats, player = null) {
+  if (stats.unplayable || stats.cost === null) return null;
+  if (stats.isXCost) return 'X';
+  if (stats.type === 'skill' && (player?.statuses?.corruption ?? 0) > 0) {
+    return 0;
+  }
+  return stats.cost ?? 0;
 }
 
 export function formatCardDescription(cardInstance, combatContext = null) {
@@ -355,7 +592,8 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   const player = combatContext?.player ?? null;
   const targetEnemy = combatContext?.targetEnemy ?? null;
 
-  let displayDamage = stats.damage ?? null;
+  const rawDamageBase = stats.damage ?? stats.exhaustAllHandDamageEach ?? null;
+  let displayDamage = rawDamageBase;
   let damageState = 'normal';
 
   if (stats.useBlockAsDamage) {
@@ -365,31 +603,47 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       : 0;
     if (player && displayDamage > baseFromBlock) damageState = 'boosted';
     else if (player && displayDamage < baseFromBlock) damageState = 'reduced';
-  } else if (typeof stats.damage === 'number') {
+  } else if (typeof rawDamageBase === 'number') {
     if (player) {
-      displayDamage = calculateAttackDamage(stats.damage, player, targetEnemy, {
+      displayDamage = calculateAttackDamage(rawDamageBase, player, targetEnemy, {
         strengthMultiplier: stats.strengthMultiplier ?? 1,
       });
-      if (displayDamage > stats.damage) damageState = 'boosted';
-      else if (displayDamage < stats.damage) damageState = 'reduced';
+      if (displayDamage > rawDamageBase) damageState = 'boosted';
+      else if (displayDamage < rawDamageBase) damageState = 'reduced';
     }
   }
 
-  let displayBlock = stats.block ?? null;
+  const rawBlockBase = stats.block ?? stats.exhaustNonAttacksBlockEach ?? null;
+  let displayBlock = rawBlockBase;
   let blockState = 'normal';
-  if (typeof stats.block === 'number' && player) {
-    displayBlock = calculateCardBlock(stats.block, player);
-    if (displayBlock > stats.block) blockState = 'boosted';
-    else if (displayBlock < stats.block) blockState = 'reduced';
+  if (typeof rawBlockBase === 'number' && player) {
+    displayBlock = calculateCardBlock(rawBlockBase, player);
+    if (displayBlock > rawBlockBase) blockState = 'boosted';
+    else if (displayBlock < rawBlockBase) blockState = 'reduced';
   }
 
   const parts = [];
 
+  if (stats.innate) {
+    parts.push('固有。');
+  }
+  if (stats.retain) {
+    parts.push('保留。');
+  }
   if (stats.unplayable) {
     parts.push('不能被打出。');
   }
   if (stats.ethereal) {
     parts.push('虚无（回合结束时若仍在手牌则消耗）。');
+  }
+  if (stats.endOfTurnSelfDamage) {
+    parts.push(`回合结束时若仍在手牌，受到 ${stats.endOfTurnSelfDamage} 点伤害。`);
+  }
+  if (stats.endOfTurnLoseHp) {
+    parts.push(`回合结束时若仍在手牌，失去 ${stats.endOfTurnLoseHp} 点生命。`);
+  }
+  if (stats.endOfTurnWeak) {
+    parts.push(`回合结束时若仍在手牌，获得 ${stats.endOfTurnWeak} 层虚弱。`);
   }
   if (stats.loseHp) {
     parts.push(`失去 ${stats.loseHp} 点生命。`);
@@ -400,7 +654,27 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (typeof stats.block === 'number') {
     parts.push(`获得 ${displayBlock} 点格挡。`);
   }
-  if (stats.useBlockAsDamage) {
+  if (stats.doubleBlock) {
+    parts.push('将你当前的格挡值翻倍。');
+  }
+  if (stats.exhaustHandRandom) {
+    parts.push(
+      stats.exhaustHandSmart
+        ? '消耗 1 张手牌（优先状态或诅咒牌）。'
+        : '随机消耗 1 张手牌。'
+    );
+  }
+  if (stats.exhaustNonAttacksBlockEach) {
+    parts.push(`消耗手牌中所有非攻击牌，每张获得 ${displayBlock} 点格挡。`);
+  }
+  if (stats.upgradeAllHand) {
+    parts.push('本场战斗中升级所有手牌。');
+  } else if (stats.upgradeHandRandom) {
+    parts.push(`本场战斗中随机升级 ${stats.upgradeHandRandom} 张手牌。`);
+  }
+  if (stats.exhaustAllHandDamageEach) {
+    parts.push(`消耗所有手牌，每张对目标造成 ${displayDamage} 点伤害。`);
+  } else if (stats.useBlockAsDamage) {
     const suffix = player ? `（当前 ${displayDamage} 点）` : '';
     parts.push(`造成等同于你当前格挡值的伤害${suffix}。`);
   } else if (typeof stats.damage === 'number') {
@@ -412,6 +686,12 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     } else {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
+  }
+  if (stats.lifestealUnblocked) {
+    parts.push('回复等同于未格挡伤害量的生命。');
+  }
+  if (stats.copySelfToDiscard) {
+    parts.push('在弃牌堆中加入 1 张本牌的复制品。');
   }
   if (stats.strengthMultiplier && stats.strengthMultiplier > 1) {
     parts.push(`力量在该牌上发挥 ${stats.strengthMultiplier} 倍效果。`);
@@ -432,19 +712,45 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applySelfStatuses.strength) {
       parts.push(`获得 ${stats.applySelfStatuses.strength} 点力量。`);
     }
+    if (stats.applySelfStatuses.tempStrengthDown) {
+      parts.push(`本回合结束时，失去 ${stats.applySelfStatuses.tempStrengthDown} 点力量。`);
+    }
     if (stats.applySelfStatuses.metallicize) {
       parts.push(`回合结束时，获得 ${stats.applySelfStatuses.metallicize} 点格挡。`);
     }
     if (stats.applySelfStatuses.demonForm) {
       parts.push(`每回合开始时，获得 ${stats.applySelfStatuses.demonForm} 点力量。`);
     }
+    if (stats.applySelfStatuses.feelNoPain) {
+      parts.push(`每当你消耗 1 张牌时，获得 ${stats.applySelfStatuses.feelNoPain} 点格挡。`);
+    }
+    if (stats.applySelfStatuses.darkEmbrace) {
+      parts.push(`每当你消耗 1 张牌时，抽 ${stats.applySelfStatuses.darkEmbrace} 张牌。`);
+    }
+    if (stats.applySelfStatuses.barricade) {
+      parts.push('你的格挡在回合开始时不再自动清零。');
+    }
+    if (stats.applySelfStatuses.corruption) {
+      parts.push('所有技能牌费用变为 0 点，但打出后将直接消耗。');
+    }
+    if (stats.applySelfStatuses.flameBarrier) {
+      parts.push(`本回合每受一次攻击，反击 ${stats.applySelfStatuses.flameBarrier} 点伤害。`);
+    }
   }
   if (stats.applySelfStatusesAfter?.noDraw) {
     parts.push('本回合内不能再抽牌。');
   }
-  if (stats.exhaust) {
+
+  const corruptedExhaust =
+    stats.type === 'skill' && !stats.exhaust && Boolean(player && (player.statuses?.corruption ?? 0) > 0);
+  if (stats.exhaust || corruptedExhaust) {
     parts.push('消耗。');
   }
+
+  const effectiveCost = getEffectiveCardCost(stats, player);
+  const costReducedNow =
+    stats.costReduced ||
+    (typeof stats.cost === 'number' && typeof effectiveCost === 'number' && effectiveCost < stats.cost);
 
   return {
     text: parts.join(' '),
@@ -452,7 +758,8 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     displayBlock,
     damageState,
     blockState,
-    displayCost: stats.cost === null ? '—' : String(stats.cost),
+    displayCost: effectiveCost === null ? '—' : String(effectiveCost),
+    costReducedNow,
   };
 }
 
@@ -489,4 +796,3 @@ export function formatUpgradePreview(cardInstance, combatContext = null) {
     nextCost: nextDesc.displayCost,
   };
 }
-

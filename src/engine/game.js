@@ -2,17 +2,20 @@ import {
   canUpgradeCard,
   CARD_LIBRARY,
   createCardInstance,
+  CURSE_CARD_IDS,
   getCardStats,
   REWARD_CARD_POOLS,
   STARTER_DECK_RECIPE,
 } from '../data/cards.js';
-import { ENCOUNTERS } from '../data/enemies.js';
-import { EVENT_IDS, EVENT_LIBRARY, generateSpireMap } from '../data/events.js';
+import { ENCOUNTERS, ENEMY_TEMPLATES } from '../data/enemies.js';
+import { EVENT_IDS, EVENT_LIBRARY, generateSpireMap, TOTAL_FLOORS } from '../data/events.js';
 import {
   ALL_POTION_IDS,
+  BOSS_RELIC_IDS,
   NON_STARTER_RELIC_IDS,
   POTION_LIBRARY,
   RELIC_LIBRARY,
+  RELIC_POOLS,
 } from '../data/relics.js';
 import {
   endPlayerTurn,
@@ -22,22 +25,55 @@ import {
   startCombat,
   usePotion,
 } from './combat.js';
-import {
-  nextRandom,
-  normalizeSeed,
-  pickDistinct,
-  pickRandom,
-  randomInt,
-} from './rng.js';
+import { getLockedContentSets, MAX_ASCENSION } from './meta.js';
+import { nextRandom, normalizeSeed, pickDistinct, pickRandom, randomInt } from './rng.js';
 
-export const MAX_POTION_SLOTS = 2;
+export function getCurrentPurgeCost(state) {
+  const base = 75 + (state?.purgeCount ?? 0) * 25;
+  return (state?.ascension ?? 0) >= 5 ? Math.round(base * 1.15) : base;
+}
+
+export function getCurrentBossEncounter(state) {
+  const pool = (state?.act ?? 1) >= 2 ? ENCOUNTERS.act2Boss : ENCOUNTERS.boss;
+  const found = pool.find((e) => e.id === state?.bossEncounterId);
+  return found || pool[0];
+}
+
+export function getCurrentBossName(state) {
+  const enc = getCurrentBossEncounter(state);
+  const tplId = enc?.enemies?.[0]?.templateId;
+  return ENEMY_TEMPLATES[tplId]?.name || enc?.name || '尖塔首领';
+}
+
+export function grantRelicToPlayer(state, relicId) {
+  if (!relicId || !RELIC_LIBRARY[relicId] || hasRelic(state, relicId)) return false;
+  state.player.relics.push(relicId);
+  const def = RELIC_LIBRARY[relicId];
+  if (def.energyBonus) {
+    state.player.maxEnergy += def.energyBonus;
+    state.player.energy = state.player.maxEnergy;
+  }
+  return true;
+}
 
 export function createNewRun(options = {}) {
   const seed = normalizeSeed(options.seed);
+  const ascension = Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
+  const unlockedTier = options.unlockedTier ?? 3;
+  const unlockAllOverride = Boolean(options.unlockAllOverride);
+  const startingHp = ascension >= 4 ? 75 : 80;
+
   const state = {
     seed,
     rngState: seed,
     nextUid: 1,
+    act: 1,
+    ascension,
+    unlockedTier,
+    unlockAllOverride,
+    purgeCount: 0,
+    rarePityBonus: 0,
+    bossEncounterId: null,
     screen: 'map',
     runOutcome: null,
     floor: 0,
@@ -47,8 +83,8 @@ export function createNewRun(options = {}) {
     visitedEventIds: [],
     player: {
       name: '铁甲战士',
-      hp: 80,
-      maxHp: 80,
+      hp: startingHp,
+      maxHp: startingHp,
       gold: 99,
       maxEnergy: 3,
       energy: 3,
@@ -63,12 +99,15 @@ export function createNewRun(options = {}) {
     combat: null,
     combatSnapshot: null,
     reward: null,
+    bossReward: null,
+    treasureState: null,
     restState: null,
     shop: null,
     eventState: null,
     stats: {
       floorsCleared: 0,
       combatsWon: 0,
+      elitesSlain: 0,
       enemiesSlain: 0,
       cardsPlayed: 0,
     },
@@ -77,13 +116,17 @@ export function createNewRun(options = {}) {
   state.player.deck = STARTER_DECK_RECIPE.map((cardId) =>
     createCardInstance(state, cardId, false)
   );
+  if (ascension >= 5) {
+    state.player.deck.push(createCardInstance(state, 'clumsy', false));
+  }
+
   state.map = generateSpireMap(state);
+  state.bossEncounterId = pickRandom(state, ENCOUNTERS.boss).id;
 
   return state;
 }
 
 export function findMapNode(state, nodeId) {
-  if (!state?.map || !nodeId) return null;
   for (const row of state.map) {
     for (const node of row) {
       if (node.id === nodeId) return node;
@@ -101,31 +144,77 @@ export function getAvailableNodeIds(state) {
   return currentNode ? [...currentNode.nextIds] : [];
 }
 
-function rollUnownedRelicId(state) {
-  const candidates = NON_STARTER_RELIC_IDS.filter((id) => !hasRelic(state, id));
-  if (candidates.length === 0) return null;
-  return pickRandom(state, candidates);
+function getUnlockedPools(state) {
+  const { lockedCardIds, lockedRelicIds } = getLockedContentSets(
+    state?.unlockedTier ?? 3,
+    Boolean(state?.unlockAllOverride)
+  );
+  const filterCards = (ids) => {
+    const unlocked = ids.filter((id) => !lockedCardIds.has(id));
+    return unlocked.length > 0 ? unlocked : ids;
+  };
+  const filterRelics = (ids) => ids.filter((id) => !lockedRelicIds.has(id));
+  return {
+    cards: {
+      common: filterCards(REWARD_CARD_POOLS.common),
+      uncommon: filterCards(REWARD_CARD_POOLS.uncommon),
+      rare: filterCards(REWARD_CARD_POOLS.rare),
+    },
+    relics: {
+      common: filterRelics(RELIC_POOLS.common),
+      uncommon: filterRelics(RELIC_POOLS.uncommon),
+      rare: filterRelics(RELIC_POOLS.rare),
+      allNonBoss: NON_STARTER_RELIC_IDS.filter((id) => !lockedRelicIds.has(id)),
+    },
+  };
 }
 
-function rollRewardCards(state, count = 3, role = 'normal') {
+function rollUnownedRelicId(state, source = 'elite') {
+  const { relics } = getUnlockedPools(state);
+  const unowned = (pool) => pool.filter((id) => !hasRelic(state, id));
+  const fallback = unowned(relics.allNonBoss);
+  if (fallback.length === 0) return null;
+
+  const r = nextRandom(state);
+  let tierPool;
+  if (source === 'elite') {
+    if (r < 0.2) tierPool = unowned(relics.rare);
+    else if (r < 0.58) tierPool = unowned(relics.uncommon);
+    else tierPool = unowned(relics.common);
+  } else if (source === 'treasure' || source === 'shop') {
+    if (r < 0.16) tierPool = unowned(relics.rare);
+    else if (r < 0.52) tierPool = unowned(relics.uncommon);
+    else tierPool = unowned(relics.common);
+  } else {
+    if (r < 0.12) tierPool = unowned(relics.rare);
+    else if (r < 0.46) tierPool = unowned(relics.uncommon);
+    else tierPool = unowned(relics.common);
+  }
+
+  return pickRandom(state, tierPool.length > 0 ? tierPool : fallback);
+}
+
+export function rollRewardCards(state, count = 3, role = 'normal', options = {}) {
   const chosenCardIds = [];
-  const allNonStarter = [
-    ...REWARD_CARD_POOLS.common,
-    ...REWARD_CARD_POOLS.uncommon,
-    ...REWARD_CARD_POOLS.rare,
-  ];
+  const { cards } = getUnlockedPools(state);
+  const allNonStarter = [...cards.common, ...cards.uncommon, ...cards.rare];
+  const trackPity = options.affectPity !== false;
 
   for (let i = 0; i < count; i += 1) {
     const r = nextRandom(state);
+    const baseRare = role === 'elite' ? 0.16 : 0.05;
+    const rareChance = Math.min(0.65, baseRare + (state.rarePityBonus ?? 0));
+    const uncommonCeiling = rareChance + (role === 'elite' ? 0.44 : 0.35);
+
     let pool;
-    if (role === 'elite') {
-      if (r < 0.22) pool = REWARD_CARD_POOLS.rare;
-      else if (r < 0.62) pool = REWARD_CARD_POOLS.uncommon;
-      else pool = REWARD_CARD_POOLS.common;
+    let rolledRare = false;
+    if (r < rareChance) {
+      pool = cards.rare;
+      rolledRare = true;
+    } else if (r < uncommonCeiling) {
+      pool = cards.uncommon;
     } else {
-      if (r < 0.08) pool = REWARD_CARD_POOLS.rare;
-      else if (r < 0.38) pool = REWARD_CARD_POOLS.uncommon;
-      else pool = REWARD_CARD_POOLS.common;
+      pool = cards.common;
     }
 
     const available = pool.filter((id) => !chosenCardIds.includes(id));
@@ -133,19 +222,41 @@ function rollRewardCards(state, count = 3, role = 'normal') {
     const pickedId = pickRandom(state, available.length > 0 ? available : fallback);
     if (pickedId) {
       chosenCardIds.push(pickedId);
+      if (trackPity) {
+        if (rolledRare || CARD_LIBRARY[pickedId]?.rarity === 'rare') {
+          state.rarePityBonus = 0;
+        } else {
+          state.rarePityBonus = Math.min(
+            0.4,
+            Number(((state.rarePityBonus ?? 0) + 0.02).toFixed(4))
+          );
+        }
+      }
     }
   }
 
+  const upgradeChance =
+    (state.act ?? 1) >= 2
+      ? 0.35
+      : state.floor >= 11
+        ? 0.22
+        : state.floor >= 5
+          ? 0.12
+          : 0;
+
   return chosenCardIds.map((cardId) => {
-    const upgraded = state.floor >= 4 && nextRandom(state) < 0.15;
+    const upgraded = upgradeChance > 0 && nextRandom(state) < upgradeChance;
     return createCardInstance(state, cardId, upgraded);
   });
 }
 
 function buildShopState(state) {
-  const commonOffers = pickDistinct(state, REWARD_CARD_POOLS.common, 3);
-  const uncommonOffer = pickDistinct(state, REWARD_CARD_POOLS.uncommon, 1);
-  const rareOffer = pickDistinct(state, REWARD_CARD_POOLS.rare, 1);
+  const { cards: unlockedCards } = getUnlockedPools(state);
+  const priceMult = (state.ascension ?? 0) >= 5 ? 1.15 : 1;
+
+  const commonOffers = pickDistinct(state, unlockedCards.common, 3);
+  const uncommonOffer = pickDistinct(state, unlockedCards.uncommon, 1);
+  const rareOffer = pickDistinct(state, unlockedCards.rare, 1);
   const offerIds = [...commonOffers, ...uncommonOffer, ...rareOffer];
   const saleIndex = randomInt(state, 0, Math.max(0, offerIds.length - 1));
 
@@ -153,7 +264,7 @@ function buildShopState(state) {
     const instance = createCardInstance(state, cardId, false);
     const stats = getCardStats(instance);
     const jitter = randomInt(state, -4, 6);
-    const basePrice = Math.max(30, stats.price + jitter);
+    const basePrice = Math.round(Math.max(30, stats.price + jitter) * priceMult);
     const onSale = idx === saleIndex;
     return {
       card: instance,
@@ -163,11 +274,11 @@ function buildShopState(state) {
     };
   });
 
-  const relicId = rollUnownedRelicId(state);
+  const relicId = rollUnownedRelicId(state, 'shop');
   const relicOffer = relicId
     ? {
         relicId,
-        price: RELIC_LIBRARY[relicId].price + randomInt(state, -8, 8),
+        price: Math.round((RELIC_LIBRARY[relicId].price + randomInt(state, -8, 8)) * priceMult),
         sold: false,
       }
     : null;
@@ -176,7 +287,7 @@ function buildShopState(state) {
   const potionOffer = potionId
     ? {
         potionId,
-        price: POTION_LIBRARY[potionId].price,
+        price: Math.round(POTION_LIBRARY[potionId].price * priceMult),
         sold: false,
       }
     : null;
@@ -185,7 +296,7 @@ function buildShopState(state) {
     cards,
     relicOffer,
     potionOffer,
-    purgeCost: 75,
+    purgeCost: getCurrentPurgeCost(state),
     purgeUsed: false,
   };
 }
@@ -193,14 +304,32 @@ function buildShopState(state) {
 export function transitionCombatVictory(state) {
   const role = state.combat?.role ?? 'normal';
   if (role === 'boss') {
-    state.screen = 'game_over';
-    state.runOutcome = 'victory';
+    if ((state.act ?? 1) >= 2) {
+      state.screen = 'game_over';
+      state.runOutcome = 'victory';
+      return;
+    }
+
+    const bossGold = randomInt(state, 92, 115);
+    state.player.gold += bossGold;
+    const unownedBossRelics = BOSS_RELIC_IDS.filter((id) => !hasRelic(state, id));
+    const relicChoices = pickDistinct(state, unownedBossRelics, 3);
+    state.bossReward = {
+      bossGold,
+      relicChoices,
+      pickedRelicId: null,
+    };
+    state.screen = 'boss_reward';
     return;
   }
 
   const isElite = role === 'elite';
-  const gold = isElite ? randomInt(state, 42, 56) : randomInt(state, 24, 35);
-  const relicId = isElite ? rollUnownedRelicId(state) : null;
+  const effectiveFloor = ((state.act ?? 1) - 1) * TOTAL_FLOORS + Math.max(1, state.floor || 1);
+  const gold = isElite
+    ? randomInt(state, 38, 50) + Math.floor(effectiveFloor * 2.2)
+    : randomInt(state, 18, 26) + Math.floor(effectiveFloor * 1.5);
+
+  const relicId = isElite ? rollUnownedRelicId(state, 'elite') : null;
   const dropPotion = nextRandom(state) < (isElite ? 0.65 : 0.42);
   const potionId = dropPotion ? pickRandom(state, ALL_POTION_IDS) : null;
   const cardChoices = rollRewardCards(state, 3, role);
@@ -239,10 +368,15 @@ export function selectMapNode(state, nodeId) {
   state.floor = node.floor;
   state.stats.floorsCleared = (state.stats.floorsCleared ?? 0) + 1;
 
+  const isAct2 = (state.act ?? 1) >= 2;
+
   switch (node.type) {
     case 'combat': {
-      const pool =
-        node.floor <= 2
+      const pool = isAct2
+        ? node.floor <= 5
+          ? ENCOUNTERS.act2Early
+          : ENCOUNTERS.act2Hard
+        : node.floor <= 2
           ? ENCOUNTERS.floor1
           : node.floor <= 8
             ? ENCOUNTERS.normal
@@ -250,28 +384,46 @@ export function selectMapNode(state, nodeId) {
       const nonRepeat = pool.filter((e) => e.id !== state.lastEncounterId);
       const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : pool);
       state.lastEncounterId = encounter.id;
-      startCombat(state, encounter, 'normal');
+      startCombat(state, encounter, 'normal', transitionCombatVictory);
       return { ok: true, screen: state.screen };
     }
     case 'elite': {
-      const nonRepeat = ENCOUNTERS.elite.filter((e) => e.id !== state.lastEliteId);
-      const encounter = pickRandom(
-        state,
-        nonRepeat.length > 0 ? nonRepeat : ENCOUNTERS.elite
-      );
+      const elitePool = isAct2 ? ENCOUNTERS.act2Elite : ENCOUNTERS.elite;
+      const nonRepeat = elitePool.filter((e) => e.id !== state.lastEliteId);
+      const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : elitePool);
       state.lastEliteId = encounter.id;
       state.lastEncounterId = encounter.id;
-      startCombat(state, encounter, 'elite');
+      startCombat(state, encounter, 'elite', transitionCombatVictory);
       return { ok: true, screen: state.screen };
     }
     case 'boss': {
-      const encounter = ENCOUNTERS.boss[0];
+      const encounter = getCurrentBossEncounter(state);
       state.lastEncounterId = encounter.id;
-      startCombat(state, encounter, 'boss');
+      startCombat(state, encounter, 'boss', transitionCombatVictory);
+      return { ok: true, screen: state.screen };
+    }
+    case 'treasure': {
+      state.treasureState = {
+        opened: false,
+        relicId: null,
+        gold: 0,
+        curseCardId: null,
+        outcomeText: '',
+      };
+      state.screen = 'treasure';
       return { ok: true, screen: state.screen };
     }
     case 'rest': {
-      state.restState = { completed: false, lastAction: null };
+      let featherHealed = 0;
+      if (hasRelic(state, 'eternal_feather') && state.player.hp > 0) {
+        const heal = Math.floor(state.player.deck.length / 5) * 3;
+        if (heal > 0) {
+          const before = state.player.hp;
+          state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
+          featherHealed = state.player.hp - before;
+        }
+      }
+      state.restState = { completed: false, lastAction: null, featherHealed };
       state.screen = 'rest';
       return { ok: true, screen: state.screen };
     }
@@ -288,8 +440,11 @@ export function selectMapNode(state, nodeId) {
         eventId,
         resolved: false,
         pendingPurge: false,
+        pendingCardAction: null, // 'transform' | 'upgrade' | null
+        libraryChoices: null,
         outcomeText: '',
         upgradedCardIds: [],
+        addedCardIds: [],
       };
       state.screen = 'event';
       return { ok: true, screen: state.screen };
@@ -332,6 +487,103 @@ function findEmptyPotionSlot(state) {
   return state.player.potions.findIndex((p) => p === null);
 }
 
+// === Treasure Chest Actions ===
+
+export function openTreasureChest(state) {
+  if (state.screen !== 'treasure' || !state.treasureState || state.treasureState.opened) {
+    return { ok: false, reason: '当前宝箱已开启或不在宝箱界面' };
+  }
+  const relicId = rollUnownedRelicId(state, 'treasure');
+  const gold = relicId ? (nextRandom(state) < 0.55 ? randomInt(state, 24, 48) : 0) : 85;
+
+  if (relicId) {
+    grantRelicToPlayer(state, relicId);
+  }
+  if (gold > 0) {
+    state.player.gold += gold;
+  }
+
+  let curseCard = null;
+  if (hasRelic(state, 'cursed_key')) {
+    const curseId = pickRandom(state, CURSE_CARD_IDS);
+    curseCard = createCardInstance(state, curseId, false);
+    state.player.deck.push(curseCard);
+  }
+
+  const parts = [];
+  if (relicId) parts.push(`获得遗物【${RELIC_LIBRARY[relicId].name}】`);
+  if (gold > 0) parts.push(`获得 ${gold} 金币`);
+  if (curseCard) {
+    parts.push(`受【诅咒钥匙】影响，牌组加入了诅咒【${getCardStats(curseCard).name}】`);
+  }
+
+  state.treasureState.opened = true;
+  state.treasureState.relicId = relicId;
+  state.treasureState.gold = gold;
+  state.treasureState.curseCardId = curseCard?.instanceId ?? null;
+  state.treasureState.outcomeText = `${parts.join('，')}！`;
+
+  return { ok: true, relicId, gold, curseCard };
+}
+
+export function leaveTreasureRoom(state) {
+  if (state.screen !== 'treasure') {
+    return { ok: false, reason: '当前不在宝箱界面' };
+  }
+  state.treasureState = null;
+  state.screen = 'map';
+  return { ok: true };
+}
+
+// === Boss Relic Altar & Act 2 Progression ===
+
+export function claimBossRelic(state, relicId) {
+  if (state.screen !== 'boss_reward' || !state.bossReward) {
+    return { ok: false, reason: '当前不在首领遗物祭坛界面' };
+  }
+  if (state.bossReward.pickedRelicId) {
+    return { ok: false, reason: '已选择过首领遗物' };
+  }
+  if (!state.bossReward.relicChoices.includes(relicId)) {
+    return { ok: false, reason: '该首领遗物不在候选中' };
+  }
+  grantRelicToPlayer(state, relicId);
+  state.bossReward.pickedRelicId = relicId;
+  return { ok: true };
+}
+
+export function proceedToNextAct(state) {
+  if (state.screen !== 'boss_reward' || !state.bossReward) {
+    return { ok: false, reason: '当前不在首领遗物祭坛界面' };
+  }
+  const missingHp = Math.max(0, state.player.maxHp - state.player.hp);
+  const healRatio = (state.ascension ?? 0) >= 4 ? 0.6 : 0.75;
+  state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.round(missingHp * healRatio));
+
+  state.act = 2;
+  state.floor = 0;
+  state.currentNodeId = null;
+  state.lastEncounterId = null;
+  state.lastEliteId = null;
+  state.bossReward = null;
+  state.combat = null;
+  state.map = generateSpireMap(state);
+  state.bossEncounterId = pickRandom(state, ENCOUNTERS.act2Boss).id;
+  state.screen = 'map';
+  return { ok: true };
+}
+
+export function settleAct1Victory(state) {
+  if (state.screen !== 'boss_reward' || !state.bossReward) {
+    return { ok: false, reason: '当前不在首领遗物祭坛界面' };
+  }
+  state.bossReward = null;
+  state.combat = null;
+  state.screen = 'game_over';
+  state.runOutcome = 'victory';
+  return { ok: true };
+}
+
 // === Reward Actions ===
 
 export function claimRewardGold(state) {
@@ -353,9 +605,7 @@ export function claimRewardRelic(state) {
   if (state.reward.relicClaimed || !state.reward.relicId) {
     return { ok: false, reason: '没有可领取的遗物' };
   }
-  if (!hasRelic(state, state.reward.relicId)) {
-    state.player.relics.push(state.reward.relicId);
-  }
+  grantRelicToPlayer(state, state.reward.relicId);
   state.reward.relicClaimed = true;
   return { ok: true };
 }
@@ -454,7 +704,8 @@ export function restHeal(state) {
   if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
     return { ok: false, reason: '当前不能在营地休息' };
   }
-  const healAmount = Math.max(1, Math.floor(state.player.maxHp * 0.3));
+  const healPct = (state.ascension ?? 0) >= 4 ? 0.25 : 0.3;
+  const healAmount = Math.max(1, Math.floor(state.player.maxHp * healPct));
   const before = state.player.hp;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + healAmount);
   state.restState.completed = true;
@@ -519,9 +770,7 @@ export function buyShopRelic(state) {
   }
   state.player.gold -= offer.price;
   offer.sold = true;
-  if (!hasRelic(state, offer.relicId)) {
-    state.player.relics.push(offer.relicId);
-  }
+  grantRelicToPlayer(state, offer.relicId);
   return { ok: true };
 }
 
@@ -565,6 +814,7 @@ export function buyShopPurge(state, instanceId) {
   }
   state.player.gold -= state.shop.purgeCost;
   state.shop.purgeUsed = true;
+  state.purgeCount = (state.purgeCount ?? 0) + 1;
   const [removed] = state.player.deck.splice(idx, 1);
   return { ok: true, removed };
 }
@@ -601,6 +851,7 @@ export function chooseEventOption(state, choiceId) {
   }
 
   state.eventState.upgradedCardIds = [];
+  state.eventState.addedCardIds = [];
 
   switch (eventDef.id) {
     case 'shining_light': {
@@ -692,9 +943,9 @@ export function chooseEventOption(state, choiceId) {
           return { ok: false, reason: '当前生命值不足（需大于 8 点）' };
         }
         state.player.hp -= 8;
-        const relicId = rollUnownedRelicId(state);
+        const relicId = rollUnownedRelicId(state, 'event');
         if (relicId) {
-          state.player.relics.push(relicId);
+          grantRelicToPlayer(state, relicId);
           state.eventState.outcomeText = `你忍痛扯断铁刺（-8 生命），获得了遗物【${RELIC_LIBRARY[relicId].name}】！`;
         } else {
           state.player.gold += 80;
@@ -707,6 +958,179 @@ export function chooseEventOption(state, choiceId) {
         state.player.gold += 45;
         state.eventState.resolved = true;
         state.eventState.outcomeText = '你拾取了石台周围散落的古币，获得 45 金币。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'golden_idol': {
+      if (choiceId === 'smash_trap') {
+        if (state.player.hp <= 14) {
+          return { ok: false, reason: '当前生命值不足（需大于 14 点）' };
+        }
+        state.player.hp -= 14;
+        state.player.gold += 135;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你夺下纯金神像冲出滚石通道（-14 生命），获得 135 金币！';
+        return { ok: true };
+      }
+      if (choiceId === 'accept_curse_gold') {
+        state.player.gold += 175;
+        const curse = createCardInstance(state, 'regret', false);
+        state.player.deck.push(curse);
+        state.eventState.addedCardIds = [curse.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你收下神像与厚重金币（+175 金币），但暗影诅咒【悔恨】缠上了你的牌组！';
+        return { ok: true };
+      }
+      if (choiceId === 'leave_idol') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你压下贪念绕开机关基座，平安离开。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'living_wall': {
+      if (choiceId === 'wall_forget') {
+        if (state.player.deck.length <= 1) {
+          return { ok: false, reason: '牌组至少需要保留 1 张卡牌' };
+        }
+        state.eventState.pendingPurge = true;
+        return { ok: true, pendingPurge: true };
+      }
+      if (choiceId === 'wall_change') {
+        state.eventState.pendingCardAction = 'transform';
+        return { ok: true, pendingCardAction: 'transform' };
+      }
+      if (choiceId === 'wall_grow') {
+        if (getUpgradableDeckCards(state).length === 0) {
+          return { ok: false, reason: '当前牌组中没有可升级的卡牌' };
+        }
+        state.eventState.pendingCardAction = 'upgrade';
+        return { ok: true, pendingCardAction: 'upgrade' };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'cursed_tome': {
+      const { cards } = getUnlockedPools(state);
+      if (choiceId === 'read_final_chapter') {
+        if (state.player.hp <= 14) {
+          return { ok: false, reason: '当前生命值不足（需大于 14 点）' };
+        }
+        state.player.hp -= 14;
+        const cardId = pickRandom(state, cards.rare);
+        const created = createCardInstance(state, cardId, false);
+        state.player.deck.push(created);
+        state.eventState.addedCardIds = [created.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `鲜血浸透书页（-14 生命），你领悟了稀有战技【${getCardStats(created).name}】！`;
+        return { ok: true };
+      }
+      if (choiceId === 'skim_preface') {
+        if (state.player.hp <= 5) {
+          return { ok: false, reason: '当前生命值不足（需大于 5 点）' };
+        }
+        state.player.hp -= 5;
+        const cardId = pickRandom(state, cards.uncommon);
+        const created = createCardInstance(state, cardId, false);
+        state.player.deck.push(created);
+        state.eventState.addedCardIds = [created.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你强忍魔典反噬（-5 生命），习得了罕见卡牌【${getCardStats(created).name}】！`;
+        return { ok: true };
+      }
+      if (choiceId === 'close_tome') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你合上赤红魔典，稳步向塔顶进发。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'potion_alchemist': {
+      if (choiceId === 'buy_potions') {
+        if (state.player.gold < 35) {
+          return { ok: false, reason: '金币不足（需至少 35 金币）' };
+        }
+        if (findEmptyPotionSlot(state) === -1) {
+          return { ok: false, reason: '药水栏已满，无法购买' };
+        }
+        state.player.gold -= 35;
+        const gainedNames = [];
+        for (let i = 0; i < state.player.potions.length; i += 1) {
+          if (state.player.potions[i] === null) {
+            const pid = pickRandom(state, ALL_POTION_IDS);
+            state.player.potions[i] = pid;
+            gainedNames.push(`【${POTION_LIBRARY[pid].name}】`);
+          }
+        }
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `花费 35 金币，获得了 ${gainedNames.join('、')}！`;
+        return { ok: true };
+      }
+      if (choiceId === 'drink_mutagen') {
+        state.player.maxHp += 6;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 6);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '狂野热流涌遍全身，最大生命值永久 +6 并回复了 6 点生命！';
+        return { ok: true };
+      }
+      if (choiceId === 'rob_alchemist') {
+        state.player.gold += 60;
+        const curse = createCardInstance(state, 'doubt', false);
+        state.player.deck.push(curse);
+        state.eventState.addedCardIds = [curse.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你席卷了 60 金币，但炼金师的怨毒咒言化作【疑虑】混入了你的牌组！';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'mushroom_grotto': {
+      if (choiceId === 'eat_blue_cap') {
+        const heal = Math.max(1, Math.floor(state.player.maxHp * 0.35));
+        const before = state.player.hp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
+        const curse = createCardInstance(state, 'clumsy', false);
+        state.player.deck.push(curse);
+        state.eventState.addedCardIds = [curse.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `甘美菌肉回复了 ${state.player.hp - before} 点生命，但微麻孢子使你获得了诅咒【笨拙】。`;
+        return { ok: true };
+      }
+      if (choiceId === 'refine_red_spore') {
+        if (state.player.hp <= 7) {
+          return { ok: false, reason: '当前生命值不足（需大于 7 点）' };
+        }
+        state.player.hp -= 7;
+        state.player.maxHp += 5;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '灼热菌核锤炼了体魄（-7 当前生命），你的最大生命值永久 +5！';
+        return { ok: true };
+      }
+      if (choiceId === 'bypass_grotto') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你屏住呼吸穿过了荧光菌丛。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'library_sanctum': {
+      if (choiceId === 'study_manuals') {
+        state.eventState.libraryChoices = rollRewardCards(state, 3, 'normal', {
+          affectPity: false,
+        });
+        return { ok: true, pendingLibrary: true };
+      }
+      if (choiceId === 'nap_in_library') {
+        const before = state.player.hp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 20);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你在静谧书阁中沉沉睡去，醒来回复了 ${state.player.hp - before} 点生命。`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -732,20 +1156,91 @@ export function completeEventPurge(state, instanceId) {
   const removedStats = getCardStats(removed);
   state.eventState.pendingPurge = false;
   state.eventState.resolved = true;
-  state.eventState.outcomeText = `祭坛微光化去了【${removedStats.name}】，你的牌组更加精炼了。`;
+  state.eventState.outcomeText = `古老秘力化去了【${removedStats.name}】，你的牌组更加精炼了。`;
   return { ok: true, removed };
 }
 
 export function cancelEventPurge(state) {
-  if (state.screen !== 'event' || !state.eventState?.pendingPurge) {
+  if (
+    state.screen !== 'event' ||
+    (!state.eventState?.pendingPurge && !state.eventState?.pendingCardAction)
+  ) {
     return { ok: false, reason: '当前没有待取消的操作' };
   }
   state.eventState.pendingPurge = false;
+  state.eventState.pendingCardAction = null;
   return { ok: true };
 }
 
+export function completeEventCardAction(state, instanceId) {
+  const mode = state?.eventState?.pendingCardAction;
+  if (state.screen !== 'event' || !mode) {
+    return { ok: false, reason: '当前没有待执行的事件选牌操作' };
+  }
+  const idx = state.player.deck.findIndex((c) => c.instanceId === instanceId);
+  if (idx === -1) {
+    return { ok: false, reason: '未在牌组中找到该卡牌' };
+  }
+
+  if (mode === 'upgrade') {
+    const target = state.player.deck[idx];
+    if (!canUpgradeCard(target)) {
+      return { ok: false, reason: '该卡牌无法升级' };
+    }
+    target.upgraded = true;
+    state.eventState.pendingCardAction = null;
+    state.eventState.upgradedCardIds = [target.instanceId];
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = `活体石墙赐予成长之力，成功升级了【${getCardStats(target).name}】！`;
+    return { ok: true, card: target };
+  }
+
+  if (mode === 'transform') {
+    const oldCard = state.player.deck[idx];
+    const oldName = getCardStats(oldCard).name;
+    const { cards } = getUnlockedPools(state);
+    const pool = [...cards.common, ...cards.uncommon, ...cards.rare].filter(
+      (cid) => cid !== oldCard.cardId
+    );
+    const nextCardId = pickRandom(state, pool.length > 0 ? pool : cards.common);
+    const created = createCardInstance(state, nextCardId, false);
+    state.player.deck.splice(idx, 1, created);
+    state.eventState.pendingCardAction = null;
+    state.eventState.addedCardIds = [created.instanceId];
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = `石墙秘力重塑了【${oldName}】，蜕变为全新卡牌【${getCardStats(created).name}】！`;
+    return { ok: true, card: created };
+  }
+
+  return { ok: false, reason: '未知的事件卡牌操作' };
+}
+
+export function pickEventLibraryCard(state, instanceId) {
+  const choices = state?.eventState?.libraryChoices;
+  if (state.screen !== 'event' || !Array.isArray(choices)) {
+    return { ok: false, reason: '当前不在藏书阁选牌阶段' };
+  }
+  const chosen = choices.find((c) => c.instanceId === instanceId);
+  if (!chosen) {
+    return { ok: false, reason: '未找到所选书卷卡牌' };
+  }
+  const added = createCardInstance(state, chosen.cardId, chosen.upgraded);
+  state.player.deck.push(added);
+  state.eventState.libraryChoices = null;
+  state.eventState.addedCardIds = [added.instanceId];
+  state.eventState.resolved = true;
+  state.eventState.outcomeText = `你将武学手札【${getCardStats(added).name}】收入了牌组！`;
+  return { ok: true, addedCard: added };
+}
+
 export function continueFromEvent(state) {
-  if (state.screen !== 'event' || !state.eventState?.resolved || state.eventState.pendingPurge) {
+  if (
+    state.screen !== 'event' ||
+    !state.eventState?.resolved ||
+    state.eventState.pendingPurge ||
+    state.eventState.pendingCardAction ||
+    state.eventState.libraryChoices
+  ) {
     return { ok: false, reason: '请先完成当前事件抉择' };
   }
   state.eventState = null;

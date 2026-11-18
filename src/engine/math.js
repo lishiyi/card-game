@@ -18,7 +18,10 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
   }
 
   if (defender && (defender?.statuses?.vulnerable ?? 0) > 0) {
-    raw *= 1.5;
+    const hasPaperPhrog =
+      Boolean(options.hasPaperPhrog) ||
+      (Array.isArray(attacker?.relics) && attacker.relics.includes('paper_phrog'));
+    raw *= hasPaperPhrog ? 1.75 : 1.5;
   }
 
   return Math.max(0, Math.floor(raw));

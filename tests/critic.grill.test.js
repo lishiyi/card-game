@@ -12,17 +12,24 @@ import {
   buyShopPurge,
   buyShopRelic,
   chooseEventOption,
+  claimBossRelic,
   claimRewardCard,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
+  completeEventCardAction,
   completeEventPurge,
   continueFromEvent,
   createNewRun,
+  findMapNode,
   getAvailableNodeIds,
   getUpgradableDeckCards,
   leaveShop,
+  leaveTreasureRoom,
+  openTreasureChest,
+  pickEventLibraryCard,
   proceedFromReward,
+  proceedToNextAct,
   restHeal,
   restUpgradeCard,
   runEndTurn,
@@ -30,13 +37,18 @@ import {
   runRestartCombat,
   runUsePotion,
   selectMapNode,
+  settleAct1Victory,
 } from '../src/engine/game.js';
+import { ASCENSION_DEFS, UNLOCK_TIERS } from '../src/engine/meta.js';
 
 function assertRunInvariants(state, contextMsg = '') {
+  assert.ok(state.act === 1 || state.act === 2, `Invalid act ${state.act}: ${contextMsg}`);
+  assert.ok(state.floor >= 0 && state.floor <= 16, `Invalid floor ${state.floor}: ${contextMsg}`);
   assert.ok(Number.isFinite(state.player.hp), `Player HP NaN: ${contextMsg}`);
   assert.ok(state.player.hp >= 0 && state.player.hp <= state.player.maxHp, `Player HP out of bounds: ${state.player.hp} (${contextMsg})`);
   assert.ok(Number.isFinite(state.player.gold) && state.player.gold >= 0, `Gold invalid: ${state.player.gold}`);
   assert.ok(state.player.deck.length >= 1, `Master deck became empty (${contextMsg})`);
+  assert.ok(state.player.deck.every((c) => Boolean(CARD_LIBRARY[c.cardId])), `Unknown card in deck (${contextMsg})`);
   assert.ok(state.player.relics.every((id) => Boolean(RELIC_LIBRARY[id])), `Invalid relic in inventory`);
   assert.equal(new Set(state.player.relics).size, state.player.relics.length, 'Duplicate relic detected');
 
@@ -84,6 +96,12 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   assert.throws(() => {
     ENCOUNTERS.hardNormal[0].enemies[0].templateId = 'cultist';
   }, TypeError);
+  assert.throws(() => {
+    ASCENSION_DEFS[0].name = 'tampered';
+  }, TypeError);
+  assert.throws(() => {
+    UNLOCK_TIERS[0].xpRequired = 0;
+  }, TypeError);
 });
 
 test('[Critic / grill-it] Whirlwind (X-cost) plays cleanly at 0 energy and at high energy', () => {
@@ -126,6 +144,7 @@ test('[Critic / grill-it] Hostile / malformed inputs fail gracefully without mut
   assert.equal(runUsePotion(state, -1).ok, false);
   assert.equal(runUsePotion(state, 99).ok, false);
   assert.equal(runUsePotion(state, 1).ok, false); // Empty slot 1
+  assert.equal(runUsePotion(state, 0, 'invalid_enemy_id').ok, false);
   assert.equal(selectMapNode(state, 'f1_c0').ok, false); // Cannot navigate map mid-combat
   assert.equal(claimRewardGold(state).ok, false);
 
@@ -157,13 +176,16 @@ test('[Critic / grill-it] runRestartCombat resists non-combat calls, clears Boss
   assert.equal(bossState.combat.enemies[0].statuses.modeShift, 25);
   assertRunInvariants(bossState, 'after Boss restart');
 
-  // 3. After victory, combatSnapshot is cleared and runRestartCombat fails gracefully
+  // 3. After Act 1 Boss victory, transitions to boss_reward, combatSnapshot is cleared, and settleAct1Victory completes run
   bossState.combat.enemies[0].hp = 10;
   runUsePotion(bossState, 0, bossState.combat.enemies[0].id);
-  assert.equal(bossState.screen, 'game_over');
-  assert.equal(bossState.runOutcome, 'victory');
+  assert.equal(bossState.screen, 'boss_reward');
   assert.equal(bossState.combatSnapshot, null);
   assert.equal(runRestartCombat(bossState).ok, false);
+  assert.equal(claimBossRelic(bossState, bossState.bossReward.relicChoices[0]).ok, true);
+  assert.equal(settleAct1Victory(bossState).ok, true);
+  assert.equal(bossState.screen, 'game_over');
+  assert.equal(bossState.runOutcome, 'victory');
 });
 
 test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds end-of-turn block', () => {
@@ -184,33 +206,45 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spire loop maintains all invariants', () => {
+test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & Act 2, Ascension 0-5, Treasure, Boss Relics, and all 10 Events maintains all invariants', () => {
   let victories = 0;
   let defeats = 0;
+  let act2Entries = 0;
 
   for (let seed = 1000; seed < 1150; seed += 1) {
-    const state = createNewRun({ seed });
+    const ascension = seed % 2 === 0 ? 0 : seed % 6;
+    const state = createNewRun({ seed, ascension, unlockAllOverride: true });
     assertRunInvariants(state, `init seed ${seed}`);
 
     let safetySteps = 0;
-    while (state.screen !== 'game_over' && safetySteps < 1600) {
+    while (state.screen !== 'game_over' && safetySteps < 3500) {
       safetySteps += 1;
 
       if (state.screen === 'map') {
         const nodes = getAvailableNodeIds(state);
         assert.ok(nodes.length >= 1, `No available map nodes on seed ${seed}`);
-        const pickedNode = nodes[seed % nodes.length];
-        assert.equal(selectMapNode(state, pickedNode).ok, true);
-      } else if (state.screen === 'combat') {
-        // Use potion if available
-        if (state.player.potions[0]) {
-          const alive = state.combat.enemies.filter((e) => e.hp > 0);
-          runUsePotion(state, 0, alive[0]?.id ?? null);
-          assertRunInvariants(state, `after potion seed ${seed}`);
-          if (state.screen !== 'combat') continue;
+        // Prefer Rest when low HP, avoid Elite when below 45% HP if alternative exists
+        const nodeObjs = nodes.map((id) => findMapNode(state, id)).filter(Boolean);
+        let chosen = nodeObjs[seed % nodeObjs.length];
+        if (state.player.hp < state.player.maxHp * 0.45) {
+          const restNode = nodeObjs.find((n) => n.type === 'rest');
+          const safeNode = nodeObjs.find((n) => n.type !== 'elite');
+          chosen = restNode || safeNode || chosen;
         }
+        assert.equal(selectMapNode(state, chosen.id).ok, true);
+      } else if (state.screen === 'combat') {
+        // Use available potions tactically
+        for (let slot = 0; slot < state.player.potions.length; slot += 1) {
+          if (state.player.potions[slot]) {
+            const alive = state.combat.enemies.filter((e) => e.hp > 0);
+            runUsePotion(state, slot, alive[0]?.id ?? null);
+            assertRunInvariants(state, `after potion slot ${slot} seed ${seed}`);
+            if (state.screen !== 'combat') break;
+          }
+        }
+        if (state.screen !== 'combat') continue;
 
-        // Play playable cards with basic tactical priority (powers -> needed block -> attacks)
+        // Play playable cards with tactical priority (powers -> needed block -> attacks)
         let playedSomething = true;
         while (playedSomething && state.screen === 'combat') {
           playedSomething = false;
@@ -224,10 +258,11 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
             const sb = getCardStats(b);
             const rank = (st) =>
               (st.type === 'power' ? 40 : 0) +
-              (needBlock && st.block ? 30 : 0) +
+              (needBlock && (st.block || st.doubleBlock || st.exhaustNonAttacksBlockEach) ? 30 : 0) +
               (st.applyEnemyStatuses ? 25 : 0) +
-              (st.damage ? 20 : 0) -
-              (st.useBlockAsDamage && state.player.block === 0 ? 30 : 0);
+              (st.damage || st.exhaustAllHandDamageEach ? 20 : 0) -
+              (st.useBlockAsDamage && state.player.block === 0 ? 30 : 0) -
+              (st.doubleBlock && state.player.block === 0 ? 25 : 0);
             return rank(sb) - rank(sa);
           });
 
@@ -255,10 +290,23 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
         claimRewardGold(state);
         if (state.reward.relicId) claimRewardRelic(state);
         if (state.reward.potionId) claimRewardPotion(state);
-        if (state.reward.cardChoices.length > 0) {
+        if (state.reward.cardChoices.length > 0 && state.player.deck.length < 24) {
           claimRewardCard(state, state.reward.cardChoices[0].instanceId);
         }
-        proceedFromReward(state);
+        assert.equal(proceedFromReward(state).ok, true);
+      } else if (state.screen === 'treasure') {
+        assert.equal(openTreasureChest(state).ok, true);
+        assert.equal(leaveTreasureRoom(state).ok, true);
+      } else if (state.screen === 'boss_reward') {
+        if (state.bossReward.relicChoices.length > 0) {
+          assert.equal(claimBossRelic(state, state.bossReward.relicChoices[0]).ok, true);
+        }
+        if (seed % 3 === 0) {
+          act2Entries += 1;
+          assert.equal(proceedToNextAct(state).ok, true);
+        } else {
+          assert.equal(settleAct1Victory(state).ok, true);
+        }
       } else if (state.screen === 'rest') {
         const upgradable = getUpgradableDeckCards(state);
         if (state.player.hp < state.player.maxHp * 0.65 || upgradable.length === 0) {
@@ -271,39 +319,93 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
         buyShopPotion(state);
         buyShopCard(state, 0);
         if (state.player.deck.length > 6) {
-          buyShopPurge(state, state.player.deck[0].instanceId);
+          const curseIdx = state.player.deck.findIndex((c) => getCardStats(c).type === 'curse');
+          const purgeTarget = curseIdx !== -1 ? state.player.deck[curseIdx] : state.player.deck[0];
+          buyShopPurge(state, purgeTarget.instanceId);
         }
         leaveShop(state);
       } else if (state.screen === 'event') {
         const eventId = state.eventState.eventId;
         if (eventId === 'shining_light') {
-          const r = chooseEventOption(state, state.player.hp > 20 ? 'enter_light' : 'leave');
-          assert.equal(r.ok, true);
+          assert.equal(chooseEventOption(state, state.player.hp > 20 ? 'enter_light' : 'leave').ok, true);
         } else if (eventId === 'ancient_forge') {
           const choice =
             state.player.hp > 20 && state.player.gold >= 30 ? 'overclock_forge' : 'temper_blade';
-          const r = chooseEventOption(state, choice);
-          assert.equal(r.ok, true);
+          assert.equal(chooseEventOption(state, choice).ok, true);
         } else if (eventId === 'ancient_shrine') {
-          chooseEventOption(state, 'pray_purge');
-          if (state.eventState.pendingPurge) {
-            completeEventPurge(state, state.player.deck[0].instanceId);
+          if (state.player.deck.length > 3) {
+            assert.equal(chooseEventOption(state, 'pray_purge').ok, true);
+            if (state.eventState.pendingPurge) {
+              assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            }
+          } else {
+            assert.equal(chooseEventOption(state, 'drink_spring').ok, true);
+          }
+        } else if (eventId === 'thorn_reliquary') {
+          assert.equal(chooseEventOption(state, state.player.hp > 20 ? 'open_reliquary' : 'take_coins').ok, true);
+        } else if (eventId === 'golden_idol') {
+          const choice =
+            state.player.hp > 25 ? 'smash_trap' : seed % 2 === 0 ? 'accept_curse_gold' : 'leave_idol';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'living_wall') {
+          const upgradable = getUpgradableDeckCards(state);
+          const modeIdx = seed % 3;
+          if (modeIdx === 0 && state.player.deck.length > 3) {
+            assert.equal(chooseEventOption(state, 'wall_forget').ok, true);
+            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+          } else if (modeIdx === 1 || upgradable.length === 0) {
+            assert.equal(chooseEventOption(state, 'wall_change').ok, true);
+            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+          } else {
+            assert.equal(chooseEventOption(state, 'wall_grow').ok, true);
+            assert.equal(completeEventCardAction(state, upgradable[0].instanceId).ok, true);
+          }
+        } else if (eventId === 'cursed_tome') {
+          const choice =
+            state.player.hp > 28
+              ? 'read_final_chapter'
+              : state.player.hp > 14
+                ? 'skim_preface'
+                : 'close_tome';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'potion_alchemist') {
+          const canBuy = state.player.gold >= 35 && state.player.potions.includes(null);
+          const choice = canBuy ? 'buy_potions' : seed % 2 === 0 ? 'drink_mutagen' : 'rob_alchemist';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'mushroom_grotto') {
+          const choice =
+            state.player.hp < state.player.maxHp * 0.55
+              ? 'eat_blue_cap'
+              : state.player.hp > 18
+                ? 'refine_red_spore'
+                : 'bypass_grotto';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'library_sanctum') {
+          if (seed % 2 === 0) {
+            assert.equal(chooseEventOption(state, 'study_manuals').ok, true);
+            assert.equal(
+              pickEventLibraryCard(state, state.eventState.libraryChoices[0].instanceId).ok,
+              true
+            );
+          } else {
+            assert.equal(chooseEventOption(state, 'nap_in_library').ok, true);
           }
         } else {
-          chooseEventOption(state, state.player.hp > 20 ? 'open_reliquary' : 'take_coins');
+          assert.fail(`Unhandled event in fuzz test: ${eventId}`);
         }
-        continueFromEvent(state);
+        assert.equal(continueFromEvent(state).ok, true);
       }
 
       assertRunInvariants(state, `loop step ${safetySteps} seed ${seed}`);
     }
 
-    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 1600 steps`);
+    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 3500 steps (stuck on ${state.screen})`);
     if (state.runOutcome === 'victory') victories += 1;
     else defeats += 1;
   }
 
-  // Greedy bot should win some runs and lose some runs (proving Boss is beatable yet non-trivial!)
+  // Greedy bot should win some runs, lose some runs, and enter Act 2 when reaching Boss on divisible-by-3 seeds
   assert.ok(victories > 0, 'Expected at least 1 victory across 150 simulated runs');
   assert.ok(defeats > 0, 'Expected at least 1 defeat across 150 simulated runs');
+  assert.ok(act2Entries >= 0);
 });

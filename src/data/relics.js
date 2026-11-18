@@ -1,5 +1,5 @@
 function deepFreeze(obj) {
-  if (obj && typeof obj === 'object') {
+  if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
     Object.freeze(obj);
     for (const val of Object.values(obj)) {
       deepFreeze(val);
@@ -8,7 +8,16 @@ function deepFreeze(obj) {
   return obj;
 }
 
+export const RELIC_TIER_LABELS = deepFreeze({
+  starter: '初始遗物',
+  common: '普通遗物',
+  uncommon: '罕见遗物',
+  rare: '稀有遗物',
+  boss: '首领遗物',
+});
+
 export const RELIC_LIBRARY = deepFreeze({
+  // === Starter ===
   burning_blood: {
     id: 'burning_blood',
     name: '燃烧之血',
@@ -16,6 +25,8 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 150,
     description: '战斗胜利后，回复 6 点生命。',
   },
+
+  // === Common (8) ===
   vajra: {
     id: 'vajra',
     name: '金刚杵',
@@ -58,13 +69,143 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 145,
     description: '回合结束时，若你没有任何格挡，则获得 6 点格挡。',
   },
+  bag_of_marbles: {
+    id: 'bag_of_marbles',
+    name: '弹珠袋',
+    tier: 'common',
+    price: 148,
+    description: '每场战斗开始时，给予所有敌人 1 层易伤。',
+  },
+  blood_vial: {
+    id: 'blood_vial',
+    name: '鲜血小瓶',
+    tier: 'common',
+    price: 142,
+    description: '每场战斗开始时，回复 2 点生命。',
+  },
+
+  // === Uncommon (5) ===
+  horn_cleat: {
+    id: 'horn_cleat',
+    name: '船夹板',
+    tier: 'uncommon',
+    price: 195,
+    description: '每场战斗第 2 回合开始时，获得 14 点格挡。',
+  },
+  mercury_hourglass: {
+    id: 'mercury_hourglass',
+    name: '水银沙漏',
+    tier: 'uncommon',
+    price: 200,
+    description: '每回合开始时，对所有敌人造成 3 点固定伤害。',
+  },
+  meat_on_the_bone: {
+    id: 'meat_on_the_bone',
+    name: '带骨肉',
+    tier: 'uncommon',
+    price: 210,
+    description: '战斗胜利时，若你的生命值不高于 50%，额外回复 12 点生命。',
+  },
+  eternal_feather: {
+    id: 'eternal_feather',
+    name: '永恒羽毛',
+    tier: 'uncommon',
+    price: 205,
+    description: '每当你踏入篝火营地时，牌组中每满 5 张牌便回复 3 点生命。',
+  },
+  paper_phrog: {
+    id: 'paper_phrog',
+    name: '折纸青蛙',
+    tier: 'uncommon',
+    price: 215,
+    description: '处于【易伤】状态的敌人受到你的攻击伤害加成由 50% 提升至 75%。',
+  },
+
+  // === Rare (4) ===
+  captains_wheel: {
+    id: 'captains_wheel',
+    name: '船长舵轮',
+    tier: 'rare',
+    price: 270,
+    description: '每场战斗第 3 回合开始时，获得 18 点格挡。',
+  },
+  torii: {
+    id: 'torii',
+    name: '鸟居',
+    tier: 'rare',
+    price: 275,
+    description: '每当你即将受到 1 至 5 点未格挡的敌方攻击伤害时，将其降低至 1 点。',
+  },
+  charons_ashes: {
+    id: 'charons_ashes',
+    name: '卡戎之灰',
+    tier: 'rare',
+    price: 265,
+    description: '每当你消耗 1 张卡牌时，对所有敌人造成 3 点固定伤害。',
+  },
+  tungsten_rod: {
+    id: 'tungsten_rod',
+    name: '钨合金棍',
+    tier: 'rare',
+    price: 285,
+    description: '每当你将失去生命值时，少失去 1 点生命。',
+  },
+
+  // === Boss (4) ===
+  black_blood: {
+    id: 'black_blood',
+    name: '漆黑之血',
+    tier: 'boss',
+    price: 320,
+    description: '强化初始之血：战斗胜利后回复生命提升至 12 点（替代燃烧之血效果）。',
+  },
+  cursed_key: {
+    id: 'cursed_key',
+    name: '诅咒钥匙',
+    tier: 'boss',
+    price: 320,
+    energyBonus: 1,
+    description: '最大能量 +1；但此后每次开启宝箱时，会将 1 张随机【诅咒】牌加入牌组。',
+  },
+  velvet_choker: {
+    id: 'velvet_choker',
+    name: '天鹅绒项圈',
+    tier: 'boss',
+    price: 320,
+    energyBonus: 1,
+    description: '最大能量 +1；但你每回合最多只能打出 6 张卡牌。',
+  },
+  sacred_bark: {
+    id: 'sacred_bark',
+    name: '神圣树皮',
+    tier: 'boss',
+    price: 320,
+    description: '所有药水的数值效果翻倍（伤害、格挡、属性、能量、抽牌与回复全部 ×2）。',
+  },
 });
 
-export const NON_STARTER_RELIC_IDS = deepFreeze(
-  Object.values(RELIC_LIBRARY)
-    .filter((r) => r.tier !== 'starter')
-    .map((r) => r.id)
-);
+export const RELIC_POOLS = deepFreeze({
+  common: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'common')
+    .map((r) => r.id),
+  uncommon: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'uncommon')
+    .map((r) => r.id),
+  rare: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'rare')
+    .map((r) => r.id),
+  boss: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'boss')
+    .map((r) => r.id),
+});
+
+export const NON_STARTER_RELIC_IDS = deepFreeze([
+  ...RELIC_POOLS.common,
+  ...RELIC_POOLS.uncommon,
+  ...RELIC_POOLS.rare,
+]);
+
+export const BOSS_RELIC_IDS = RELIC_POOLS.boss;
 
 export const POTION_LIBRARY = deepFreeze({
   fire_potion: {
@@ -98,6 +239,54 @@ export const POTION_LIBRARY = deepFreeze({
     price: 52,
     energy: 2,
     description: '本回合获得 2 点能量。',
+  },
+  swift_potion: {
+    id: 'swift_potion',
+    name: '迅捷药水',
+    target: 'self',
+    price: 50,
+    draw: 3,
+    description: '立即抽 3 张牌。',
+  },
+  fear_potion: {
+    id: 'fear_potion',
+    name: '恐惧药水',
+    target: 'enemy',
+    price: 52,
+    applyEnemyStatuses: { vulnerable: 3 },
+    description: '给予目标敌人 3 层易伤。',
+  },
+  weak_potion: {
+    id: 'weak_potion',
+    name: '虚弱药水',
+    target: 'enemy',
+    price: 50,
+    applyEnemyStatuses: { weak: 3 },
+    description: '给予目标敌人 3 层虚弱。',
+  },
+  dexterity_potion: {
+    id: 'dexterity_potion',
+    name: '敏捷药水',
+    target: 'self',
+    price: 55,
+    dexterity: 2,
+    description: '本场战斗获得 2 点敏捷。',
+  },
+  regen_potion: {
+    id: 'regen_potion',
+    name: '鲜血药水',
+    target: 'self',
+    price: 62,
+    healPct: 20,
+    description: '立即回复最大生命值 20% 的生命。',
+  },
+  explosive_potion: {
+    id: 'explosive_potion',
+    name: '爆炸药水',
+    target: 'all_enemies',
+    price: 58,
+    aoeDamage: 10,
+    description: '对所有敌人造成 10 点固定伤害。',
   },
 });
 
@@ -152,6 +341,42 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) => `每回合开始时，自动获得 ${v} 点力量。`,
   },
+  feelNoPain: {
+    id: 'feelNoPain',
+    name: '无惧疼痛',
+    polarity: 'buff',
+    describe: (v) => `每当你消耗 1 张卡牌时，立即获得 ${v} 点格挡。`,
+  },
+  darkEmbrace: {
+    id: 'darkEmbrace',
+    name: '黑暗之拥',
+    polarity: 'buff',
+    describe: (v) => `每当你消耗 1 张卡牌时，立即抽 ${v} 张牌。`,
+  },
+  barricade: {
+    id: 'barricade',
+    name: '壁垒',
+    polarity: 'buff',
+    describe: () => '你的格挡在每回合开始时不再自动清零。',
+  },
+  corruption: {
+    id: 'corruption',
+    name: '腐化',
+    polarity: 'buff',
+    describe: () => '所有技能牌费用变为 0 点，但打出后将直接消耗。',
+  },
+  flameBarrier: {
+    id: 'flameBarrier',
+    name: '火焰屏障',
+    polarity: 'buff',
+    describe: (v) => `本回合每受到一次敌方攻击，便对攻击者反击 ${v} 点固定伤害。`,
+  },
+  tempStrengthDown: {
+    id: 'tempStrengthDown',
+    name: '力量消退',
+    polarity: 'debuff',
+    describe: (v) => `本回合结束时，将失去 ${v} 点临时力量。`,
+  },
   noDraw: {
     id: 'noDraw',
     name: '禁抽',
@@ -199,5 +424,11 @@ export const STATUS_METADATA = deepFreeze({
     name: '愤怒',
     polarity: 'buff',
     describe: (v) => `每当受到玩家的攻击伤害，立即获得 ${v} 点力量。`,
+  },
+  splitThreshold: {
+    id: 'splitThreshold',
+    name: '分裂体',
+    polarity: 'buff',
+    describe: () => '生命值降至 50% 或以下时，将在敌方回合分裂为两只史莱姆并继承当前生命值。',
   },
 });

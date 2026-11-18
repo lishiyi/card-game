@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { canUpgradeCard, getCardStats } from '../src/data/cards.js';
+import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
+import { ENCOUNTERS } from '../src/data/enemies.js';
 import { TOTAL_FLOORS } from '../src/data/events.js';
+import { NON_STARTER_RELIC_IDS } from '../src/data/relics.js';
+import { startCombat } from '../src/engine/combat.js';
 import {
   buyShopCard,
   buyShopPotion,
@@ -10,47 +13,104 @@ import {
   buyShopRelic,
   cancelEventPurge,
   chooseEventOption,
+  claimBossRelic,
   claimRewardCard,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
+  completeEventCardAction,
   completeEventPurge,
   continueFromEvent,
   createNewRun,
   discardPotion,
   findMapNode,
   getAvailableNodeIds,
+  getCurrentPurgeCost,
   getUnclaimedImportantRewards,
+  grantRelicToPlayer,
   leaveShop,
+  leaveTreasureRoom,
+  openTreasureChest,
+  pickEventLibraryCard,
   proceedFromReward,
+  proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  rollRewardCards,
   runUsePotion,
   selectMapNode,
+  settleAct1Victory,
+  transitionCombatVictory,
 } from '../src/engine/game.js';
+import {
+  createDefaultMeta,
+  getLockedContentSets,
+  loadSavedMeta,
+  recordCompletedRun,
+  saveMeta,
+} from '../src/engine/meta.js';
 
-test('Spire map generator guarantees planar connectivity, zero orphan nodes, and Boss at floor 16 across 100 seeds', () => {
+test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-crossing paths, quotas, and no consecutive Elites/Rests/Shops across 150 seeds', () => {
   assert.equal(TOTAL_FLOORS, 16);
-  for (let seed = 1; seed <= 100; seed += 1) {
-    const state = createNewRun({ seed });
+  for (let seed = 1; seed <= 150; seed += 1) {
+    const ascension = seed > 120 ? 1 : 0;
+    const state = createNewRun({ seed, ascension });
     assert.equal(state.map.length, 16);
+    assert.ok(
+      state.map[0].length >= 3 && state.map[0].length <= 4,
+      `Expected 3-4 starting columns on Floor 1, got ${state.map[0].length}`
+    );
+    assert.ok(
+      state.map[8].every((n) => n.type === 'treasure'),
+      `Expected Floor 9 to be Treasure Chest on seed ${seed}`
+    );
     assert.equal(state.map[14].length, 1);
     assert.equal(state.map[14][0].type, 'rest');
     assert.equal(state.map[15].length, 1);
     assert.equal(state.map[15][0].type, 'boss');
 
+    let eliteCount = 0;
+    let shopCount = 0;
+    let earlyRestCount = 0;
+
+    for (let r = 0; r < state.map.length; r += 1) {
+      for (const node of state.map[r]) {
+        if (node.floor <= 5) {
+          assert.notEqual(node.type, 'elite', `Elite appeared too early on floor ${node.floor} (seed ${seed})`);
+        }
+        if (node.type === 'elite') eliteCount += 1;
+        if (node.type === 'shop') shopCount += 1;
+        if (node.type === 'rest' && node.floor <= 14) earlyRestCount += 1;
+      }
+    }
+
+    assert.ok(shopCount >= 2, `Expected >= 2 shops on seed ${seed}, got ${shopCount}`);
+    assert.ok(earlyRestCount >= 3, `Expected >= 3 pre-boss rest sites on seed ${seed}, got ${earlyRestCount}`);
+    assert.ok(
+      eliteCount >= (ascension >= 1 ? 5 : 3),
+      `Expected >= ${ascension >= 1 ? 5 : 3} elites on seed ${seed} (A${ascension}), got ${eliteCount}`
+    );
+
     for (let r = 0; r < state.map.length - 1; r += 1) {
       const currRow = state.map[r];
       const nextRow = state.map[r + 1];
 
-      // Every node in currRow must connect to at least 1 node in nextRow
+      // Every node in currRow must connect to at least 1 node in nextRow, and obey consecutive spacing rules
+      const edges = [];
       for (const node of currRow) {
         assert.ok(node.nextIds.length >= 1, `Node ${node.id} has no outgoing path`);
         for (const targetId of node.nextIds) {
-          assert.ok(
-            nextRow.some((n) => n.id === targetId),
-            `Invalid edge ${node.id} -> ${targetId}`
-          );
+          const child = nextRow.find((n) => n.id === targetId);
+          assert.ok(child, `Invalid edge ${node.id} -> ${targetId}`);
+          edges.push([node, child]);
+
+          if (['elite', 'rest', 'shop'].includes(node.type) && r + 1 !== 14) {
+            assert.notEqual(
+              child.type,
+              node.type,
+              `Back-to-back ${node.type} along ${node.id} -> ${child.id} (seed ${seed})`
+            );
+          }
         }
       }
 
@@ -62,11 +122,17 @@ test('Spire map generator guarantees planar connectivity, zero orphan nodes, and
         );
       }
 
-      // Non-crossing check for 2x2 rows: cannot have BOTH c0->c1 AND c1->c0
-      if (currRow.length === 2 && nextRow.length === 2) {
-        const c0Diag = currRow[0].nextIds.includes(nextRow[1].id);
-        const c1Diag = currRow[1].nextIds.includes(nextRow[0].id);
-        assert.equal(c0Diag && c1Diag, false, `Crossed edges on seed ${seed} row ${r}`);
+      // General planar non-crossing check across all edges between currRow and nextRow
+      for (let i = 0; i < edges.length; i += 1) {
+        for (let j = i + 1; j < edges.length; j += 1) {
+          const [u1, v1] = edges[i];
+          const [u2, v2] = edges[j];
+          const cross = (u1.slotCol - u2.slotCol) * (v1.slotCol - v2.slotCol);
+          assert.ok(
+            cross >= 0,
+            `Crossed edges (${u1.id}->${v1.id}) vs (${u2.id}->${v2.id}) on seed ${seed}`
+          );
+        }
       }
     }
   }
@@ -152,11 +218,19 @@ test('Combat victory transitions to Reward screen, warns on unclaimed Gold/Relic
   assert.equal(skipState.screen, 'map');
 });
 
-test('Rest site supports both 30% Max HP Heal and Card Upgrade (Smith)', () => {
+test('Rest site supports 30% Max HP Heal, Eternal Feather passive heal, and Card Upgrade (Smith)', () => {
   const state = createNewRun({ seed: 77 });
-  state.screen = 'rest';
-  state.restState = { completed: false, lastAction: null };
-  state.player.hp = 40;
+  state.player.relics.push('eternal_feather'); // 10 cards -> floor(10/5)*3 = +6 HP on entering rest!
+  state.player.hp = 34;
+
+  const restNode = state.map.flat().find((n) => n.type === 'rest');
+  const prevRowNode = state.map[restNode.row - 1][0];
+  state.currentNodeId = prevRowNode.id;
+  prevRowNode.nextIds = [restNode.id];
+  assert.equal(selectMapNode(state, restNode.id).ok, true);
+  assert.equal(state.screen, 'rest');
+  assert.equal(state.restState.featherHealed, 6);
+  assert.equal(state.player.hp, 40);
 
   const healRes = restHeal(state);
   assert.equal(healRes.ok, true);
@@ -176,17 +250,20 @@ test('Rest site supports both 30% Max HP Heal and Card Upgrade (Smith)', () => {
   assert.equal(getCardStats(bashCard).damage, 10);
 });
 
-test('Shop enforces gold prices, 1x purge limit, minimum deck size, and potion belt capacity', () => {
+test('Shop enforces gold prices, 1x purge per shop, escalating purge cost (75 -> 100 -> 125), and potion belt capacity', () => {
   const state = createNewRun({ seed: 888 });
-  // Jump to shop node in row 2
-  const shopNode = state.map[2].find((n) => n.type === 'shop');
-  state.currentNodeId = state.map[1][0].id;
-  findMapNode(state, state.currentNodeId).nextIds = [shopNode.id];
+  const shopNodes = state.map.flat().filter((n) => n.type === 'shop');
+  assert.ok(shopNodes.length >= 2);
+  const shopNode = shopNodes[0];
+  const prevNode = state.map[shopNode.row - 1][0];
+  state.currentNodeId = prevNode.id;
+  prevNode.nextIds = [shopNode.id];
 
   assert.equal(selectMapNode(state, shopNode.id).ok, true);
   assert.equal(state.screen, 'shop');
+  assert.equal(state.shop.purgeCost, 75);
 
-  state.player.gold = 500;
+  state.player.gold = 900;
   const deckBefore = state.player.deck.length;
 
   assert.equal(buyShopCard(state, 0).ok, true);
@@ -200,16 +277,30 @@ test('Shop enforces gold prices, 1x purge limit, minimum deck size, and potion b
     assert.equal(buyShopPotion(state).ok, true);
   }
 
-  // Purge 1 Strike
-  const strike = state.player.deck.find((c) => c.cardId === 'strike');
-  assert.equal(buyShopPurge(state, strike.instanceId).ok, true);
+  // Purge #1 costs 75 gold
+  const goldBeforePurge1 = state.player.gold;
+  const strike1 = state.player.deck.find((c) => c.cardId === 'strike');
+  assert.equal(buyShopPurge(state, strike1.instanceId).ok, true);
+  assert.equal(state.player.gold, goldBeforePurge1 - 75);
+  assert.equal(getCurrentPurgeCost(state), 100);
   assert.equal(buyShopPurge(state, state.player.deck[0].instanceId).ok, false); // Only 1 purge per shop!
 
   assert.equal(leaveShop(state).ok, true);
   assert.equal(state.screen, 'map');
+
+  // Visit 2nd shop -> purgeCost escalated to 100, then after purge becomes 125!
+  const shopNode2 = shopNodes[1];
+  const prevNode2 = state.map[shopNode2.row - 1][0];
+  state.currentNodeId = prevNode2.id;
+  prevNode2.nextIds = [shopNode2.id];
+  assert.equal(selectMapNode(state, shopNode2.id).ok, true);
+  assert.equal(state.shop.purgeCost, 100);
+  const strike2 = state.player.deck.find((c) => c.cardId === 'strike');
+  assert.equal(buyShopPurge(state, strike2.instanceId).ok, true);
+  assert.equal(getCurrentPurgeCost(state), 125);
 });
 
-test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgraded card names), Ancient Shrine purge/cancel, and Thorn Reliquary relic/fallback', () => {
+test('All 10 Unknown Events resolve accurately (Shining Light, Forge, Shrine, Reliquary, Golden Idol, Living Wall, Cursed Tome, Alchemist, Mushroom Grotto, Library)', () => {
   // 1. Shining Light explicitly names the 2 upgraded cards and records upgradedCardIds
   const lightState = createNewRun({ seed: 515 });
   lightState.screen = 'event';
@@ -219,6 +310,7 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
     pendingPurge: false,
     outcomeText: '',
     upgradedCardIds: [],
+    addedCardIds: [],
   };
   assert.equal(chooseEventOption(lightState, 'enter_light').ok, true);
   assert.equal(lightState.player.hp, 68);
@@ -233,7 +325,7 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
     `失去 12 点生命，成功升级了 2 张卡牌：${upgradedNames.join('、')}！`
   );
 
-  // 2. Ancient Forge temper_blade & overclock_forge explicitly name upgraded cards
+  // 2. Ancient Forge temper_blade explicitly names upgraded card
   const forgeState = createNewRun({ seed: 616 });
   forgeState.screen = 'event';
   forgeState.eventState = {
@@ -242,6 +334,7 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
     pendingPurge: false,
     outcomeText: '',
     upgradedCardIds: [],
+    addedCardIds: [],
   };
   assert.equal(chooseEventOption(forgeState, 'temper_blade').ok, true);
   assert.equal(forgeState.eventState.upgradedCardIds.length, 1);
@@ -262,6 +355,7 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
     pendingPurge: false,
     outcomeText: '',
     upgradedCardIds: [],
+    addedCardIds: [],
   };
 
   assert.equal(chooseEventOption(state, 'pray_purge').pendingPurge, true);
@@ -275,17 +369,9 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
   assert.equal(continueFromEvent(state).ok, true);
   assert.equal(state.screen, 'map');
 
-  // 4. Thorn Reliquary when player ALREADY owns all relics -> grants 80 gold fallback instead of undefined!
+  // 4. Thorn Reliquary when player ALREADY owns all non-boss relics -> grants 80 gold fallback!
   state.screen = 'event';
-  state.player.relics = [
-    'burning_blood',
-    'vajra',
-    'oddly_smooth_stone',
-    'anchor',
-    'bag_of_prep',
-    'lantern',
-    'orichalcum',
-  ];
+  state.player.relics = ['burning_blood', ...NON_STARTER_RELIC_IDS];
   const goldBefore = state.player.gold;
   state.eventState = {
     eventId: 'thorn_reliquary',
@@ -293,8 +379,229 @@ test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgrad
     pendingPurge: false,
     outcomeText: '',
     upgradedCardIds: [],
+    addedCardIds: [],
   };
   assert.equal(chooseEventOption(state, 'open_reliquary').ok, true);
   assert.equal(state.player.gold, goldBefore + 80);
-  assert.ok(state.player.relics.every((r) => typeof r === 'string' && r.length > 0));
+
+  // 5. Golden Idol curse-for-gold adds Regret curse
+  const idolState = createNewRun({ seed: 701 });
+  idolState.screen = 'event';
+  idolState.eventState = {
+    eventId: 'golden_idol',
+    resolved: false,
+    pendingPurge: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(idolState, 'accept_curse_gold').ok, true);
+  assert.equal(idolState.player.gold, 99 + 175);
+  assert.equal(idolState.player.deck.some((c) => c.cardId === 'regret'), true);
+
+  // 6. Living Wall transform & upgrade
+  const wallState = createNewRun({ seed: 702 });
+  wallState.screen = 'event';
+  wallState.eventState = {
+    eventId: 'living_wall',
+    resolved: false,
+    pendingPurge: false,
+    pendingCardAction: null,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(wallState, 'wall_change').pendingCardAction, 'transform');
+  assert.equal(cancelEventPurge(wallState).ok, true);
+  assert.equal(chooseEventOption(wallState, 'wall_change').pendingCardAction, 'transform');
+  const oldFirst = wallState.player.deck[0];
+  const tfRes = completeEventCardAction(wallState, oldFirst.instanceId);
+  assert.equal(tfRes.ok, true);
+  assert.notEqual(tfRes.card.cardId, oldFirst.cardId);
+  assert.equal(wallState.player.deck.length, 10);
+
+  // 7. Cursed Tome rare card, Potion Alchemist, Mushroom Grotto, and Library Sanctum
+  const tomeState = createNewRun({ seed: 703 });
+  tomeState.screen = 'event';
+  tomeState.eventState = {
+    eventId: 'cursed_tome',
+    resolved: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(tomeState, 'read_final_chapter').ok, true);
+  const addedRare = tomeState.player.deck[tomeState.player.deck.length - 1];
+  assert.equal(CARD_LIBRARY[addedRare.cardId].rarity, 'rare');
+
+  const alchState = createNewRun({ seed: 704 });
+  alchState.screen = 'event';
+  alchState.eventState = {
+    eventId: 'potion_alchemist',
+    resolved: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(alchState, 'buy_potions').ok, true);
+  assert.equal(alchState.player.gold, 99 - 35);
+  assert.ok(alchState.player.potions[0] && alchState.player.potions[1]);
+
+  const mushState = createNewRun({ seed: 705 });
+  mushState.player.hp = 40;
+  mushState.screen = 'event';
+  mushState.eventState = {
+    eventId: 'mushroom_grotto',
+    resolved: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(mushState, 'eat_blue_cap').ok, true);
+  assert.equal(mushState.player.hp, 68);
+  assert.equal(mushState.player.deck.some((c) => c.cardId === 'clumsy'), true);
+
+  const libState = createNewRun({ seed: 706 });
+  libState.rarePityBonus = 0.14;
+  libState.screen = 'event';
+  libState.eventState = {
+    eventId: 'library_sanctum',
+    resolved: false,
+    libraryChoices: null,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(libState, 'study_manuals').pendingLibrary, true);
+  assert.equal(libState.eventState.libraryChoices.length, 3);
+  assert.equal(libState.rarePityBonus, 0.14, 'Library card roll must not consume rare pity');
+  assert.equal(pickEventLibraryCard(libState, libState.eventState.libraryChoices[1].instanceId).ok, true);
+  assert.equal(continueFromEvent(libState).ok, true);
+});
+
+test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic Rare Pity, Floor Gold Scaling, and Meta/Ascension 0-5', () => {
+  // 1. Dynamic Rare Pity Bonus increases by +2% per non-rare card and resets to 0 on Rare roll
+  const pityState = createNewRun({ seed: 10 });
+  assert.equal(pityState.rarePityBonus, 0);
+  let sawIncrease = false;
+  let sawResetOnRare = false;
+  for (let i = 0; i < 40; i += 1) {
+    const before = pityState.rarePityBonus;
+    const cards = rollRewardCards(pityState, 3, 'normal');
+    const hasRare = cards.some((c) => CARD_LIBRARY[c.cardId].rarity === 'rare');
+    if (!hasRare) {
+      assert.ok(pityState.rarePityBonus > before);
+      sawIncrease = true;
+    } else if (CARD_LIBRARY[cards[2].cardId].rarity === 'rare') {
+      assert.equal(pityState.rarePityBonus, 0);
+      sawResetOnRare = true;
+    }
+  }
+  assert.equal(sawIncrease, true);
+  assert.ok(pityState.rarePityBonus <= 0.4);
+  // Force high pity to confirm reset when rare rolls
+  pityState.rarePityBonus = 0.4;
+  for (let i = 0; i < 15; i += 1) {
+    const cards = rollRewardCards(pityState, 1, 'elite');
+    if (CARD_LIBRARY[cards[0].cardId].rarity === 'rare') {
+      assert.equal(pityState.rarePityBonus, 0);
+      sawResetOnRare = true;
+      break;
+    }
+  }
+  assert.equal(sawResetOnRare, true);
+
+  // 2. Floor-scaled combat gold (Act 2 late floor earns meaningfully more than Act 1 Floor 1)
+  const earlyState = createNewRun({ seed: 300 });
+  earlyState.floor = 1;
+  earlyState.combat = { role: 'normal' };
+  transitionCombatVictory(earlyState);
+  const earlyGold = earlyState.reward.gold;
+
+  const lateState = createNewRun({ seed: 300 });
+  lateState.act = 2;
+  lateState.floor = 12;
+  lateState.combat = { role: 'normal' };
+  transitionCombatVictory(lateState);
+  const lateGold = lateState.reward.gold;
+  assert.ok(lateGold >= earlyGold + 35, `Expected Act 2 F12 gold (${lateGold}) >> Act 1 F1 gold (${earlyGold})`);
+
+  // 3. Treasure Chest + Cursed Key adds a Curse on open (and allows skipping without opening)
+  const chestState = createNewRun({ seed: 400 });
+  grantRelicToPlayer(chestState, 'cursed_key');
+  assert.equal(chestState.player.maxEnergy, 4);
+  const treasureNode = chestState.map[8][0];
+  const floor8Node = chestState.map[7][0];
+  chestState.currentNodeId = floor8Node.id;
+  floor8Node.nextIds = [treasureNode.id];
+  assert.equal(selectMapNode(chestState, treasureNode.id).ok, true);
+  assert.equal(chestState.screen, 'treasure');
+
+  const openRes = openTreasureChest(chestState);
+  assert.equal(openRes.ok, true);
+  assert.ok(openRes.curseCard && CARD_LIBRARY[openRes.curseCard.cardId].type === 'curse');
+  assert.equal(leaveTreasureRoom(chestState).ok, true);
+  assert.equal(chestState.screen, 'map');
+
+  // 4. Act 1 Boss -> Boss Relic Altar -> Proceed to Act 2 -> Defeat Act 2 Boss -> Victory!
+  const actState = createNewRun({ seed: 500 });
+  actState.player.hp = 40; // Missing 40 HP -> Act 2 transition heals 75% (30 HP) -> 70 HP!
+  startCombat(actState, ENCOUNTERS.boss[0], 'boss');
+  actState.combat.enemies[0].hp = 10;
+  assert.equal(runUsePotion(actState, 0, actState.combat.enemies[0].id).ok, true);
+  assert.equal(actState.screen, 'boss_reward');
+  assert.equal(actState.bossReward.relicChoices.length, 3);
+  assert.equal(claimBossRelic(actState, actState.bossReward.relicChoices[0]).ok, true);
+  assert.equal(proceedToNextAct(actState).ok, true);
+  assert.equal(actState.act, 2);
+  assert.equal(actState.screen, 'map');
+  assert.equal(actState.floor, 0);
+  assert.ok(actState.player.hp >= 70, `Expected inter-act heal, got ${actState.player.hp}`);
+  assert.ok(ENCOUNTERS.act2Boss.some((b) => b.id === actState.bossEncounterId));
+
+  // Defeat Act 2 Boss -> final game_over victory
+  actState.player.potions[0] = 'fire_potion';
+  startCombat(actState, ENCOUNTERS.act2Boss[0], 'boss');
+  actState.combat.enemies.forEach((e, idx) => {
+    e.hp = idx === 0 ? 10 : 0;
+  });
+  assert.equal(runUsePotion(actState, 0, actState.combat.enemies[0].id).ok, true);
+  assert.equal(actState.screen, 'game_over');
+  assert.equal(actState.runOutcome, 'victory');
+
+  // 5. Ascension 5 modifiers & Meta XP / Unlock Tiers / Storage round-trip
+  const a5 = createNewRun({ seed: 600, ascension: 5, unlockedTier: 0, unlockAllOverride: false });
+  assert.equal(a5.player.maxHp, 75);
+  assert.equal(a5.player.deck.length, 11);
+  assert.equal(a5.player.deck.some((c) => c.cardId === 'clumsy'), true);
+  assert.equal(getCurrentPurgeCost(a5), Math.round(75 * 1.15));
+
+  const { lockedCardIds, lockedRelicIds } = getLockedContentSets(0, false);
+  assert.equal(lockedCardIds.has('barricade'), true);
+  assert.equal(lockedRelicIds.has('tungsten_rod'), true);
+  assert.equal(getLockedContentSets(0, true).lockedCardIds.size, 0);
+
+  const meta = createDefaultMeta();
+  actState.ascension = 0;
+  const rec1 = recordCompletedRun(meta, actState);
+  assert.ok(rec1.xpGained >= 180);
+  assert.equal(rec1.unlockedAscension, 1);
+  assert.equal(meta.maxAscensionUnlocked, 1);
+  assert.ok(meta.unlockedTier >= 1);
+  // Idempotent on duplicate recording
+  assert.equal(recordCompletedRun(meta, actState).alreadyRecorded, true);
+
+  const fakeStorage = {
+    data: new Map(),
+    getItem(k) {
+      return this.data.get(k) ?? null;
+    },
+    setItem(k, v) {
+      this.data.set(k, String(v));
+    },
+  };
+  saveMeta(meta, fakeStorage);
+  const loaded = loadSavedMeta(fakeStorage);
+  assert.equal(loaded.xp, meta.xp);
+  assert.equal(loaded.maxAscensionUnlocked, 1);
 });

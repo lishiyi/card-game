@@ -221,15 +221,25 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
       );
     }
 
-    // 4. Play first card in hand & use starting potion & end turn
+    // 4. Play first card in hand & use starting potion & end turn (clicking targetable enemy if 2+ enemies spawned)
     const initialHandIds = await cdp.evaluate(`window.__SPIRE_APP__.getState().combat.hand.map(c => c.instanceId)`);
-    await cdp.evaluate(`document.querySelector('#hand-tray .game-card.playable').click()`);
+    await cdp.evaluate(`(() => {
+      document.querySelector('#hand-tray .game-card.playable').click();
+      const targetEl = document.querySelector('.fighter-unit.enemy-targetable');
+      if (targetEl) targetEl.click();
+    })()`);
     const afterCardHand = await cdp.evaluate(`document.querySelectorAll('#hand-tray .game-card').length`);
     assert.equal(afterCardHand, 4);
 
-    await cdp.evaluate(`document.getElementById('potion-slot-0').click()`);
-    const potionUsed = await cdp.evaluate(`window.__SPIRE_APP__.getState().player.potions[0] === null`);
-    assert.equal(potionUsed, true);
+    if (await cdp.evaluate(`window.__SPIRE_APP__.getState().screen === 'combat'`)) {
+      await cdp.evaluate(`(() => {
+        document.getElementById('potion-slot-0').click();
+        const targetEl = document.querySelector('.fighter-unit.enemy-targetable');
+        if (targetEl) targetEl.click();
+      })()`);
+      const potionUsed = await cdp.evaluate(`window.__SPIRE_APP__.getState().player.potions[0] === null`);
+      assert.equal(potionUsed, true);
+    }
 
     // If enemy survived, end turn and verify Turn 2, then restart current combat!
     const stillCombat = await cdp.evaluate(`window.__SPIRE_APP__.getState().screen === 'combat'`);
@@ -616,4 +626,146 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     server.close();
   }
 });
+
+test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss Relic Altar -> Act 2 + Meta/Ascension 5 progression', async (t) => {
+  if (!fs.existsSync('/usr/bin/chromium')) {
+    t.skip('Chromium binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  const { proc, browserWsUrl } = await launchHeadlessChromium();
+
+  try {
+    const debugPort = new URL(browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget, 'Expected a page target in Chromium');
+
+    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Audit 3-4 col map, zero F1-F5 Elites, and Floor 9 Treasure Chest icon
+    const mapAudit = await cdp.evaluate(`(() => {
+      const rows = [...document.querySelectorAll('.map-row')];
+      const f1Count = rows[0]?.querySelectorAll('.map-node-btn').length ?? 0;
+      const earlyElites = rows.slice(0, 5).flatMap((r) => [...r.querySelectorAll('[data-node-type="elite"]')]).length;
+      const f9TreasureIcons = rows[8]?.querySelectorAll('[data-node-icon="treasure"]').length ?? 0;
+      const f9Nodes = rows[8]?.querySelectorAll('.map-node-btn').length ?? 0;
+      return { f1Count, earlyElites, f9TreasureIcons, f9Nodes };
+    })()`);
+    assert.ok(mapAudit.f1Count >= 3 && mapAudit.f1Count <= 4);
+    assert.equal(mapAudit.earlyElites, 0);
+    assert.ok(mapAudit.f9Nodes >= 1 && mapAudit.f9TreasureIcons === mapAudit.f9Nodes);
+
+    // 2. Test Treasure Chest screen with Cursed Key -> renders Curse card with violet styling & skull icon
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.relics.push('cursed_key');
+      st.screen = 'treasure';
+      st.treasureState = {
+        opened: false,
+        relicId: null,
+        gold: 0,
+        curseCardId: null,
+        outcomeText: '',
+      };
+      app.render();
+      document.getElementById('btn-open-treasure').click();
+    })()`);
+
+    const treasureAudit = await cdp.evaluate(`(() => {
+      const curseEl = document.querySelector('#treasure-curse-showcase .game-card');
+      return {
+        hasLeaveBtn: Boolean(document.getElementById('btn-leave-treasure')),
+        hasCurseCard: Boolean(curseEl),
+        hasCurseClass: curseEl?.classList.contains('rarity-curse') ?? false,
+        curseBadge: curseEl?.querySelector('.rarity-badge')?.textContent?.trim() || '',
+        hasSkullIcon: Boolean(curseEl?.querySelector('[data-card-type-icon="curse"]')),
+      };
+    })()`);
+    assert.equal(treasureAudit.hasLeaveBtn, true);
+    assert.equal(treasureAudit.hasCurseCard, true);
+    assert.equal(treasureAudit.hasCurseClass, true);
+    assert.equal(treasureAudit.curseBadge, '诅咒');
+    assert.equal(treasureAudit.hasSkullIcon, true);
+
+    await cdp.evaluate(`document.getElementById('btn-leave-treasure').click()`);
+    assert.equal(await cdp.evaluate(`window.__SPIRE_APP__.getState().screen`), 'map');
+
+    // 3. Test Boss Relic Altar -> pick Boss Relic -> proceed to Act 2!
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.hp = 40;
+      st.screen = 'boss_reward';
+      st.bossReward = {
+        bossGold: 105,
+        relicChoices: ['black_blood', 'velvet_choker', 'sacred_bark'],
+        pickedRelicId: null,
+      };
+      app.render();
+      document.getElementById('boss-relic-velvet_choker').click();
+      document.getElementById('btn-proceed-act2').click();
+    })()`);
+
+    const act2Audit = await cdp.evaluate(`({
+      act: window.__SPIRE_APP__.getState().act,
+      maxEnergy: window.__SPIRE_APP__.getState().player.maxEnergy,
+      hp: window.__SPIRE_APP__.getState().player.hp,
+      floorIndicator: document.querySelector('.floor-indicator')?.textContent?.trim(),
+      mapHeading: document.getElementById('map-heading')?.textContent?.trim(),
+    })`);
+    assert.equal(act2Audit.act, 2);
+    assert.equal(act2Audit.maxEnergy, 4);
+    assert.equal(act2Audit.hp, 70);
+    assert.equal(act2Audit.floorIndicator, '第 2 幕 · 第 1 / 16 层');
+    assert.equal(act2Audit.mapHeading, '第二幕 · 钢铁城邦攀登路线');
+
+    // 4. Open Meta/Ascension modal -> Unlock all -> Select Ascension 5 -> Start new Ascension 5 run!
+    await cdp.evaluate(`document.getElementById('btn-open-meta').click()`);
+    assert.equal(await cdp.evaluate(`Boolean(document.getElementById('meta-progression-modal'))`), true);
+    await cdp.evaluate(`document.getElementById('btn-unlock-all-meta').click()`);
+    await cdp.evaluate(`document.getElementById('btn-select-ascension-5').click()`);
+    await cdp.evaluate(`document.getElementById('btn-start-ascension-run').click()`);
+
+    const asc5Audit = await cdp.evaluate(`({
+      ascension: window.__SPIRE_APP__.getState().ascension,
+      maxHp: window.__SPIRE_APP__.getState().player.maxHp,
+      ascPillText: document.querySelector('.ascension-pill')?.textContent?.trim() || '',
+      deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim() || '',
+      hasClumsy: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'clumsy'),
+    })`);
+    assert.equal(asc5Audit.ascension, 5);
+    assert.equal(asc5Audit.maxHp, 75);
+    assert.equal(asc5Audit.ascPillText, '进阶 5');
+    assert.equal(asc5Audit.deckBtnText, '牌组 (11)');
+    assert.equal(asc5Audit.hasClumsy, true);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    proc.kill('SIGKILL');
+    server.close();
+  }
+});
+
 
