@@ -63,6 +63,7 @@ function resolveBrowserBinary() {
 function launchHeadlessChromium() {
   return new Promise((resolve, reject) => {
     const browserBin = resolveBrowserBinary();
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spire-chrome-'));
     const proc = spawn(
       browserBin,
       [
@@ -70,6 +71,11 @@ function launchHeadlessChromium() {
         '--no-sandbox',
         '--disable-gpu',
         '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-extensions',
+        `--user-data-dir=${userDataDir}`,
         '--window-size=1280,880',
         '--remote-debugging-port=0',
         'about:blank',
@@ -77,26 +83,61 @@ function launchHeadlessChromium() {
       { stdio: ['ignore', 'pipe', 'pipe'] }
     );
 
+    const cleanupProfile = () => {
+      try {
+        fs.rmSync(userDataDir, { recursive: true, force: true });
+      } catch {
+        // Ignore temp cleanup race
+      }
+    };
+
     let stderrBuf = '';
     const timer = setTimeout(() => {
       proc.kill('SIGKILL');
+      cleanupProfile();
       reject(new Error(`Timed out waiting for Chromium DevTools endpoint: ${stderrBuf}`));
-    }, 8000);
+    }, 20000);
 
     proc.stderr.on('data', (chunk) => {
       stderrBuf += chunk.toString();
       const match = stderrBuf.match(/DevTools listening on (ws:\/\/[^\s]+)/);
       if (match) {
         clearTimeout(timer);
-        resolve({ proc, browserWsUrl: match[1] });
+        resolve({ proc, browserWsUrl: match[1], userDataDir, cleanupProfile });
       }
     });
 
     proc.on('error', (err) => {
       clearTimeout(timer);
+      cleanupProfile();
       reject(err);
     });
   });
+}
+
+async function teardownSession({ server, browser, cdp }) {
+  try {
+    cdp?.ws?.close();
+  } catch {
+    // Ignore ws close error
+  }
+  if (browser?.proc) {
+    const exited = new Promise((r) => {
+      if (browser.proc.exitCode !== null) r();
+      else browser.proc.once('exit', r);
+    });
+    try {
+      browser.proc.kill('SIGKILL');
+    } catch {
+      // Ignore kill error
+    }
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 500))]);
+    browser.cleanupProfile?.();
+  }
+  if (server) {
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(r));
+  }
 }
 
 async function createCdpClient(pageWsUrl) {
@@ -152,16 +193,18 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
   }
 
   const { server, port } = await startStaticServer();
-  const { proc, browserWsUrl } = await launchHeadlessChromium();
+  let browser = null;
+  let cdp = null;
 
   try {
-    const debugPort = new URL(browserWsUrl).port;
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
     const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
     const targets = await targetsResp.json();
     const pageTarget = targets.find((x) => x.type === 'page');
     assert.ok(pageTarget, 'Expected a page target in Chromium');
 
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -307,8 +350,7 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
 
     cdp.ws.close();
   } finally {
-    proc.kill('SIGKILL');
-    server.close();
+    await teardownSession({ server, browser, cdp });
   }
 });
 
@@ -319,16 +361,18 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
   }
 
   const { server, port } = await startStaticServer();
-  const { proc, browserWsUrl } = await launchHeadlessChromium();
+  let browser = null;
+  let cdp = null;
 
   try {
-    const debugPort = new URL(browserWsUrl).port;
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
     const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
     const targets = await targetsResp.json();
     const pageTarget = targets.find((x) => x.type === 'page');
     assert.ok(pageTarget, 'Expected a page target in Chromium');
 
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -713,8 +757,7 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
 
     cdp.ws.close();
   } finally {
-    proc.kill('SIGKILL');
-    server.close();
+    await teardownSession({ server, browser, cdp });
   }
 });
 
@@ -725,16 +768,18 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
   }
 
   const { server, port } = await startStaticServer();
-  const { proc, browserWsUrl } = await launchHeadlessChromium();
+  let browser = null;
+  let cdp = null;
 
   try {
-    const debugPort = new URL(browserWsUrl).port;
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
     const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
     const targets = await targetsResp.json();
     const pageTarget = targets.find((x) => x.type === 'page');
     assert.ok(pageTarget, 'Expected a page target in Chromium');
 
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -854,8 +899,7 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
 
     cdp.ws.close();
   } finally {
-    proc.kill('SIGKILL');
-    server.close();
+    await teardownSession({ server, browser, cdp });
   }
 });
 
@@ -866,15 +910,17 @@ test('P2 Real Chromium E2E: @keyframes FX & shield shatter, Settings modal, Glos
   }
 
   const { server, port } = await startStaticServer();
-  const { proc, browserWsUrl } = await launchHeadlessChromium();
+  let browser = null;
+  let cdp = null;
 
   try {
-    const debugPort = new URL(browserWsUrl).port;
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
     const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
     const pageTarget = targets.find((x) => x.type === 'page');
     assert.ok(pageTarget);
 
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -1029,8 +1075,7 @@ test('P2 Real Chromium E2E: @keyframes FX & shield shatter, Settings modal, Glos
 
     cdp.ws.close();
   } finally {
-    proc.kill('SIGKILL');
-    server.close();
+    await teardownSession({ server, browser, cdp });
   }
 });
 
@@ -1046,15 +1091,17 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
   assert.equal(fs.existsSync(bundleOut), true);
 
   const { server, port } = await startStaticServer();
-  const { proc, browserWsUrl } = await launchHeadlessChromium();
+  let browser = null;
+  let cdp = null;
 
   try {
-    const debugPort = new URL(browserWsUrl).port;
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
     const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
     const pageTarget = targets.find((x) => x.type === 'page');
     assert.ok(pageTarget);
 
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -1172,8 +1219,7 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
 
     cdp.ws.close();
   } finally {
-    proc.kill('SIGKILL');
-    server.close();
+    await teardownSession({ server, browser, cdp });
   }
 });
 
