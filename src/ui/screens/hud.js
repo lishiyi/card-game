@@ -37,7 +37,7 @@ export function renderTopHud({ state, ui }) {
             tabindex="0"
             data-tooltip-title="空药水栏"
             data-tooltip-tag="药水栏位"
-            data-tooltip-desc="最多可携带 2 瓶药水，可在战斗战利品、炼金师事件或神秘商人处获得。"
+            data-tooltip-desc="${escapeHtml(`最多可携带 ${state.player.potions.length} 瓶药水，可在战斗战利品、炼金师事件或神秘商人处获得。`)}"
           >
             <button type="button" id="potion-slot-${idx}" class="potion-slot" disabled>空药水栏</button>
           </span>

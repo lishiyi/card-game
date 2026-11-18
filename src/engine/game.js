@@ -28,6 +28,8 @@ import {
 import { getLockedContentSets, MAX_ASCENSION } from './meta.js';
 import { nextRandom, normalizeSeed, pickDistinct, pickRandom, randomInt } from './rng.js';
 
+export const STARTER_POTION_SLOTS = 3;
+
 export function getCurrentPurgeCost(state) {
   const base = 75 + (state?.purgeCount ?? 0) * 25;
   return (state?.ascension ?? 0) >= 5 ? Math.round(base * 1.15) : base;
@@ -78,6 +80,7 @@ export function createNewRun(options = {}) {
     runOutcome: null,
     floor: 0,
     currentNodeId: null,
+    visitedEdges: [],
     lastEncounterId: null,
     lastEliteId: null,
     visitedEventIds: [],
@@ -90,7 +93,7 @@ export function createNewRun(options = {}) {
       energy: 3,
       block: 0,
       relics: ['burning_blood'],
-      potions: ['fire_potion', null],
+      potions: ['fire_potion', null, null],
       deck: [],
       statuses: {},
       skipStatusTick: {},
@@ -363,6 +366,14 @@ export function selectMapNode(state, nodeId) {
     return { ok: false, reason: '地图节点不存在' };
   }
 
+  if (state.currentNodeId) {
+    if (!Array.isArray(state.visitedEdges)) state.visitedEdges = [];
+    const edgeKey = `${state.currentNodeId}->${node.id}`;
+    if (!state.visitedEdges.includes(edgeKey)) {
+      state.visitedEdges.push(edgeKey);
+    }
+  }
+
   node.visited = true;
   state.currentNodeId = node.id;
   state.floor = node.floor;
@@ -563,6 +574,7 @@ export function proceedToNextAct(state) {
   state.act = 2;
   state.floor = 0;
   state.currentNodeId = null;
+  state.visitedEdges = [];
   state.lastEncounterId = null;
   state.lastEliteId = null;
   state.bossReward = null;

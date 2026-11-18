@@ -174,19 +174,24 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 1. Verify SEO, 16-Floor Map Screen structure, and distinct monster icons for Combat vs Elite
+    // 1. Verify SEO, 3 starter potion slots, 16-Floor Map Bezier curve routes, and distinct monster icons for Combat vs Elite
     const initialAudit = await cdp.evaluate(`(() => {
       const nodeBtns = [...document.querySelectorAll('.map-node-btn')];
+      const edgePaths = [...document.querySelectorAll('.map-edges-svg path.map-edge-path')];
       const combatIconWrap = document.querySelector('.node-icon-wrap.node-type-combat');
       const eliteIconWrap = document.querySelector('.node-icon-wrap.node-type-elite');
       return {
         h1Count: document.querySelectorAll('h1').length,
         title: document.title,
         floorIndicator: document.querySelector('.floor-indicator')?.textContent?.trim(),
+        potionSlotCount: document.querySelectorAll('[id^="potion-slot-"]').length,
+        hasPotionSlot2: Boolean(document.getElementById('potion-slot-2')),
         mapRowCount: document.querySelectorAll('.map-row').length,
         hasMapNode: Boolean(document.getElementById('map-node-f1_c0')),
         hasBossFloor16: Boolean(document.getElementById('map-node-f16_c0')),
-        svgLines: document.querySelectorAll('.map-edges-svg line').length,
+        legacySvgLines: document.querySelectorAll('.map-edges-svg line').length,
+        bezierEdgeCount: edgePaths.length,
+        allCubicBezier: edgePaths.length > 0 && edgePaths.every((p) => /^M\\s+[\\d.]+\\s+[\\d.]+\\s+C\\s+/.test(p.getAttribute('d') || '')),
         deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim(),
         allNodesHaveIcons: nodeBtns.length > 0 && nodeBtns.every((b) => Boolean(b.querySelector('[data-node-icon]'))),
         combatSvgMarkup: combatIconWrap?.innerHTML || '',
@@ -199,10 +204,14 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     assert.equal(initialAudit.h1Count, 1, 'Should have exactly 1 h1');
     assert.ok(initialAudit.title.includes('杀戮尖塔'));
     assert.equal(initialAudit.floorIndicator, '第 1 / 16 层');
+    assert.equal(initialAudit.potionSlotCount, 3, 'HUD must render 3 starter potion belt slots');
+    assert.equal(initialAudit.hasPotionSlot2, true, 'HUD must render #potion-slot-2');
     assert.equal(initialAudit.mapRowCount, 16);
     assert.equal(initialAudit.hasMapNode, true);
     assert.equal(initialAudit.hasBossFloor16, true);
-    assert.ok(initialAudit.svgLines >= 22, 'Expected 16-floor Spire map SVG route lines');
+    assert.equal(initialAudit.legacySvgLines, 0, 'Map must no longer use straight dashed <line> elements');
+    assert.ok(initialAudit.bezierEdgeCount >= 22, 'Expected 16-floor Spire map cubic Bezier route curves');
+    assert.equal(initialAudit.allCubicBezier, true, 'Every map edge must be a smooth cubic Bezier curve');
     assert.equal(initialAudit.deckBtnText, '牌组 (10)');
     assert.equal(initialAudit.allNodesHaveIcons, true, 'Every map node must render an icon');
     assert.notEqual(initialAudit.combatSvgMarkup, initialAudit.eliteSvgMarkup, 'Normal combat and Elite must use distinct monster icons');
@@ -336,7 +345,11 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
       const pt = await cdp.evaluate(`(() => {
         const el = document.querySelector(${JSON.stringify(selector)});
         if (!el) return null;
-        const r = el.getBoundingClientRect();
+        let r = el.getBoundingClientRect();
+        if (r.top < 0 || r.bottom > window.innerHeight) {
+          el.scrollIntoView({ block: 'center', behavior: 'instant' });
+          r = el.getBoundingClientRect();
+        }
         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
       })()`);
       assert.ok(pt, `Selector not found for hover: ${selector}`);
@@ -373,10 +386,39 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     assert.equal(mapPotionTip.title, '火焰药水');
     assert.ok(mapPotionTip.desc.includes('造成 20 点固定伤害'));
 
-    // Move mouse to empty corner -> tooltip hides
+    const emptySlot2Tip = await hoverSelector('#potion-slot-2');
+    assert.equal(emptySlot2Tip.hidden, false, 'Hovering 3rd empty potion slot must show tooltip');
+    assert.ok(
+      emptySlot2Tip.desc.includes('最多可携带 3 瓶药水'),
+      `Expected 3-potion tooltip on #potion-slot-2, got: ${emptySlot2Tip.desc}`
+    );
+
+    // Hover F16 Boss node (locked upper floor) -> verifies both Boss tooltip & incoming route highlight!
+    const bossHoverTip = await hoverSelector('#map-node-f16_c0');
+    assert.equal(bossHoverTip.hidden, false, 'Hovering F16 Boss node must show Boss tooltip');
+    assert.ok(bossHoverTip.title.includes('本幕首领'));
+    assert.equal(
+      await cdp.evaluate(`document.querySelectorAll('.map-edge-path.edge-hover-highlight').length`),
+      1,
+      'Hovering F16 Boss node must highlight incoming F15->F16 route'
+    );
+
+    // Hover F1 available node -> highlights outgoing F1->F2 Bezier curve(s)
+    await hoverSelector('#map-node-f1_c0');
+    const hoveredEdgeCount = await cdp.evaluate(
+      `document.querySelectorAll('.map-edge-path.edge-hover-highlight').length`
+    );
+    assert.ok(hoveredEdgeCount >= 1, 'Hovering a map node must highlight its connected route curves');
+
+    // Scroll back to top & move mouse to empty corner -> tooltip & hover highlight clear
+    await cdp.evaluate(`window.scrollTo(0, 0)`);
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 4 });
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(await cdp.evaluate(`document.getElementById('spire-tooltip').hidden`), true);
+    assert.equal(
+      await cdp.evaluate(`document.querySelectorAll('.map-edge-path.edge-hover-highlight').length`),
+      0
+    );
 
     // 2. Add Common (body_slam), Uncommon (seeing_red), and Rare (bludgeon) cards to deck, open Rest -> Smith modal
     await cdp.evaluate(`(() => {
@@ -597,8 +639,35 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
         pickedCardId: null,
       };
       app.render();
-      document.getElementById('btn-proceed-reward').click();
     })()`);
+
+    const lootCardsAudit = await cdp.evaluate(`(() => {
+      const goldEl = document.getElementById('btn-claim-gold');
+      const relicEl = document.getElementById('btn-claim-relic');
+      const potionEl = document.getElementById('btn-claim-potion');
+      return {
+        goldHeight: goldEl?.getBoundingClientRect().height || 0,
+        relicHeight: relicEl?.getBoundingClientRect().height || 0,
+        potionHeight: potionEl?.getBoundingClientRect().height || 0,
+        hasGoldIcon: Boolean(goldEl?.querySelector('[data-loot-icon="gold"]')),
+        hasRelicIcon: Boolean(relicEl?.querySelector('[data-loot-icon="relic"]')),
+        hasPotionIcon: Boolean(potionEl?.querySelector('[data-loot-icon="potion"]')),
+        goldIconSvg: goldEl?.querySelector('[data-loot-icon="gold"]')?.outerHTML || '',
+        relicIconSvg: relicEl?.querySelector('[data-loot-icon="relic"]')?.outerHTML || '',
+        potionIconSvg: potionEl?.querySelector('[data-loot-icon="potion"]')?.outerHTML || '',
+      };
+    })()`);
+
+    assert.ok(lootCardsAudit.goldHeight >= 76, `Expected prominent gold loot plaque >= 76px tall, got ${lootCardsAudit.goldHeight}`);
+    assert.ok(lootCardsAudit.relicHeight >= 76, `Expected prominent relic loot plaque >= 76px tall, got ${lootCardsAudit.relicHeight}`);
+    assert.ok(lootCardsAudit.potionHeight >= 76, `Expected prominent potion loot plaque >= 76px tall, got ${lootCardsAudit.potionHeight}`);
+    assert.equal(lootCardsAudit.hasGoldIcon, true, 'Gold loot card must render gold SVG icon');
+    assert.equal(lootCardsAudit.hasRelicIcon, true, 'Relic loot card must render relic SVG icon');
+    assert.equal(lootCardsAudit.hasPotionIcon, true, 'Potion loot card must render potion SVG icon');
+    assert.notEqual(lootCardsAudit.goldIconSvg, lootCardsAudit.relicIconSvg);
+    assert.notEqual(lootCardsAudit.relicIconSvg, lootCardsAudit.potionIconSvg);
+
+    await cdp.evaluate(`document.getElementById('btn-proceed-reward').click()`);
 
     const promptAudit = await cdp.evaluate(`({
       screen: window.__SPIRE_APP__.getState().screen,

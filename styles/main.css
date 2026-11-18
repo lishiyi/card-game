@@ -332,14 +332,51 @@ button:disabled {
   color: var(--text-sand);
 }
 
+.map-legend-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin: 2px auto 8px;
+  width: min(820px, 100%);
+  font-size: 0.77rem;
+  color: var(--text-sand);
+}
+
+.map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 24px;
+  height: 0;
+  border-radius: 2px;
+}
+
+.legend-swatch.swatch-active {
+  border-top: 3px solid hsl(42, 95%, 64%);
+  box-shadow: 0 0 8px hsla(42, 95%, 60%, 0.65);
+}
+
+.legend-swatch.swatch-traveled {
+  border-top: 2.5px solid hsl(152, 62%, 58%);
+}
+
+.legend-swatch.swatch-reachable {
+  border-top: 2px dashed hsl(36, 38%, 62%);
+}
+
 .map-board {
   position: relative;
   width: min(820px, 100%);
-  margin: 4px auto;
+  margin: 10px auto;
   padding: 0;
   display: flex;
   flex-direction: column-reverse;
-  gap: 8px;
+  gap: 26px;
 }
 
 .map-edges-svg {
@@ -347,14 +384,57 @@ button:disabled {
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   pointer-events: none;
   z-index: 0;
+}
+
+.map-edge-glow {
+  fill: none;
+  stroke: hsla(42, 96%, 62%, 0.32);
+  stroke-width: 7px;
+  stroke-linecap: round;
+}
+
+.map-edge-path {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke 0.16s ease, stroke-width 0.16s ease, opacity 0.16s ease;
+}
+
+.map-edge-path.edge-unreachable {
+  stroke: hsla(28, 14%, 38%, 0.34);
+  stroke-width: 1.5px;
+  stroke-dasharray: 4 6;
+}
+
+.map-edge-path.edge-reachable {
+  stroke: hsla(36, 38%, 64%, 0.78);
+  stroke-width: 2.1px;
+  stroke-dasharray: 6 5;
+}
+
+.map-edge-path.edge-traveled {
+  stroke: hsl(152, 62%, 58%);
+  stroke-width: 2.8px;
+}
+
+.map-edge-path.edge-active {
+  stroke: hsl(42, 96%, 66%);
+  stroke-width: 3px;
+}
+
+.map-edge-path.edge-hover-highlight {
+  stroke: hsl(46, 100%, 74%);
+  stroke-width: 3.4px;
+  stroke-dasharray: none;
+  opacity: 1;
 }
 
 .map-row {
   position: relative;
   z-index: 1;
-  height: 40px;
+  height: 42px;
   display: flex;
   align-items: center;
 }
@@ -380,30 +460,52 @@ button:disabled {
   border-radius: var(--radius-md);
   background: var(--bg-cavern);
   border: 1px solid var(--border-muted);
-  color: var(--text-ash);
-  transition: transform 0.16s ease, background-color 0.16s ease;
+  color: var(--text-sand);
+  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
 }
 
 .map-node-btn.node-kind-boss {
   width: 176px;
 }
 
+.map-node-btn[aria-disabled='true'] {
+  cursor: default;
+}
+
+.map-node-btn[aria-disabled='true'][data-tooltip-desc] {
+  cursor: help;
+}
+
+.map-node-btn.unreachable {
+  opacity: 0.42;
+  color: var(--text-ash);
+}
+
 .map-node-btn.visited {
-  background: hsl(28, 10%, 16%);
+  background: hsl(28, 12%, 17%);
+  border-color: hsla(152, 42%, 44%, 0.48);
   color: var(--text-sand);
-  opacity: 0.76;
+  opacity: 0.88;
+}
+
+.map-node-btn.current-pos {
+  background: linear-gradient(180deg, hsl(154, 28%, 21%), hsl(152, 22%, 15%));
+  border-color: hsl(152, 62%, 56%);
+  color: var(--text-ivory);
+  opacity: 1;
+  box-shadow: 0 0 0 2px hsla(152, 62%, 52%, 0.28);
 }
 
 .map-node-btn.available {
-  background: linear-gradient(180deg, hsl(32, 22%, 24%), hsl(28, 16%, 18%));
-  border-color: hsl(36, 32%, 42%);
+  background: linear-gradient(180deg, hsl(32, 24%, 25%), hsl(28, 18%, 18%));
+  border-color: hsl(40, 74%, 56%);
   color: var(--text-ivory);
   box-shadow: var(--shadow-soft), var(--bevel-highlight);
 }
 
 .map-node-btn.available:hover {
   transform: translate(-50%, calc(-50% - 2px));
-  background: linear-gradient(180deg, hsl(34, 28%, 28%), hsl(30, 20%, 21%));
+  background: linear-gradient(180deg, hsl(34, 30%, 29%), hsl(30, 22%, 21%));
 }
 
 .node-icon-wrap {
@@ -1031,11 +1133,157 @@ button:disabled {
 }
 
 /* === Reward, Rest, Shop, Event & Game Over Grids === */
+.reward-section-heading {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-sand);
+}
+
 .loot-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.loot-reward-card {
+  width: 100%;
+  min-height: 82px;
+  padding: 13px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, hsl(28, 18%, 18%), hsl(24, 15%, 13%));
+  border: 1.5px solid var(--border-stone);
+  box-shadow: var(--shadow-soft), var(--bevel-highlight);
   display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  color: var(--text-ivory);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+button.loot-reward-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px hsla(20, 32%, 4%, 0.65), var(--bevel-highlight);
+}
+
+.loot-reward-card.loot-kind-gold {
+  border-color: hsla(43, 86%, 56%, 0.62);
+  background: linear-gradient(135deg, hsl(38, 30%, 20%), hsl(28, 18%, 13%));
+}
+
+button.loot-reward-card.loot-kind-gold:hover {
+  border-color: hsl(44, 94%, 64%);
+}
+
+.loot-reward-card.loot-kind-relic {
+  border-color: hsla(276, 62%, 62%, 0.64);
+  background: linear-gradient(135deg, hsl(274, 26%, 21%), hsl(262, 18%, 13%));
+}
+
+button.loot-reward-card.loot-kind-relic:hover {
+  border-color: hsl(278, 82%, 72%);
+}
+
+.loot-reward-card.loot-kind-potion {
+  border-color: hsla(164, 62%, 48%, 0.62);
+  background: linear-gradient(135deg, hsl(168, 28%, 19%), hsl(172, 18%, 12%));
+}
+
+button.loot-reward-card.loot-kind-potion:hover {
+  border-color: hsl(162, 74%, 60%);
+}
+
+.loot-reward-card.loot-claimed {
+  opacity: 0.66;
+  border-style: dashed;
+  box-shadow: none;
+  cursor: default;
+}
+
+.loot-icon-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid hsla(38, 40%, 60%, 0.45);
+  background: var(--bg-abyss);
+}
+
+.loot-badge-gold {
+  color: hsl(44, 96%, 66%);
+  border-color: hsla(44, 86%, 56%, 0.65);
+  background: radial-gradient(circle, hsl(40, 48%, 20%), var(--bg-abyss));
+}
+
+.loot-badge-relic {
+  color: hsl(276, 86%, 78%);
+  border-color: hsla(276, 68%, 62%, 0.65);
+  background: radial-gradient(circle, hsl(274, 42%, 22%), var(--bg-abyss));
+}
+
+.loot-badge-potion {
+  color: hsl(162, 78%, 66%);
+  border-color: hsla(162, 62%, 48%, 0.65);
+  background: radial-gradient(circle, hsl(166, 44%, 19%), var(--bg-abyss));
+}
+
+.loot-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loot-card-title {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 7px;
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: var(--text-ivory);
+  line-height: 1.25;
+}
+
+.loot-sub-pill {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: hsla(28, 20%, 10%, 0.78);
+  border: 1px solid hsla(36, 30%, 50%, 0.45);
+  color: var(--accent-brass);
+}
+
+.loot-card-desc {
+  font-size: 0.8rem;
+  line-height: 1.38;
+  color: var(--text-sand);
+}
+
+.loot-claim-cta {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: linear-gradient(180deg, hsl(38, 66%, 48%), hsl(32, 62%, 34%));
+  color: hsl(32, 30%, 98%);
+  border: 1px solid hsla(44, 88%, 70%, 0.55);
+  box-shadow: 0 2px 6px hsla(20, 40%, 6%, 0.45);
+}
+
+.loot-claim-cta.claimed {
+  background: hsla(150, 36%, 20%, 0.75);
+  color: var(--jade-upgrade);
+  border-color: hsla(150, 52%, 48%, 0.5);
+  box-shadow: none;
 }
 
 .card-showcase {
@@ -2023,7 +2271,8 @@ button:disabled {
   }
 
   .map-board {
-    padding: 14px 8px;
+    padding: 0;
+    margin: 12px auto;
   }
 
   .map-node-btn {
@@ -2109,10 +2358,14 @@ button:disabled {
   }
 
   .vital-chip,
-  .relic-badge,
-  .potion-slot {
+  .relic-badge {
     font-size: 0.74rem;
     padding: 3px 7px;
+  }
+
+  .potion-slot {
+    font-size: 0.71rem;
+    padding: 3px 6px;
   }
 
   .stage-heading {
@@ -2123,8 +2376,43 @@ button:disabled {
     font-size: 0.78rem;
   }
 
+  .loot-list {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .loot-reward-card {
+    min-height: 70px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .loot-icon-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .loot-card-title {
+    font-size: 0.88rem;
+  }
+
+  .loot-card-desc {
+    font-size: 0.74rem;
+  }
+
+  .loot-claim-cta {
+    padding: 5px 9px;
+    font-size: 0.72rem;
+  }
+
+  .map-legend-strip {
+    gap: 10px;
+    font-size: 0.71rem;
+  }
+
   .map-board {
-    padding: 12px 4px;
+    padding: 0;
+    margin: 10px auto;
   }
 
   .map-floor-tag {

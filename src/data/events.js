@@ -273,37 +273,67 @@ function wirePlanarRowEdges(state, curr, next) {
     return;
   }
 
+  // Strictly restrict edges between multi-column floors to adjacent columns (|ΔslotCol| <= 1)
+  // so edges NEVER shoot across intermediate columns or visually collide behind other nodes!
+  const isLocalPair = (i, j) => Math.abs(curr[i].slotCol - next[j].slotCol) <= 1;
+
+  const canReach = Array.from({ length: m }, () => Array(n).fill(false));
+  for (let i = m - 1; i >= 0; i -= 1) {
+    for (let j = n - 1; j >= 0; j -= 1) {
+      if (!isLocalPair(i, j)) continue;
+      if (i === m - 1 && j === n - 1) {
+        canReach[i][j] = true;
+      } else {
+        canReach[i][j] =
+          (i + 1 < m && canReach[i + 1][j]) ||
+          (j + 1 < n && canReach[i][j + 1]) ||
+          (i + 1 < m && j + 1 < n && canReach[i + 1][j + 1]);
+      }
+    }
+  }
+
   let i = 0;
   let j = 0;
   addEdge(curr[0], next[0]);
 
   while (i < m - 1 || j < n - 1) {
-    if (i === m - 1) {
+    const canRight = j + 1 < n && canReach[i][j + 1];
+    const canDown = i + 1 < m && canReach[i + 1][j];
+    const canDiag = i + 1 < m && j + 1 < n && canReach[i + 1][j + 1];
+
+    const options = [];
+    if (canRight) options.push('right');
+    if (canDown) options.push('down');
+    if (canDiag) options.push('diag');
+
+    if (options.length === 0) {
+      // Defensive fallback (mathematically unreachable for all 3-4 column subsets of {0,1,2,3})
+      if (i < m - 1) i += 1;
+      else j += 1;
+      addEdge(curr[i], next[j]);
+      continue;
+    }
+
+    const pick = options[Math.floor(nextRandom(state) * options.length)];
+    if (pick === 'right') {
       j += 1;
       addEdge(curr[i], next[j]);
-    } else if (j === n - 1) {
+    } else if (pick === 'down') {
       i += 1;
       addEdge(curr[i], next[j]);
     } else {
-      const r = nextRandom(state);
-      if (r < 0.34) {
-        j += 1;
-        addEdge(curr[i], next[j]);
-      } else if (r < 0.68) {
-        i += 1;
-        addEdge(curr[i], next[j]);
-      } else {
-        // Optional single non-crossing bridge inside cell (i, j) -> (i+1, j+1)
-        const bridgeRoll = nextRandom(state);
-        if (bridgeRoll < 0.28) {
-          addEdge(curr[i], next[j + 1]);
-        } else if (bridgeRoll < 0.56) {
-          addEdge(curr[i + 1], next[j]);
-        }
-        i += 1;
-        j += 1;
-        addEdge(curr[i], next[j]);
+      // Optional single local non-crossing branch inside cell (i, j) -> (i+1, j+1)
+      const extraRight = isLocalPair(i, j + 1);
+      const extraDown = isLocalPair(i + 1, j);
+      const bridgeRoll = nextRandom(state);
+      if (extraRight && bridgeRoll < 0.28) {
+        addEdge(curr[i], next[j + 1]);
+      } else if (extraDown && bridgeRoll >= 0.28 && bridgeRoll < 0.56) {
+        addEdge(curr[i + 1], next[j]);
       }
+      i += 1;
+      j += 1;
+      addEdge(curr[i], next[j]);
     }
   }
 }

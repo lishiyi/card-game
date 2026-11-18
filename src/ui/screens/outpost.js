@@ -11,6 +11,7 @@ import {
 } from '../../engine/game.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
+import { getLootIconSvg } from '../icons.js';
 
 export function renderTreasureScreen({ state }) {
   const ts = state.treasureState;
@@ -155,21 +156,102 @@ export function renderRewardScreen({ state, ui }) {
   const rw = state.reward;
   if (!rw) return '';
 
-  const goldBtn = !rw.goldClaimed
-    ? `<button type="button" id="btn-claim-gold" class="btn-stone" data-action="claim-gold">领取金币 (+${escapeHtml(rw.gold)})</button>`
-    : `<span class="vital-chip" style="opacity:0.6;">金币已领取</span>`;
+  const goldCardHtml = !rw.goldClaimed
+    ? `<button
+        type="button"
+        id="btn-claim-gold"
+        class="loot-reward-card loot-kind-gold"
+        data-action="claim-gold"
+        data-tooltip-title="战利品金币 (+${escapeHtml(rw.gold)})"
+        data-tooltip-tag="金币赏金"
+        data-tooltip-desc="立即获得 ${escapeHtml(rw.gold)} 枚金币，可在神秘商人处购买卡牌、遗物、药水或净除废牌。"
+      >
+        <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
+        <span class="loot-card-body">
+          <span class="loot-card-title">
+            战利品金币 +${escapeHtml(rw.gold)}
+            <span class="loot-sub-pill">赏金</span>
+          </span>
+          <span class="loot-card-desc">收入囊中后可在商人处购置强力遗物、卡牌与净除服务</span>
+        </span>
+        <span class="loot-claim-cta">点击拾取</span>
+      </button>`
+    : `<div class="loot-reward-card loot-kind-gold loot-claimed" aria-live="polite">
+        <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
+        <span class="loot-card-body">
+          <span class="loot-card-title">金币 +${escapeHtml(rw.gold)} 已收入囊中</span>
+          <span class="loot-card-desc">当前共持有 ${escapeHtml(state.player.gold)} 枚金币</span>
+        </span>
+        <span class="loot-claim-cta claimed">✓ 已拾取</span>
+      </div>`;
 
   const relicObj = rw.relicId ? RELIC_LIBRARY[rw.relicId] : null;
-  const relicBtn =
-    relicObj && !rw.relicClaimed
-      ? `<button type="button" id="btn-claim-relic" class="btn-stone" data-action="claim-relic" data-tooltip-title="${escapeHtml(relicObj.name)}" data-tooltip-tag="${escapeHtml(RELIC_TIER_LABELS[relicObj.tier] || '战利品遗物')}" data-tooltip-desc="${escapeHtml(relicObj.description)}" data-tooltip-tone="relic">拾取遗物：${escapeHtml(relicObj.name)}</button>`
-      : '';
+  const relicTierLabel = relicObj ? RELIC_TIER_LABELS[relicObj.tier] || '战利品遗物' : '';
+  const relicCardHtml = relicObj
+    ? !rw.relicClaimed
+      ? `<button
+          type="button"
+          id="btn-claim-relic"
+          class="loot-reward-card loot-kind-relic"
+          data-action="claim-relic"
+          data-tooltip-title="${escapeHtml(relicObj.name)}"
+          data-tooltip-tag="${escapeHtml(relicTierLabel)}"
+          data-tooltip-desc="${escapeHtml(relicObj.description)}"
+          data-tooltip-tone="relic"
+        >
+          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">
+              遗物：${escapeHtml(relicObj.name)}
+              <span class="loot-sub-pill">${escapeHtml(relicTierLabel)}</span>
+            </span>
+            <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta">点击拾取</span>
+        </button>`
+      : `<div class="loot-reward-card loot-kind-relic loot-claimed" aria-live="polite">
+          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">已装备遗物：${escapeHtml(relicObj.name)}</span>
+            <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta claimed">✓ 已拾取</span>
+        </div>`
+    : '';
 
   const potionObj = rw.potionId ? POTION_LIBRARY[rw.potionId] : null;
-  const potionBtn =
-    potionObj && !rw.potionClaimed
-      ? `<button type="button" id="btn-claim-potion" class="btn-stone" data-action="claim-potion" data-tooltip-title="${escapeHtml(potionObj.name)}" data-tooltip-tag="战利品药水" data-tooltip-desc="${escapeHtml(potionObj.description)}" data-tooltip-tone="potion">拾取药水：${escapeHtml(potionObj.name)}</button>`
-      : '';
+  const emptyPotionSlots = state.player.potions.filter((p) => p === null).length;
+  const potionCardHtml = potionObj
+    ? !rw.potionClaimed
+      ? `<button
+          type="button"
+          id="btn-claim-potion"
+          class="loot-reward-card loot-kind-potion"
+          data-action="claim-potion"
+          data-tooltip-title="${escapeHtml(potionObj.name)}"
+          data-tooltip-tag="战利品药水"
+          data-tooltip-desc="${escapeHtml(potionObj.description)}"
+          data-tooltip-tone="potion"
+        >
+          <span class="loot-icon-badge loot-badge-potion">${getLootIconSvg('potion')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">
+              药水：${escapeHtml(potionObj.name)}
+              <span class="loot-sub-pill">${emptyPotionSlots > 0 ? `空槽 ${emptyPotionSlots}/${state.player.potions.length}` : '药水栏已满'}</span>
+            </span>
+            <span class="loot-card-desc">${escapeHtml(potionObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta">${emptyPotionSlots > 0 ? '点击拾取' : '先丢弃旧药水'}</span>
+        </button>`
+      : `<div class="loot-reward-card loot-kind-potion loot-claimed" aria-live="polite">
+          <span class="loot-icon-badge loot-badge-potion">${getLootIconSvg('potion')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">已收入药水：${escapeHtml(potionObj.name)}</span>
+            <span class="loot-card-desc">${escapeHtml(potionObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta claimed">✓ 已拾取</span>
+        </div>`
+    : '';
 
   const cardsHtml = rw.cardChoices
     .map((card, idx) =>
@@ -192,7 +274,7 @@ export function renderRewardScreen({ state, ui }) {
       <div class="stage-header">
         <div>
           <h2 id="reward-heading" class="stage-heading">战斗胜利 · 战利品结算</h2>
-          <p class="stage-subtitle">收集战利品，并从以下 3 张卡牌中挑选 1 张加入你的牌组（也可跳过不拿以保持精简牌组）。</p>
+          <p class="stage-subtitle">点击下方战利品牌匾收入囊中，并从 3 张卡牌中挑选 1 张加入牌组（也可跳过卡牌以保持精简构筑）。</p>
         </div>
         <button type="button" id="btn-proceed-reward" class="btn-brass" data-action="proceed-reward">
           继续前进 →
@@ -201,13 +283,14 @@ export function renderRewardScreen({ state, ui }) {
 
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
 
+      <h3 class="reward-section-heading">掉落战利品（点击拾取）：</h3>
       <div class="loot-list">
-        ${goldBtn}
-        ${relicBtn}
-        ${potionBtn}
+        ${goldCardHtml}
+        ${relicCardHtml}
+        ${potionCardHtml}
       </div>
 
-      <h3 style="margin:0 0 8px;font-size:0.95rem;color:var(--text-sand);">
+      <h3 class="reward-section-heading">
         ${rw.cardClaimed ? '已选择加入牌组的卡牌：' : '卡牌奖励（三选一）：'}
         ${pityPct > 0 ? `<span style="font-size:0.78rem;color:var(--accent-brass);font-weight:600;margin-left:8px;">稀有牌动态保底 +${pityPct}%</span>` : ''}
       </h3>

@@ -39,6 +39,7 @@ import {
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
+  STARTER_POTION_SLOTS,
 } from '../engine/game.js';
 import {
   loadSavedMeta,
@@ -82,6 +83,16 @@ function loadSavedRun() {
       parsed.map.length === TOTAL_FLOORS &&
       typeof parsed.screen === 'string'
     ) {
+      if (!Array.isArray(parsed.player.potions)) {
+        parsed.player.potions = ['fire_potion', null, null];
+      } else {
+        while (parsed.player.potions.length < STARTER_POTION_SLOTS) {
+          parsed.player.potions.push(null);
+        }
+      }
+      if (!Array.isArray(parsed.visitedEdges)) {
+        parsed.visitedEdges = [];
+      }
       return parsed;
     }
   } catch {
@@ -614,6 +625,7 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'select-node': {
+        if (target.getAttribute('aria-disabled') === 'true') break;
         const res = selectMapNode(state, target.dataset.nodeId);
         if (res.ok) soundEngine.play('ui_click');
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
@@ -897,7 +909,20 @@ export function mountSpireApp(rootEl) {
     }
   });
 
-  // Instant hover tooltips + selected card's live damage preview in-place
+  let hoveredMapNodeId = null;
+  function updateHoveredMapEdges(nextNodeId) {
+    if (nextNodeId === hoveredMapNodeId) return;
+    hoveredMapNodeId = nextNodeId;
+    const edgePaths = rootEl.querySelectorAll('.map-edge-path');
+    edgePaths.forEach((pathEl) => {
+      const match =
+        Boolean(nextNodeId) &&
+        (pathEl.dataset.fromNode === nextNodeId || pathEl.dataset.toNode === nextNodeId);
+      pathEl.classList.toggle('edge-hover-highlight', match);
+    });
+  }
+
+  // Instant hover tooltips + map route highlight + selected card's live damage preview in-place
   rootEl.addEventListener('mouseover', (event) => {
     const targetEl = event.target instanceof Element ? event.target : null;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
@@ -905,6 +930,16 @@ export function mountSpireApp(rootEl) {
       showTooltip(tipAnchor);
     } else {
       hideTooltip();
+    }
+
+    if (state.screen === 'map') {
+      const mapBtn = targetEl ? targetEl.closest('.map-node-btn[data-node-id]') : null;
+      updateHoveredMapEdges(mapBtn ? mapBtn.dataset.nodeId : null);
+      return;
+    }
+
+    if (hoveredMapNodeId) {
+      updateHoveredMapEdges(null);
     }
 
     if (state.screen !== 'combat' || !state.combat) return;
@@ -930,6 +965,7 @@ export function mountSpireApp(rootEl) {
 
   rootEl.addEventListener('mouseleave', () => {
     hideTooltip();
+    updateHoveredMapEdges(null);
   });
 
   rootEl.addEventListener('focusin', (event) => {

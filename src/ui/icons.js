@@ -451,3 +451,37 @@ export function getIntentIconSvg(intentType) {
   }
   return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 7l6 6M13 7l-6 6"/></svg>`;
 }
+
+export function getLootIconSvg(kind) {
+  switch (kind) {
+    case 'gold':
+      // 战利品金币：层叠闪烁金币与星芒
+      return `<svg viewBox="0 0 28 28" width="28" height="28" data-loot-icon="gold" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <ellipse cx="11.5" cy="18.5" rx="7" ry="3.2" fill="currentColor" fill-opacity="0.28"/>
+        <path d="M4.5 18.5v3.2c0 1.8 3.1 3.2 7 3.2s7-1.4 7-3.2v-3.2" fill="currentColor" fill-opacity="0.18"/>
+        <ellipse cx="16.5" cy="12.5" rx="7" ry="3.2" fill="currentColor" fill-opacity="0.34"/>
+        <path d="M9.5 12.5v3.2c0 1.8 3.1 3.2 7 3.2s7-1.4 7-3.2v-3.2" fill="currentColor" fill-opacity="0.22"/>
+        <ellipse cx="14" cy="7.2" rx="6.5" ry="2.9" fill="currentColor" fill-opacity="0.42"/>
+        <path d="M23.5 4.2v3.2M21.9 5.8h3.2" stroke-width="1.6"/>
+      </svg>`;
+    case 'relic':
+      // 战利品遗物：镶宝远古圣徽与光环
+      return `<svg viewBox="0 0 28 28" width="28" height="28" data-loot-icon="relic" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="14,2.8 20.5,8.2 18.2,17.2 9.8,17.2 7.5,8.2" fill="currentColor" fill-opacity="0.26"/>
+        <polygon points="14,6.4 17.4,9.5 16.1,14.2 11.9,14.2 10.6,9.5" fill="currentColor" fill-opacity="0.45"/>
+        <path d="M9.5 20.5h9l1.8 3.8H7.7l1.8-3.8z" fill="currentColor" fill-opacity="0.24"/>
+        <path d="M14 17.2v3.3M4.2 11.5l2-0.5M23.8 11.5l-2-0.5"/>
+      </svg>`;
+    case 'potion':
+      // 战利品药水：圆底炼金魔药瓶与气泡
+      return `<svg viewBox="0 0 28 28" width="28" height="28" data-loot-icon="potion" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="11" y="3" width="6" height="3.2" rx="1" fill="currentColor" fill-opacity="0.38"/>
+        <path d="M12 6.2v3.6l-5.6 7.8a6.2 6.2 0 0 0 5.1 9.7h5a6.2 6.2 0 0 0 5.1-9.7L16 9.8V6.2" fill="currentColor" fill-opacity="0.16"/>
+        <path d="M6.8 17.5q3.6-1.8 7.2 0t7.2 0a5.8 5.8 0 0 1-5 6.8h-4.4a5.8 5.8 0 0 1-5-6.8z" fill="currentColor" fill-opacity="0.38"/>
+        <circle cx="12" cy="20.5" r="1.1" fill="currentColor"/>
+        <circle cx="16.2" cy="19.2" r="0.9" fill="currentColor"/>
+      </svg>`;
+    default:
+      return '';
+  }
+}

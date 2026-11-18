@@ -61,6 +61,8 @@ test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-cr
   for (let seed = 1; seed <= 150; seed += 1) {
     const ascension = seed > 120 ? 1 : 0;
     const state = createNewRun({ seed, ascension });
+    assert.equal(state.player.potions.length, 3, 'Player must start with 3 potion belt slots');
+    assert.deepEqual(state.player.potions, ['fire_potion', null, null]);
     assert.equal(state.map.length, 16);
     assert.ok(
       state.map[0].length >= 3 && state.map[0].length <= 4,
@@ -101,7 +103,7 @@ test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-cr
       const currRow = state.map[r];
       const nextRow = state.map[r + 1];
 
-      // Every node in currRow must connect to at least 1 node in nextRow, and obey consecutive spacing rules
+      // Every node in currRow must connect to at least 1 node in nextRow, and obey consecutive spacing & local-column rules
       const edges = [];
       for (const node of currRow) {
         assert.ok(node.nextIds.length >= 1, `Node ${node.id} has no outgoing path`);
@@ -109,6 +111,13 @@ test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-cr
           const child = nextRow.find((n) => n.id === targetId);
           assert.ok(child, `Invalid edge ${node.id} -> ${targetId}`);
           edges.push([node, child]);
+
+          if (currRow.length > 1 && nextRow.length > 1) {
+            assert.ok(
+              Math.abs(node.slotCol - child.slotCol) <= 1,
+              `Multi-column diagonal jump ${node.id} (col ${node.slotCol}) -> ${child.id} (col ${child.slotCol}) on seed ${seed}`
+            );
+          }
 
           if (['elite', 'rest', 'shop'].includes(node.type) && r + 1 !== 14) {
             assert.notEqual(
@@ -451,7 +460,8 @@ test('All 10 Unknown Events resolve accurately (Shining Light, Forge, Shrine, Re
   };
   assert.equal(chooseEventOption(alchState, 'buy_potions').ok, true);
   assert.equal(alchState.player.gold, 99 - 35);
-  assert.ok(alchState.player.potions[0] && alchState.player.potions[1]);
+  assert.equal(alchState.player.potions.length, 3);
+  assert.ok(alchState.player.potions[0] && alchState.player.potions[1] && alchState.player.potions[2]);
 
   const mushState = createNewRun({ seed: 705 });
   mushState.player.hp = 40;
