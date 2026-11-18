@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { canUpgradeCard, getCardStats } from '../src/data/cards.js';
+import { TOTAL_FLOORS } from '../src/data/events.js';
 import {
   buyShopCard,
   buyShopPotion,
@@ -27,12 +28,15 @@ import {
   selectMapNode,
 } from '../src/engine/game.js';
 
-test('Spire map generator guarantees planar connectivity, zero orphan nodes, and Boss at floor 7 across 100 seeds', () => {
+test('Spire map generator guarantees planar connectivity, zero orphan nodes, and Boss at floor 10 across 100 seeds', () => {
+  assert.equal(TOTAL_FLOORS, 10);
   for (let seed = 1; seed <= 100; seed += 1) {
     const state = createNewRun({ seed });
-    assert.equal(state.map.length, 7);
-    assert.equal(state.map[6].length, 1);
-    assert.equal(state.map[6][0].type, 'boss');
+    assert.equal(state.map.length, 10);
+    assert.equal(state.map[8].length, 1);
+    assert.equal(state.map[8][0].type, 'rest');
+    assert.equal(state.map[9].length, 1);
+    assert.equal(state.map[9][0].type, 'boss');
 
     for (let r = 0; r < state.map.length - 1; r += 1) {
       const currRow = state.map[r];
@@ -173,8 +177,51 @@ test('Shop enforces gold prices, 1x purge limit, minimum deck size, and potion b
   assert.equal(state.screen, 'map');
 });
 
-test('Unknown Events resolve Shining Light, Ancient Shrine purge/cancel, and Thorn Reliquary relic/fallback', () => {
-  // 1. Ancient Shrine purge flow
+test('Unknown Events resolve Shining Light & Ancient Forge (with explicit upgraded card names), Ancient Shrine purge/cancel, and Thorn Reliquary relic/fallback', () => {
+  // 1. Shining Light explicitly names the 2 upgraded cards and records upgradedCardIds
+  const lightState = createNewRun({ seed: 515 });
+  lightState.screen = 'event';
+  lightState.eventState = {
+    eventId: 'shining_light',
+    resolved: false,
+    pendingPurge: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+  };
+  assert.equal(chooseEventOption(lightState, 'enter_light').ok, true);
+  assert.equal(lightState.player.hp, 68);
+  assert.equal(lightState.eventState.upgradedCardIds.length, 2);
+  const upgradedNames = lightState.eventState.upgradedCardIds.map((id) => {
+    const c = lightState.player.deck.find((x) => x.instanceId === id);
+    assert.ok(c && c.upgraded, `Expected card ${id} to be upgraded`);
+    return `【${getCardStats(c).name}】`;
+  });
+  assert.equal(
+    lightState.eventState.outcomeText,
+    `失去 12 点生命，成功升级了 2 张卡牌：${upgradedNames.join('、')}！`
+  );
+
+  // 2. Ancient Forge temper_blade & overclock_forge explicitly name upgraded cards
+  const forgeState = createNewRun({ seed: 616 });
+  forgeState.screen = 'event';
+  forgeState.eventState = {
+    eventId: 'ancient_forge',
+    resolved: false,
+    pendingPurge: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+  };
+  assert.equal(chooseEventOption(forgeState, 'temper_blade').ok, true);
+  assert.equal(forgeState.eventState.upgradedCardIds.length, 1);
+  const forgedCard = forgeState.player.deck.find(
+    (x) => x.instanceId === forgeState.eventState.upgradedCardIds[0]
+  );
+  assert.equal(
+    forgeState.eventState.outcomeText,
+    `借助炉膛余温，成功升级了 1 张卡牌：【${getCardStats(forgedCard).name}】！`
+  );
+
+  // 3. Ancient Shrine purge flow
   const state = createNewRun({ seed: 999 });
   state.screen = 'event';
   state.eventState = {
@@ -182,6 +229,7 @@ test('Unknown Events resolve Shining Light, Ancient Shrine purge/cancel, and Tho
     resolved: false,
     pendingPurge: false,
     outcomeText: '',
+    upgradedCardIds: [],
   };
 
   assert.equal(chooseEventOption(state, 'pray_purge').pendingPurge, true);
@@ -195,7 +243,7 @@ test('Unknown Events resolve Shining Light, Ancient Shrine purge/cancel, and Tho
   assert.equal(continueFromEvent(state).ok, true);
   assert.equal(state.screen, 'map');
 
-  // 2. Thorn Reliquary when player ALREADY owns all relics -> grants 80 gold fallback instead of undefined!
+  // 4. Thorn Reliquary when player ALREADY owns all relics -> grants 80 gold fallback instead of undefined!
   state.screen = 'event';
   state.player.relics = [
     'burning_blood',
@@ -212,6 +260,7 @@ test('Unknown Events resolve Shining Light, Ancient Shrine purge/cancel, and Tho
     resolved: false,
     pendingPurge: false,
     outcomeText: '',
+    upgradedCardIds: [],
   };
   assert.equal(chooseEventOption(state, 'open_reliquary').ok, true);
   assert.equal(state.player.gold, goldBefore + 80);

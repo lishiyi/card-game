@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
 import { ENCOUNTERS } from '../src/data/enemies.js';
+import { EVENT_LIBRARY } from '../src/data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../src/data/relics.js';
 import { canPlayCard, MAX_HAND_SIZE, startCombat } from '../src/engine/combat.js';
 import {
@@ -73,6 +74,9 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   }, TypeError);
   assert.throws(() => {
     POTION_LIBRARY.fire_potion.damage = 999;
+  }, TypeError);
+  assert.throws(() => {
+    EVENT_LIBRARY.shining_light.choices[0].label = 'tampered';
   }, TypeError);
 });
 
@@ -183,7 +187,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
     assertRunInvariants(state, `init seed ${seed}`);
 
     let safetySteps = 0;
-    while (state.screen !== 'game_over' && safetySteps < 600) {
+    while (state.screen !== 'game_over' && safetySteps < 900) {
       safetySteps += 1;
 
       if (state.screen === 'map') {
@@ -269,6 +273,11 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
         if (eventId === 'shining_light') {
           const r = chooseEventOption(state, state.player.hp > 20 ? 'enter_light' : 'leave');
           assert.equal(r.ok, true);
+        } else if (eventId === 'ancient_forge') {
+          const choice =
+            state.player.hp > 20 && state.player.gold >= 30 ? 'overclock_forge' : 'temper_blade';
+          const r = chooseEventOption(state, choice);
+          assert.equal(r.ok, true);
         } else if (eventId === 'ancient_shrine') {
           chooseEventOption(state, 'pray_purge');
           if (state.eventState.pendingPurge) {
@@ -283,7 +292,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across full Spir
       assertRunInvariants(state, `loop step ${safetySteps} seed ${seed}`);
     }
 
-    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 600 steps`);
+    assert.equal(state.screen, 'game_over', `Seed ${seed} did not terminate within 900 steps`);
     if (state.runOutcome === 'victory') victories += 1;
     else defeats += 1;
   }

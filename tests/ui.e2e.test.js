@@ -152,19 +152,25 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 1. Verify SEO & Map Screen structure
+    // 1. Verify SEO & 10-Floor Map Screen structure
     const initialAudit = await cdp.evaluate(`({
       h1Count: document.querySelectorAll('h1').length,
       title: document.title,
+      floorIndicator: document.querySelector('.floor-indicator')?.textContent?.trim(),
+      mapRowCount: document.querySelectorAll('.map-row').length,
       hasMapNode: Boolean(document.getElementById('map-node-f1_c0')),
+      hasBossFloor10: Boolean(document.getElementById('map-node-f10_c0')),
       svgLines: document.querySelectorAll('.map-edges-svg line').length,
       deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim(),
     })`);
 
     assert.equal(initialAudit.h1Count, 1, 'Should have exactly 1 h1');
     assert.ok(initialAudit.title.includes('杀戮尖塔'));
+    assert.equal(initialAudit.floorIndicator, '第 1 / 10 层');
+    assert.equal(initialAudit.mapRowCount, 10);
     assert.equal(initialAudit.hasMapNode, true);
-    assert.ok(initialAudit.svgLines >= 8, 'Expected Spire map SVG route lines');
+    assert.equal(initialAudit.hasBossFloor10, true);
+    assert.ok(initialAudit.svgLines >= 14, 'Expected 10-floor Spire map SVG route lines');
     assert.equal(initialAudit.deckBtnText, '牌组 (10)');
 
     // Optional screenshot export when SCRATCH_SCREENSHOT_DIR env is provided
@@ -454,6 +460,45 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
       fs.writeFileSync(
         path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'combat_rarity_tooltip.png'),
         Buffer.from(shotCombatTooltip.data, 'base64')
+      );
+    }
+
+    // 4. Verify Shining Light event displays exact upgraded card names AND renders the upgraded cards visually
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'event';
+      st.player.hp = 60;
+      st.eventState = {
+        eventId: 'shining_light',
+        resolved: false,
+        pendingPurge: false,
+        outcomeText: '',
+        upgradedCardIds: [],
+      };
+      app.render();
+      document.getElementById('event-choice-enter_light').click();
+    })()`);
+
+    const eventAudit = await cdp.evaluate(`(() => {
+      const outcome = document.querySelector('.summary-stats p')?.textContent?.trim() || '';
+      const showcasedNames = [...document.querySelectorAll('#event-upgraded-cards .card-name')].map(
+        (el) => el.textContent.trim()
+      );
+      return { outcome, showcasedNames };
+    })()`);
+
+    assert.equal(eventAudit.showcasedNames.length, 2, 'Expected 2 upgraded cards showcased in Shining Light');
+    assert.match(eventAudit.outcome, /^失去 12 点生命，成功升级了 2 张卡牌：【.+?\+】、【.+?\+】！$/);
+    for (const cardName of eventAudit.showcasedNames) {
+      assert.ok(eventAudit.outcome.includes(`【${cardName}】`), `Outcome "${eventAudit.outcome}" missing ${cardName}`);
+    }
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotEvent = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'event_shining_light_upgrade.png'),
+        Buffer.from(shotEvent.data, 'base64')
       );
     }
 

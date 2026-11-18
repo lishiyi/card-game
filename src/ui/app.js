@@ -4,7 +4,7 @@ import {
   formatUpgradePreview,
   getCardStats,
 } from '../data/cards.js';
-import { EVENT_LIBRARY, NODE_TYPE_META } from '../data/events.js';
+import { EVENT_LIBRARY, NODE_TYPE_META, TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../data/relics.js';
 import { canPlayCard, getAliveEnemies } from '../engine/combat.js';
 import {
@@ -75,6 +75,7 @@ function loadSavedRun() {
       parsed.player &&
       Array.isArray(parsed.player.deck) &&
       Array.isArray(parsed.map) &&
+      parsed.map.length === TOTAL_FLOORS &&
       typeof parsed.screen === 'string'
     ) {
       return parsed;
@@ -387,7 +388,7 @@ export function mountSpireApp(rootEl) {
       <header class="top-hud">
         <div class="brand-cluster">
           <h1 class="game-title">杀戮尖塔 · 简明版</h1>
-          <span class="floor-indicator">第 ${escapeHtml(Math.max(1, state.floor || 1))} / 7 层</span>
+          <span class="floor-indicator">第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
         </div>
 
         <div class="vitals-cluster">
@@ -430,8 +431,8 @@ export function mountSpireApp(rootEl) {
     const availableIds = new Set(getAvailableNodeIds(state));
     const totalRows = state.map.length;
 
-    const rowHeight = 56;
-    const rowGap = 22;
+    const rowHeight = 52;
+    const rowGap = 16;
     const totalHeight = totalRows * rowHeight + (totalRows - 1) * rowGap;
 
     const nodeCoords = new Map();
@@ -522,7 +523,7 @@ export function mountSpireApp(rootEl) {
         <div class="stage-header">
           <div>
             <h2 id="map-heading" class="stage-heading">尖塔攀登路线</h2>
-            <p class="stage-subtitle">自下而上选择高亮节点前进，观察连线提前规划营地、商店与精英路线，在第 7 层击败【尖塔守护者】通关。</p>
+            <p class="stage-subtitle">自下而上选择高亮节点前进，观察连线提前规划营地、商店与精英路线，在第 ${escapeHtml(TOTAL_FLOORS)} 层击败【尖塔守护者】通关。</p>
           </div>
           ${
             state.restState?.lastAction
@@ -933,18 +934,46 @@ export function mountSpireApp(rootEl) {
         <button type="button" id="btn-cancel-event-purge" class="btn-stone" data-action="cancel-event-purge">返回重选</button>
       `;
     } else if (evState.resolved) {
+      const upgradedCards = (evState.upgradedCardIds || [])
+        .map((id) => state.player.deck.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      const upgradedShowcaseHtml =
+        upgradedCards.length > 0
+          ? `<div class="card-showcase" id="event-upgraded-cards">${upgradedCards
+              .map((c) =>
+                renderCardHtml(c, {
+                  idPrefix: 'event-upgraded-card',
+                  action: 'noop',
+                })
+              )
+              .join('')}</div>`
+          : '';
+
       bodyHtml = `
         <div class="summary-stats">
           <p style="margin:0;">${escapeHtml(evState.outcomeText)}</p>
         </div>
+        ${upgradedShowcaseHtml}
         <button type="button" id="btn-continue-event" class="btn-brass" data-action="continue-event">继续前进 →</button>
       `;
     } else {
       const choicesHtml = evDef.choices
         .map((ch) => {
-          const hpBlocked =
+          let blockedReason = '';
+          if (
             (evDef.id === 'shining_light' && ch.id === 'enter_light' && state.player.hp <= 12) ||
-            (evDef.id === 'thorn_reliquary' && ch.id === 'open_reliquary' && state.player.hp <= 8);
+            (evDef.id === 'thorn_reliquary' && ch.id === 'open_reliquary' && state.player.hp <= 8) ||
+            (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.hp <= 6)
+          ) {
+            blockedReason = '（生命不足）';
+          } else if (
+            evDef.id === 'ancient_forge' &&
+            ch.id === 'overclock_forge' &&
+            state.player.gold < 30
+          ) {
+            blockedReason = '（金币不足）';
+          }
+          const isBlocked = Boolean(blockedReason);
           return `
             <button
               type="button"
@@ -952,9 +981,9 @@ export function mountSpireApp(rootEl) {
               class="choice-btn"
               data-action="choose-event"
               data-choice-id="${escapeHtml(ch.id)}"
-              ${hpBlocked ? 'disabled' : ''}
+              ${isBlocked ? 'disabled' : ''}
             >
-              <span class="choice-title">${escapeHtml(ch.label)}${hpBlocked ? '（生命不足）' : ''}</span>
+              <span class="choice-title">${escapeHtml(ch.label)}${escapeHtml(blockedReason)}</span>
               <span class="choice-detail">${escapeHtml(ch.detail)}</span>
             </button>
           `;
@@ -1004,7 +1033,7 @@ export function mountSpireApp(rootEl) {
         </div>
 
         <div class="summary-stats">
-          <span>抵达层数：<strong>${escapeHtml(state.floor)} / 7</strong></span>
+          <span>抵达层数：<strong>${escapeHtml(state.floor)} / ${escapeHtml(TOTAL_FLOORS)}</strong></span>
           <span>获胜战斗：<strong>${escapeHtml(state.stats.combatsWon)}</strong></span>
           <span>击败强敌：<strong>${escapeHtml(state.stats.enemiesSlain)}</strong></span>
           <span>打出卡牌：<strong>${escapeHtml(state.stats.cardsPlayed)}</strong></span>

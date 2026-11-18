@@ -1,6 +1,18 @@
 import { nextRandom } from '../engine/rng.js';
 
-export const EVENT_LIBRARY = Object.freeze({
+function deepFreeze(obj) {
+  if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
+    Object.freeze(obj);
+    for (const val of Object.values(obj)) {
+      deepFreeze(val);
+    }
+  }
+  return obj;
+}
+
+export const TOTAL_FLOORS = 10;
+
+export const EVENT_LIBRARY = deepFreeze({
   shining_light: {
     id: 'shining_light',
     title: '闪耀圣光',
@@ -16,6 +28,29 @@ export const EVENT_LIBRARY = Object.freeze({
         id: 'leave',
         label: '屏息离开',
         detail: '不冒风险，继续攀登尖塔。',
+      },
+    ],
+  },
+  ancient_forge: {
+    id: 'ancient_forge',
+    title: '遗落锻炉',
+    description:
+      '石室深处伫立着一座尚未熄灭的矮人锻炉，暗红余烬与残存的风箱仍能为你淬炼随身武具。',
+    choices: [
+      {
+        id: 'temper_blade',
+        label: '余烬淬火',
+        detail: '借助炉膛余温，免费随机升级牌组中的 1 张卡牌。',
+      },
+      {
+        id: 'overclock_forge',
+        label: '鼓风猛锻',
+        detail: '失去 6 点生命并花费 30 金币，随机升级牌组中的 2 张卡牌。',
+      },
+      {
+        id: 'scavenge_slag',
+        label: '搜集精铁',
+        detail: '安全拾取锻台旁的精铁锭，获得 40 金币。',
       },
     ],
   },
@@ -64,7 +99,7 @@ export const EVENT_LIBRARY = Object.freeze({
 
 export const EVENT_IDS = Object.freeze(Object.keys(EVENT_LIBRARY));
 
-export const NODE_TYPE_META = Object.freeze({
+export const NODE_TYPE_META = deepFreeze({
   combat: { type: 'combat', label: '普通战斗', shortLabel: '战斗' },
   elite: { type: 'elite', label: '精英强敌', shortLabel: '精英' },
   rest: { type: 'rest', label: '篝火营地', shortLabel: '营地' },
@@ -74,12 +109,15 @@ export const NODE_TYPE_META = Object.freeze({
 });
 
 /**
- * Generates a 7-floor non-crossing, fully connected Spire map.
+ * Generates a 10-floor non-crossing, fully connected Spire map.
  */
 export function generateSpireMap(state) {
   const rowTemplates = [
     ['combat', 'combat'],
     nextRandom(state) < 0.5 ? ['combat', 'event'] : ['event', 'combat'],
+    nextRandom(state) < 0.5 ? ['rest', 'shop'] : ['shop', 'rest'],
+    nextRandom(state) < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'],
+    nextRandom(state) < 0.5 ? ['event', 'combat'] : ['combat', 'event'],
     nextRandom(state) < 0.5 ? ['rest', 'shop'] : ['shop', 'rest'],
     nextRandom(state) < 0.5 ? ['elite', 'combat'] : ['combat', 'elite'],
     nextRandom(state) < 0.5 ? ['shop', 'event'] : ['event', 'shop'],

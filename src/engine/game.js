@@ -278,6 +278,7 @@ export function selectMapNode(state, nodeId) {
         resolved: false,
         pendingPurge: false,
         outcomeText: '',
+        upgradedCardIds: [],
       };
       state.screen = 'event';
       return { ok: true, screen: state.screen };
@@ -529,6 +530,17 @@ export function leaveShop(state) {
 
 // === Event Actions ===
 
+function upgradeRandomCardsInEvent(state, count) {
+  const upgradable = getUpgradableDeckCards(state);
+  const chosen = pickDistinct(state, upgradable, count);
+  for (const c of chosen) {
+    c.upgraded = true;
+  }
+  state.eventState.upgradedCardIds = chosen.map((c) => c.instanceId);
+  const names = chosen.map((c) => `【${getCardStats(c).name}】`).join('、');
+  return { chosen, names };
+}
+
 export function chooseEventOption(state, choiceId) {
   if (state.screen !== 'event' || !state.eventState || state.eventState.resolved) {
     return { ok: false, reason: '当前事件已结算或不在事件界面' };
@@ -538,6 +550,8 @@ export function chooseEventOption(state, choiceId) {
     return { ok: false, reason: '未知事件' };
   }
 
+  state.eventState.upgradedCardIds = [];
+
   switch (eventDef.id) {
     case 'shining_light': {
       if (choiceId === 'enter_light') {
@@ -545,22 +559,53 @@ export function chooseEventOption(state, choiceId) {
           return { ok: false, reason: '当前生命值不足（需大于 12 点）' };
         }
         state.player.hp -= 12;
-        const upgradable = getUpgradableDeckCards(state);
-        const chosen = pickDistinct(state, upgradable, 2);
-        for (const c of chosen) {
-          c.upgraded = true;
-        }
-        const names = chosen.map((c) => `【${CARD_LIBRARY[c.cardId].name}+】`).join('、');
+        const { chosen, names } = upgradeRandomCardsInEvent(state, 2);
         state.eventState.resolved = true;
         state.eventState.outcomeText =
           chosen.length > 0
-            ? `炽光灼伤了你（-12 生命），但成功淬炼升级了 ${names}！`
-            : '炽光掠过（-12 生命），但你已没有可升级的卡牌。';
+            ? `失去 12 点生命，成功升级了 ${chosen.length} 张卡牌：${names}！`
+            : '失去 12 点生命，但当前牌组中已没有可升级的卡牌。';
         return { ok: true };
       }
       if (choiceId === 'leave') {
         state.eventState.resolved = true;
         state.eventState.outcomeText = '你绕开了炽白光束，稳步向更高层进发。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'ancient_forge': {
+      if (choiceId === 'temper_blade') {
+        const { chosen, names } = upgradeRandomCardsInEvent(state, 1);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText =
+          chosen.length > 0
+            ? `借助炉膛余温，成功升级了 ${chosen.length} 张卡牌：${names}！`
+            : '炉火微温，但当前牌组中已没有可升级的卡牌。';
+        return { ok: true };
+      }
+      if (choiceId === 'overclock_forge') {
+        if (state.player.hp <= 6) {
+          return { ok: false, reason: '当前生命值不足（需大于 6 点）' };
+        }
+        if (state.player.gold < 30) {
+          return { ok: false, reason: '金币不足（需至少 30 金币）' };
+        }
+        state.player.hp -= 6;
+        state.player.gold -= 30;
+        const { chosen, names } = upgradeRandomCardsInEvent(state, 2);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText =
+          chosen.length > 0
+            ? `失去 6 点生命并花费 30 金币，成功升级了 ${chosen.length} 张卡牌：${names}！`
+            : '失去 6 点生命并花费 30 金币，但当前牌组中已没有可升级的卡牌。';
+        return { ok: true };
+      }
+      if (choiceId === 'scavenge_slag') {
+        state.player.gold += 40;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你拾取了锻台旁的精铁锭，获得 40 金币。';
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
