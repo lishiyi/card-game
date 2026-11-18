@@ -2,17 +2,47 @@
  * Deterministic 32-bit PRNG (Mulberry32) operating on serializable state.rngState.
  */
 
-export function normalizeSeed(seed) {
-  if (typeof seed === 'number' && Number.isFinite(seed)) {
-    return (seed >>> 0) || 0x9e3779b9;
+export function formatSeedCode(seed) {
+  const normalized = typeof seed === 'number' && Number.isFinite(seed) ? (seed >>> 0) || 0x9e3779b9 : 0x9e3779b9;
+  return `S-${normalized.toString(36).toUpperCase()}`;
+}
+
+export function parseSeedInput(rawInput) {
+  if (typeof rawInput === 'number' && Number.isFinite(rawInput)) {
+    return (rawInput >>> 0) || 0x9e3779b9;
   }
-  if (typeof seed === 'string' && seed.length > 0) {
-    let h = 2166136261 >>> 0;
-    for (let i = 0; i < seed.length; i += 1) {
-      h ^= seed.charCodeAt(i);
-      h = Math.imul(h, 16777619) >>> 0;
+  if (typeof rawInput !== 'string') {
+    return null;
+  }
+  const trimmed = rawInput.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^S-[0-9A-Z]+$/i.test(trimmed)) {
+    const parsed36 = Number.parseInt(trimmed.slice(2), 36);
+    if (Number.isFinite(parsed36)) {
+      return (parsed36 >>> 0) || 0x9e3779b9;
     }
-    return h || 0x9e3779b9;
+  }
+  if (/^\d+$/.test(trimmed)) {
+    const parsed10 = Number(trimmed);
+    if (Number.isFinite(parsed10)) {
+      return (parsed10 >>> 0) || 0x9e3779b9;
+    }
+  }
+  const upper = trimmed.toUpperCase();
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < upper.length; i += 1) {
+    h ^= upper.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h || 0x9e3779b9;
+}
+
+export function normalizeSeed(seed) {
+  const parsed = parseSeedInput(seed);
+  if (parsed !== null) {
+    return parsed;
   }
   return (Date.now() >>> 0) || 0x9e3779b9;
 }

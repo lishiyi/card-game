@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
-import { ENCOUNTERS } from '../src/data/enemies.js';
+import { ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
 import { TOTAL_FLOORS } from '../src/data/events.js';
 import { NON_STARTER_RELIC_IDS } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
@@ -37,6 +40,7 @@ import {
   restHeal,
   restUpgradeCard,
   rollRewardCards,
+  runEndTurn,
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
@@ -49,6 +53,8 @@ import {
   recordCompletedRun,
   saveMeta,
 } from '../src/engine/meta.js';
+import { formatSeedCode, parseSeedInput } from '../src/engine/rng.js';
+import { buildStandaloneHtml, discoverModuleOrder } from '../scripts/build-standalone.mjs';
 
 test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-crossing paths, quotas, and no consecutive Elites/Rests/Shops across 150 seeds', () => {
   assert.equal(TOTAL_FLOORS, 16);
@@ -604,4 +610,132 @@ test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic 
   const loaded = loadSavedMeta(fakeStorage);
   assert.equal(loaded.xp, meta.xp);
   assert.equal(loaded.maxAscensionUnlocked, 1);
+});
+
+test('P2: Seed code formatting/parsing, deterministic seeded runs, and persistent Run History cap', () => {
+  assert.equal(formatSeedCode(42), 'S-16');
+  assert.equal(parseSeedInput('S-16'), 42);
+  assert.equal(parseSeedInput('  s-16  '), 42);
+  assert.equal(parseSeedInput('987654'), 987654);
+  assert.equal(parseSeedInput(''), null);
+  assert.equal(parseSeedInput('   '), null);
+
+  const customSeedA = parseSeedInput('好友竞速挑战2026');
+  const customSeedB = parseSeedInput('好友竞速挑战2026');
+  assert.ok(Number.isInteger(customSeedA) && customSeedA > 0);
+  assert.equal(customSeedA, customSeedB);
+
+  // Creating a run from string seed code S-16 matches numeric seed 42 deterministically
+  const runA = createNewRun({ seed: 'S-16', ascension: 2 });
+  const runB = createNewRun({ seed: 42, ascension: 2 });
+  assert.equal(runA.seed, 42);
+  assert.equal(runA.bossEncounterId, runB.bossEncounterId);
+  assert.deepEqual(
+    runA.map.map((row) => row.map((n) => ({ id: n.id, type: n.type, nextIds: n.nextIds }))),
+    runB.map.map((row) => row.map((n) => ({ id: n.id, type: n.type, nextIds: n.nextIds })))
+  );
+
+  // Run history records entries newest-first, caps at 30, and persists cleanly
+  const meta = createDefaultMeta();
+  for (let i = 1; i <= 35; i += 1) {
+    const r = createNewRun({ seed: 1000 + i, ascension: i % 3 });
+    r.floor = (i % 16) + 1;
+    r.stats.floorsCleared = i % 16;
+    r.stats.enemiesSlain = i;
+    r.runOutcome = i % 5 === 0 ? 'victory' : 'defeat';
+    recordCompletedRun(meta, r);
+  }
+  assert.equal(meta.runHistory.length, 30);
+  assert.equal(meta.runHistory[0].seed, 1035);
+  assert.equal(meta.runHistory[0].seedCode, formatSeedCode(1035));
+  assert.equal(meta.runHistory[0].outcome, 'victory');
+  assert.equal(meta.runHistory[29].seed, 1006);
+
+  const fakeStorage = {
+    data: new Map(),
+    getItem(k) {
+      return this.data.get(k) ?? null;
+    },
+    setItem(k, v) {
+      this.data.set(k, String(v));
+    },
+  };
+  saveMeta(meta, fakeStorage);
+  const reloaded = loadSavedMeta(fakeStorage);
+  assert.equal(reloaded.runHistory.length, 30);
+  assert.equal(reloaded.runHistory[0].seedCode, formatSeedCode(1035));
+});
+
+test('P2: Enemy next-turn intent prediction handles Ritual scaling, Boss cycles, Guardian mode shift, Slime split, and probabilistic weights', () => {
+  // 1. Cultist: Turn 0 Incantation -> Turn 1 Dark Strike (6 dmg, Ritual skipped at end of Turn 1);
+  //    Turn 1 Dark Strike -> Turn 2 Dark Strike (9 dmg after +3 Ritual at end of Turn 1!)
+  const cultistRun = createNewRun({ seed: 77, ascension: 0 });
+  startCombat(cultistRun, { id: 'test_cultist', name: '邪教徒', enemies: [{ templateId: 'cultist' }] }, 'monster');
+  const cultist = cultistRun.combat.enemies[0];
+  assert.equal(cultist.intent.id, 'incantation');
+
+  const predT1 = predictNextTurnIntents(cultist, cultistRun.player, 0);
+  assert.equal(predT1.candidates.length, 1);
+  assert.equal(predT1.candidates[0].id, 'dark_strike');
+  assert.equal(predT1.candidates[0].totalDamage, 6);
+  assert.ok(predT1.summaryText.includes('暗黑打击'));
+
+  runEndTurn(cultistRun);
+  const predT2 = predictNextTurnIntents(cultistRun.combat.enemies[0], cultistRun.player, 0);
+  assert.equal(predT2.candidates.length, 1);
+  assert.equal(predT2.candidates[0].totalDamage, 9);
+
+  // 2. Hexaghost: Turn 0 Divider -> Turn 1 Inferno 4x6 (24 total)
+  const hexRun = createNewRun({ seed: 88, ascension: 0 });
+  startCombat(hexRun, { id: 'test_hex', name: '六火亡魂', enemies: [{ templateId: 'hexaghost' }] }, 'boss');
+  const hexPred = predictNextTurnIntents(hexRun.combat.enemies[0], hexRun.player, 0);
+  assert.equal(hexPred.candidates.length, 1);
+  assert.equal(hexPred.candidates[0].label, '4×6');
+  assert.equal(hexPred.candidates[0].totalDamage, 24);
+
+  // 3. Slime Boss: above 50% HP includes split conditional note; at <= 50% HP predicts guaranteed Split
+  const slimeRun = createNewRun({ seed: 99, ascension: 0 });
+  startCombat(slimeRun, { id: 'test_slime', name: '史莱姆老大', enemies: [{ templateId: 'slime_boss' }] }, 'boss');
+  const slime = slimeRun.combat.enemies[0];
+  const aboveHalfPred = predictNextTurnIntents(slime, slimeRun.player, 0);
+  assert.ok(aboveHalfPred.conditionalNote.includes('巨体分裂'));
+
+  // 4. Probabilistic AI (Jaw Worm after Chomp): candidate probabilities sum to 1.0 and exclude 3x Bellow/Thrash streaks
+  const jawRun = createNewRun({ seed: 101, ascension: 0 });
+  startCombat(jawRun, { id: 'test_jaw', name: '大颚虫', enemies: [{ templateId: 'jaw_worm' }] }, 'monster');
+  const jawPred = predictNextTurnIntents(jawRun.combat.enemies[0], jawRun.player, 0);
+  assert.ok(jawPred.candidates.length >= 2);
+  const probSum = jawPred.candidates.reduce((acc, c) => acc + c.probability, 0);
+  assert.ok(Math.abs(probSum - 1) < 1e-6, `Expected probability sum 1.0, got ${probSum}`);
+  assert.ok(jawPred.summaryText.startsWith('下回合：'));
+});
+
+test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.js modules with zero orphans or unbundled syntax', () => {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+  function listAllJsUnder(dirRel) {
+    const out = [];
+    for (const entry of fs.readdirSync(path.join(repoRoot, dirRel), { withFileTypes: true })) {
+      const childRel = path.posix.join(dirRel, entry.name);
+      if (entry.isDirectory()) out.push(...listAllJsUnder(childRel));
+      else if (entry.isFile() && entry.name.endsWith('.js')) out.push(childRel);
+    }
+    return out.sort();
+  }
+
+  const allSrcFiles = listAllJsUnder('src');
+  const discovered = discoverModuleOrder('src/main.js', repoRoot);
+
+  assert.deepEqual(
+    [...discovered].sort(),
+    allSrcFiles,
+    'Every module under src/ must be automatically reachable and bundled from src/main.js'
+  );
+  assert.equal(discovered[discovered.length - 1], 'src/main.js');
+
+  const { html } = buildStandaloneHtml(repoRoot);
+  assert.ok(html.includes('@keyframes cardFlyGhost'));
+  assert.ok(html.includes('@keyframes shieldShatterRing'));
+  assert.equal(html.includes('<script type="module"'), false);
+  assert.equal(html.includes('<link rel="stylesheet"'), false);
 });

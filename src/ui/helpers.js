@@ -1,0 +1,162 @@
+/**
+ * Shared HTML escaping, card rendering, and status-chip rendering helpers.
+ */
+
+import {
+  canUpgradeCard,
+  formatCardDescription,
+  formatUpgradePreview,
+  getCardStats,
+} from '../data/cards.js';
+import { STATUS_METADATA } from '../data/relics.js';
+import { getCardTypeIconSvg } from './icons.js';
+
+export const CARD_TYPE_LABELS = Object.freeze({
+  attack: '攻击',
+  skill: '技能',
+  power: '能力',
+  status: '状态',
+  curse: '诅咒',
+});
+
+export const RARITY_LABELS = Object.freeze({
+  starter: '基础',
+  common: '普通',
+  uncommon: '罕见',
+  rare: '稀有',
+  status: '状态',
+  curse: '诅咒',
+});
+
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function renderCardHtml(cardInstance, options = {}) {
+  const stats = getCardStats(cardInstance);
+  const combatCtx = options.combatContext ?? null;
+  const desc = formatCardDescription(cardInstance, combatCtx);
+  const idPrefix = options.idPrefix || 'card';
+  const extraClasses = [
+    'game-card',
+    `rarity-${stats.rarity}`,
+    options.playable ? 'playable' : '',
+    options.selected ? 'selected-card' : '',
+    options.dimmed ? 'unplayable-dim' : '',
+    typeof options.dealIndex === 'number' ? 'card-deal-in' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const descToneClass =
+    desc.damageState === 'boosted' || desc.blockState === 'boosted'
+      ? 'boosted'
+      : desc.damageState === 'reduced' || desc.blockState === 'reduced'
+        ? 'reduced'
+        : '';
+
+  let upgradePreviewNote = '';
+  if (options.showUpgradePreview && canUpgradeCard(cardInstance)) {
+    const upgPreview = formatUpgradePreview(cardInstance, combatCtx);
+    if (upgPreview) {
+      upgradePreviewNote = `<div class="card-upgrade-preview">升级后：${escapeHtml(upgPreview.text)}</div>`;
+    }
+  }
+
+  let costTooltipAttrs = '';
+  if (stats.costReduced) {
+    costTooltipAttrs = `data-tooltip-title="升级减费" data-tooltip-tag="卡牌强化" data-tooltip-desc="${escapeHtml(`升级后费用由 ${stats.baseCost} 点减少至 ${stats.cost} 点。`)}" data-tooltip-tone="buff"`;
+  } else if (desc.costReducedNow) {
+    costTooltipAttrs = `data-tooltip-title="临时零费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】等效果影响，当前费用已减至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
+  }
+
+  const keywords = [
+    stats.innate ? '固有' : '',
+    stats.retain ? '保留' : '',
+    stats.ethereal ? '虚无' : '',
+    stats.exhaust ? '消耗' : '',
+  ]
+    .filter(Boolean)
+    .join('·');
+
+  const targetLabel = stats.unplayable
+    ? '不可打出'
+    : stats.target === 'all_enemies'
+      ? '全体目标'
+      : stats.target === 'enemy'
+        ? '单体目标'
+        : '自身';
+
+  const styleAttr =
+    typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';
+
+  return `
+    <button
+      type="button"
+      id="${escapeHtml(`${idPrefix}-${cardInstance.instanceId}`)}"
+      class="${extraClasses}"
+      ${styleAttr}
+      data-rarity="${escapeHtml(stats.rarity)}"
+      data-action="${escapeHtml(options.action || 'noop')}"
+      data-instance-id="${escapeHtml(cardInstance.instanceId)}"
+      ${options.offerIndex !== undefined ? `data-offer-index="${options.offerIndex}"` : ''}
+      ${options.disabled ? 'disabled' : ''}
+    >
+      <div>
+        <div class="card-top">
+          <span class="card-cost ${desc.costReducedNow ? 'upgraded' : ''}" ${costTooltipAttrs}>${escapeHtml(desc.displayCost)}</span>
+          <span class="card-name ${stats.upgraded ? 'upgraded' : ''}">${escapeHtml(stats.name)}</span>
+          ${typeof options.hotkey === 'number' ? `<span class="card-hotkey">[${options.hotkey}]</span>` : ''}
+        </div>
+        <div class="card-banner type-${escapeHtml(stats.type)}">
+          <span class="card-type-label">
+            <span>${escapeHtml(CARD_TYPE_LABELS[stats.type] || stats.type)}</span>
+            ${getCardTypeIconSvg(stats.type)}
+          </span>
+          <span class="rarity-badge rarity-${escapeHtml(stats.rarity)}">${escapeHtml(RARITY_LABELS[stats.rarity] || '')}</span>
+        </div>
+        <div class="card-desc ${descToneClass}">${escapeHtml(desc.text)}</div>
+      </div>
+      ${
+        upgradePreviewNote ||
+        `<div class="card-footer">
+          <span>${escapeHtml(targetLabel)}</span>
+          <span>${escapeHtml(keywords)}</span>
+        </div>`
+      }
+    </button>
+  `;
+}
+
+export function renderStatusesHtml(entity, ownerLabel = '状态') {
+  const entries = Object.entries(entity?.statuses || {}).filter(([, val]) => val !== 0);
+  if (entries.length === 0) {
+    return '<div class="status-row"></div>';
+  }
+  const chips = entries
+    .map(([key, val]) => {
+      const metaInfo = STATUS_METADATA[key] || {
+        name: key,
+        polarity: 'buff',
+        describe: () => '',
+      };
+      const polarity =
+        (key === 'strength' || key === 'dexterity') && val < 0 ? 'debuff' : metaInfo.polarity;
+      const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
+      return `<span
+        class="status-chip ${escapeHtml(polarity)}"
+        tabindex="0"
+        data-tooltip-title="${escapeHtml(`${metaInfo.name} (${val})`)}"
+        data-tooltip-tag="${escapeHtml(`${ownerLabel} · ${polarityLabel}`)}"
+        data-tooltip-desc="${escapeHtml(metaInfo.describe(val))}"
+        data-tooltip-tone="${escapeHtml(polarity)}"
+      >${escapeHtml(metaInfo.name)} ${escapeHtml(val)}</span>`;
+    })
+    .join('');
+  return `<div class="status-row">${chips}</div>`;
+}

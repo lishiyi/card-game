@@ -1,8 +1,11 @@
 /**
- * Meta-progression: Ascension difficulty levels (0-5), career XP, and unlockable card/relic tiers.
+ * Meta-progression: Ascension difficulty levels (0-5), career XP, unlockable card/relic tiers, and run history.
  */
 
+import { formatSeedCode } from './rng.js';
+
 export const MAX_ASCENSION = 5;
+export const MAX_RUN_HISTORY = 30;
 export const META_STORAGE_KEY = 'sts_lite_meta_v1';
 
 function deepFreeze(obj) {
@@ -93,6 +96,7 @@ export function createDefaultMeta() {
     bestFloor: 0,
     totalEnemiesSlain: 0,
     recordedRunKeys: [],
+    runHistory: [],
   };
 }
 
@@ -138,6 +142,9 @@ export function recordCompletedRun(meta, state) {
   if (!Array.isArray(meta.recordedRunKeys)) {
     meta.recordedRunKeys = [];
   }
+  if (!Array.isArray(meta.runHistory)) {
+    meta.runHistory = [];
+  }
   if (meta.recordedRunKeys.includes(runKey)) {
     return { xpGained: 0, newlyUnlockedTiers: [], unlockedAscension: null, alreadyRecorded: true };
   }
@@ -172,7 +179,34 @@ export function recordCompletedRun(meta, state) {
     }
   }
 
-  return { xpGained, newlyUnlockedTiers, unlockedAscension, alreadyRecorded: false };
+  const historyEntry = {
+    id: runKey,
+    timestamp: Date.now(),
+    seed: state.seed,
+    seedCode: formatSeedCode(state.seed),
+    outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',
+    act: state.act ?? 1,
+    floor: Math.max(1, state.floor ?? 1),
+    ascension: state.ascension ?? 0,
+    deckSize: state.player?.deck?.length ?? 0,
+    relicCount: state.player?.relics?.length ?? 0,
+    combatsWon: state.stats?.combatsWon ?? 0,
+    elitesSlain: state.stats?.elitesSlain ?? 0,
+    enemiesSlain: state.stats?.enemiesSlain ?? 0,
+    xpGained,
+  };
+  meta.runHistory.unshift(historyEntry);
+  if (meta.runHistory.length > MAX_RUN_HISTORY) {
+    meta.runHistory.length = MAX_RUN_HISTORY;
+  }
+
+  return {
+    xpGained,
+    newlyUnlockedTiers,
+    unlockedAscension,
+    alreadyRecorded: false,
+    historyEntry,
+  };
 }
 
 export function loadSavedMeta(storage = globalThis?.localStorage) {
@@ -204,6 +238,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       bestFloor: Number.isFinite(parsed.bestFloor) ? parsed.bestFloor : 0,
       totalEnemiesSlain: Number.isFinite(parsed.totalEnemiesSlain) ? parsed.totalEnemiesSlain : 0,
       recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-40) : [],
+      runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory.slice(0, MAX_RUN_HISTORY) : [],
     };
   } catch {
     return base;

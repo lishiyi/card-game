@@ -1,3 +1,4 @@
+import { getEnemyIntentPreview } from '../engine/math.js';
 import { nextRandom, randomInt } from '../engine/rng.js';
 
 function deepFreeze(obj) {
@@ -431,6 +432,7 @@ export function createEnemyInstance(state, spec) {
     name: spec.customName || tpl.name,
     role: spec.customRole || tpl.role,
     artKey: tpl.artKey,
+    ascension: state?.ascension ?? 0,
     hp: maxHp,
     maxHp,
     block: initialBlock,
@@ -509,556 +511,1045 @@ export function getGuardianOffensiveIntent(step) {
   }
 }
 
-export function rollEnemyIntent(state, enemy) {
-  const roll = nextRandom(state);
-  let rawIntent;
-
+export function getEnemyIntentCandidates(enemy) {
   switch (enemy.templateId) {
     case 'cultist': {
       if (enemy.turnIndex === 0) {
-        rawIntent = {
-          id: 'incantation',
-          name: '暗影吟唱',
-          type: 'buff',
-          applySelfStatuses: { ritual: 3 },
-          skipRitualThisTurn: true,
-          summary: '意图：获得 3 层仪式（后续每回合结束 +3 力量）',
-        };
-      } else {
-        rawIntent = {
-          id: 'dark_strike',
-          name: '暗黑打击',
-          type: 'attack',
-          damage: 6,
-          hits: 1,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'incantation',
+              name: '暗影吟唱',
+              type: 'buff',
+              applySelfStatuses: { ritual: 3 },
+              skipRitualThisTurn: true,
+              summary: '意图：获得 3 层仪式（后续每回合结束 +3 力量）',
+            },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'dark_strike',
+            name: '暗黑打击',
+            type: 'attack',
+            damage: 6,
+            hits: 1,
+          },
+        },
+      ];
     }
 
     case 'jaw_worm': {
       if (enemy.turnIndex === 0) {
-        rawIntent = { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 };
-      } else if (enemy.lastMoveId === 'bellow') {
-        rawIntent =
-          roll < 0.55
-            ? { id: 'thrash', name: '甩尾', type: 'attack_block', damage: 7, hits: 1, block: 5 }
-            : { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 };
-      } else if (roll < 0.35) {
-        rawIntent = {
-          id: 'bellow',
-          name: '咆哮',
-          type: 'defend_buff',
-          block: 6,
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 6 点格挡与 3 点力量',
-        };
-      } else if (roll < 0.7) {
-        rawIntent = {
-          id: 'thrash',
-          name: '甩尾',
-          type: 'attack_block',
-          damage: 7,
-          hits: 1,
-          block: 5,
-        };
-      } else {
-        rawIntent = { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 };
+        return [
+          {
+            probability: 1,
+            intent: { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 },
+          },
+        ];
       }
-      break;
+      if (enemy.lastMoveId === 'bellow') {
+        return [
+          {
+            probability: 0.55,
+            intent: { id: 'thrash', name: '甩尾', type: 'attack_block', damage: 7, hits: 1, block: 5 },
+          },
+          {
+            probability: 0.45,
+            intent: { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 0.35,
+          intent: {
+            id: 'bellow',
+            name: '咆哮',
+            type: 'defend_buff',
+            block: 6,
+            applySelfStatuses: { strength: 3 },
+            summary: '意图：获得 6 点格挡与 3 点力量',
+          },
+        },
+        {
+          probability: 0.35,
+          intent: {
+            id: 'thrash',
+            name: '甩尾',
+            type: 'attack_block',
+            damage: 7,
+            hits: 1,
+            block: 5,
+          },
+        },
+        {
+          probability: 0.3,
+          intent: { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 },
+        },
+      ];
     }
 
     case 'red_louse': {
-      if (enemy.lastMoveId !== 'grow' && roll < 0.3) {
-        rawIntent = {
-          id: 'grow',
-          name: '蓄力膨胀',
-          type: 'buff',
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 3 点力量',
-        };
-      } else {
-        rawIntent = { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 };
+      if (enemy.lastMoveId !== 'grow') {
+        return [
+          {
+            probability: 0.3,
+            intent: {
+              id: 'grow',
+              name: '蓄力膨胀',
+              type: 'buff',
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：获得 3 点力量',
+            },
+          },
+          {
+            probability: 0.7,
+            intent: { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 },
+        },
+      ];
     }
 
     case 'green_louse': {
-      if (enemy.lastMoveId !== 'spit_web' && roll < 0.35) {
-        rawIntent = {
-          id: 'spit_web',
-          name: '粘性蛛网',
-          type: 'debuff',
-          applyPlayerStatuses: { weak: 2 },
-          summary: '意图：给予玩家 2 层虚弱',
-        };
-      } else {
-        rawIntent = { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 };
+      if (enemy.lastMoveId !== 'spit_web') {
+        return [
+          {
+            probability: 0.35,
+            intent: {
+              id: 'spit_web',
+              name: '粘性蛛网',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 2 },
+              summary: '意图：给予玩家 2 层虚弱',
+            },
+          },
+          {
+            probability: 0.65,
+            intent: { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'bite', name: '啃咬', type: 'attack', damage: 6, hits: 1 },
+        },
+      ];
     }
 
     case 'acid_slime': {
       if (enemy.turnIndex % 3 === 0) {
-        rawIntent = {
-          id: 'corrosive_spit',
-          name: '腐蚀喷吐',
-          type: 'attack_debuff',
-          damage: 7,
-          hits: 1,
-          addDiscardCards: [{ cardId: 'slimed', count: 1 }],
-        };
-      } else if (enemy.turnIndex % 3 === 1) {
-        rawIntent = {
-          id: 'lick',
-          name: '酸液舔舐',
-          type: 'debuff',
-          applyPlayerStatuses: { weak: 1 },
-          summary: '意图：给予玩家 1 层虚弱',
-        };
-      } else {
-        rawIntent = { id: 'tackle', name: '撞击', type: 'attack', damage: 10, hits: 1 };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'corrosive_spit',
+              name: '腐蚀喷吐',
+              type: 'attack_debuff',
+              damage: 7,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'slimed', count: 1 }],
+            },
+          },
+        ];
       }
-      break;
+      if (enemy.turnIndex % 3 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'lick',
+              name: '酸液舔舐',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 1 },
+              summary: '意图：给予玩家 1 层虚弱',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'tackle', name: '撞击', type: 'attack', damage: 10, hits: 1 },
+        },
+      ];
     }
 
     case 'spike_slime': {
       if (enemy.turnIndex % 2 === 0) {
-        rawIntent = {
-          id: 'flame_tackle',
-          name: '尖刺冲撞',
-          type: 'attack_debuff',
-          damage: 8,
-          hits: 1,
-          addDiscardCards: [{ cardId: 'slimed', count: 1 }],
-        };
-      } else {
-        rawIntent = {
-          id: 'lick_frail',
-          name: '麻痹粘液',
-          type: 'debuff',
-          applyPlayerStatuses: { frail: 1 },
-          summary: '意图：给予玩家 1 层脆弱',
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'flame_tackle',
+              name: '尖刺冲撞',
+              type: 'attack_debuff',
+              damage: 8,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'slimed', count: 1 }],
+            },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'lick_frail',
+            name: '麻痹粘液',
+            type: 'debuff',
+            applyPlayerStatuses: { frail: 1 },
+            summary: '意图：给予玩家 1 层脆弱',
+          },
+        },
+      ];
     }
 
     case 'fungi_beast': {
-      if (enemy.lastMoveId !== 'grow' && roll < 0.35) {
-        rawIntent = {
-          id: 'grow',
-          name: '菌丝膨胀',
-          type: 'buff',
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 3 点力量',
-        };
-      } else {
-        rawIntent = { id: 'bite', name: '毒菌啃咬', type: 'attack', damage: 6, hits: 1 };
+      if (enemy.lastMoveId !== 'grow') {
+        return [
+          {
+            probability: 0.35,
+            intent: {
+              id: 'grow',
+              name: '菌丝膨胀',
+              type: 'buff',
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：获得 3 点力量',
+            },
+          },
+          {
+            probability: 0.65,
+            intent: { id: 'bite', name: '毒菌啃咬', type: 'attack', damage: 6, hits: 1 },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'bite', name: '毒菌啃咬', type: 'attack', damage: 6, hits: 1 },
+        },
+      ];
     }
 
     case 'slaver_blue': {
-      if (enemy.lastMoveId !== 'rake' && roll < 0.42) {
-        rawIntent = {
-          id: 'rake',
-          name: '铁钩横扫',
-          type: 'attack_debuff',
-          damage: 7,
-          hits: 1,
-          applyPlayerStatuses: { weak: 1 },
-        };
-      } else {
-        rawIntent = { id: 'stab', name: '长矛刺击', type: 'attack', damage: 12, hits: 1 };
+      if (enemy.lastMoveId !== 'rake') {
+        return [
+          {
+            probability: 0.42,
+            intent: {
+              id: 'rake',
+              name: '铁钩横扫',
+              type: 'attack_debuff',
+              damage: 7,
+              hits: 1,
+              applyPlayerStatuses: { weak: 1 },
+            },
+          },
+          {
+            probability: 0.58,
+            intent: { id: 'stab', name: '长矛刺击', type: 'attack', damage: 12, hits: 1 },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'stab', name: '长矛刺击', type: 'attack', damage: 12, hits: 1 },
+        },
+      ];
     }
 
     case 'looter': {
       if (enemy.turnIndex < 2) {
-        rawIntent = { id: 'mug', name: '顺手牵羊', type: 'attack', damage: 10, hits: 1 };
-      } else if (enemy.turnIndex === 2) {
-        rawIntent = {
-          id: 'lunge_guard',
-          name: '闪身架势',
-          type: 'defend_buff',
-          block: 6,
-          applySelfStatuses: { strength: 2 },
-          summary: '意图：获得 6 点格挡与 2 点力量',
-        };
-      } else {
-        rawIntent =
-          enemy.turnIndex % 2 === 1
-            ? { id: 'slash', name: '凶狠劈砍', type: 'attack', damage: 12, hits: 1 }
-            : { id: 'feint', name: '虚晃突刺', type: 'attack_block', damage: 8, hits: 1, block: 6 };
+        return [
+          {
+            probability: 1,
+            intent: { id: 'mug', name: '顺手牵羊', type: 'attack', damage: 10, hits: 1 },
+          },
+        ];
       }
-      break;
+      if (enemy.turnIndex === 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'lunge_guard',
+              name: '闪身架势',
+              type: 'defend_buff',
+              block: 6,
+              applySelfStatuses: { strength: 2 },
+              summary: '意图：获得 6 点格挡与 2 点力量',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent:
+            enemy.turnIndex % 2 === 1
+              ? { id: 'slash', name: '凶狠劈砍', type: 'attack', damage: 12, hits: 1 }
+              : { id: 'feint', name: '虚晃突刺', type: 'attack_block', damage: 8, hits: 1, block: 6 },
+        },
+      ];
     }
 
     case 'mad_gremlin': {
-      rawIntent = { id: 'scratch', name: '疯狂抓挠', type: 'attack', damage: 5, hits: 1 };
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'scratch', name: '疯狂抓挠', type: 'attack', damage: 5, hits: 1 },
+        },
+      ];
     }
 
     case 'gremlin_nob': {
       if (enemy.turnIndex === 0) {
-        rawIntent = {
-          id: 'bellow_enrage',
-          name: '暴怒战吼',
-          type: 'buff',
-          applySelfStatuses: { enrage: 2 },
-          summary: '意图：获得 2 层激怒（你每打出一张技能牌，大块头 +2 力量）',
-        };
-      } else if (enemy.turnIndex % 3 === 1) {
-        rawIntent = {
-          id: 'skull_bash',
-          name: '碎颅头槌',
-          type: 'attack_debuff',
-          damage: 6,
-          hits: 1,
-          applyPlayerStatuses: { vulnerable: 2 },
-        };
-      } else {
-        rawIntent = { id: 'rush', name: '蛮力猛冲', type: 'attack', damage: 14, hits: 1 };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'bellow_enrage',
+              name: '暴怒战吼',
+              type: 'buff',
+              applySelfStatuses: { enrage: 2 },
+              summary: '意图：获得 2 层激怒（你每打出一张技能牌，大块头 +2 力量）',
+            },
+          },
+        ];
       }
-      break;
+      if (enemy.turnIndex % 3 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'skull_bash',
+              name: '碎颅头槌',
+              type: 'attack_debuff',
+              damage: 6,
+              hits: 1,
+              applyPlayerStatuses: { vulnerable: 2 },
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'rush', name: '蛮力猛冲', type: 'attack', damage: 14, hits: 1 },
+        },
+      ];
     }
 
     case 'sentry': {
       const parity = (enemy.turnIndex + (enemy.variantIndex ?? 0)) % 2;
       if (parity === 0) {
-        rawIntent = {
-          id: 'bolt',
-          name: '能量干扰',
-          type: 'debuff',
-          addDiscardCards: [{ cardId: 'dazed', count: 2 }],
-          summary: '意图：将 2 张【晕眩】洗入你的弃牌堆',
-        };
-      } else {
-        rawIntent = { id: 'beam', name: '聚能光束', type: 'attack', damage: 9, hits: 1 };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'bolt',
+              name: '能量干扰',
+              type: 'debuff',
+              addDiscardCards: [{ cardId: 'dazed', count: 2 }],
+              summary: '意图：将 2 张【晕眩】洗入你的弃牌堆',
+            },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: { id: 'beam', name: '聚能光束', type: 'attack', damage: 9, hits: 1 },
+        },
+      ];
     }
 
     case 'lagavulin': {
       if (enemy.turnIndex === 0) {
-        rawIntent = { id: 'shell_awaken', name: '甲壳苏醒', type: 'defend', block: 8 };
-      } else if ((enemy.turnIndex - 1) % 3 === 2) {
-        rawIntent = {
-          id: 'siphon_soul',
-          name: '灵魂虹吸',
-          type: 'debuff',
-          applyPlayerStatuses: { strength: -1, dexterity: -1 },
-          summary: '意图：吸取灵魂，使你本场战斗失去 1 点力量与 1 点敏捷',
-        };
-      } else {
-        rawIntent = { id: 'claw_crush', name: '巨螯重击', type: 'attack', damage: 16, hits: 1 };
+        return [
+          {
+            probability: 1,
+            intent: { id: 'shell_awaken', name: '甲壳苏醒', type: 'defend', block: 8 },
+          },
+        ];
       }
-      break;
+      if ((enemy.turnIndex - 1) % 3 === 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'siphon_soul',
+              name: '灵魂虹吸',
+              type: 'debuff',
+              applyPlayerStatuses: { strength: -1, dexterity: -1 },
+              summary: '意图：吸取灵魂，使你本场战斗失去 1 点力量与 1 点敏捷',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'claw_crush', name: '巨螯重击', type: 'attack', damage: 16, hits: 1 },
+        },
+      ];
     }
 
     case 'the_guardian': {
-      rawIntent =
-        enemy.mode === 'defensive'
-          ? getGuardianDefensiveIntent(enemy.defensiveStep)
-          : getGuardianOffensiveIntent(enemy.offensiveStep);
-      break;
+      return [
+        {
+          probability: 1,
+          intent:
+            enemy.mode === 'defensive'
+              ? getGuardianDefensiveIntent(enemy.defensiveStep)
+              : getGuardianOffensiveIntent(enemy.offensiveStep),
+        },
+      ];
     }
 
     case 'hexaghost': {
       if (enemy.turnIndex === 0) {
-        rawIntent = {
-          id: 'activate_flames',
-          name: '六魂苏醒',
-          type: 'defend_buff',
-          block: 6,
-          summary: '意图：点燃六团鬼火并获得 6 点格挡，下回合释放六段烈焰连击！',
-        };
-      } else if (enemy.turnIndex === 1) {
-        rawIntent = {
-          id: 'divider',
-          name: '分裂烈焰',
-          type: 'attack',
-          damage: 4,
-          hits: 6,
-        };
-      } else {
-        const step = (enemy.turnIndex - 2) % 4;
-        if (step === 0) {
-          rawIntent = {
-            id: 'sear',
-            name: '灼魂火球',
-            type: 'attack_debuff',
-            damage: 6,
-            hits: 1,
-            addDiscardCards: [{ cardId: 'burn', count: 1 }],
-          };
-        } else if (step === 1) {
-          rawIntent = {
-            id: 'flame_charge',
-            name: '幽火连袭',
-            type: 'attack',
-            damage: 5,
-            hits: 2,
-          };
-        } else if (step === 2) {
-          rawIntent = {
-            id: 'inflame_hex',
-            name: '冥火升腾',
-            type: 'defend_buff',
-            block: 10,
-            applySelfStatuses: { strength: 2 },
-            summary: '意图：获得 10 点格挡与 2 点力量',
-          };
-        } else {
-          rawIntent = {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'activate_flames',
+              name: '六魂苏醒',
+              type: 'defend_buff',
+              block: 6,
+              summary: '意图：点燃六团鬼火并获得 6 点格挡，下回合释放六段烈焰连击！',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'divider',
+              name: '分裂烈焰',
+              type: 'attack',
+              damage: 4,
+              hits: 6,
+            },
+          },
+        ];
+      }
+      const step = (enemy.turnIndex - 2) % 4;
+      if (step === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'sear',
+              name: '灼魂火球',
+              type: 'attack_debuff',
+              damage: 6,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'burn', count: 1 }],
+            },
+          },
+        ];
+      }
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'flame_charge',
+              name: '幽火连袭',
+              type: 'attack',
+              damage: 5,
+              hits: 2,
+            },
+          },
+        ];
+      }
+      if (step === 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'inflame_hex',
+              name: '冥火升腾',
+              type: 'defend_buff',
+              block: 10,
+              applySelfStatuses: { strength: 2 },
+              summary: '意图：获得 10 点格挡与 2 点力量',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
             id: 'inferno',
             name: '炼狱喷发',
             type: 'attack_debuff',
             damage: 3,
             hits: 6,
             addDiscardCards: [{ cardId: 'burn', count: 2 }],
-          };
-        }
-      }
-      break;
+          },
+        },
+      ];
     }
 
     case 'slime_boss': {
       if (enemy.hp > 0 && enemy.hp <= Math.floor(enemy.maxHp / 2)) {
-        rawIntent = {
-          id: 'split',
-          name: '巨体分裂',
-          type: 'buff',
-          splitInto: ['acid_slime', 'spike_slime'],
-          summary: '意图：分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各自继承当前生命值）',
-        };
-      } else {
-        const step = enemy.turnIndex % 3;
-        if (step === 0) {
-          rawIntent = {
-            id: 'goop_spray',
-            name: '剧毒粘液雨',
-            type: 'debuff',
-            addDiscardCards: [{ cardId: 'slimed', count: 3 }],
-            summary: '意图：将 3 张【黏液】洗入你的弃牌堆',
-          };
-        } else if (step === 1) {
-          rawIntent = {
-            id: 'preparing',
-            name: '庞然蓄力',
-            type: 'defend',
-            block: 8,
-            summary: '意图：获得 8 点格挡并蓄力，下回合发动泰山压顶！',
-          };
-        } else {
-          rawIntent = {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'split',
+              name: '巨体分裂',
+              type: 'buff',
+              splitInto: ['acid_slime', 'spike_slime'],
+              summary: '意图：分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各自继承当前生命值）',
+            },
+          },
+        ];
+      }
+      const step = enemy.turnIndex % 3;
+      if (step === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'goop_spray',
+              name: '剧毒粘液雨',
+              type: 'debuff',
+              addDiscardCards: [{ cardId: 'slimed', count: 3 }],
+              summary: '意图：将 3 张【黏液】洗入你的弃牌堆',
+            },
+          },
+        ];
+      }
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'preparing',
+              name: '庞然蓄力',
+              type: 'defend',
+              block: 8,
+              summary: '意图：获得 8 点格挡并蓄力，下回合发动泰山压顶！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
             id: 'slime_crush',
             name: '泰山压顶',
             type: 'attack',
             damage: 30,
             hits: 1,
-          };
-        }
-      }
-      break;
+          },
+        },
+      ];
     }
 
     case 'centurion': {
       if (enemy.turnIndex % 3 === 0) {
-        rawIntent = {
-          id: 'shield_wall',
-          name: '铁盾壁垒',
-          type: 'attack_block',
-          damage: 9,
-          hits: 1,
-          block: 10,
-        };
-      } else if (enemy.turnIndex % 3 === 1) {
-        rawIntent = {
-          id: 'fury_mace',
-          name: '链锤猛砸',
-          type: 'attack',
-          damage: 15,
-          hits: 1,
-        };
-      } else {
-        rawIntent = {
-          id: 'double_cleave',
-          name: '连环斩',
-          type: 'attack',
-          damage: 7,
-          hits: 2,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'shield_wall',
+              name: '铁盾壁垒',
+              type: 'attack_block',
+              damage: 9,
+              hits: 1,
+              block: 10,
+            },
+          },
+        ];
       }
-      break;
+      if (enemy.turnIndex % 3 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'fury_mace',
+              name: '链锤猛砸',
+              type: 'attack',
+              damage: 15,
+              hits: 1,
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'double_cleave',
+            name: '连环斩',
+            type: 'attack',
+            damage: 7,
+            hits: 2,
+          },
+        },
+      ];
     }
 
     case 'mystic': {
       if (enemy.turnIndex % 3 === 0) {
-        rawIntent = {
-          id: 'hex_chant',
-          name: '凋零咒言',
-          type: 'debuff',
-          applyPlayerStatuses: { frail: 2, weak: 1 },
-          summary: '意图：给予玩家 2 层脆弱与 1 层虚弱',
-        };
-      } else if (enemy.turnIndex % 3 === 1) {
-        rawIntent = {
-          id: 'arcane_bolt',
-          name: '秘法冲击',
-          type: 'attack',
-          damage: 11,
-          hits: 1,
-        };
-      } else {
-        rawIntent = {
-          id: 'ward_blessing',
-          name: '圣咏护佑',
-          type: 'defend_buff',
-          block: 10,
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 10 点格挡与 3 点力量',
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'hex_chant',
+              name: '凋零咒言',
+              type: 'debuff',
+              applyPlayerStatuses: { frail: 2, weak: 1 },
+              summary: '意图：给予玩家 2 层脆弱与 1 层虚弱',
+            },
+          },
+        ];
       }
-      break;
+      if (enemy.turnIndex % 3 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'arcane_bolt',
+              name: '秘法冲击',
+              type: 'attack',
+              damage: 11,
+              hits: 1,
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'ward_blessing',
+            name: '圣咏护佑',
+            type: 'defend_buff',
+            block: 10,
+            applySelfStatuses: { strength: 3 },
+            summary: '意图：获得 10 点格挡与 3 点力量',
+          },
+        },
+      ];
     }
 
     case 'book_of_stabbing': {
       if (enemy.turnIndex % 3 === 2) {
-        rawIntent = {
-          id: 'big_stab',
-          name: '穿心重刺',
-          type: 'attack_debuff',
-          damage: 18,
-          hits: 1,
-          applyPlayerStatuses: { vulnerable: 2 },
-        };
-      } else {
-        const stabs = 2 + (enemy.turnIndex % 3);
-        rawIntent = {
-          id: 'multi_stab',
-          name: '狂乱连刺',
-          type: 'attack',
-          damage: 6,
-          hits: stabs,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'big_stab',
+              name: '穿心重刺',
+              type: 'attack_debuff',
+              damage: 18,
+              hits: 1,
+              applyPlayerStatuses: { vulnerable: 2 },
+            },
+          },
+        ];
       }
-      break;
+      const stabs = 2 + (enemy.turnIndex % 3);
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'multi_stab',
+            name: '狂乱连刺',
+            type: 'attack',
+            damage: 6,
+            hits: stabs,
+          },
+        },
+      ];
     }
 
     case 'slaver_taskmaster': {
       if (enemy.turnIndex % 2 === 0) {
-        rawIntent = {
-          id: 'scouring_whip',
-          name: '裂魂长鞭',
-          type: 'attack_debuff',
-          damage: 9,
-          hits: 1,
-          addDiscardCards: [{ cardId: 'dazed', count: 2 }],
-          applySelfStatuses: { strength: 1 },
-        };
-      } else {
-        rawIntent = {
-          id: 'command_strike',
-          name: '督军重斩',
-          type: 'attack',
-          damage: 14,
-          hits: 1,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'scouring_whip',
+              name: '裂魂长鞭',
+              type: 'attack_debuff',
+              damage: 9,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'dazed', count: 2 }],
+              applySelfStatuses: { strength: 1 },
+            },
+          },
+        ];
       }
-      break;
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'command_strike',
+            name: '督军重斩',
+            type: 'attack',
+            damage: 14,
+            hits: 1,
+          },
+        },
+      ];
     }
 
     case 'bronze_automaton': {
       const step = enemy.turnIndex % 4;
       if (step === 0) {
-        rawIntent = {
-          id: 'boost_core',
-          name: '齿轮超频',
-          type: 'defend_buff',
-          block: 12,
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 12 点格挡与 3 点力量',
-        };
-      } else if (step === 1) {
-        rawIntent = {
-          id: 'flail_beams',
-          name: '双联光束',
-          type: 'attack',
-          damage: 8,
-          hits: 2,
-        };
-      } else if (step === 2) {
-        rawIntent = {
-          id: 'charge_hyper',
-          name: '超能聚束',
-          type: 'defend',
-          block: 14,
-          summary: '意图：获得 14 点格挡，下回合发射毁灭性的【超能光束】！',
-        };
-      } else {
-        rawIntent = {
-          id: 'hyper_beam',
-          name: '超能光束',
-          type: 'attack',
-          damage: 38,
-          hits: 1,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'boost_core',
+              name: '齿轮超频',
+              type: 'defend_buff',
+              block: 12,
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：获得 12 点格挡与 3 点力量',
+            },
+          },
+        ];
       }
-      break;
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'flail_beams',
+              name: '双联光束',
+              type: 'attack',
+              damage: 8,
+              hits: 2,
+            },
+          },
+        ];
+      }
+      if (step === 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'charge_hyper',
+              name: '超能聚束',
+              type: 'defend',
+              block: 14,
+              summary: '意图：获得 14 点格挡，下回合发射毁灭性的【超能光束】！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'hyper_beam',
+            name: '超能光束',
+            type: 'attack',
+            damage: 38,
+            hits: 1,
+          },
+        },
+      ];
     }
 
     case 'the_collector': {
       const step = enemy.turnIndex % 4;
       if (step === 0) {
-        rawIntent = {
-          id: 'emerald_ward',
-          name: '翠焰王座',
-          type: 'defend_buff',
-          block: 14,
-          applySelfStatuses: { strength: 3 },
-          summary: '意图：获得 14 点格挡与 3 点力量',
-        };
-      } else if (step === 1) {
-        rawIntent = {
-          id: 'fireball_col',
-          name: '冥翠火球',
-          type: 'attack',
-          damage: 16,
-          hits: 1,
-        };
-      } else if (step === 2) {
-        rawIntent = {
-          id: 'you_are_mine',
-          name: '你属于我！',
-          type: 'debuff',
-          applyPlayerStatuses: { weak: 2, vulnerable: 2, frail: 2 },
-          summary: '意图：施加王座大诅咒（2 层虚弱、2 层易伤、2 层脆弱）！',
-        };
-      } else {
-        rawIntent = {
-          id: 'dark_volley',
-          name: '暗影齐射',
-          type: 'attack',
-          damage: 8,
-          hits: 3,
-        };
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'emerald_ward',
+              name: '翠焰王座',
+              type: 'defend_buff',
+              block: 14,
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：获得 14 点格挡与 3 点力量',
+            },
+          },
+        ];
       }
-      break;
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'fireball_col',
+              name: '冥翠火球',
+              type: 'attack',
+              damage: 16,
+              hits: 1,
+            },
+          },
+        ];
+      }
+      if (step === 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'you_are_mine',
+              name: '你属于我！',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 2, vulnerable: 2, frail: 2 },
+              summary: '意图：施加王座大诅咒（2 层虚弱、2 层易伤、2 层脆弱）！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'dark_volley',
+            name: '暗影齐射',
+            type: 'attack',
+            damage: 8,
+            hits: 3,
+          },
+        },
+      ];
     }
 
     default:
-      rawIntent = {
-        id: 'basic_hit',
-        name: '攻击',
-        type: 'attack',
-        damage: 6,
-        hits: 1,
-      };
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'basic_hit',
+            name: '攻击',
+            type: 'attack',
+            damage: 6,
+            hits: 1,
+          },
+        },
+      ];
+  }
+}
+
+export function rollEnemyIntent(state, enemy) {
+  const roll = nextRandom(state);
+  const candidates = getEnemyIntentCandidates(enemy);
+  let cumulative = 0;
+  let chosen = candidates[candidates.length - 1].intent;
+  for (const item of candidates) {
+    cumulative = Number((cumulative + item.probability).toFixed(6));
+    if (roll < cumulative) {
+      chosen = item.intent;
       break;
+    }
+  }
+  return applyAscensionIntentScaling(state, enemy, chosen);
+}
+
+export function predictNextTurnIntents(enemy, player = null, ascensionOverride = undefined) {
+  if (!enemy || enemy.hp <= 0) {
+    return {
+      summaryText: '',
+      tooltipLines: [],
+      candidates: [],
+      conditionalNote: '',
+    };
   }
 
-  return applyAscensionIntentScaling(state, enemy, rawIntent);
+  const asc = ascensionOverride ?? enemy.ascension ?? 0;
+  const curIntent = enemy.intent;
+
+  if (curIntent && Array.isArray(curIntent.splitInto) && curIntent.splitInto.length > 0) {
+    const splitHp = Math.max(1, enemy.hp);
+    const detail = `分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各 ${splitHp} 点生命），下回合分别施放腐蚀喷吐与尖刺冲撞`;
+    return {
+      summaryText: '下回合：分裂双史莱姆',
+      tooltipLines: [`• 双体分裂行动：${detail}`],
+      candidates: [
+        {
+          id: 'split_children',
+          name: '双体分裂行动',
+          probability: 1,
+          pct: 100,
+          type: 'attack_debuff',
+          isAttack: true,
+          totalDamage: 15,
+          label: '双史莱姆攻击',
+          detail,
+        },
+      ],
+      conditionalNote: '',
+    };
+  }
+
+  const simEnemyStatuses = { ...(enemy.statuses || {}) };
+  const simEnemySkip = { ...(enemy.skipStatusTick || {}) };
+  let simSkipRitual = Boolean(enemy.skipRitualThisTurn);
+
+  if (curIntent?.applySelfStatuses) {
+    for (const [k, v] of Object.entries(curIntent.applySelfStatuses)) {
+      const prev = simEnemyStatuses[k] ?? 0;
+      simEnemyStatuses[k] = prev + v;
+    }
+    if (curIntent.skipRitualThisTurn) {
+      simSkipRitual = true;
+    }
+  }
+
+  if ((simEnemyStatuses.ritual ?? 0) > 0) {
+    if (simSkipRitual) {
+      simSkipRitual = false;
+    } else {
+      simEnemyStatuses.strength = (simEnemyStatuses.strength ?? 0) + simEnemyStatuses.ritual;
+    }
+  }
+
+  const simPlayerStatuses = { ...(player?.statuses || {}) };
+  const simPlayerSkip = { ...(player?.skipStatusTick || {}) };
+  if (curIntent?.applyPlayerStatuses) {
+    for (const [k, v] of Object.entries(curIntent.applyPlayerStatuses)) {
+      const prev = simPlayerStatuses[k] ?? 0;
+      const next = prev + v;
+      if (k === 'strength' || k === 'dexterity') {
+        if (next === 0) delete simPlayerStatuses[k];
+        else simPlayerStatuses[k] = next;
+      } else if (next > 0) {
+        simPlayerStatuses[k] = next;
+        if (['vulnerable', 'weak', 'frail'].includes(k) && v > 0 && prev <= 0) {
+          simPlayerSkip[k] = true;
+        }
+      }
+    }
+  }
+
+  for (const key of ['vulnerable', 'weak', 'frail']) {
+    if ((simEnemyStatuses[key] ?? 0) > 0) {
+      if (simEnemySkip[key]) {
+        delete simEnemySkip[key];
+      } else if (simEnemyStatuses[key] - 1 <= 0) {
+        delete simEnemyStatuses[key];
+      } else {
+        simEnemyStatuses[key] -= 1;
+      }
+    }
+    if ((simPlayerStatuses[key] ?? 0) > 0) {
+      if (simPlayerSkip[key]) {
+        delete simPlayerSkip[key];
+      } else if (simPlayerStatuses[key] - 1 <= 0) {
+        delete simPlayerStatuses[key];
+      } else {
+        simPlayerStatuses[key] -= 1;
+      }
+    }
+  }
+
+  let nextMode = enemy.mode ?? 'normal';
+  let nextOffensiveStep = enemy.offensiveStep ?? 0;
+  let nextDefensiveStep = enemy.defensiveStep ?? 0;
+
+  if (enemy.templateId === 'the_guardian') {
+    if (curIntent?.exitDefensiveMode) {
+      delete simEnemyStatuses.sharpHide;
+      nextMode = 'offensive';
+      nextOffensiveStep = 0;
+    } else if (nextMode === 'defensive') {
+      nextDefensiveStep += 1;
+    } else {
+      nextOffensiveStep = (((nextOffensiveStep + 1) % 4) + 4) % 4;
+    }
+  }
+
+  const simEnemy = {
+    ...enemy,
+    ascension: asc,
+    statuses: simEnemyStatuses,
+    turnIndex: (enemy.turnIndex ?? 0) + 1,
+    lastMoveId: curIntent?.id ?? enemy.lastMoveId ?? null,
+    mode: nextMode,
+    offensiveStep: nextOffensiveStep,
+    defensiveStep: nextDefensiveStep,
+  };
+
+  const simPlayer = player
+    ? {
+        ...player,
+        statuses: simPlayerStatuses,
+      }
+    : null;
+
+  const rawCandidates = getEnemyIntentCandidates(simEnemy);
+  const candidates = rawCandidates.map((item) => {
+    const scaled = applyAscensionIntentScaling({ ascension: asc }, simEnemy, item.intent);
+    const preview = getEnemyIntentPreview({ ...simEnemy, intent: scaled }, simPlayer);
+    const pct = Math.round(item.probability * 100);
+    return {
+      id: scaled.id,
+      name: scaled.name || preview.label,
+      probability: item.probability,
+      pct,
+      type: preview.type,
+      isAttack: preview.isAttack,
+      totalDamage: preview.totalDamage,
+      label: preview.label,
+      detail: preview.detail.replace(/^意图：/, ''),
+    };
+  });
+
+  let conditionalNote = '';
+  if (enemy.templateId === 'the_guardian' && enemy.mode === 'offensive') {
+    conditionalNote = '若本回合触发【形态转换】，将切换防御形态并使用【翻滚撞击】';
+  } else if (enemy.templateId === 'slime_boss' && enemy.hp > Math.floor(enemy.maxHp / 2)) {
+    conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合改为【巨体分裂】`;
+  }
+
+  let summaryText = '';
+  if (candidates.length === 1) {
+    const c = candidates[0];
+    const shortVal = c.isAttack
+      ? ` ${c.label}`
+      : c.type.startsWith('defend')
+        ? ` (${c.label})`
+        : '';
+    summaryText = `下回合：${c.name}${shortVal}`;
+  } else {
+    const parts = candidates.map((c) =>
+      c.isAttack ? `${c.name}${c.label}(${c.pct}%)` : `${c.name}(${c.pct}%)`
+    );
+    summaryText = `下回合：${parts.join(' / ')}`;
+  }
+
+  const tooltipLines = candidates.map((c) => {
+    const pctPrefix = candidates.length > 1 ? `[${c.pct}%] ` : '';
+    return `• ${pctPrefix}${c.name}：${c.detail}`;
+  });
+  if (conditionalNote) {
+    tooltipLines.push(`※ ${conditionalNote}`);
+  }
+
+  return {
+    summaryText,
+    tooltipLines,
+    candidates,
+    conditionalNote,
+  };
 }

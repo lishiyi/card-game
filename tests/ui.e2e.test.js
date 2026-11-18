@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { writeStandaloneBundle } from '../scripts/build-standalone.mjs';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -39,10 +41,30 @@ function startStaticServer() {
   });
 }
 
+function resolveBrowserBinary() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    'chromium',
+    'chromium-browser',
+    'google-chrome',
+    'google-chrome-stable',
+  ].filter(Boolean);
+
+  for (const bin of candidates) {
+    if (bin.includes('/') && fs.existsSync(bin)) return bin;
+    const probe = spawnSync('which', [bin], { encoding: 'utf8' });
+    if (probe.status === 0 && probe.stdout.trim()) {
+      return probe.stdout.trim();
+    }
+  }
+  return null;
+}
+
 function launchHeadlessChromium() {
   return new Promise((resolve, reject) => {
+    const browserBin = resolveBrowserBinary();
     const proc = spawn(
-      'chromium',
+      browserBin,
       [
         '--headless',
         '--no-sandbox',
@@ -124,8 +146,8 @@ async function createCdpClient(pageWsUrl) {
 }
 
 test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> potion -> end turn -> new run with zero console/page errors', async (t) => {
-  if (!fs.existsSync('/usr/bin/chromium')) {
-    t.skip('Chromium binary not available');
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
     return;
   }
 
@@ -282,8 +304,8 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
 });
 
 test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction green preview (Seeing Red), and real pointer hover tooltips on relics, potions, and player/enemy buffs & debuffs', async (t) => {
-  if (!fs.existsSync('/usr/bin/chromium')) {
-    t.skip('Chromium binary not available');
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
     return;
   }
 
@@ -628,8 +650,8 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
 });
 
 test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss Relic Altar -> Act 2 + Meta/Ascension 5 progression', async (t) => {
-  if (!fs.existsSync('/usr/bin/chromium')) {
-    t.skip('Chromium binary not available');
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
     return;
   }
 
@@ -753,6 +775,324 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
     assert.equal(asc5Audit.ascPillText, '进阶 5');
     assert.equal(asc5Audit.deckBtnText, '牌组 (11)');
     assert.equal(asc5Audit.hasClumsy, true);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    proc.kill('SIGKILL');
+    server.close();
+  }
+});
+
+test('P2 Real Chromium E2E: @keyframes FX & shield shatter, Settings modal, Glossary/Tutorial, Next-Turn Intent UI, Run History & Seeded Run', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  const { proc, browserWsUrl } = await launchHeadlessChromium();
+
+  try {
+    const debugPort = new URL(browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Verify @keyframes animations exist in stylesheet & newbie banner shows on Floor 0
+    const cssAndBannerAudit = await cdp.evaluate(`(() => {
+      const keyframes = [];
+      for (const sheet of document.styleSheets) {
+        for (const rule of sheet.cssRules) {
+          if (rule.type === CSSRule.KEYFRAMES_RULE) keyframes.push(rule.name);
+        }
+      }
+      return {
+        keyframes,
+        hasNewbieBanner: Boolean(document.getElementById('newbie-guide-banner')),
+        hasFxLayer: Boolean(document.getElementById('spire-fx-layer')),
+        hasCopySeedBtn: Boolean(document.getElementById('btn-copy-seed')),
+      };
+    })()`);
+    for (const kf of ['cardFlyGhost', 'cardDealIn', 'unitHitShake', 'floatPopupRise', 'shieldShatterRing']) {
+      assert.ok(cssAndBannerAudit.keyframes.includes(kf), `Missing @keyframes ${kf}`);
+    }
+    assert.equal(cssAndBannerAudit.hasNewbieBanner, true);
+    assert.equal(cssAndBannerAudit.hasFxLayer, true);
+    assert.equal(cssAndBannerAudit.hasCopySeedBtn, true);
+
+    // 2. Open Help/Glossary modal -> filter search -> switch to 3-step Tutorial tab
+    await cdp.evaluate(`document.getElementById('btn-open-help').click()`);
+    const helpAudit = await cdp.evaluate(`(() => {
+      const searchInput = document.getElementById('input-glossary-search');
+      searchInput.value = '易伤';
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      const filteredCards = [...document.querySelectorAll('#glossary-results-container .glossary-card')];
+      const filteredTitles = filteredCards.map((el) => el.querySelector('.glossary-card-title')?.textContent?.trim());
+
+      document.getElementById('tab-help-tutorial').click();
+      const tutorialStepCount = document.querySelectorAll('.tutorial-step-card').length;
+      document.getElementById('btn-close-modal').click();
+
+      return { filteredCount: filteredCards.length, filteredTitles, tutorialStepCount };
+    })()`);
+    assert.ok(helpAudit.filteredCount >= 1);
+    assert.ok(helpAudit.filteredTitles.some((t) => t?.includes('易伤')));
+    assert.equal(helpAudit.tutorialStepCount, 3);
+
+    // 3. Open Settings modal -> adjust volume, toggle animation speed off -> fast
+    await cdp.evaluate(`document.getElementById('btn-open-settings').click()`);
+    const settingsAudit = await cdp.evaluate(`(() => {
+      const volSlider = document.getElementById('input-sound-volume');
+      volSlider.value = '35';
+      volSlider.dispatchEvent(new Event('input', { bubbles: true }));
+      const volumeLabel = document.getElementById('settings-volume-label')?.textContent?.trim();
+
+      document.getElementById('btn-anim-speed-off').click();
+      const speedWhenOff = document.getElementById('app').dataset.animSpeed;
+
+      document.getElementById('btn-anim-speed-fast').click();
+      const speedWhenFast = document.getElementById('app').dataset.animSpeed;
+
+      document.getElementById('btn-close-modal').click();
+      return { volumeLabel, speedWhenOff, speedWhenFast };
+    })()`);
+    assert.equal(settingsAudit.volumeLabel, '35%');
+    assert.equal(settingsAudit.speedWhenOff, 'off');
+    assert.equal(settingsAudit.speedWhenFast, 'fast');
+
+    // 4. Enter Combat -> verify Next-Turn Intent hint + play Strike to shatter enemy 4-Block shield -> verify FX layer popups
+    const combatFxAudit = await cdp.evaluate(`(() => {
+      const firstNode = document.querySelector('.map-node-btn.available');
+      firstNode.click();
+
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      // Ensure single alive enemy with 4 Block & 30 HP (without Louse Curl Up re-armoring), and a playable Strike in hand
+      st.combat.enemies = [st.combat.enemies[0]];
+      const enemy = st.combat.enemies[0];
+      enemy.hp = 30;
+      enemy.maxHp = 40;
+      enemy.block = 4;
+      delete enemy.statuses.curlUp;
+      if (!st.combat.hand.some((c) => c.cardId === 'strike')) {
+        st.combat.hand[0] = { instanceId: 'fx_strike_1', cardId: 'strike', upgraded: false };
+      }
+      app.render();
+
+      const nextIntentText = document.querySelector('.enemy-side .next-intent-hint')?.textContent?.trim() || '';
+      const intentTooltipDesc = document.querySelector('.enemy-side .intent-badge')?.dataset?.tooltipDesc || '';
+
+      const strikeCard = st.combat.hand.find((c) => c.cardId === 'strike');
+      document.getElementById('hand-card-' + strikeCard.instanceId).click();
+
+      const fxLayer = document.getElementById('spire-fx-layer');
+      return {
+        nextIntentText,
+        intentTooltipDesc,
+        hasCardGhost: Boolean(fxLayer.querySelector('.fx-card-ghost')),
+        hasFloatPopup: Boolean(fxLayer.querySelector('.fx-float-popup')),
+        hasShieldShatter: Boolean(fxLayer.querySelector('.fx-shield-shatter')),
+        shatterText: fxLayer.querySelector('.fx-tone-shatter')?.textContent?.trim() || '',
+      };
+    })()`);
+    assert.ok(combatFxAudit.nextIntentText.startsWith('下回合：'), `Unexpected nextIntentText: ${combatFxAudit.nextIntentText}`);
+    assert.ok(combatFxAudit.intentTooltipDesc.includes('下回合可能行动'));
+    assert.equal(combatFxAudit.hasCardGhost, true);
+    assert.equal(combatFxAudit.hasFloatPopup, true);
+    assert.equal(combatFxAudit.hasShieldShatter, true);
+    assert.ok(combatFxAudit.shatterText.includes('破盾'));
+
+    // 5. Complete run -> verify Run History recorded -> launch Seeded Run with 'S-16' (seed 42)
+    const seedAndHistoryAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'game_over';
+      st.runOutcome = 'defeat';
+      app.render();
+
+      const hasGameOverReplay = Boolean(document.getElementById('btn-replay-current-seed'));
+      document.getElementById('btn-open-meta').click();
+      const historyCount = document.querySelectorAll('#run-history-list .history-row').length;
+
+      const seedInput = document.getElementById('seed-input-box');
+      seedInput.value = 'S-16';
+      seedInput.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('btn-start-seeded-run').click();
+
+      return {
+        hasGameOverReplay,
+        historyCount,
+        newSeed: app.getState().seed,
+        hudSeedText: document.getElementById('btn-copy-seed')?.textContent?.trim() || '',
+      };
+    })()`);
+    assert.equal(seedAndHistoryAudit.hasGameOverReplay, true);
+    assert.ok(seedAndHistoryAudit.historyCount >= 1);
+    assert.equal(seedAndHistoryAudit.newSeed, 42);
+    assert.ok(seedAndHistoryAudit.hudSeedText.includes('S-16'));
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    proc.kill('SIGKILL');
+    server.close();
+  }
+});
+
+test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-col map nodes, tap-to-inspect tooltips, and standalone HTML bundle boot', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  // Generate standalone HTML bundle into dist/ so the static server can serve it directly
+  const bundleOut = path.join(ROOT_DIR, 'dist/slay_the_spire_lite.html');
+  writeStandaloneBundle(bundleOut, ROOT_DIR);
+  assert.equal(fs.existsSync(bundleOut), true);
+
+  const { server, port } = await startStaticServer();
+  const { proc, browserWsUrl } = await launchHeadlessChromium();
+
+  try {
+    const debugPort = new URL(browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Mobile 390x844 Map viewport audit: zero page horizontal overflow, compact node labels visible, zero overlapping nodes
+    const mobileMapAudit = await cdp.evaluate(`(() => {
+      const docScrollWidth = document.documentElement.scrollWidth;
+      const innerWidth = window.innerWidth;
+      const boardRect = document.querySelector('.map-board').getBoundingClientRect();
+      const shortTitleDisplay = getComputedStyle(document.querySelector('.node-short-title')).display;
+      const fullTitleDisplay = getComputedStyle(document.querySelector('.node-title')).display;
+
+      let overlapCount = 0;
+      let outOfBoundsCount = 0;
+      for (const row of document.querySelectorAll('.map-row')) {
+        const rects = [...row.querySelectorAll('.map-node-btn')]
+          .map((b) => b.getBoundingClientRect())
+          .sort((a, b) => a.left - b.left);
+        for (let i = 0; i < rects.length; i += 1) {
+          if (rects[i].left < boardRect.left - 2 || rects[i].right > boardRect.right + 2) {
+            outOfBoundsCount += 1;
+          }
+          if (i > 0 && rects[i - 1].right > rects[i].left + 1.5) {
+            overlapCount += 1;
+          }
+        }
+      }
+
+      // Tap-to-inspect passive relic badge on mobile
+      const relicEl = document.querySelector('.relic-badge');
+      relicEl.click();
+      const tip = document.getElementById('spire-tooltip');
+      const tipRect = tip.getBoundingClientRect();
+      const tipShownOnFirstTap = !tip.hidden && tipRect.left >= 0 && tipRect.right <= innerWidth;
+      relicEl.click();
+      const tipHiddenOnSecondTap = tip.hidden;
+
+      return {
+        docScrollWidth,
+        innerWidth,
+        shortTitleDisplay,
+        fullTitleDisplay,
+        overlapCount,
+        outOfBoundsCount,
+        tipShownOnFirstTap,
+        tipHiddenOnSecondTap,
+      };
+    })()`);
+    assert.ok(
+      mobileMapAudit.docScrollWidth <= mobileMapAudit.innerWidth,
+      `Mobile map overflowed horizontally: ${mobileMapAudit.docScrollWidth} > ${mobileMapAudit.innerWidth}`
+    );
+    assert.notEqual(mobileMapAudit.shortTitleDisplay, 'none');
+    assert.equal(mobileMapAudit.fullTitleDisplay, 'none');
+    assert.equal(mobileMapAudit.overlapCount, 0, 'Map nodes must never overlap on 390px mobile screen');
+    assert.equal(mobileMapAudit.outOfBoundsCount, 0, 'Map nodes must stay within .map-board on 390px screen');
+    assert.equal(mobileMapAudit.tipShownOnFirstTap, true);
+    assert.equal(mobileMapAudit.tipHiddenOnSecondTap, true);
+
+    // 2. Mobile 390x844 Combat audit: zero horizontal page overflow, scrollable hand tray, tap-to-inspect next-turn intent
+    const mobileCombatAudit = await cdp.evaluate(`(() => {
+      document.querySelector('.map-node-btn.available').click();
+      const docScrollWidth = document.documentElement.scrollWidth;
+      const innerWidth = window.innerWidth;
+      const handOverflowX = getComputedStyle(document.querySelector('.hand-tray')).overflowX;
+
+      const nextHint = document.querySelector('.enemy-side .next-intent-hint');
+      nextHint.click();
+      const tip = document.getElementById('spire-tooltip');
+      const tipOpen = !tip.hidden;
+      const tipTag = tip.querySelector('.spire-tooltip-tag')?.textContent?.trim() || '';
+
+      return { docScrollWidth, innerWidth, handOverflowX, tipOpen, tipTag };
+    })()`);
+    assert.ok(
+      mobileCombatAudit.docScrollWidth <= mobileCombatAudit.innerWidth,
+      `Mobile combat overflowed horizontally: ${mobileCombatAudit.docScrollWidth} > ${mobileCombatAudit.innerWidth}`
+    );
+    assert.equal(mobileCombatAudit.handOverflowX, 'auto');
+    assert.equal(mobileCombatAudit.tipOpen, true);
+    assert.equal(mobileCombatAudit.tipTag, '行动预判');
+
+    // 3. Boot generated standalone single-file HTML bundle directly in Chromium & verify full interactivity
+    await cdp.evaluate(`window.localStorage.clear()`);
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/dist/slay_the_spire_lite.html` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const standaloneAudit = await cdp.evaluate(`(() => {
+      const hasApp = Boolean(window.__SPIRE_APP__);
+      const rowCount = document.querySelectorAll('.map-row').length;
+      document.getElementById('btn-open-settings').click();
+      const hasSettings = Boolean(document.getElementById('settings-modal'));
+      document.getElementById('btn-close-modal').click();
+      return { hasApp, rowCount, hasSettings };
+    })()`);
+    assert.equal(standaloneAudit.hasApp, true);
+    assert.equal(standaloneAudit.rowCount, 16);
+    assert.equal(standaloneAudit.hasSettings, true);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

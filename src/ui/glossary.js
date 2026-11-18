@@ -1,0 +1,106 @@
+/**
+ * Onboarding 3-step tutorial & categorized Keyword / Status Glossary dictionary.
+ */
+
+import { STATUS_METADATA } from '../data/relics.js';
+
+export const TUTORIAL_STEPS = Object.freeze([
+  {
+    step: 1,
+    badge: '第一步 · 回合与意图预判',
+    title: '观察敌方本回合意图与下回合预测',
+    body: '每回合默认拥有 3 点能量并抽 5 张手牌。出牌前先看敌人头顶：红色剑标代表即将攻击（注意多次连击如 4×6），盾标代表叠甲，紫色代表强化或塞状态牌。意图下方还会显示【下回合预测】，助你提前留牌或抢血斩杀！',
+  },
+  {
+    step: 2,
+    badge: '第二步 · 精简牌组与锻造减费',
+    title: '宁缺毋滥，善用篝火升级与商店删牌',
+    body: '战后三选一卡牌并非必拿——跳过平庸牌能让牌组保持在 15–22 张黄金厚度，更快循环抽到核心卡。在篝火优先【铁砧锻造】减费或质变卡（如盛怒+、全身撞击+、武装+），在神秘商人处移除基础【打击】或【诅咒】。',
+  },
+  {
+    step: 3,
+    badge: '第三步 · 尖塔路线与三大流派',
+    title: '稳度前五层，构筑力量 / 消耗 / 壁垒流',
+    body: '第 1–5 层无精英可稳步攒牌；第 6 层起挑战【精英】赢取强力遗物；第 9 层开启【远古宝箱】；鼠标悬停（手机端轻触）第 16 层首领即可查看本幕 Boss，围绕【力量多段】、【腐化消耗】或【壁垒叠盾】构筑成型！',
+  },
+]);
+
+const CORE_MECHANIC_ENTRIES = [
+  {
+    id: 'kw_block',
+    name: '格挡 (Block)',
+    category: 'mechanics',
+    tag: '核心机制',
+    description: '优先抵消受到的攻击伤害。默认在你的下回合开始时自动清零（拥有能力【壁垒】或遗物【船锚/号角夹板/船长舵轮】时可保留或自动获得）。',
+  },
+  {
+    id: 'kw_upgrade',
+    name: '升级 (+)',
+    category: 'mechanics',
+    tag: '卡牌强化',
+    description: '卡牌名称后缀“+”且变为翠绿色，提升伤害/格挡/抽牌数值或降低能量消耗（如费用 1 → 0）。普通卡牌每张最多升级 1 次。',
+  },
+  {
+    id: 'kw_exhaust',
+    name: '消耗 (Exhaust)',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '打出或触发消耗后移入【消耗堆】，本场战斗内不再进入洗牌循环，战斗结束后恢复。可触发【无惧疼痛】叠甲、【黑暗之拥】抽牌与【卡戎之灰】全体轰炸。',
+  },
+  {
+    id: 'kw_innate',
+    name: '固有 (Innate)',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '每场战斗第 1 回合必定优先抽到起手手牌中（如【伏击斩】）。',
+  },
+  {
+    id: 'kw_retain',
+    name: '保留 (Retain)',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '回合结束时若仍留在手中，不会进入弃牌堆，而是直接保留至下一回合（如【磐石守备】）。',
+  },
+  {
+    id: 'kw_ethereal',
+    name: '虚无 (Ethereal)',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '回合结束时若仍留在手牌中未打出，将自动【消耗】移出本场战斗（如【幽灵铠甲】、【晕眩】、【笨拙】）。',
+  },
+  {
+    id: 'kw_xcost',
+    name: 'X 费卡牌',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '打出时消耗当前剩余的全部能量 X（0 点能量时也可打出，生效 0 次），效果随消耗能量次数线性释放（如【旋风斩】）。',
+  },
+  {
+    id: 'kw_status_curse',
+    name: '状态牌与诅咒牌',
+    category: 'mechanics',
+    tag: '干扰机制',
+    description: '【状态牌】（伤口/黏液/晕眩/灼伤）仅限本场战斗临时塞入牌堆；【诅咒牌】（笨拙/疑虑/悔恨）会永久留在总牌组中，需通过商店移除服务或净化事件清除。',
+  },
+  {
+    id: 'kw_rare_pity',
+    name: '稀有度动态保底',
+    category: 'mechanics',
+    tag: '掉落机制',
+    description: '战后抽卡未出现金色【稀有】牌时，后续战斗稀有牌掉率每次自动累加 +4%（最高 +40%），一旦刷出稀有牌即重置保底。',
+  },
+];
+
+export function getGlossaryEntries() {
+  const statusEntries = Object.values(STATUS_METADATA).map((meta) => {
+    const isDebuff = meta.polarity === 'debuff';
+    return {
+      id: `status_${meta.id}`,
+      name: meta.name,
+      category: isDebuff ? 'debuffs' : 'buffs',
+      tag: isDebuff ? '负面状态 (Debuff)' : '正面状态 (Buff)',
+      description: meta.describe(2),
+    };
+  });
+  return [...CORE_MECHANIC_ENTRIES, ...statusEntries];
+}
