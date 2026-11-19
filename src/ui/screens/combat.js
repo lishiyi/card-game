@@ -85,8 +85,11 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
                 : ''
             }
           </div>
-          <div class="unit-figure">
-            ${getCharacterSvg(enemy.artKey, enemy.mode)}
+          <div class="unit-figure-stage">
+            <div class="unit-figure">
+              ${getCharacterSvg(enemy.artKey, enemy.mode)}
+            </div>
+            <div class="combat-preview-badges" data-preview-badges="${escapeHtml(enemy.id)}" hidden></div>
           </div>
           <div class="unit-name-row">
             <span class="unit-name-text">${escapeHtml(enemy.name)}</span>
@@ -96,7 +99,6 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
                 : ''
             }
           </div>
-          <div class="combat-preview-badges" data-preview-badges="${escapeHtml(enemy.id)}" hidden></div>
           <div class="hp-track">
             <div class="hp-fill ${enemy.block > 0 ? 'shielded' : ''}" style="width: ${hpPct}%;"></div>
             <div class="hp-preview-cut" data-preview-cut="${escapeHtml(enemy.id)}" style="left: 0%; width: 0%;"></div>

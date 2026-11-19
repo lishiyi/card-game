@@ -1832,6 +1832,13 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
       app.render();
     })()`);
     await new Promise((r) => setTimeout(r, 420));
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 4 });
+    await new Promise((r) => setTimeout(r, 40));
+    const layoutBeforePreview = await cdp.evaluate(`(() => ({
+      arenaHeight: Math.round(document.getElementById('combat-arena').getBoundingClientRect().height),
+      handTrayTop: Math.round(document.getElementById('hand-tray').getBoundingClientRect().top),
+    }))()`);
+
     const strikePos = await getCenter('#hand-card-ux_strike');
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: strikePos.x, y: strikePos.y });
     await new Promise((r) => setTimeout(r, 60));
@@ -1841,11 +1848,23 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
       shieldBreakBadge: Boolean(document.querySelector('[data-preview-badges="enemy_shield"] [data-preview-kind="shield-break"]')),
       paperPhrogGlow: document.querySelector('.relic-badge[data-relic-id="paper_phrog"]')?.classList.contains('synergy-glow-buff') ?? false,
       strengthGlow: document.querySelector('#player-unit .status-chip[data-status-key="strength"]')?.classList.contains('synergy-glow-buff') ?? false,
+      arenaHeight: Math.round(document.getElementById('combat-arena').getBoundingClientRect().height),
+      handTrayTop: Math.round(document.getElementById('hand-tray').getBoundingClientRect().top),
     }))()`);
     assert.equal(tacticsHoverAudit.nobLethalBadge, true, 'Expected Lethal badge on 7 HP Gremlin Nob');
     assert.equal(tacticsHoverAudit.shieldBreakBadge, true, 'Expected Shield-Break badge on 5-Block Cultist');
     assert.equal(tacticsHoverAudit.paperPhrogGlow, true, 'Expected Paper Phrog relic glow on Vulnerable attack');
     assert.equal(tacticsHoverAudit.strengthGlow, true, 'Expected Strength chip glow on attack');
+    assert.equal(
+      tacticsHoverAudit.arenaHeight,
+      layoutBeforePreview.arenaHeight,
+      `Combat arena height must not shift when attack preview badges appear (${layoutBeforePreview.arenaHeight} -> ${tacticsHoverAudit.arenaHeight})`
+    );
+    assert.equal(
+      tacticsHoverAudit.handTrayTop,
+      layoutBeforePreview.handTrayTop,
+      `Hand tray vertical position must stay fixed when attack preview badges appear (${layoutBeforePreview.handTrayTop} -> ${tacticsHoverAudit.handTrayTop})`
+    );
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
       const shotTactics = await cdp.send('Page.captureScreenshot', { format: 'png' });
