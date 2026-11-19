@@ -304,6 +304,7 @@ export function renderRestScreen({ state }) {
   const healAmount = Math.max(1, Math.floor(state.player.maxHp * (healPct / 100)));
   const upgradable = getUpgradableDeckCards(state);
   const featherHealed = state.restState?.featherHealed ?? 0;
+  const hasCoffeeDripper = state.player.relics.includes('coffee_dripper');
 
   return `
     <section class="panel-stage" aria-labelledby="rest-heading">
@@ -321,9 +322,23 @@ export function renderRestScreen({ state }) {
       }
 
       <div class="choice-stack">
-        <button type="button" id="btn-rest-heal" class="choice-btn" data-action="rest-heal">
-          <span class="choice-title">篝火休息（回复 ${escapeHtml(healAmount)} 点生命）</span>
-          <span class="choice-detail">回复最大生命值的 ${healPct}%（当前生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}）。</span>
+        <button
+          type="button"
+          id="btn-rest-heal"
+          class="choice-btn"
+          data-action="rest-heal"
+          ${hasCoffeeDripper ? 'disabled' : ''}
+        >
+          <span class="choice-title">${
+            hasCoffeeDripper
+              ? '篝火休息（已禁用 · 咖啡滤滴器）'
+              : `篝火休息（回复 ${escapeHtml(healAmount)} 点生命）`
+          }</span>
+          <span class="choice-detail">${
+            hasCoffeeDripper
+              ? '持有首领遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命（仍可铁砧锻造）。'
+              : `回复最大生命值的 ${healPct}%（当前生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}）。`
+          }</span>
         </button>
 
         <button
@@ -479,8 +494,15 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
           </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" id="btn-gameover-copy-seed" class="btn-stone" data-action="copy-seed" data-seed-code="${escapeHtml(seedCode)}">
-            复制种子 (${escapeHtml(seedCode)})
+          <button
+            type="button"
+            id="btn-gameover-copy-seed"
+            class="btn-stone"
+            data-action="copy-seed"
+            data-seed-code="${escapeHtml(seedCode)}"
+            data-ascension="${escapeHtml(state.ascension ?? 0)}"
+          >
+            分享挑战链接 (${escapeHtml(seedCode)})
           </button>
           <button type="button" id="btn-replay-current-seed" class="btn-stone" data-action="replay-history-seed" data-seed="${escapeHtml(state.seed)}" data-ascension="${escapeHtml(state.ascension ?? 0)}">
             同种子再战
@@ -504,6 +526,7 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
 
       <div class="summary-stats">
         <span>本局种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(seedCode)}</strong></span>
+        ${state.isChallengeRun ? `<span>模式：<strong style="color:var(--jade-upgrade);">好友种子挑战</strong></span>` : ''}
         <span>抵达层数：<strong>${escapeHtml(actLabel)}${escapeHtml(state.floor)} / ${escapeHtml(TOTAL_FLOORS)}</strong></span>
         ${(state.ascension ?? 0) > 0 ? `<span>挑战难度：<strong>进阶 ${escapeHtml(state.ascension)}</strong></span>` : ''}
         <span>获胜战斗：<strong>${escapeHtml(state.stats.combatsWon)}</strong></span>

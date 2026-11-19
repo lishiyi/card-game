@@ -73,6 +73,7 @@ export function createNewRun(options = {}) {
     ascension,
     unlockedTier,
     unlockAllOverride,
+    isChallengeRun: Boolean(options.isChallengeRun),
     purgeCount: 0,
     rarePityBonus: 0,
     bossEncounterId: null,
@@ -84,6 +85,7 @@ export function createNewRun(options = {}) {
     lastEncounterId: null,
     lastEliteId: null,
     visitedEventIds: [],
+    neowState: null,
     player: {
       name: '铁甲战士',
       hp: startingHp,
@@ -125,8 +127,19 @@ export function createNewRun(options = {}) {
 
   state.map = generateSpireMap(state);
   state.bossEncounterId = pickRandom(state, ENCOUNTERS.boss).id;
+  state.neowState = options.skipNeow ? null : generateNeowState(state);
 
   return state;
+}
+
+export function hasPendingNeowBlessing(state) {
+  return Boolean(
+    state &&
+      (state.act ?? 1) === 1 &&
+      !state.currentNodeId &&
+      state.neowState &&
+      !state.neowState.resolved
+  );
 }
 
 export function findMapNode(state, nodeId) {
@@ -140,6 +153,7 @@ export function findMapNode(state, nodeId) {
 
 export function getAvailableNodeIds(state) {
   if (!state?.map || state.map.length === 0) return [];
+  if (hasPendingNeowBlessing(state)) return [];
   if (!state.currentNodeId) {
     return state.map[0].map((n) => n.id);
   }
@@ -315,7 +329,12 @@ export function transitionCombatVictory(state) {
 
     const bossGold = randomInt(state, 92, 115);
     state.player.gold += bossGold;
-    const unownedBossRelics = BOSS_RELIC_IDS.filter((id) => !hasRelic(state, id));
+    const unownedBossRelics = BOSS_RELIC_IDS.filter((id) => {
+      if (hasRelic(state, id)) return false;
+      const req = RELIC_LIBRARY[id]?.requiresRelic;
+      if (req && !hasRelic(state, req)) return false;
+      return true;
+    });
     const relicChoices = pickDistinct(state, unownedBossRelics, 3);
     state.bossReward = {
       bossGold,
@@ -355,6 +374,9 @@ export function transitionCombatVictory(state) {
 export function selectMapNode(state, nodeId) {
   if (state.screen !== 'map') {
     return { ok: false, reason: '当前不在尖塔地图界面' };
+  }
+  if (hasPendingNeowBlessing(state)) {
+    return { ok: false, reason: '请先在地图上方选择一项【鲸鱼赐福】，再开启第 1 层攀登' };
   }
   const available = getAvailableNodeIds(state);
   if (!available.includes(nodeId)) {
@@ -715,6 +737,9 @@ export function getUpgradableDeckCards(state) {
 export function restHeal(state) {
   if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
     return { ok: false, reason: '当前不能在营地休息' };
+  }
+  if (hasRelic(state, 'coffee_dripper')) {
+    return { ok: false, reason: '持有遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命' };
   }
   const healPct = (state.ascension ?? 0) >= 4 ? 0.25 : 0.3;
   const healAmount = Math.max(1, Math.floor(state.player.maxHp * healPct));
@@ -1259,3 +1284,518 @@ export function continueFromEvent(state) {
   state.screen = 'map';
   return { ok: true };
 }
+
+// === Floor 0 Neow's Blessing ===
+
+const NEOW_SMALL_POOL = Object.freeze([
+  Object.freeze({
+    id: 'max_hp_8',
+    tier: 'small',
+    badge: '稳健增益',
+    title: '最大生命 +8',
+    detail: '立即提升 8 点最大生命并同步回复 8 点生命，稳健度过前五层。',
+  }),
+  Object.freeze({
+    id: 'gold_100',
+    tier: 'small',
+    badge: '稳健增益',
+    title: '获得 100 金币',
+    detail: '开局额外携带 100 金币，抢先在早期神秘商人处购入遗物或删牌。',
+  }),
+  Object.freeze({
+    id: 'upgrade_1',
+    tier: 'small',
+    badge: '稳健增益',
+    title: '锻造升级 1 张牌',
+    detail: '从初始牌组中自选 1 张卡牌永久强化（如痛击+ 或 防御+）。',
+  }),
+  Object.freeze({
+    id: 'choose_card',
+    tier: 'small',
+    badge: '稳健增益',
+    title: '3 选 1 奖励卡牌',
+    detail: '从 3 张随机铁甲战士卡牌中挑选 1 张加入牌组。',
+  }),
+]);
+
+const NEOW_MEDIUM_POOL = Object.freeze([
+  Object.freeze({
+    id: 'common_relic',
+    tier: 'medium',
+    badge: '实用增益',
+    title: '随机普通遗物',
+    detail: '立即获得 1 件随机【普通】遗物，显著提升开局战斗下限。',
+  }),
+  Object.freeze({
+    id: 'remove_1',
+    tier: 'medium',
+    badge: '实用增益',
+    title: '移除 1 张卡牌',
+    detail: '从牌组中自选 1 张基础牌或诅咒永久移除，加快牌组循环。',
+  }),
+  Object.freeze({
+    id: 'transform_1',
+    tier: 'medium',
+    badge: '实用增益',
+    title: '变化 1 张卡牌',
+    detail: '从牌组中自选 1 张卡牌，将其随机变化为 1 张非基础铁甲战士卡牌。',
+  }),
+  Object.freeze({
+    id: 'choose_rare_card',
+    tier: 'medium',
+    badge: '实用增益',
+    title: '3 选 1 稀有卡牌',
+    detail: '从 3 张金色【稀有】卡牌中挑选 1 张，直接确立开局构筑核心。',
+  }),
+  Object.freeze({
+    id: 'fill_potions',
+    tier: 'medium',
+    badge: '实用增益',
+    title: '填满药水腰带',
+    detail: '将所有空药水栏位装满随机药水（共 3 栏），前期迎战强敌底气更足。',
+  }),
+]);
+
+const NEOW_RISK_POOL = Object.freeze([
+  Object.freeze({
+    id: 'curse_for_gold',
+    tier: 'risk',
+    badge: '高风险高回报',
+    title: '得 1 张随机诅咒 · 换 250 金币',
+    detail: '代价：向牌组加入 1 张随机【诅咒】牌。回报：立即获得 250 金币！',
+  }),
+  Object.freeze({
+    id: 'max_hp_for_rare_relic',
+    tier: 'risk',
+    badge: '高风险高回报',
+    title: '最大生命 -7 · 换随机稀有遗物',
+    detail: '代价：永久失去 7 点最大生命。回报：立即获得 1 件随机【稀有】遗物！',
+  }),
+  Object.freeze({
+    id: 'hp_for_rare_card',
+    tier: 'risk',
+    badge: '高风险高回报',
+    title: '失去 15 点生命 · 换 3 选 1 稀有牌',
+    detail: '代价：立即失去 15 点当前生命。回报：从 3 张金色【稀有】卡牌中任选 1 张！',
+  }),
+  Object.freeze({
+    id: 'gold_for_remove_2',
+    tier: 'risk',
+    badge: '高风险高回报',
+    title: '失去全部金币 · 换移除 2 张卡牌',
+    detail: '代价：失去当前全部金币。回报：从牌组中自选 2 张卡牌永久移除！',
+  }),
+]);
+
+const NEOW_BOSS_SWAP_OPTION = Object.freeze({
+  id: 'boss_swap',
+  tier: 'boss_swap',
+  badge: '换核博弈',
+  title: '放弃【燃烧之血】· 换随机首领遗物',
+  detail: '失去初始遗物【燃烧之血】，随机获得 1 件【首领遗物】（含金字塔、异蛇之眼、能量遗物等 7 选 1）！',
+});
+
+function rollUnownedRelicByTier(state, tier) {
+  const { relics } = getUnlockedPools(state);
+  const unowned = (pool) => pool.filter((id) => !hasRelic(state, id));
+  const preferred = unowned(relics[tier] || []);
+  if (preferred.length > 0) {
+    return pickRandom(state, preferred);
+  }
+  const fallback = unowned(relics.allNonBoss);
+  return fallback.length > 0 ? pickRandom(state, fallback) : null;
+}
+
+function rollDistinctRareCards(state, count = 3) {
+  const { cards } = getUnlockedPools(state);
+  const pickedIds = pickDistinct(state, cards.rare, count);
+  return pickedIds.map((cardId) => createCardInstance(state, cardId, false));
+}
+
+export function generateNeowState(state) {
+  const opt1 = pickRandom(state, NEOW_SMALL_POOL);
+  const opt2 = pickRandom(state, NEOW_MEDIUM_POOL);
+  const opt3 = pickRandom(state, NEOW_RISK_POOL);
+  const opt4 = NEOW_BOSS_SWAP_OPTION;
+
+  return {
+    resolved: false,
+    chosenId: null,
+    outcomeText: '',
+    pendingAction: null,
+    options: [
+      { ...opt1 },
+      { ...opt2 },
+      { ...opt3 },
+      { ...opt4 },
+    ],
+  };
+}
+
+export function chooseNeowOption(state, optionId) {
+  if (state.screen !== 'map' || !hasPendingNeowBlessing(state)) {
+    return { ok: false, reason: '当前没有待选择的鲸鱼赐福' };
+  }
+  const neow = state.neowState;
+  if (neow.pendingAction && neow.pendingAction.committed) {
+    return { ok: false, reason: '请先完成当前赐福选牌操作' };
+  }
+  const option = neow.options.find((opt) => opt.id === optionId);
+  if (!option) {
+    return { ok: false, reason: '未找到该赐福选项' };
+  }
+
+  switch (option.id) {
+    case 'max_hp_8': {
+      state.player.maxHp += 8;
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + 8);
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      neow.outcomeText = `涅奥赐福生效：最大生命 +8，当前生命 ${state.player.hp} / ${state.player.maxHp}。`;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText };
+    }
+
+    case 'gold_100': {
+      state.player.gold += 100;
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      neow.outcomeText = `涅奥赐福生效：获得 100 金币（当前共 ${state.player.gold} 金币）。`;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText };
+    }
+
+    case 'common_relic': {
+      const relicId = rollUnownedRelicByTier(state, 'common');
+      if (relicId) {
+        grantRelicToPlayer(state, relicId);
+        const def = RELIC_LIBRARY[relicId];
+        neow.outcomeText = `涅奥赐福生效：获得普通遗物【${def.name}】（${def.description}）`;
+      } else {
+        state.player.gold += 100;
+        neow.outcomeText = '涅奥赐福生效：普通遗物已集齐，改为获得 100 金币。';
+      }
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText, relicId };
+    }
+
+    case 'fill_potions': {
+      const gainedNames = [];
+      for (let i = 0; i < state.player.potions.length; i += 1) {
+        if (!state.player.potions[i]) {
+          const potId = pickRandom(state, ALL_POTION_IDS);
+          state.player.potions[i] = potId;
+          gainedNames.push(POTION_LIBRARY[potId]?.name || potId);
+        }
+      }
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      neow.outcomeText =
+        gainedNames.length > 0
+          ? `涅奥赐福生效：药水腰带已补满，获得【${gainedNames.join('】、【')}】！`
+          : '涅奥赐福生效：药水腰带已满。';
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText };
+    }
+
+    case 'curse_for_gold': {
+      const curseId = pickRandom(state, CURSE_CARD_IDS);
+      const curseCard = createCardInstance(state, curseId, false);
+      state.player.deck.push(curseCard);
+      state.player.gold += 250;
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      neow.outcomeText = `涅奥赐福生效：承受诅咒【${getCardStats(curseCard).name}】，换得 250 金币！`;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText };
+    }
+
+    case 'max_hp_for_rare_relic': {
+      state.player.maxHp = Math.max(1, state.player.maxHp - 7);
+      state.player.hp = Math.min(state.player.hp, state.player.maxHp);
+      const relicId = rollUnownedRelicByTier(state, 'rare');
+      if (relicId) {
+        grantRelicToPlayer(state, relicId);
+        const def = RELIC_LIBRARY[relicId];
+        neow.outcomeText = `涅奥赐福生效：最大生命 -7，换得稀有遗物【${def.name}】（${def.description}）`;
+      } else {
+        state.player.gold += 220;
+        neow.outcomeText = '涅奥赐福生效：最大生命 -7，改为获得 220 金币。';
+      }
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText, relicId };
+    }
+
+    case 'boss_swap': {
+      const bbIdx = state.player.relics.indexOf('burning_blood');
+      if (bbIdx !== -1) {
+        state.player.relics.splice(bbIdx, 1);
+      }
+      const eligibleSwaps = BOSS_RELIC_IDS.filter(
+        (id) => id !== 'black_blood' && !hasRelic(state, id)
+      );
+      const swappedId = pickRandom(state, eligibleSwaps);
+      if (swappedId) {
+        grantRelicToPlayer(state, swappedId);
+        const def = RELIC_LIBRARY[swappedId];
+        neow.outcomeText = `涅奥换核成功：失去【燃烧之血】，获得首领遗物【${def.name}】（${def.description}）`;
+      } else {
+        neow.outcomeText = '涅奥换核完成。';
+      }
+      neow.resolved = true;
+      neow.chosenId = option.id;
+      neow.pendingAction = null;
+      return { ok: true, resolved: true, outcomeText: neow.outcomeText, relicId: swappedId };
+    }
+
+    case 'choose_card': {
+      const offered = rollRewardCards(state, 3, 'normal', { trackPity: false });
+      neow.pendingAction = {
+        type: 'pick_card',
+        optionId: option.id,
+        title: '鲸鱼赐福 · 3 选 1 奖励卡牌',
+        subtitle: '点击任意一张卡牌加入初始牌组，或选择跳过。',
+        cards: offered,
+        hpLost: 0,
+        allowCancel: false,
+        committed: true,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    case 'choose_rare_card':
+    case 'hp_for_rare_card': {
+      let hpLost = 0;
+      if (option.id === 'hp_for_rare_card') {
+        hpLost = Math.min(Math.max(0, state.player.hp - 1), 15);
+        state.player.hp -= hpLost;
+      }
+      const offered = rollDistinctRareCards(state, 3);
+      neow.pendingAction = {
+        type: 'pick_card',
+        optionId: option.id,
+        title:
+          option.id === 'hp_for_rare_card'
+            ? `鲸鱼赐福 · 失去 ${hpLost} 血换 3 选 1 稀有卡牌`
+            : '鲸鱼赐福 · 3 选 1 稀有卡牌',
+        subtitle: '从 3 张金色稀有卡牌中挑选 1 张作为本局核心，或选择跳过。',
+        cards: offered,
+        hpLost,
+        allowCancel: false,
+        committed: true,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    case 'upgrade_1': {
+      if (getUpgradableDeckCards(state).length === 0) {
+        return { ok: false, reason: '当前牌组没有可升级的卡牌' };
+      }
+      neow.pendingAction = {
+        type: 'upgrade',
+        optionId: option.id,
+        title: '鲸鱼赐福 · 选择 1 张卡牌永久升级',
+        subtitle: '底部绿色文字显示升级后效果，点击任意卡牌立即完成锻造。',
+        remaining: 1,
+        allowCancel: true,
+        committed: false,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    case 'remove_1': {
+      if (state.player.deck.length <= 1) {
+        return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+      }
+      neow.pendingAction = {
+        type: 'remove',
+        optionId: option.id,
+        title: '鲸鱼赐福 · 选择 1 张卡牌永久移除',
+        subtitle: '点击任意一张卡牌将其从牌组中永久移除。',
+        remaining: 1,
+        payAllGold: false,
+        goldPaid: false,
+        lostGold: 0,
+        removedNames: [],
+        allowCancel: true,
+        committed: false,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    case 'gold_for_remove_2': {
+      if (state.player.deck.length <= 1) {
+        return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+      }
+      const count = Math.min(2, state.player.deck.length - 1);
+      neow.pendingAction = {
+        type: 'remove',
+        optionId: option.id,
+        title: `鲸鱼赐福 · 失去全部金币换移除 ${count} 张卡牌`,
+        subtitle: `确认移除第 1 张卡牌时将扣除当前全部 ${state.player.gold} 金币；共需选择 ${count} 张牌。`,
+        remaining: count,
+        payAllGold: true,
+        goldPaid: false,
+        lostGold: 0,
+        removedNames: [],
+        allowCancel: true,
+        committed: false,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    case 'transform_1': {
+      if (state.player.deck.length === 0) {
+        return { ok: false, reason: '当前牌组为空' };
+      }
+      neow.pendingAction = {
+        type: 'transform',
+        optionId: option.id,
+        title: '鲸鱼赐福 · 选择 1 张卡牌进行变化',
+        subtitle: '所选卡牌将随机蜕变为 1 张非基础铁甲战士卡牌。',
+        remaining: 1,
+        allowCancel: true,
+        committed: false,
+      };
+      return { ok: true, resolved: false, pendingModal: 'neow_action' };
+    }
+
+    default:
+      return { ok: false, reason: '未知的赐福选项' };
+  }
+}
+
+export function completeNeowAction(state, instanceId) {
+  if (state.screen !== 'map' || !hasPendingNeowBlessing(state)) {
+    return { ok: false, reason: '当前没有待完成的赐福操作' };
+  }
+  const neow = state.neowState;
+  const action = neow.pendingAction;
+  if (!action) {
+    return { ok: false, reason: '当前无需选择卡牌' };
+  }
+
+  if (action.type === 'pick_card') {
+    const chosen = (action.cards || []).find((c) => c.instanceId === instanceId);
+    if (!chosen) {
+      return { ok: false, reason: '未找到所选赐福卡牌' };
+    }
+    const added = createCardInstance(state, chosen.cardId, chosen.upgraded);
+    state.player.deck.push(added);
+    const cardName = getCardStats(added).name;
+    neow.resolved = true;
+    neow.chosenId = action.optionId;
+    neow.pendingAction = null;
+    neow.outcomeText =
+      action.hpLost > 0
+        ? `涅奥赐福生效：失去 ${action.hpLost} 点生命，获得稀有卡牌【${cardName}】！`
+        : `涅奥赐福生效：已将【${cardName}】收入牌组！`;
+    return { ok: true, resolved: true, addedCard: added, outcomeText: neow.outcomeText };
+  }
+
+  const idx = state.player.deck.findIndex((c) => c.instanceId === instanceId);
+  if (idx === -1) {
+    return { ok: false, reason: '未在牌组中找到该卡牌' };
+  }
+
+  if (action.type === 'upgrade') {
+    const card = state.player.deck[idx];
+    if (!canUpgradeCard(card)) {
+      return { ok: false, reason: '该卡牌无法升级' };
+    }
+    card.upgraded = true;
+    const upgradedName = getCardStats(card).name;
+    neow.resolved = true;
+    neow.chosenId = action.optionId;
+    neow.pendingAction = null;
+    neow.outcomeText = `涅奥赐福生效：成功升级了【${upgradedName}】！`;
+    return { ok: true, resolved: true, card, outcomeText: neow.outcomeText };
+  }
+
+  if (action.type === 'transform') {
+    const oldCard = state.player.deck[idx];
+    const oldName = getCardStats(oldCard).name;
+    const { cards } = getUnlockedPools(state);
+    const pool = [...cards.common, ...cards.uncommon, ...cards.rare].filter(
+      (cid) => cid !== oldCard.cardId
+    );
+    const nextCardId = pickRandom(state, pool.length > 0 ? pool : cards.common);
+    const created = createCardInstance(state, nextCardId, false);
+    state.player.deck.splice(idx, 1, created);
+    neow.resolved = true;
+    neow.chosenId = action.optionId;
+    neow.pendingAction = null;
+    neow.outcomeText = `涅奥赐福生效：【${oldName}】变化为全新卡牌【${getCardStats(created).name}】！`;
+    return { ok: true, resolved: true, card: created, outcomeText: neow.outcomeText };
+  }
+
+  if (action.type === 'remove') {
+    if (state.player.deck.length <= 1) {
+      return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+    }
+    if (action.payAllGold && !action.goldPaid) {
+      action.lostGold = state.player.gold;
+      state.player.gold = 0;
+      action.goldPaid = true;
+      action.allowCancel = false;
+      action.committed = true;
+    }
+    const [removed] = state.player.deck.splice(idx, 1);
+    const removedName = getCardStats(removed).name;
+    action.removedNames = [...(action.removedNames || []), removedName];
+    action.remaining = Math.max(0, (action.remaining ?? 1) - 1);
+
+    if (action.remaining > 0 && state.player.deck.length > 1) {
+      action.title = `鲸鱼赐福 · 还需选择 ${action.remaining} 张卡牌移除`;
+      action.subtitle = `已移除【${action.removedNames.join('】、【')}】，请继续选择剩余卡牌。`;
+      return { ok: true, resolved: false, remaining: action.remaining, removed };
+    }
+
+    neow.resolved = true;
+    neow.chosenId = action.optionId;
+    neow.pendingAction = null;
+    const namesText = `【${action.removedNames.join('】、【')}】`;
+    neow.outcomeText = action.payAllGold
+      ? `涅奥赐福生效：失去 ${action.lostGold} 金币，永久移除了 ${namesText}！`
+      : `涅奥赐福生效：永久移除了 ${namesText}！`;
+    return { ok: true, resolved: true, removed, outcomeText: neow.outcomeText };
+  }
+
+  return { ok: false, reason: '未知的赐福选牌操作' };
+}
+
+export function skipNeowCardOffer(state) {
+  if (state.screen !== 'map' || !hasPendingNeowBlessing(state)) {
+    return { ok: false, reason: '当前没有可跳过的赐福选牌' };
+  }
+  const neow = state.neowState;
+  const action = neow.pendingAction;
+  if (!action || action.type !== 'pick_card') {
+    return { ok: false, reason: '当前赐福不支持跳过选牌' };
+  }
+  neow.resolved = true;
+  neow.chosenId = action.optionId;
+  neow.pendingAction = null;
+  neow.outcomeText =
+    action.hpLost > 0
+      ? `涅奥赐福完成：失去 ${action.hpLost} 点生命，已跳过奖励卡牌。`
+      : '涅奥赐福完成：已跳过奖励卡牌。';
+  return { ok: true, resolved: true, outcomeText: neow.outcomeText };
+}
+
+export function cancelNeowAction(state) {
+  if (state.screen !== 'map' || !hasPendingNeowBlessing(state)) {
+    return { ok: false, reason: '当前没有可取消的赐福操作' };
+  }
+  const neow = state.neowState;
+  if (!neow.pendingAction || !neow.pendingAction.allowCancel) {
+    return { ok: false, reason: '当前赐福已生效，请完成选牌' };
+  }
+  neow.pendingAction = null;
+  return { ok: true };
+}
+

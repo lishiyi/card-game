@@ -1011,6 +1011,12 @@ button:disabled {
   border-color: hsla(148, 56%, 56%, 0.72);
 }
 
+.card-cost.cost-increased {
+  color: hsl(12, 90%, 72%);
+  border-color: hsla(10, 74%, 56%, 0.8);
+  background: hsla(10, 42%, 14%, 0.95);
+}
+
 .card-name {
   font-family: var(--font-display);
   font-size: 0.92rem;
@@ -1693,6 +1699,186 @@ button.loot-reward-card.loot-kind-potion:hover {
   background: hsla(34, 26%, 20%, 0.95);
 }
 
+.challenge-pill {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: hsl(178, 72%, 78%);
+  background: hsla(184, 42%, 16%, 0.9);
+  border: 1px solid hsla(180, 56%, 48%, 0.65);
+  cursor: help;
+}
+
+/* === Floor 0 Neow's Blessing Panel === */
+.neow-panel {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(ellipse 65% 80% at 10% 0%, hsla(198, 48%, 24%, 0.42), transparent 72%),
+    linear-gradient(180deg, hsla(28, 16%, 17%, 0.96), hsla(24, 15%, 11%, 0.98));
+  border: 1px solid hsla(38, 58%, 48%, 0.68);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 hsla(40, 62%, 78%, 0.12);
+}
+
+.neow-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.neow-crest {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 35% 30%, hsla(198, 54%, 30%, 0.75), hsla(210, 38%, 14%, 0.92));
+  border: 1px solid hsla(38, 62%, 52%, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.neow-panel-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--accent-brass);
+}
+
+.neow-panel-subtitle {
+  margin: 3px 0 0;
+  font-size: 0.8rem;
+  color: var(--text-sand);
+  line-height: 1.4;
+}
+
+.neow-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.neow-choice-card {
+  text-align: left;
+  padding: 11px 12px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsla(26, 15%, 17%, 0.92), hsla(24, 14%, 11%, 0.96));
+  border: 1px solid var(--border-stone);
+  color: var(--text-ivory);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.neow-choice-card:hover:not(:disabled),
+.neow-choice-card:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--accent-brass);
+  box-shadow: 0 8px 18px hsla(20, 35%, 3%, 0.55);
+  outline: none;
+}
+
+.neow-choice-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.neow-choice-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.neow-choice-card.neow-tier-small {
+  border-top: 2px solid hsla(148, 56%, 52%, 0.72);
+}
+
+.neow-choice-card.neow-tier-small .neow-choice-badge {
+  background: hsla(148, 42%, 20%, 0.9);
+  color: var(--jade-upgrade);
+}
+
+.neow-choice-card.neow-tier-medium {
+  border-top: 2px solid hsla(198, 70%, 54%, 0.75);
+}
+
+.neow-choice-card.neow-tier-medium .neow-choice-badge {
+  background: hsla(200, 44%, 20%, 0.9);
+  color: hsl(198, 82%, 76%);
+}
+
+.neow-choice-card.neow-tier-risk {
+  border-top: 2px solid hsla(14, 72%, 54%, 0.8);
+}
+
+.neow-choice-card.neow-tier-risk .neow-choice-badge {
+  background: hsla(12, 48%, 22%, 0.92);
+  color: hsl(14, 88%, 76%);
+}
+
+.neow-choice-card.neow-tier-boss_swap {
+  border-top: 2px solid hsla(40, 82%, 56%, 0.88);
+  background: linear-gradient(180deg, hsla(34, 24%, 19%, 0.95), hsla(24, 15%, 11%, 0.96));
+}
+
+.neow-choice-card.neow-tier-boss_swap .neow-choice-badge {
+  background: hsla(38, 54%, 24%, 0.92);
+  color: hsl(42, 92%, 72%);
+}
+
+.neow-choice-title {
+  font-size: 0.88rem;
+  line-height: 1.3;
+  color: var(--text-ivory);
+}
+
+.neow-choice-detail {
+  font-size: 0.76rem;
+  line-height: 1.42;
+  color: var(--text-sand);
+}
+
+.neow-outcome-banner {
+  margin-bottom: 12px;
+  padding: 9px 13px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsla(148, 28%, 16%, 0.88), hsla(24, 16%, 11%, 0.94));
+  border: 1px solid hsla(148, 50%, 46%, 0.58);
+  font-size: 0.83rem;
+  color: var(--text-ivory);
+  line-height: 1.45;
+}
+
+.neow-outcome-banner strong {
+  color: var(--jade-upgrade);
+}
+
+.challenge-current-save-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-cavern);
+  border: 1px solid var(--border-muted);
+  font-size: 0.84rem;
+  color: var(--text-sand);
+  line-height: 1.5;
+}
+
+.challenge-current-save-note code {
+  font-family: var(--font-mono);
+  color: var(--accent-brass);
+}
+
 .btn-compact {
   padding: 5px 10px;
   font-size: 0.78rem;
@@ -1841,6 +2027,12 @@ button.loot-reward-card.loot-kind-potion:hover {
 .history-badge.loss {
   background: hsla(10, 56%, 24%, 0.85);
   color: hsl(12, 84%, 78%);
+}
+
+.history-badge.challenge {
+  background: hsla(184, 48%, 20%, 0.9);
+  color: hsl(178, 76%, 78%);
+  border: 1px solid hsla(180, 56%, 48%, 0.45);
 }
 
 .history-floor {
@@ -2363,6 +2555,15 @@ button.loot-reward-card.loot-kind-potion:hover {
     padding: 14px 12px;
   }
 
+  .neow-panel {
+    padding: 12px;
+  }
+
+  .neow-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .map-board {
     padding: 0;
     margin: 12px auto;
@@ -2500,9 +2701,18 @@ button.loot-reward-card.loot-kind-potion:hover {
 
   .floor-indicator,
   .seed-pill,
-  .ascension-pill {
+  .ascension-pill,
+  .challenge-pill {
     font-size: 0.7rem;
     padding: 2px 7px;
+  }
+
+  .neow-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .neow-choice-card {
+    padding: 9px 10px;
   }
 
   .vital-chip,

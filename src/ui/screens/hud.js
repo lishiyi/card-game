@@ -107,15 +107,21 @@ export function renderTopHud({ state, ui }) {
             ? `<span class="ascension-pill" id="hud-ascension-pill" tabindex="0" data-tooltip-title="${escapeHtml(ascDef.name)}" data-tooltip-tag="当前进阶难度" data-tooltip-desc="${escapeHtml(ascDef.description)}" data-tooltip-tone="debuff">进阶 ${escapeHtml(asc)}</span>`
             : ''
         }
+        ${
+          state.isChallengeRun
+            ? `<span class="challenge-pill" id="hud-challenge-pill" tabindex="0" data-tooltip-title="好友种子挑战模式" data-tooltip-tag="全图鉴临时对齐" data-tooltip-desc="本局通过挑战链接开启，已临时对齐全图鉴卡池与目标进阶难度，确保与好友 100% 同图同掉落；不会覆盖你的本地生涯解锁进度。" data-tooltip-tone="buff">挑战</span>`
+            : ''
+        }
         <button
           type="button"
           id="btn-copy-seed"
           class="seed-pill"
           data-action="copy-seed"
           data-seed-code="${escapeHtml(seedCode)}"
-          data-tooltip-title="本局地图种子：${escapeHtml(seedCode)}"
-          data-tooltip-tag="点击复制分享"
-          data-tooltip-desc="点击复制种子码。好友可在【进阶/生涯】→【用种子开局】中输入该代码，体验完全相同的路线与掉落！"
+          data-ascension="${escapeHtml(asc)}"
+          data-tooltip-title="分享挑战链接：${escapeHtml(seedCode)}"
+          data-tooltip-tag="点击一键复制链接"
+          data-tooltip-desc="点击直接复制完整挑战链接（含本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！"
         >
           种子 ${escapeHtml(seedCode)}
         </button>

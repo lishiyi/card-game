@@ -39,6 +39,91 @@ export function parseSeedInput(rawInput) {
   return h || 0x9e3779b9;
 }
 
+export function parseChallengeInput(rawInput, maxAscension = 5) {
+  if (typeof rawInput === 'number' && Number.isFinite(rawInput)) {
+    const seed = parseSeedInput(rawInput);
+    return seed === null
+      ? null
+      : { seed, seedCode: formatSeedCode(seed), ascension: null, isUrlLike: false };
+  }
+  if (typeof rawInput !== 'string') {
+    return null;
+  }
+  const trimmed = rawInput.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let params = null;
+  let isUrlLike = false;
+
+  if (/^https?:\/\//i.test(trimmed) || /^file:\/\//i.test(trimmed)) {
+    try {
+      params = new URL(trimmed).searchParams;
+      isUrlLike = true;
+    } catch {
+      params = null;
+    }
+  } else if (trimmed.includes('seed=')) {
+    const queryIdx = trimmed.indexOf('?');
+    const queryStr = queryIdx >= 0 ? trimmed.slice(queryIdx + 1) : trimmed;
+    const hashIdx = queryStr.indexOf('#');
+    const cleanQuery = hashIdx >= 0 ? queryStr.slice(0, hashIdx) : queryStr;
+    params = new URLSearchParams(cleanQuery);
+    isUrlLike = true;
+  }
+
+  if (params && params.has('seed')) {
+    const seedRaw = params.get('seed');
+    const seed = parseSeedInput(seedRaw);
+    if (seed === null) return null;
+    const ascRaw = params.get('asc') ?? params.get('ascension');
+    let ascension = null;
+    if (ascRaw !== null && ascRaw !== '' && /^-?\d+$/.test(ascRaw.trim())) {
+      const parsedAsc = Number.parseInt(ascRaw.trim(), 10);
+      if (Number.isFinite(parsedAsc)) {
+        ascension = Math.max(0, Math.min(maxAscension, parsedAsc));
+      }
+    }
+    return {
+      seed,
+      seedCode: formatSeedCode(seed),
+      ascension,
+      isUrlLike: true,
+    };
+  }
+
+  if (isUrlLike) {
+    return null;
+  }
+
+  const seed = parseSeedInput(trimmed);
+  if (seed === null) return null;
+  return {
+    seed,
+    seedCode: formatSeedCode(seed),
+    ascension: null,
+    isUrlLike: false,
+  };
+}
+
+export function buildChallengeUrl(baseHref, seed, ascension = 0, maxAscension = 5) {
+  const seedCode = formatSeedCode(seed);
+  const safeAsc = Number.isFinite(Number(ascension))
+    ? Math.max(0, Math.min(maxAscension, Math.floor(Number(ascension))))
+    : 0;
+  try {
+    const url = new URL(baseHref);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('seed', seedCode);
+    url.searchParams.set('asc', String(safeAsc));
+    return url.toString();
+  } catch {
+    return `?seed=${encodeURIComponent(seedCode)}&asc=${safeAsc}`;
+  }
+}
+
 export function normalizeSeed(seed) {
   const parsed = parseSeedInput(seed);
   if (parsed !== null) {

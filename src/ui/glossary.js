@@ -89,6 +89,20 @@ const CORE_MECHANIC_ENTRIES = [
     tag: '掉落机制',
     description: '战后抽卡未出现金色【稀有】牌时，后续战斗稀有牌掉率每次自动累加 +4%（最高 +40%），一旦刷出稀有牌即重置保底。',
   },
+  {
+    id: 'kw_neow',
+    name: '鲸鱼赐福 (第 0 层)',
+    category: 'mechanics',
+    tag: '开局机制',
+    description: '每局第 1 幕开局先在地图顶部进行 4 选 1 赐福（稳健 / 实用 / 高风险高回报 / 放弃燃烧之血换随机首领遗物），可先观察全图路线与首领再做决定。',
+  },
+  {
+    id: 'kw_challenge',
+    name: 'URL 种子直连挑战',
+    category: 'mechanics',
+    tag: '同图分享',
+    description: '点击顶部种子徽章或战绩按钮可一键复制带 ?seed=...&asc=... 的挑战链接。好友打开后自动临时对齐全图鉴与进阶难度，体验 100% 相同的地图、赐福与掉落，且不修改好友生涯解锁。',
+  },
 ];
 
 export function getGlossaryEntries() {

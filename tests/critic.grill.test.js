@@ -12,6 +12,7 @@ import {
   buyShopPurge,
   buyShopRelic,
   chooseEventOption,
+  chooseNeowOption,
   claimBossRelic,
   claimRewardCard,
   claimRewardGold,
@@ -19,11 +20,14 @@ import {
   claimRewardRelic,
   completeEventCardAction,
   completeEventPurge,
+  completeNeowAction,
   continueFromEvent,
   createNewRun,
   findMapNode,
   getAvailableNodeIds,
   getUpgradableDeckCards,
+  hasPendingNeowBlessing,
+  leaveRestSite,
   leaveShop,
   leaveTreasureRoom,
   openTreasureChest,
@@ -221,6 +225,23 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
       safetySteps += 1;
 
       if (state.screen === 'map') {
+        if (hasPendingNeowBlessing(state)) {
+          const neowOpt = state.neowState.options[seed % state.neowState.options.length];
+          const neowRes = chooseNeowOption(state, neowOpt.id);
+          assert.equal(neowRes.ok, true, `Neow option ${neowOpt.id} failed on seed ${seed}`);
+          while (state.neowState.pendingAction) {
+            const pa = state.neowState.pendingAction;
+            if (pa.type === 'pick_card') {
+              assert.equal(completeNeowAction(state, pa.cards[0].instanceId).ok, true);
+            } else if (pa.type === 'upgrade') {
+              const up = getUpgradableDeckCards(state);
+              assert.equal(completeNeowAction(state, up[0].instanceId).ok, true);
+            } else {
+              assert.equal(completeNeowAction(state, state.player.deck[0].instanceId).ok, true);
+            }
+          }
+          assertRunInvariants(state, `after Neow ${neowOpt.id} seed ${seed}`);
+        }
         const nodes = getAvailableNodeIds(state);
         assert.ok(nodes.length >= 1, `No available map nodes on seed ${seed}`);
         // Prefer Rest when low HP, avoid Elite when below 45% HP if alternative exists
@@ -309,10 +330,13 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
         }
       } else if (state.screen === 'rest') {
         const upgradable = getUpgradableDeckCards(state);
-        if (state.player.hp < state.player.maxHp * 0.65 || upgradable.length === 0) {
+        const canRestHeal = !state.player.relics.includes('coffee_dripper');
+        if (canRestHeal && (state.player.hp < state.player.maxHp * 0.65 || upgradable.length === 0)) {
           restHeal(state);
-        } else {
+        } else if (upgradable.length > 0) {
           restUpgradeCard(state, upgradable[0].instanceId);
+        } else {
+          leaveRestSite(state);
         }
       } else if (state.screen === 'shop') {
         buyShopRelic(state);

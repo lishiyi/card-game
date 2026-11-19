@@ -151,12 +151,13 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '每当你将失去生命值时，少失去 1 点生命。',
   },
 
-  // === Boss (4) ===
+  // === Boss (8) ===
   black_blood: {
     id: 'black_blood',
     name: '漆黑之血',
     tier: 'boss',
     price: 320,
+    requiresRelic: 'burning_blood',
     description: '强化初始之血：战斗胜利后回复生命提升至 12 点（替代燃烧之血效果）。',
   },
   cursed_key: {
@@ -181,6 +182,36 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'boss',
     price: 320,
     description: '所有药水的数值效果翻倍（伤害、格挡、属性、能量、抽牌与回复全部 ×2）。',
+  },
+  runic_pyramid: {
+    id: 'runic_pyramid',
+    name: '符文金字塔',
+    tier: 'boss',
+    price: 320,
+    description: '回合结束时不再弃掉你的手牌（【虚无】牌仍会自动消耗，手牌上限仍为 10 张）。',
+  },
+  snecko_eye: {
+    id: 'snecko_eye',
+    name: '异蛇之眼',
+    tier: 'boss',
+    price: 320,
+    description: '每回合额外抽 2 张牌；但每场战斗开始时获得【混乱】，抽到的可打出卡牌费用将在 0–3 点间随机重设。',
+  },
+  coffee_dripper: {
+    id: 'coffee_dripper',
+    name: '咖啡滤滴器',
+    tier: 'boss',
+    price: 320,
+    energyBonus: 1,
+    description: '最大能量 +1；但你无法再在篝火营地通过【休息】回复生命（仍可锻造，永恒羽毛不受影响）。',
+  },
+  philosophers_stone: {
+    id: 'philosophers_stone',
+    name: '贤者之石',
+    tier: 'boss',
+    price: 320,
+    energyBonus: 1,
+    description: '最大能量 +1；但每场战斗开始时，所有敌人初始获得 1 点【力量】。',
   },
 });
 
@@ -382,6 +413,12 @@ export const STATUS_METADATA = deepFreeze({
     name: '禁抽',
     polarity: 'debuff',
     describe: () => '本回合内无法再抽取任何卡牌。',
+  },
+  confused: {
+    id: 'confused',
+    name: '混乱',
+    polarity: 'debuff',
+    describe: () => '每当你抽到一张可打出的卡牌时，其本次能量消耗将在 0 至 3 点间随机重设（X 费牌不受影响）。',
   },
   ritual: {
     id: 'ritual',

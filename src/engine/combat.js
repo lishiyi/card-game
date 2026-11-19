@@ -12,7 +12,7 @@ import {
 } from '../data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../data/relics.js';
 import { calculateAttackDamage, calculateCardBlock } from './math.js';
-import { pickRandom, shuffled } from './rng.js';
+import { pickRandom, randomInt, shuffled } from './rng.js';
 
 export const MAX_HAND_SIZE = 10;
 export const BASE_DRAW_PER_TURN = 5;
@@ -125,6 +125,16 @@ export function drawCards(state, count) {
 
     const nextCard = combat.drawPile.shift();
     if (!nextCard) break;
+    if ((state.player.statuses.confused ?? 0) > 0) {
+      const drawnStats = getCardStats(nextCard);
+      if (
+        !drawnStats.unplayable &&
+        !drawnStats.isXCost &&
+        typeof drawnStats.cost === 'number'
+      ) {
+        nextCard.combatCost = randomInt(state, 0, 3);
+      }
+    }
     combat.hand.push(nextCard);
     drawn += 1;
   }
@@ -412,8 +422,9 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, `【恶魔形态】生效：获得 ${gain} 点力量。`, 'status');
   }
 
-  const extraDraw = combat.turn === 1 && hasRelic(state, 'bag_of_prep') ? 2 : 0;
-  drawCards(state, BASE_DRAW_PER_TURN + extraDraw);
+  const bagDraw = combat.turn === 1 && hasRelic(state, 'bag_of_prep') ? 2 : 0;
+  const sneckoDraw = hasRelic(state, 'snecko_eye') ? 2 : 0;
+  drawCards(state, BASE_DRAW_PER_TURN + bagDraw + sneckoDraw);
 }
 
 export function startCombat(state, encounter, encounterRole = 'normal', onVictoryCallback = null) {
@@ -476,6 +487,14 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
       'status'
     );
   }
+  if (hasRelic(state, 'snecko_eye')) {
+    applyStatus(state.player, 'confused', 1);
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.snecko_eye.name}】生效：获得【混乱】，每回合额外抽 2 张牌，抽到的牌费用将随机重设！`,
+      'status'
+    );
+  }
   if (hasRelic(state, 'bag_of_marbles')) {
     for (const enemy of getAliveEnemies(combat)) {
       applyStatus(enemy, 'vulnerable', 1);
@@ -483,6 +502,16 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     pushCombatLog(
       combat,
       `遗物【${RELIC_LIBRARY.bag_of_marbles.name}】生效：所有敌人获得 1 层【易伤】。`,
+      'status'
+    );
+  }
+  if (hasRelic(state, 'philosophers_stone')) {
+    for (const enemy of getAliveEnemies(combat)) {
+      applyStatus(enemy, 'strength', 1);
+    }
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.philosophers_stone.name}】副作用：所有敌人初始获得 1 点【力量】。`,
       'status'
     );
   }
@@ -941,13 +970,14 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     return { ok: true, outcome: combat.status };
   }
 
+  const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
   const etherealToExhaust = [];
   const retainedHand = [];
   for (const cardInstance of combat.hand) {
     const stats = getCardStats(cardInstance);
     if (stats.ethereal) {
       etherealToExhaust.push(cardInstance);
-    } else if (stats.retain) {
+    } else if (stats.retain || keepHandByPyramid) {
       retainedHand.push(cardInstance);
     } else {
       combat.discardPile.push(cardInstance);
@@ -1002,6 +1032,10 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
           customHp: splitHp,
           customRole: 'normal',
         });
+        if (hasRelic(state, 'philosophers_stone')) {
+          applyStatus(childA, 'strength', 1);
+          applyStatus(childB, 'strength', 1);
+        }
         if (idx !== -1) {
           combat.enemies.splice(idx, 1, childA, childB);
         } else {

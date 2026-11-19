@@ -138,7 +138,7 @@ export function recordCompletedRun(meta, state) {
   if (!meta || !state) {
     return { xpGained: 0, newlyUnlockedTiers: [], unlockedAscension: null, alreadyRecorded: false };
   }
-  const runKey = `${state.seed}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}`;
+  const runKey = `${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
   if (!Array.isArray(meta.recordedRunKeys)) {
     meta.recordedRunKeys = [];
   }
@@ -173,7 +173,9 @@ export function recordCompletedRun(meta, state) {
   if (state.runOutcome === 'victory') {
     meta.victories = (meta.victories ?? 0) + 1;
     const asc = state.ascension ?? 0;
-    if (asc >= (meta.maxAscensionUnlocked ?? 0) && (meta.maxAscensionUnlocked ?? 0) < MAX_ASCENSION) {
+    const currentMax = meta.maxAscensionUnlocked ?? 0;
+    const canAdvanceAscension = !state.isChallengeRun || asc <= currentMax;
+    if (canAdvanceAscension && asc >= currentMax && currentMax < MAX_ASCENSION) {
       meta.maxAscensionUnlocked = Math.min(MAX_ASCENSION, asc + 1);
       unlockedAscension = meta.maxAscensionUnlocked;
     }
@@ -188,6 +190,7 @@ export function recordCompletedRun(meta, state) {
     act: state.act ?? 1,
     floor: Math.max(1, state.floor ?? 1),
     ascension: state.ascension ?? 0,
+    isChallenge: Boolean(state.isChallengeRun),
     deckSize: state.player?.deck?.length ?? 0,
     relicCount: state.player?.relics?.length ?? 0,
     combatsWon: state.stats?.combatsWon ?? 0,

@@ -565,6 +565,7 @@ export function getCardStats(cardInstance) {
     baseName: def.name,
     upgraded: isUpgraded,
     baseCost: def.base.cost,
+    combatCost: typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : null,
     costReduced,
     type: def.type,
     rarity: def.rarity,
@@ -583,6 +584,9 @@ export function getEffectiveCardCost(stats, player = null) {
   if (stats.isXCost) return 'X';
   if (stats.type === 'skill' && (player?.statuses?.corruption ?? 0) > 0) {
     return 0;
+  }
+  if (typeof stats.combatCost === 'number') {
+    return Math.max(0, stats.combatCost);
   }
   return stats.cost ?? 0;
 }
@@ -748,9 +752,19 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   }
 
   const effectiveCost = getEffectiveCardCost(stats, player);
+  const corruptedZero =
+    stats.type === 'skill' && Boolean(player && (player.statuses?.corruption ?? 0) > 0);
+  const costRandomizedNow = typeof stats.combatCost === 'number' && !corruptedZero;
+  const costIncreasedNow =
+    typeof stats.cost === 'number' &&
+    typeof effectiveCost === 'number' &&
+    effectiveCost > stats.cost;
   const costReducedNow =
-    stats.costReduced ||
-    (typeof stats.cost === 'number' && typeof effectiveCost === 'number' && effectiveCost < stats.cost);
+    !costIncreasedNow &&
+    ((typeof stats.cost === 'number' &&
+      typeof effectiveCost === 'number' &&
+      effectiveCost < stats.cost) ||
+      (!costRandomizedNow && stats.costReduced));
 
   return {
     text: parts.join(' '),
@@ -760,14 +774,16 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     blockState,
     displayCost: effectiveCost === null ? '—' : String(effectiveCost),
     costReducedNow,
+    costIncreasedNow,
+    costRandomizedNow,
   };
 }
 
 export function formatUpgradePreview(cardInstance, combatContext = null) {
   if (!canUpgradeCard(cardInstance)) return null;
 
-  const baseCard = { ...cardInstance, upgraded: false };
-  const nextCard = { ...cardInstance, upgraded: true };
+  const baseCard = { ...cardInstance, upgraded: false, combatCost: undefined };
+  const nextCard = { ...cardInstance, upgraded: true, combatCost: undefined };
   const baseStats = getCardStats(baseCard);
   const nextStats = getCardStats(nextCard);
   const baseDesc = formatCardDescription(baseCard, combatContext);

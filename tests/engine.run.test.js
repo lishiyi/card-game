@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
 import { ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
 import { TOTAL_FLOORS } from '../src/data/events.js';
-import { NON_STARTER_RELIC_IDS } from '../src/data/relics.js';
+import { BOSS_RELIC_IDS, NON_STARTER_RELIC_IDS } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
 import {
   buyShopCard,
@@ -15,7 +15,9 @@ import {
   buyShopPurge,
   buyShopRelic,
   cancelEventPurge,
+  cancelNeowAction,
   chooseEventOption,
+  chooseNeowOption,
   claimBossRelic,
   claimRewardCard,
   claimRewardGold,
@@ -23,6 +25,7 @@ import {
   claimRewardRelic,
   completeEventCardAction,
   completeEventPurge,
+  completeNeowAction,
   continueFromEvent,
   createNewRun,
   discardPotion,
@@ -30,7 +33,9 @@ import {
   getAvailableNodeIds,
   getCurrentPurgeCost,
   getUnclaimedImportantRewards,
+  getUpgradableDeckCards,
   grantRelicToPlayer,
+  hasPendingNeowBlessing,
   leaveShop,
   leaveTreasureRoom,
   openTreasureChest,
@@ -44,6 +49,7 @@ import {
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
+  skipNeowCardOffer,
   transitionCombatVictory,
 } from '../src/engine/game.js';
 import {
@@ -53,7 +59,12 @@ import {
   recordCompletedRun,
   saveMeta,
 } from '../src/engine/meta.js';
-import { formatSeedCode, parseSeedInput } from '../src/engine/rng.js';
+import {
+  buildChallengeUrl,
+  formatSeedCode,
+  parseChallengeInput,
+  parseSeedInput,
+} from '../src/engine/rng.js';
 import { buildStandaloneHtml, discoverModuleOrder } from '../scripts/build-standalone.mjs';
 
 test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-crossing paths, quotas, and no consecutive Elites/Rests/Shops across 150 seeds', () => {
@@ -154,7 +165,7 @@ test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-cr
 });
 
 test('Combat victory transitions to Reward screen, warns on unclaimed Gold/Relic (never on Potion/Card), and returns to Map', () => {
-  const state = createNewRun({ seed: 1234 });
+  const state = createNewRun({ seed: 1234, skipNeow: true });
   const firstNodeId = getAvailableNodeIds(state)[0];
   selectMapNode(state, firstNodeId);
   assert.equal(state.screen, 'combat');
@@ -749,3 +760,138 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
   assert.equal(html.includes('<script type="module"'), false);
   assert.equal(html.includes('<link rel="stylesheet"'), false);
 });
+
+test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
+  assert.equal(BOSS_RELIC_IDS.length, 8);
+
+  // 1. Deterministic Neow options & Floor 1 lock until resolved
+  const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
+  const runB = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
+  assert.equal(hasPendingNeowBlessing(runA), true);
+  assert.equal(runA.neowState.options.length, 4);
+  assert.deepEqual(
+    runA.neowState.options.map((o) => o.id),
+    runB.neowState.options.map((o) => o.id),
+    'Same seed must produce identical Neow blessing choices'
+  );
+  assert.equal(runA.neowState.options[3].id, 'boss_swap');
+  assert.deepEqual(getAvailableNodeIds(runA), [], 'Floor 1 must be locked before Neow blessing is resolved');
+  assert.equal(selectMapNode(runA, runA.map[0][0].id).ok, false);
+
+  // 2. Boss Swap removes Burning Blood, never rolls Black Blood, and filters Black Blood out of Act 1 Boss Altar!
+  for (let s = 1; s <= 40; s += 1) {
+    const swapRun = createNewRun({ seed: 9000 + s, unlockAllOverride: true });
+    const res = chooseNeowOption(swapRun, 'boss_swap');
+    assert.equal(res.ok, true);
+    assert.equal(swapRun.player.relics.includes('burning_blood'), false);
+    assert.equal(swapRun.player.relics.includes('black_blood'), false, 'Boss Swap must never roll black_blood');
+    assert.equal(BOSS_RELIC_IDS.includes(res.relicId), true);
+    assert.equal(hasPendingNeowBlessing(swapRun), false);
+    assert.ok(getAvailableNodeIds(swapRun).length >= 3, 'Floor 1 nodes must unlock right after Neow');
+
+    // Simulate Act 1 Boss victory -> black_blood must NOT be offered since burning_blood is gone
+    swapRun.combat = { role: 'boss' };
+    transitionCombatVictory(swapRun);
+    assert.equal(swapRun.screen, 'boss_reward');
+    assert.equal(swapRun.bossReward.relicChoices.includes('black_blood'), false);
+  }
+
+  // 3. Cancelable deck picker (upgrade_1) + 2-card removal all-gold cost (gold_for_remove_2) + card offer skip (hp_for_rare_card)
+  const deckPickRun = createNewRun({ seed: 5501, unlockAllOverride: true });
+  deckPickRun.neowState.options[0] = { id: 'upgrade_1', tier: 'small', badge: '稳健增益', title: '升级 1 张', detail: '' };
+  deckPickRun.neowState.options[2] = { id: 'gold_for_remove_2', tier: 'risk', badge: '高风险', title: '全金币删 2', detail: '' };
+  assert.equal(chooseNeowOption(deckPickRun, 'upgrade_1').pendingModal, 'neow_action');
+  assert.equal(cancelNeowAction(deckPickRun).ok, true, 'Deck picker should be cancelable before confirming');
+  assert.equal(hasPendingNeowBlessing(deckPickRun), true);
+
+  assert.equal(chooseNeowOption(deckPickRun, 'gold_for_remove_2').pendingModal, 'neow_action');
+  const startDeckLen = deckPickRun.player.deck.length;
+  const r1 = completeNeowAction(deckPickRun, deckPickRun.player.deck[0].instanceId);
+  assert.equal(r1.ok, true);
+  assert.equal(r1.resolved, false);
+  assert.equal(deckPickRun.player.gold, 0);
+  assert.equal(cancelNeowAction(deckPickRun).ok, false, 'Cannot cancel after 1st removal paid gold');
+  const r2 = completeNeowAction(deckPickRun, deckPickRun.player.deck[0].instanceId);
+  assert.equal(r2.ok, true);
+  assert.equal(r2.resolved, true);
+  assert.equal(deckPickRun.player.deck.length, startDeckLen - 2);
+
+  const rareOfferRun = createNewRun({ seed: 5502, unlockAllOverride: true });
+  rareOfferRun.neowState.options[2] = { id: 'hp_for_rare_card', tier: 'risk', badge: '高风险', title: '失血换稀有', detail: '' };
+  assert.equal(chooseNeowOption(rareOfferRun, 'hp_for_rare_card').pendingModal, 'neow_action');
+  assert.equal(rareOfferRun.player.hp, 65);
+  assert.equal(cancelNeowAction(rareOfferRun).ok, false, 'Revealed card offer must not be cancelable');
+  assert.equal(skipNeowCardOffer(rareOfferRun).ok, true);
+  assert.equal(hasPendingNeowBlessing(rareOfferRun), false);
+
+  // 4. Coffee Dripper blocks Rest healing while allowing Smithing & Eternal Feather passive heal
+  const dripRun = createNewRun({ seed: 5503, skipNeow: true });
+  grantRelicToPlayer(dripRun, 'coffee_dripper');
+  grantRelicToPlayer(dripRun, 'eternal_feather');
+  assert.equal(dripRun.player.maxEnergy, 4);
+  dripRun.player.hp = 40;
+  dripRun.screen = 'rest';
+  dripRun.restState = { completed: false, lastAction: null, featherHealed: 6 };
+  const healTry = restHeal(dripRun);
+  assert.equal(healTry.ok, false);
+  assert.ok(healTry.reason.includes('咖啡滤滴器'));
+  assert.equal(dripRun.player.hp, 40);
+  const upCard = getUpgradableDeckCards(dripRun)[0];
+  assert.equal(restUpgradeCard(dripRun, upCard.instanceId).ok, true);
+  assert.equal(dripRun.screen, 'map');
+});
+
+test('URL Seeded Challenge: buildChallengeUrl, parseChallengeInput (URL/query/seed), and anti-skip Ascension protection on Meta settlement', () => {
+  const url = buildChallengeUrl('https://lishiyi.github.io/card-game/?old=1#hash', 42, 3);
+  assert.equal(url, 'https://lishiyi.github.io/card-game/?seed=S-16&asc=3');
+
+  const parsedFull = parseChallengeInput(url);
+  assert.equal(parsedFull.seed, 42);
+  assert.equal(parsedFull.seedCode, 'S-16');
+  assert.equal(parsedFull.ascension, 3);
+  assert.equal(parsedFull.isUrlLike, true);
+
+  const parsedQuery = parseChallengeInput('?seed=S-16&asc=99', 5);
+  assert.equal(parsedQuery.seed, 42);
+  assert.equal(parsedQuery.ascension, 5, 'Ascension should clamp to maxAscension');
+  assert.equal(parsedQuery.isUrlLike, true);
+
+  const parsedPlain = parseChallengeInput('S-16');
+  assert.equal(parsedPlain.seed, 42);
+  assert.equal(parsedPlain.ascension, null);
+  assert.equal(parsedPlain.isUrlLike, false);
+
+  // Anti-skip protection: brand-new player (maxAscensionUnlocked = 0) winning an Asc 3 challenge link
+  // records history with isChallenge: true + XP, WITHOUT jumping maxAscensionUnlocked to 4!
+  const freshMeta = createDefaultMeta();
+  const hiAscChallenge = createNewRun({
+    seed: 42,
+    ascension: 3,
+    unlockAllOverride: true,
+    isChallengeRun: true,
+  });
+  hiAscChallenge.floor = 16;
+  hiAscChallenge.stats.floorsCleared = 16;
+  hiAscChallenge.runOutcome = 'victory';
+  const hiRec = recordCompletedRun(freshMeta, hiAscChallenge);
+  assert.equal(hiRec.unlockedAscension, null);
+  assert.equal(freshMeta.maxAscensionUnlocked, 0);
+  assert.ok(hiRec.xpGained > 0);
+  assert.equal(freshMeta.runHistory[0].isChallenge, true);
+  assert.equal(freshMeta.runHistory[0].ascension, 3);
+
+  // Winning an Asc 0 challenge link (<= maxAscensionUnlocked) DOES legitimately unlock Asc 1!
+  const asc0Challenge = createNewRun({
+    seed: 43,
+    ascension: 0,
+    unlockAllOverride: true,
+    isChallengeRun: true,
+  });
+  asc0Challenge.floor = 16;
+  asc0Challenge.stats.floorsCleared = 16;
+  asc0Challenge.runOutcome = 'victory';
+  const lowRec = recordCompletedRun(freshMeta, asc0Challenge);
+  assert.equal(lowRec.unlockedAscension, 1);
+  assert.equal(freshMeta.maxAscensionUnlocked, 1);
+});
+

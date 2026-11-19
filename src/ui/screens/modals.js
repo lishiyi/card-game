@@ -138,6 +138,7 @@ function renderMetaModal({ state, meta, ui }) {
                 <div class="history-row ${isWin ? 'win' : 'loss'}" data-history-idx="${idx}">
                   <div class="history-main">
                     <span class="history-badge ${isWin ? 'win' : 'loss'}">${isWin ? '凯旋' : '折戟'}</span>
+                    ${rec.isChallenge ? `<span class="history-badge challenge">挑战</span>` : ''}
                     <span class="history-floor">第 ${escapeHtml(rec.act ?? 1)} 幕 · F${escapeHtml(rec.floor ?? 1)}</span>
                     ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
                     <span class="history-meta">牌组 ${escapeHtml(rec.deckSize ?? 0)} · 遗物 ${escapeHtml(rec.relicCount ?? 0)} · 斩敌 ${escapeHtml(rec.enemiesSlain ?? 0)}</span>
@@ -150,7 +151,8 @@ function renderMetaModal({ state, meta, ui }) {
                       class="btn-stone btn-compact"
                       data-action="copy-seed"
                       data-seed-code="${escapeHtml(sCode)}"
-                    >复制</button>
+                      data-ascension="${escapeHtml(rec.ascension ?? 0)}"
+                    >复制链接</button>
                     <button
                       type="button"
                       class="btn-brass btn-compact"
@@ -171,7 +173,7 @@ function renderMetaModal({ state, meta, ui }) {
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading">进阶挑战 · 种子开局 · 历史战绩</h2>
-            <p class="stage-subtitle">累计攀登获取历练经验解锁高阶流派核心，输入种子与好友同图竞速，或回顾过往战绩。</p>
+            <p class="stage-subtitle">累计攀登获取历练经验解锁高阶流派核心，输入种子或粘贴挑战链接与好友同图竞速，或回顾过往战绩。</p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
@@ -186,9 +188,16 @@ function renderMetaModal({ state, meta, ui }) {
 
         <div class="meta-section">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;">用种子开局 · 好友同图挑战（当前局种子：${escapeHtml(currentSeedCode)}）</h3>
-            <button type="button" id="btn-copy-active-seed" class="btn-stone btn-compact" data-action="copy-seed" data-seed-code="${escapeHtml(currentSeedCode)}">
-              复制当前种子
+            <h3 style="margin:0;">用种子或挑战链接开局（当前局种子：${escapeHtml(currentSeedCode)}）</h3>
+            <button
+              type="button"
+              id="btn-copy-active-seed"
+              class="btn-stone btn-compact"
+              data-action="copy-seed"
+              data-seed-code="${escapeHtml(currentSeedCode)}"
+              data-ascension="${escapeHtml(state.ascension ?? 0)}"
+            >
+              复制挑战链接
             </button>
           </div>
           <div class="seed-launcher-bar">
@@ -196,10 +205,10 @@ function renderMetaModal({ state, meta, ui }) {
               type="text"
               id="seed-input-box"
               class="spire-input"
-              placeholder="输入种子代码（如 S-16、88888 或任意自定义词）"
+              placeholder="输入种子代码（如 S-16）或直接粘贴挑战链接（?seed=...&asc=...）"
               value="${escapeHtml(ui.seedInput || '')}"
-              maxlength="32"
-              aria-label="指定种子代码"
+              maxlength="240"
+              aria-label="指定种子代码或挑战链接"
             />
             <button type="button" id="btn-start-seeded-run" class="btn-brass" data-action="start-seeded-run">
               以此种子开启【进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
@@ -461,6 +470,100 @@ export function renderModal({ state, meta, settings, ui }) {
 
   if (ui.modal === 'help') {
     return renderHelpModal({ ui });
+  }
+
+  if (ui.modal === 'confirm_challenge') {
+    const req = ui.pendingChallenge;
+    if (!req) {
+      ui.modal = null;
+      return '';
+    }
+    const curSeed = formatSeedCode(state.seed);
+    const curAct = state.act ?? 1;
+    const curFloor = Math.max(0, state.floor ?? 0);
+    const ascLabel = `进阶 ${req.ascension ?? 0}`;
+    return `
+      <div class="modal-backdrop" id="modal-backdrop" data-action="decline-challenge" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="challenge-invite-desc">
+        <div class="modal-sheet modal-confirm-sheet" id="challenge-invite-modal">
+          <div class="modal-header">
+            <div>
+              <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">收到好友种子挑战邀请！</h2>
+              <p id="challenge-invite-desc" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);line-height:1.55;">
+                目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong>
+                · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度）。
+              </p>
+            </div>
+          </div>
+          <div class="challenge-current-save-note">
+            你本地尚有一局进行中的存档（种子 <code>${escapeHtml(curSeed)}</code> · 第 ${escapeHtml(curAct)} 幕 · 第 ${escapeHtml(curFloor)} 层 · 生命 ${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}）。是否覆盖当前进度并接受挑战？
+          </div>
+          <div class="confirm-actions">
+            <button type="button" id="btn-decline-challenge" class="btn-stone" data-action="decline-challenge">保留当前进度</button>
+            <button type="button" id="btn-accept-challenge" class="btn-brass" data-action="accept-challenge">接受挑战并开新局 →</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  if (ui.modal === 'neow_action') {
+    const action = state.neowState?.pendingAction;
+    if (!action) {
+      ui.modal = null;
+      return '';
+    }
+
+    let cards = [];
+    let showUpgradePreview = false;
+    if (action.type === 'pick_card') {
+      cards = action.cards || [];
+    } else if (action.type === 'upgrade') {
+      cards = getUpgradableDeckCards(state);
+      showUpgradePreview = true;
+    } else {
+      cards = state.player.deck;
+    }
+
+    const cardsHtml =
+      cards.length > 0
+        ? cards
+            .map((c) =>
+              renderCardHtml(c, {
+                idPrefix: 'neow-card',
+                action: 'complete-neow-action',
+                playable: true,
+                disabled: false,
+                showUpgradePreview,
+              })
+            )
+            .join('')
+        : '<p class="stage-subtitle">当前没有可选卡牌。</p>';
+
+    const headerActions = [];
+    if (action.type === 'pick_card') {
+      headerActions.push(
+        `<button type="button" id="btn-neow-skip-card" class="btn-stone" data-action="skip-neow-card">跳过卡牌</button>`
+      );
+    } else if (action.allowCancel) {
+      headerActions.push(
+        `<button type="button" id="btn-cancel-neow-action" class="btn-stone" data-action="cancel-neow-action">返回重选赐福 (Esc)</button>`
+      );
+    }
+
+    return `
+      <div class="modal-backdrop" id="modal-backdrop" data-action="${action.allowCancel ? 'cancel-neow-action' : 'noop'}" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-sheet" id="neow-action-modal">
+          <div class="modal-header">
+            <div>
+              <h2 id="modal-title" class="stage-heading">${escapeHtml(action.title)}</h2>
+              ${action.subtitle ? `<p class="stage-subtitle">${escapeHtml(action.subtitle)}</p>` : ''}
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">${headerActions.join('')}</div>
+          </div>
+          <div class="card-showcase">${cardsHtml}</div>
+        </div>
+      </div>
+    `;
   }
 
   if (ui.modal === 'confirm_skip_reward') {

@@ -6,7 +6,11 @@
  */
 
 import { NODE_TYPE_META, TOTAL_FLOORS } from '../../data/events.js';
-import { getAvailableNodeIds, getCurrentBossName } from '../../engine/game.js';
+import {
+  getAvailableNodeIds,
+  getCurrentBossName,
+  hasPendingNeowBlessing,
+} from '../../engine/game.js';
 import { escapeHtml } from '../helpers.js';
 import { getNodeIconSvg } from '../icons.js';
 
@@ -169,6 +173,7 @@ export function renderMapScreen({ state, settings, ui }) {
             .filter(Boolean)
             .join(' ');
 
+          const pendingNeow = hasPendingNeowBlessing(state);
           const statusNote = isCurrent
             ? '当前位置'
             : node.visited
@@ -177,7 +182,9 @@ export function renderMapScreen({ state, settings, ui }) {
                 ? bossName
                 : isAvailable
                   ? '点击前往'
-                  : `第 ${node.floor} 层`;
+                  : pendingNeow && node.floor === 1
+                    ? '需先选赐福'
+                    : `第 ${node.floor} 层`;
 
           const bossTooltip =
             node.type === 'boss'
@@ -217,8 +224,71 @@ export function renderMapScreen({ state, settings, ui }) {
     .join('');
 
   const isAct2 = (state.act ?? 1) >= 2;
+  const pendingNeow = hasPendingNeowBlessing(state);
   const showNewbieBanner =
     !state.currentNodeId && (state.act ?? 1) === 1 && !settings?.tutorialDismissed;
+
+  let neowSectionHtml = '';
+  if (pendingNeow && state.neowState) {
+    const neow = state.neowState;
+    const pendingAct = neow.pendingAction;
+    const choicesHtml = neow.options
+      .map((opt, idx) => {
+        const disabled = Boolean(pendingAct && pendingAct.committed);
+        return `
+          <button
+            type="button"
+            id="neow-choice-${idx}"
+            class="neow-choice-card neow-tier-${escapeHtml(opt.tier)}"
+            data-action="choose-neow"
+            data-option-id="${escapeHtml(opt.id)}"
+            ${disabled ? 'disabled' : ''}
+          >
+            <span class="neow-choice-badge">${escapeHtml(opt.badge)}</span>
+            <strong class="neow-choice-title">${escapeHtml(opt.title)}</strong>
+            <span class="neow-choice-detail">${escapeHtml(opt.detail)}</span>
+          </button>
+        `;
+      })
+      .join('');
+
+    neowSectionHtml = `
+      <div class="neow-panel" id="neow-blessing-panel" aria-label="第 0 层鲸鱼赐福">
+        <div class="neow-panel-header">
+          <div class="neow-crest" aria-hidden="true">
+            <svg viewBox="0 0 36 36" width="28" height="28">
+              <path d="M5 22 Q11 8 24 11 Q31 13 32 19 Q26 23 19 23 Q12 23 7 26 Z" fill="hsl(198, 52%, 44%)" stroke="hsl(38, 72%, 62%)" stroke-width="1.6"/>
+              <path d="M27 17 L34 12 L32 20 L34 25 L26 21 Z" fill="hsl(198, 46%, 34%)" stroke="hsl(38, 72%, 62%)" stroke-width="1.3"/>
+              <circle cx="13" cy="16" r="1.7" fill="hsl(42, 92%, 72%)"/>
+              <circle cx="17.5" cy="14.2" r="1.4" fill="hsl(42, 92%, 72%)"/>
+              <circle cx="18.2" cy="18.4" r="1.4" fill="hsl(42, 92%, 72%)"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="neow-panel-title">第 0 层 · 涅奥的鲸鱼赐福（4 选 1）</h3>
+            <p class="neow-panel-subtitle">你可以先向下浏览整张路线与第 ${escapeHtml(TOTAL_FLOORS)} 层首领【${escapeHtml(bossName)}】，选定一项开局赐福后立即解锁第 1 层起点！</p>
+          </div>
+          ${
+            pendingAct
+              ? `<button type="button" id="btn-resume-neow-pick" class="btn-brass btn-compact" data-action="open-neow-pending">继续完成赐福选牌 →</button>`
+              : ''
+          }
+        </div>
+        <div class="neow-choice-grid">${choicesHtml}</div>
+      </div>
+    `;
+  } else if (
+    !state.currentNodeId &&
+    (state.act ?? 1) === 1 &&
+    state.neowState?.resolved &&
+    state.neowState.outcomeText
+  ) {
+    neowSectionHtml = `
+      <div class="neow-outcome-banner" id="neow-outcome-banner">
+        <strong>鲸鱼赐福已生效：</strong>${escapeHtml(state.neowState.outcomeText)}
+      </div>
+    `;
+  }
 
   return `
     <section class="panel-stage" aria-labelledby="map-heading">
@@ -240,11 +310,13 @@ export function renderMapScreen({ state, settings, ui }) {
           : ''
       }
 
+      ${neowSectionHtml}
+
       ${
         showNewbieBanner
           ? `<div class="newbie-guide-banner" id="newbie-guide-banner">
               <div class="newbie-guide-text">
-                <strong>初入尖塔提示：</strong>从最底部 <strong>F1</strong> 任选一个发光节点出发！战斗中留意敌人的【本回合意图】与【下回合预测】，随时点击顶部【词典/引导】查阅力量、易伤、消耗等词条。
+                <strong>初入尖塔提示：</strong>先完成上方 <strong>第 0 层鲸鱼赐福</strong>，再从最底部 <strong>F1</strong> 任选发光节点出发！随时点击顶部【词典/引导】查阅力量、易伤、消耗、混乱等词条。
               </div>
               <div class="newbie-guide-actions">
                 <button type="button" id="btn-open-tutorial" class="btn-brass btn-compact" data-action="open-help-tab" data-help-tab="tutorial">三步新手引导</button>

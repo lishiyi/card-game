@@ -69,7 +69,13 @@ export function renderCardHtml(cardInstance, options = {}) {
   }
 
   let costTooltipAttrs = '';
-  if (stats.costReduced) {
+  if (desc.costIncreasedNow) {
+    costTooltipAttrs = `data-tooltip-title="混乱增费" data-tooltip-tag="异蛇之眼 / 混乱" data-tooltip-desc="${escapeHtml(`受【混乱】影响，本牌当前费用由 ${stats.cost} 点随机提高至 ${desc.displayCost} 点。`)}" data-tooltip-tone="debuff"`;
+  } else if (desc.costRandomizedNow && desc.costReducedNow) {
+    costTooltipAttrs = `data-tooltip-title="混乱减费" data-tooltip-tag="异蛇之眼 / 混乱" data-tooltip-desc="${escapeHtml(`受【混乱】影响，本牌当前费用由 ${stats.cost} 点随机降至 ${desc.displayCost} 点！`)}" data-tooltip-tone="buff"`;
+  } else if (desc.costRandomizedNow) {
+    costTooltipAttrs = `data-tooltip-title="混乱随机费用" data-tooltip-tag="异蛇之眼 / 混乱" data-tooltip-desc="${escapeHtml(`受【混乱】影响，本牌本次抽取费用随机为 ${desc.displayCost} 点。`)}"`;
+  } else if (stats.costReduced) {
     costTooltipAttrs = `data-tooltip-title="升级减费" data-tooltip-tag="卡牌强化" data-tooltip-desc="${escapeHtml(`升级后费用由 ${stats.baseCost} 点减少至 ${stats.cost} 点。`)}" data-tooltip-tone="buff"`;
   } else if (desc.costReducedNow) {
     costTooltipAttrs = `data-tooltip-title="临时零费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】等效果影响，当前费用已减至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
@@ -95,6 +101,12 @@ export function renderCardHtml(cardInstance, options = {}) {
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';
 
+  const costBadgeClass = desc.costIncreasedNow
+    ? 'cost-increased'
+    : desc.costReducedNow
+      ? 'upgraded'
+      : '';
+
   return `
     <button
       type="button"
@@ -109,7 +121,7 @@ export function renderCardHtml(cardInstance, options = {}) {
     >
       <div>
         <div class="card-top">
-          <span class="card-cost ${desc.costReducedNow ? 'upgraded' : ''}" ${costTooltipAttrs}>${escapeHtml(desc.displayCost)}</span>
+          <span class="card-cost ${costBadgeClass}" ${costTooltipAttrs}>${escapeHtml(desc.displayCost)}</span>
           <span class="card-name ${stats.upgraded ? 'upgraded' : ''}">${escapeHtml(stats.name)}</span>
           ${typeof options.hotkey === 'number' ? `<span class="card-hotkey">[${options.hotkey}]</span>` : ''}
         </div>

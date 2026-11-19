@@ -13,7 +13,9 @@ import {
   buyShopPurge,
   buyShopRelic,
   cancelEventPurge,
+  cancelNeowAction,
   chooseEventOption,
+  chooseNeowOption,
   claimBossRelic,
   claimRewardCard,
   claimRewardGold,
@@ -21,9 +23,11 @@ import {
   claimRewardRelic,
   completeEventCardAction,
   completeEventPurge,
+  completeNeowAction,
   continueFromEvent,
   createNewRun,
   discardPotion,
+  hasPendingNeowBlessing,
   leaveRestSite,
   leaveShop,
   leaveTreasureRoom,
@@ -39,6 +43,7 @@ import {
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
+  skipNeowCardOffer,
   STARTER_POTION_SLOTS,
 } from '../engine/game.js';
 import {
@@ -48,7 +53,12 @@ import {
   saveMeta,
   UNLOCK_TIERS,
 } from '../engine/meta.js';
-import { formatSeedCode, parseSeedInput } from '../engine/rng.js';
+import {
+  buildChallengeUrl,
+  formatSeedCode,
+  parseChallengeInput,
+  parseSeedInput,
+} from '../engine/rng.js';
 import { createSoundEngine } from './audio.js';
 import { createFxManager } from './fx.js';
 import { escapeHtml } from './helpers.js';
@@ -109,6 +119,33 @@ function persistRun(state) {
   }
 }
 
+function readIncomingChallengeFromLocation() {
+  try {
+    const search = window.location?.search || '';
+    if (!search || !search.includes('seed=')) return null;
+    const parsed = parseChallengeInput(search, MAX_ASCENSION);
+    if (!parsed || !parsed.isUrlLike) return null;
+    return {
+      seed: parsed.seed,
+      seedCode: parsed.seedCode,
+      ascension: parsed.ascension ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearChallengeQueryFromLocation() {
+  try {
+    if (window.history?.replaceState && window.location?.search) {
+      const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+      window.history.replaceState(null, '', cleanUrl);
+    }
+  } catch {
+    // Ignore history API restrictions in sandboxed/file contexts
+  }
+}
+
 export function mountSpireApp(rootEl) {
   let meta = loadSavedMeta();
   let settings = loadSettings();
@@ -122,7 +159,42 @@ export function mountSpireApp(rootEl) {
     };
   }
 
-  let state = loadSavedRun() || createNewRun(buildNewRunOptions());
+  const incomingChallenge = readIncomingChallengeFromLocation();
+  if (incomingChallenge) {
+    clearChallengeQueryFromLocation();
+  }
+
+  const savedRun = loadSavedRun();
+  const hasActiveSave = Boolean(savedRun && savedRun.screen !== 'game_over');
+  let initialModal = null;
+  let initialPendingChallenge = null;
+  let initialNotice = '';
+  let state;
+
+  if (incomingChallenge && !hasActiveSave) {
+    state = createNewRun(
+      buildNewRunOptions({
+        seed: incomingChallenge.seed,
+        ascension: incomingChallenge.ascension,
+        unlockAllOverride: true,
+        isChallengeRun: true,
+      })
+    );
+    initialNotice = `已通过挑战链接开启同图对局【${incomingChallenge.seedCode} · 进阶 ${incomingChallenge.ascension}】（全图鉴临时对齐，不影响生涯解锁）！`;
+  } else {
+    state = savedRun || createNewRun(buildNewRunOptions());
+    if (incomingChallenge && hasActiveSave) {
+      initialPendingChallenge = incomingChallenge;
+      initialModal = 'confirm_challenge';
+    } else if (
+      state.screen === 'map' &&
+      hasPendingNeowBlessing(state) &&
+      state.neowState?.pendingAction
+    ) {
+      initialModal = 'neow_action';
+    }
+  }
+
   let lastGameOverSummary = null;
 
   rootEl.innerHTML = '';
@@ -206,12 +278,13 @@ export function mountSpireApp(rootEl) {
     selectedCardId: null,
     selectedPotionSlot: null,
     hoveredEnemyId: null,
-    modal: null,
+    modal: initialModal,
+    pendingChallenge: initialPendingChallenge,
     helpTab: 'glossary',
     glossaryCategory: 'all',
     glossaryQuery: '',
     seedInput: '',
-    notice: '',
+    notice: initialNotice,
     noticeTone: 'normal',
   };
 
@@ -227,7 +300,7 @@ export function mountSpireApp(rootEl) {
   }
 
   function ensureRunRecorded() {
-    const currentRunKey = `${state.seed}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}`;
+    const currentRunKey = `${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
     if (!lastGameOverSummary || lastGameOverSummary.runKey !== currentRunKey) {
       const rec = recordCompletedRun(meta, state);
       saveMeta(meta);
@@ -409,18 +482,50 @@ export function mountSpireApp(rootEl) {
     }
   }
 
-  async function copySeedToClipboard(seedCode) {
-    const code = seedCode || formatSeedCode(state.seed);
+  function startChallengeRun(spec) {
+    const targetAsc = Number.isFinite(Number(spec?.ascension))
+      ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(Number(spec.ascension))))
+      : 0;
+    state = createNewRun(
+      buildNewRunOptions({
+        seed: spec.seed,
+        ascension: targetAsc,
+        unlockAllOverride: true,
+        isChallengeRun: true,
+      })
+    );
+    lastGameOverSummary = null;
+    ui.pendingChallenge = null;
+    ui.modal = null;
+    clearCombatSelection();
+    soundEngine.play('upgrade');
+    setNotice(
+      `已进入好友种子挑战【${formatSeedCode(state.seed)} · 进阶 ${state.ascension}】（全图鉴临时对齐，不修改生涯解锁进度）！`
+    );
+    render();
+  }
+
+  function copySeedToClipboard(seedCode, ascensionOverride = null) {
+    const parsedSeed = parseSeedInput(seedCode) ?? state.seed;
+    const code = formatSeedCode(parsedSeed);
+    const ascVal =
+      ascensionOverride !== null && ascensionOverride !== undefined && ascensionOverride !== ''
+        ? Number(ascensionOverride)
+        : state.ascension ?? 0;
+    const safeAsc = Number.isFinite(ascVal)
+      ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(ascVal)))
+      : 0;
+    const shareUrl = buildChallengeUrl(window.location?.href || '', parsedSeed, safeAsc, MAX_ASCENSION);
     try {
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code);
+        Promise.resolve(navigator.clipboard.writeText(shareUrl)).catch(() => {});
       }
     } catch {
-      // Clipboard API may be restricted in non-HTTPS contexts; notice still displays code
+      // Clipboard API may be restricted in non-HTTPS contexts; notice still displays link
     }
-    ui.seedInput = code;
+    ui.seedInput = shareUrl;
     soundEngine.play('ui_click');
-    setNotice(`已复制种子代码【${code}】！可在“进阶/生涯 → 用种子开局”中粘贴同图挑战。`);
+    setNotice(`已复制挑战链接（种子 ${code} · 进阶 ${safeAsc}）：${shareUrl}`);
     render();
   }
 
@@ -428,18 +533,47 @@ export function mountSpireApp(rootEl) {
     const inputEl = rootEl.querySelector('#seed-input-box');
     const rawVal = inputEl ? inputEl.value : ui.seedInput;
     ui.seedInput = rawVal || '';
-    const parsedSeed = parseSeedInput(rawVal);
-    if (parsedSeed === null) {
+    const parsed = parseChallengeInput(rawVal, MAX_ASCENSION);
+    if (!parsed) {
       soundEngine.play('ui_click');
       if (inputEl) inputEl.focus();
       return;
     }
-    state = createNewRun(buildNewRunOptions({ seed: parsedSeed }));
+    if (parsed.isUrlLike) {
+      startChallengeRun({
+        seed: parsed.seed,
+        ascension: parsed.ascension ?? meta.selectedAscension ?? 0,
+      });
+      return;
+    }
+    state = createNewRun(buildNewRunOptions({ seed: parsed.seed }));
     lastGameOverSummary = null;
     ui.modal = null;
     clearCombatSelection();
     soundEngine.play('upgrade');
     setNotice(`已按指定种子【${formatSeedCode(state.seed)}】开启新的一局！`);
+    render();
+  }
+
+  function dismissActiveModal() {
+    if (!ui.modal) return;
+    if (ui.modal === 'neow_action') {
+      if (state.neowState?.pendingAction?.allowCancel) {
+        cancelNeowAction(state);
+        ui.modal = null;
+        soundEngine.play('ui_click');
+        render();
+      } else {
+        setNotice('请完成当前鲸鱼赐福选牌（或点击跳过）后再继续。', 'warn');
+        render();
+      }
+      return;
+    }
+    if (ui.modal === 'confirm_challenge') {
+      ui.pendingChallenge = null;
+    }
+    ui.modal = null;
+    soundEngine.play('ui_click');
     render();
   }
 
@@ -468,7 +602,13 @@ export function mountSpireApp(rootEl) {
     }
 
     const action = target.dataset.action;
-    if (action === 'close-modal-backdrop' && event.target !== target) {
+    if (
+      (action === 'close-modal-backdrop' ||
+        action === 'cancel-neow-action' ||
+        action === 'decline-challenge') &&
+      target.id === 'modal-backdrop' &&
+      event.target !== target
+    ) {
       return;
     }
 
@@ -477,10 +617,28 @@ export function mountSpireApp(rootEl) {
       case 'start-ascension-run': {
         state = createNewRun(buildNewRunOptions());
         lastGameOverSummary = null;
+        ui.pendingChallenge = null;
         ui.modal = null;
         clearCombatSelection();
         soundEngine.play('ui_click');
         setNotice('');
+        render();
+        break;
+      }
+      case 'accept-challenge': {
+        if (ui.pendingChallenge) {
+          startChallengeRun(ui.pendingChallenge);
+        } else {
+          ui.modal = null;
+          render();
+        }
+        break;
+      }
+      case 'decline-challenge': {
+        ui.pendingChallenge = null;
+        ui.modal = null;
+        soundEngine.play('ui_click');
+        setNotice('已保留你当前的尖塔进度。');
         render();
         break;
       }
@@ -512,7 +670,70 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'copy-seed': {
-        copySeedToClipboard(target.dataset.seedCode);
+        copySeedToClipboard(target.dataset.seedCode, target.dataset.ascension);
+        break;
+      }
+      case 'choose-neow': {
+        const res = chooseNeowOption(state, target.dataset.optionId);
+        if (!res.ok) {
+          setNotice(res.reason, 'warn');
+        } else if (res.pendingModal === 'neow_action') {
+          ui.modal = 'neow_action';
+          soundEngine.play('ui_click');
+          setNotice('');
+        } else {
+          ui.modal = null;
+          soundEngine.play('upgrade');
+          setNotice('');
+        }
+        render();
+        break;
+      }
+      case 'open-neow-pending': {
+        if (state.neowState?.pendingAction) {
+          ui.modal = 'neow_action';
+          soundEngine.play('ui_click');
+          render();
+        }
+        break;
+      }
+      case 'complete-neow-action': {
+        const res = completeNeowAction(state, target.dataset.instanceId);
+        if (!res.ok) {
+          setNotice(res.reason, 'warn');
+        } else if (res.resolved) {
+          ui.modal = null;
+          soundEngine.play('upgrade');
+          setNotice('');
+        } else {
+          soundEngine.play('card_attack');
+          setNotice('');
+        }
+        render();
+        break;
+      }
+      case 'skip-neow-card': {
+        const res = skipNeowCardOffer(state);
+        if (res.ok) {
+          ui.modal = null;
+          soundEngine.play('ui_click');
+          setNotice('');
+        } else {
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
+      case 'cancel-neow-action': {
+        const res = cancelNeowAction(state);
+        if (res.ok) {
+          ui.modal = null;
+          soundEngine.play('ui_click');
+          setNotice('');
+        } else {
+          setNotice(res.reason, 'warn');
+        }
+        render();
         break;
       }
       case 'select-ascension': {
@@ -619,13 +840,20 @@ export function mountSpireApp(rootEl) {
       }
       case 'close-modal':
       case 'close-modal-backdrop': {
-        ui.modal = null;
-        soundEngine.play('ui_click');
-        render();
+        dismissActiveModal();
         break;
       }
       case 'select-node': {
-        if (target.getAttribute('aria-disabled') === 'true') break;
+        if (target.getAttribute('aria-disabled') === 'true') {
+          if (
+            hasPendingNeowBlessing(state) &&
+            state.map[0]?.some((n) => n.id === target.dataset.nodeId)
+          ) {
+            setNotice('请先在上方【第 0 层 · 涅奥的鲸鱼赐福】中 4 选 1，选定后立即解锁第 1 层起点！', 'warn');
+            render();
+          }
+          break;
+        }
         const res = selectMapNode(state, target.dataset.nodeId);
         if (res.ok) soundEngine.play('ui_click');
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
@@ -769,9 +997,13 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'rest-heal': {
-        restHeal(state);
-        soundEngine.play('heal');
-        setNotice('');
+        const res = restHeal(state);
+        if (res.ok) {
+          soundEngine.play('heal');
+          setNotice('');
+        } else {
+          setNotice(res.reason, 'warn');
+        }
         render();
         break;
       }
@@ -1014,16 +1246,14 @@ export function mountSpireApp(rootEl) {
   window.addEventListener('keydown', (event) => {
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
       if (event.key === 'Escape' && ui.modal) {
-        ui.modal = null;
-        render();
+        dismissActiveModal();
       }
       return;
     }
 
     if (event.key === 'Escape') {
       if (ui.modal) {
-        ui.modal = null;
-        render();
+        dismissActiveModal();
       } else if (ui.selectedCardId || ui.selectedPotionSlot !== null) {
         clearCombatSelection();
         render();

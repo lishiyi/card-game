@@ -276,7 +276,22 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     await cdp.evaluate(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
     assert.equal(await cdp.evaluate(`Boolean(document.getElementById('modal-backdrop'))`), false);
 
-    // 3. Enter Floor 1 Combat
+    // 3. Verify Floor 0 Neow's Blessing locks F1 until chosen, then resolve Neow and enter Floor 1 Combat
+    const neowGateAudit = await cdp.evaluate(`(() => {
+      const f1Before = document.getElementById('map-node-f1_c0');
+      const lockedBefore = f1Before?.getAttribute('aria-disabled') === 'true';
+      const hasNeowPanel = Boolean(document.getElementById('neow-blessing-panel'));
+      document.getElementById('neow-choice-0').click();
+      if (document.getElementById('neow-action-modal')) {
+        document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
+      }
+      const unlockedAfter = document.getElementById('map-node-f1_c0')?.getAttribute('aria-disabled') === 'false';
+      return { lockedBefore, hasNeowPanel, unlockedAfter };
+    })()`);
+    assert.equal(neowGateAudit.hasNeowPanel, true);
+    assert.equal(neowGateAudit.lockedBefore, true);
+    assert.equal(neowGateAudit.unlockedAfter, true);
+
     await cdp.evaluate(`document.getElementById('map-node-f1_c0').click()`);
     const combatAudit = await cdp.evaluate(`({
       screen: window.__SPIRE_APP__.getState().screen,
@@ -532,6 +547,7 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
       const st = app.getState();
       st.screen = 'map';
       st.currentNodeId = null;
+      if (st.neowState) st.neowState.resolved = true;
       app.render();
       document.getElementById('map-node-f1_c0').click();
     })()`);
@@ -997,6 +1013,12 @@ test('P2 Real Chromium E2E: @keyframes FX & shield shatter, Settings modal, Glos
 
     // 4. Enter Combat -> verify Next-Turn Intent hint + play Strike to shatter enemy 4-Block shield -> verify FX layer popups
     const combatFxAudit = await cdp.evaluate(`(() => {
+      if (document.getElementById('neow-blessing-panel')) {
+        document.getElementById('neow-choice-0').click();
+        if (document.getElementById('neow-action-modal')) {
+          document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
+        }
+      }
       const firstNode = document.querySelector('.map-node-btn.available');
       firstNode.click();
 
@@ -1170,8 +1192,14 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     assert.equal(mobileMapAudit.tipShownOnFirstTap, true);
     assert.equal(mobileMapAudit.tipHiddenOnSecondTap, true);
 
-    // 2. Mobile 390x844 Combat audit: zero horizontal page overflow, left-player / right-enemies across 1v1, 1v2, 1v3, scrollable hand tray, tap-to-inspect next-turn intent
+    // 2. Mobile 390x844 Combat audit: resolve Floor 0 Neow blessing on mobile, zero horizontal page overflow, left-player / right-enemies across 1v1, 1v2, 1v3, scrollable hand tray, tap-to-inspect next-turn intent
     const mobileCombatAudit = await cdp.evaluate(`(() => {
+      if (document.getElementById('neow-blessing-panel')) {
+        document.getElementById('neow-choice-0').click();
+        if (document.getElementById('neow-action-modal')) {
+          document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
+        }
+      }
       document.querySelector('.map-node-btn.available').click();
       const docScrollWidth = document.documentElement.scrollWidth;
       const innerWidth = window.innerWidth;
@@ -1335,5 +1363,222 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seeded Challenge invite modal & parity, URL paste, Coffee Dripper & Snecko Eye UI', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Floor 0 Neow's Blessing panel renders above map, locks Floor 1, warns on clicking locked F1, supports cancelable deck picker & Boss Swap
+    const neowStartAudit = await cdp.evaluate(`(() => {
+      const hasPanel = Boolean(document.getElementById('neow-blessing-panel'));
+      const choiceCount = document.querySelectorAll('.neow-choice-card').length;
+      const f1Locked = document.getElementById('map-node-f1_c0')?.getAttribute('aria-disabled') === 'true';
+
+      // Click locked F1 node -> notice prompts player to pick Neow blessing first
+      document.getElementById('map-node-f1_c0').click();
+      const warnText = document.querySelector('.toast-banner')?.textContent?.trim() || '';
+
+      return { hasPanel, choiceCount, f1Locked, warnText };
+    })()`);
+    assert.equal(neowStartAudit.hasPanel, true);
+    assert.equal(neowStartAudit.choiceCount, 4);
+    assert.equal(neowStartAudit.f1Locked, true);
+    assert.ok(neowStartAudit.warnText.includes('鲸鱼赐福'));
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotNeow = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'neow_blessing_map.png'),
+        Buffer.from(shotNeow.data, 'base64')
+      );
+    }
+
+    // Test cancelable deck picker (upgrade_1) via Escape, then perform Boss Swap (#neow-choice-3)
+    const neowFlowAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.neowState.options[0] = {
+        id: 'upgrade_1',
+        tier: 'small',
+        badge: '稳健增益',
+        title: '锻造升级 1 张牌',
+        detail: '自选升级 1 张牌',
+      };
+      app.render();
+
+      document.getElementById('neow-choice-0').click();
+      const modalOpened = Boolean(document.getElementById('neow-action-modal'));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      const modalClosedAfterEsc = !document.getElementById('neow-action-modal');
+      const stillPendingAfterEsc = Boolean(document.getElementById('neow-blessing-panel'));
+
+      // Now choose Boss Swap (#neow-choice-3)
+      document.getElementById('neow-choice-3').click();
+      const outcomeBanner = document.getElementById('neow-outcome-banner')?.textContent?.trim() || '';
+      const f1Unlocked = document.getElementById('map-node-f1_c0')?.getAttribute('aria-disabled') === 'false';
+      const relics = [...app.getState().player.relics];
+      return { modalOpened, modalClosedAfterEsc, stillPendingAfterEsc, outcomeBanner, f1Unlocked, relics };
+    })()`);
+    assert.equal(neowFlowAudit.modalOpened, true);
+    assert.equal(neowFlowAudit.modalClosedAfterEsc, true);
+    assert.equal(neowFlowAudit.stillPendingAfterEsc, true);
+    assert.ok(neowFlowAudit.outcomeBanner.includes('涅奥换核成功'));
+    assert.equal(neowFlowAudit.f1Unlocked, true);
+    assert.equal(neowFlowAudit.relics.includes('burning_blood'), false);
+    assert.equal(neowFlowAudit.relics.includes('black_blood'), false);
+    assert.equal(neowFlowAudit.relics.length, 1);
+
+    // 2. Navigate with ?seed=S-16&asc=3 while an active save exists -> verify confirmation modal, URL cleanup, and temporary Asc 3 parity
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?seed=S-16&asc=3` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const inviteAudit = await cdp.evaluate(`(() => {
+      const hasInviteModal = Boolean(document.getElementById('challenge-invite-modal'));
+      const desc = document.getElementById('challenge-invite-desc')?.textContent?.trim() || '';
+      const cleanedSearch = window.location.search;
+      return { hasInviteModal, desc, cleanedSearch };
+    })()`);
+    assert.equal(inviteAudit.hasInviteModal, true, 'Active save must trigger challenge invite confirmation modal');
+    assert.ok(inviteAudit.desc.includes('S-16') && inviteAudit.desc.includes('进阶 3'));
+    assert.equal(inviteAudit.cleanedSearch, '', 'Query string should be cleaned via history.replaceState');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotInvite = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'challenge_invite_modal.png'),
+        Buffer.from(shotInvite.data, 'base64')
+      );
+    }
+
+    const acceptAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-accept-challenge').click();
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const meta = app.getMeta();
+
+      // Click HUD copy seed pill -> verifies full challenge URL notice
+      document.getElementById('btn-copy-seed').click();
+      const copyNotice = document.querySelector('.toast-banner')?.textContent?.trim() || '';
+
+      return {
+        seed: st.seed,
+        ascension: st.ascension,
+        isChallengeRun: st.isChallengeRun,
+        unlockAllOverride: st.unlockAllOverride,
+        metaMaxAsc: meta.maxAscensionUnlocked,
+        hasChallengePill: Boolean(document.getElementById('hud-challenge-pill')),
+        ascPillText: document.getElementById('hud-ascension-pill')?.textContent?.trim() || '',
+        copyNotice,
+      };
+    })()`);
+    assert.equal(acceptAudit.seed, 42);
+    assert.equal(acceptAudit.ascension, 3);
+    assert.equal(acceptAudit.isChallengeRun, true);
+    assert.equal(acceptAudit.unlockAllOverride, true);
+    assert.equal(acceptAudit.metaMaxAsc, 0, 'Challenge link must NOT permanently elevate career maxAscensionUnlocked');
+    assert.equal(acceptAudit.hasChallengePill, true);
+    assert.equal(acceptAudit.ascPillText, '进阶 3');
+    assert.ok(acceptAudit.copyNotice.includes('?seed=S-16&asc=3'), `Expected full challenge URL in notice, got: ${acceptAudit.copyNotice}`);
+
+    // 3. Paste a full challenge URL into Meta modal seed launcher -> parses seed & ascension automatically
+    const pasteUrlAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-meta').click();
+      const input = document.getElementById('seed-input-box');
+      input.value = 'https://lishiyi.github.io/card-game/?seed=S-2A&asc=2';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('btn-start-seeded-run').click();
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        seed: st.seed,
+        ascension: st.ascension,
+        isChallengeRun: st.isChallengeRun,
+      };
+    })()`);
+    assert.equal(pasteUrlAudit.seed, 82); // '2A' base36 = 2*36 + 10 = 82
+    assert.equal(pasteUrlAudit.ascension, 2);
+    assert.equal(pasteUrlAudit.isChallengeRun, true);
+
+    // 4. Verify Coffee Dripper disables Rest heal button and Snecko Eye displays Confusion status + randomized cost badges in combat
+    const relicUiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.relics = ['coffee_dripper', 'snecko_eye'];
+      st.screen = 'rest';
+      st.restState = { completed: false, lastAction: null, featherHealed: 0 };
+      app.render();
+
+      const healBtnDisabled = document.getElementById('btn-rest-heal')?.disabled === true;
+      const healBtnText = document.getElementById('btn-rest-heal')?.textContent?.trim() || '';
+
+      // Jump back to map, resolve Neow, enter combat with Snecko Eye
+      st.screen = 'map';
+      st.currentNodeId = null;
+      if (st.neowState) st.neowState.resolved = true;
+      app.render();
+      document.getElementById('map-node-f1_c0').click();
+
+      const stCombat = app.getState();
+      // Force one card higher cost and one card lower cost to confirm visual badge classes
+      if (stCombat.combat.hand.length >= 2) {
+        stCombat.combat.hand[0].combatCost = 3;
+        stCombat.combat.hand[1].combatCost = 0;
+        app.render();
+      }
+      const handCount = document.querySelectorAll('#hand-tray .game-card').length;
+      const hasConfusedChip = [...document.querySelectorAll('#player-unit .status-chip')].some((el) =>
+        el.textContent.includes('混乱')
+      );
+      const hasIncreasedCostBadge = Boolean(document.querySelector('#hand-tray .card-cost.cost-increased'));
+      const hasReducedCostBadge = Boolean(document.querySelector('#hand-tray .card-cost.upgraded'));
+
+      return { healBtnDisabled, healBtnText, handCount, hasConfusedChip, hasIncreasedCostBadge, hasReducedCostBadge };
+    })()`);
+    assert.equal(relicUiAudit.healBtnDisabled, true);
+    assert.ok(relicUiAudit.healBtnText.includes('咖啡滤滴器'));
+    assert.equal(relicUiAudit.handCount, 7, 'Snecko Eye should draw 7 cards on Turn 1');
+    assert.equal(relicUiAudit.hasConfusedChip, true);
+    assert.equal(relicUiAudit.hasIncreasedCostBadge, true);
+    assert.equal(relicUiAudit.hasReducedCostBadge, true);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
 
 

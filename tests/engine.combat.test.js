@@ -7,6 +7,7 @@ import {
   formatCardDescription,
   formatUpgradePreview,
   getCardStats,
+  getEffectiveCardCost,
 } from '../src/data/cards.js';
 import { ENCOUNTERS } from '../src/data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../src/data/relics.js';
@@ -19,7 +20,7 @@ import {
   startCombat,
   usePotion,
 } from '../src/engine/combat.js';
-import { createNewRun } from '../src/engine/game.js';
+import { createNewRun, grantRelicToPlayer } from '../src/engine/game.js';
 import {
   calculateAttackDamage,
   calculateCardBlock,
@@ -476,9 +477,14 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 22);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 26);
+  assert.equal(
+    Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
+    8
+  );
   assert.equal(Object.keys(POTION_LIBRARY).length, 10);
   assert.equal(Object.keys(CARD_LIBRARY).length, 46);
+  assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -731,6 +737,93 @@ test('Curses (Clumsy, Doubt, Regret), Burn status, Relics (Paper Phrog, Torii, T
   assert.equal(slimeState.combat.status, 'victory');
   assert.equal(slimeState.player.hp, 54);
 });
+
+test('New Boss Relics: Runic Pyramid hand retention, Snecko Eye Confusion (+2 draw & 0-3 cost), and Philosopher Stone enemy Strength (+Slime split)', () => {
+  // 1. Runic Pyramid: retains non-ethereal hand cards, still exhausts Ethereal, still triggers Burn and keeps it, respects hand cap 10
+  const pyrState = createNewRun({ seed: 2401 });
+  grantRelicToPlayer(pyrState, 'runic_pyramid');
+  startCombat(pyrState, ENCOUNTERS.floor1[0], 'normal');
+  pyrState.combat.enemies[0].intent = { id: 'wait', name: '蓄力', type: 'buff', summary: '蓄力' };
+
+  const strike = createCardInstance(pyrState, 'strike', false);
+  const dazed = createCardInstance(pyrState, 'dazed', false);
+  const burn = createCardInstance(pyrState, 'burn', false);
+  pyrState.combat.hand = [strike, dazed, burn];
+  pyrState.combat.discardPile = [];
+  pyrState.combat.drawPile = Array.from({ length: 12 }, () => createCardInstance(pyrState, 'defend', false));
+
+  const hpBefore = pyrState.player.hp;
+  endPlayerTurn(pyrState);
+  assert.equal(pyrState.player.hp, hpBefore - 2, 'Burn should still deal 2 damage at end of turn');
+  assert.equal(pyrState.combat.exhaustPile.some((c) => c.instanceId === dazed.instanceId), true);
+  assert.equal(pyrState.combat.hand.some((c) => c.instanceId === strike.instanceId), true);
+  assert.equal(pyrState.combat.hand.some((c) => c.instanceId === burn.instanceId), true);
+  assert.equal(pyrState.combat.discardPile.length, 0);
+  assert.equal(pyrState.combat.hand.length, 7); // 2 retained + 5 drawn!
+
+  // 2. Snecko Eye: +2 draw per turn (7 total), Confusion status applied, randomized 0-3 costs on playable non-X cards, Corruption overrides skills to 0, permanent deck untouched
+  const sneckoState = createNewRun({ seed: 2402 });
+  grantRelicToPlayer(sneckoState, 'snecko_eye');
+  sneckoState.player.deck = [
+    createCardInstance(sneckoState, 'bludgeon', false), // cost 3
+    createCardInstance(sneckoState, 'whirlwind', false), // X-cost
+    createCardInstance(sneckoState, 'dazed', false), // unplayable
+    createCardInstance(sneckoState, 'shrug_it_off', false), // skill cost 1
+    createCardInstance(sneckoState, 'strike', false),
+    createCardInstance(sneckoState, 'defend', false),
+    createCardInstance(sneckoState, 'bash', false),
+    createCardInstance(sneckoState, 'heavy_blade', false),
+  ];
+  startCombat(sneckoState, ENCOUNTERS.floor1[0], 'normal');
+
+  assert.equal(sneckoState.player.statuses.confused, 1);
+  assert.equal(sneckoState.combat.hand.length, 7);
+  for (const c of sneckoState.combat.hand) {
+    const st = getCardStats(c);
+    if (st.unplayable || st.isXCost) {
+      assert.equal(c.combatCost, undefined, `Unplayable/X card ${st.cardId} must not get combatCost`);
+    } else {
+      assert.ok(
+        Number.isInteger(c.combatCost) && c.combatCost >= 0 && c.combatCost <= 3,
+        `Expected 0..3 combatCost on ${st.cardId}, got ${c.combatCost}`
+      );
+    }
+  }
+  // Corruption still forces Skills to 0 even when Snecko rolled combatCost = 3
+  const skillCard = sneckoState.combat.hand.find((c) => getCardStats(c).type === 'skill');
+  assert.ok(skillCard);
+  skillCard.combatCost = 3;
+  assert.equal(getEffectiveCardCost(getCardStats(skillCard), sneckoState.player), 3);
+  const raisedDesc = formatCardDescription(skillCard, { player: sneckoState.player });
+  assert.equal(raisedDesc.costIncreasedNow, true);
+  assert.equal(raisedDesc.costRandomizedNow, true);
+  sneckoState.player.statuses.corruption = 1;
+  assert.equal(getEffectiveCardCost(getCardStats(skillCard), sneckoState.player), 0);
+
+  // Permanent deck instances never get polluted with combatCost
+  assert.equal(sneckoState.player.deck.every((c) => c.combatCost === undefined), true);
+
+  // 3. Philosopher's Stone: +1 maxEnergy, enemies start with +1 Strength, Slime Boss split children also get +1 Strength
+  const stoneState = createNewRun({ seed: 2403 });
+  assert.equal(stoneState.player.maxEnergy, 3);
+  grantRelicToPlayer(stoneState, 'philosophers_stone');
+  assert.equal(stoneState.player.maxEnergy, 4);
+  startCombat(stoneState, { id: 'slime_stone', name: '史莱姆老大', enemies: [{ templateId: 'slime_boss' }] }, 'boss');
+  const sb = stoneState.combat.enemies[0];
+  assert.equal(sb.statuses.strength, 1);
+
+  sb.hp = 60;
+  sb.maxHp = 140;
+  const bash = createCardInstance(stoneState, 'bash', false);
+  stoneState.combat.hand = [bash];
+  playCard(stoneState, bash.instanceId, sb.id);
+  assert.equal(sb.intent.id, 'split');
+  endPlayerTurn(stoneState);
+  assert.equal(stoneState.combat.enemies.length, 2);
+  assert.equal(stoneState.combat.enemies[0].statuses.strength, 1);
+  assert.equal(stoneState.combat.enemies[1].statuses.strength, 1);
+});
+
 
 
 
