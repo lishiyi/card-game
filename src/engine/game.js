@@ -329,6 +329,8 @@ export function transitionCombatVictory(state) {
 
     const bossGold = randomInt(state, 92, 115);
     state.player.gold += bossGold;
+    const cardChoices = rollDistinctRareCards(state, 3);
+    state.rarePityBonus = 0;
     const unownedBossRelics = BOSS_RELIC_IDS.filter((id) => {
       if (hasRelic(state, id)) return false;
       const req = RELIC_LIBRARY[id]?.requiresRelic;
@@ -338,6 +340,9 @@ export function transitionCombatVictory(state) {
     const relicChoices = pickDistinct(state, unownedBossRelics, 3);
     state.bossReward = {
       bossGold,
+      cardChoices,
+      cardClaimed: false,
+      pickedCardId: null,
       relicChoices,
       pickedRelicId: null,
     };
@@ -583,6 +588,25 @@ export function claimBossRelic(state, relicId) {
   grantRelicToPlayer(state, relicId);
   state.bossReward.pickedRelicId = relicId;
   return { ok: true };
+}
+
+export function claimBossRewardCard(state, instanceId) {
+  if (state.screen !== 'boss_reward' || !state.bossReward) {
+    return { ok: false, reason: '当前不在首领战利品界面' };
+  }
+  if (state.bossReward.cardClaimed) {
+    return { ok: false, reason: '已选择过首领稀有卡牌' };
+  }
+  const choices = Array.isArray(state.bossReward.cardChoices) ? state.bossReward.cardChoices : [];
+  const chosen = choices.find((c) => c.instanceId === instanceId);
+  if (!chosen) {
+    return { ok: false, reason: '未找到该首领稀有卡牌' };
+  }
+  const added = createCardInstance(state, chosen.cardId, chosen.upgraded);
+  state.player.deck.push(added);
+  state.bossReward.cardClaimed = true;
+  state.bossReward.pickedCardId = chosen.instanceId;
+  return { ok: true, addedCard: added };
 }
 
 export function proceedToNextAct(state) {

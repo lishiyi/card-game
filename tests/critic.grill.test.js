@@ -14,6 +14,7 @@ import {
   chooseEventOption,
   chooseNeowOption,
   claimBossRelic,
+  claimBossRewardCard,
   claimRewardCard,
   claimRewardGold,
   claimRewardPotion,
@@ -319,6 +320,16 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
         assert.equal(openTreasureChest(state).ok, true);
         assert.equal(leaveTreasureRoom(state).ok, true);
       } else if (state.screen === 'boss_reward') {
+        assert.equal(state.bossReward.cardChoices.length, 3);
+        for (const rareCard of state.bossReward.cardChoices) {
+          assert.equal(CARD_LIBRARY[rareCard.cardId].rarity, 'rare');
+        }
+        if (state.player.deck.length < 24) {
+          assert.equal(
+            claimBossRewardCard(state, state.bossReward.cardChoices[0].instanceId).ok,
+            true
+          );
+        }
         if (state.bossReward.relicChoices.length > 0) {
           assert.equal(claimBossRelic(state, state.bossReward.relicChoices[0]).ok, true);
         }

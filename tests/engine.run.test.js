@@ -19,6 +19,7 @@ import {
   chooseEventOption,
   chooseNeowOption,
   claimBossRelic,
+  claimBossRewardCard,
   claimRewardCard,
   claimRewardGold,
   claimRewardPotion,
@@ -570,13 +571,28 @@ test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic 
   assert.equal(leaveTreasureRoom(chestState).ok, true);
   assert.equal(chestState.screen, 'map');
 
-  // 4. Act 1 Boss -> Boss Relic Altar -> Proceed to Act 2 -> Defeat Act 2 Boss -> Victory!
-  const actState = createNewRun({ seed: 500 });
+  // 4. Act 1 Boss -> 3 Rare Cards + Boss Relic Altar -> Proceed to Act 2 -> Defeat Act 2 Boss -> Victory!
+  const actState = createNewRun({ seed: 500, unlockedTier: 0, unlockAllOverride: false });
+  actState.rarePityBonus = 0.16;
   actState.player.hp = 40; // Missing 40 HP -> Act 2 transition heals 75% (30 HP) -> 70 HP!
   startCombat(actState, ENCOUNTERS.boss[0], 'boss');
   actState.combat.enemies[0].hp = 10;
   assert.equal(runUsePotion(actState, 0, actState.combat.enemies[0].id).ok, true);
   assert.equal(actState.screen, 'boss_reward');
+  assert.equal(actState.rarePityBonus, 0, 'Act 1 Boss Rare reward should reset rarePityBonus');
+  assert.equal(actState.bossReward.cardChoices.length, 3, 'Act 1 Boss must offer 3 Rare reward cards');
+  const bossCardIds = new Set(actState.bossReward.cardChoices.map((c) => c.cardId));
+  assert.equal(bossCardIds.size, 3, 'All 3 Act 1 Boss reward cards must be distinct');
+  for (const c of actState.bossReward.cardChoices) {
+    assert.equal(CARD_LIBRARY[c.cardId].rarity, 'rare', `Expected rare boss reward card, got ${c.cardId}`);
+  }
+  const deckBeforeBossCard = actState.player.deck.length;
+  const firstRareChoice = actState.bossReward.cardChoices[0];
+  assert.equal(claimBossRewardCard(actState, firstRareChoice.instanceId).ok, true);
+  assert.equal(actState.player.deck.length, deckBeforeBossCard + 1);
+  assert.equal(actState.bossReward.cardClaimed, true);
+  assert.equal(claimBossRewardCard(actState, actState.bossReward.cardChoices[1].instanceId).ok, false);
+
   assert.equal(actState.bossReward.relicChoices.length, 3);
   assert.equal(claimBossRelic(actState, actState.bossReward.relicChoices[0]).ok, true);
   assert.equal(proceedToNextAct(actState).ok, true);

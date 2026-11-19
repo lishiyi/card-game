@@ -857,18 +857,64 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
     await cdp.evaluate(`document.getElementById('btn-leave-treasure').click()`);
     assert.equal(await cdp.evaluate(`window.__SPIRE_APP__.getState().screen`), 'map');
 
-    // 3. Test Boss Relic Altar -> pick Boss Relic -> proceed to Act 2!
-    await cdp.evaluate(`(() => {
+    // 3. Defeat Act 1 Boss in real combat -> verify 3 Rare reward cards + Boss Relic Altar -> pick 1 Rare card & Boss Relic -> proceed to Act 2!
+    const bossVictoryAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       const st = app.getState();
-      st.player.hp = 40;
-      st.screen = 'boss_reward';
-      st.bossReward = {
-        bossGold: 105,
-        relicChoices: ['black_blood', 'velvet_choker', 'sacred_bark'],
-        pickedRelicId: null,
-      };
+      // Jump to Floor 15 node pointing to Floor 16 Boss, enter Boss combat, finish with Fire Potion
+      const bossNode = st.map[15][0];
+      const f15Node = st.map[14][0];
+      st.screen = 'map';
+      st.currentNodeId = f15Node.id;
+      f15Node.nextIds = [bossNode.id];
+      if (st.neowState) st.neowState.resolved = true;
+      st.player.potions[0] = 'fire_potion';
       app.render();
+
+      document.getElementById('map-node-' + bossNode.id).click();
+      // Set Boss HP to 10 (and player HP to 34 so Burning Blood +6 -> 40 before Act 2 heal -> 70)
+      st.player.hp = 34;
+      st.combat.enemies[0].hp = 10;
+      app.render();
+      document.getElementById('potion-slot-0').click();
+
+      const rareCards = [...document.querySelectorAll('#boss-reward-cards .game-card')];
+      const allRareRarity = rareCards.length === 3 && rareCards.every((el) => el.dataset.rarity === 'rare');
+      const deckBefore = st.player.deck.length;
+      rareCards[0].click();
+      const deckAfter = st.player.deck.length;
+      const allDisabledAfterPick = [...document.querySelectorAll('#boss-reward-cards .game-card')].every(
+        (el) => el.disabled
+      );
+
+      // Force velvet_choker in altar for deterministic +1 energy check, then pick & advance to Act 2
+      st.bossReward.relicChoices = ['black_blood', 'velvet_choker', 'sacred_bark'];
+      app.render();
+      return {
+        screen: st.screen,
+        rareCount: rareCards.length,
+        allRareRarity,
+        deckBefore,
+        deckAfter,
+        allDisabledAfterPick,
+      };
+    })()`);
+    assert.equal(bossVictoryAudit.screen, 'boss_reward');
+    assert.equal(bossVictoryAudit.rareCount, 3);
+    assert.equal(bossVictoryAudit.allRareRarity, true);
+    assert.equal(bossVictoryAudit.deckAfter, bossVictoryAudit.deckBefore + 1);
+    assert.equal(bossVictoryAudit.allDisabledAfterPick, true);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotBossReward = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'boss_reward_rare_cards.png'),
+        Buffer.from(shotBossReward.data, 'base64')
+      );
+    }
+
+    await cdp.evaluate(`(() => {
       document.getElementById('boss-relic-velvet_choker').click();
       document.getElementById('btn-proceed-act2').click();
     })()`);

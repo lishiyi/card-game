@@ -95,6 +95,20 @@ export function renderBossRewardScreen({ state, ui }) {
   if (!br) return '';
   const bossName = getCurrentBossName(state);
   const healRatioPct = (state.ascension ?? 0) >= 4 ? 60 : 75;
+  const cardChoices = Array.isArray(br.cardChoices) ? br.cardChoices : [];
+
+  const cardsHtml = cardChoices
+    .map((card) =>
+      renderCardHtml(card, {
+        idPrefix: 'boss-reward-card',
+        action: 'claim-boss-card',
+        playable: !br.cardClaimed,
+        selected: br.pickedCardId === card.instanceId,
+        dimmed: br.cardClaimed && br.pickedCardId !== card.instanceId,
+        disabled: br.cardClaimed,
+      })
+    )
+    .join('');
 
   const relicsHtml = br.relicChoices
     .map((relicId) => {
@@ -128,12 +142,21 @@ export function renderBossRewardScreen({ state, ui }) {
             第一幕首领告破！已击败【${escapeHtml(bossName)}】
           </h2>
           <p class="stage-subtitle">
-            你已自动获得首领赏金 <strong>+${escapeHtml(br.bossGold)} 金币</strong>。请从祭坛上挑选 1 件强大的【首领遗物】，随后选择踏入第二幕或在此凯旋结算！
+            你已自动获得首领赏金 <strong>+${escapeHtml(br.bossGold)} 金币</strong>。请挑选 1 张金色【稀有】奖励卡牌（可选）与 1 件强大的【首领遗物】，随后选择踏入第二幕或在此凯旋结算！
           </p>
         </div>
       </div>
 
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
+
+      ${
+        cardChoices.length > 0
+          ? `<h3 style="margin:0 0 10px;font-size:0.95rem;color:hsl(43, 86%, 72%);">
+              ${br.cardClaimed ? '已收入首领稀有卡牌：' : '首领稀有卡牌奖励（三选一 · 必出金色稀有牌，可跳过）：'}
+            </h3>
+            <div class="card-showcase" id="boss-reward-cards" style="margin-bottom:18px;">${cardsHtml}</div>`
+          : ''
+      }
 
       <h3 style="margin:0 0 8px;font-size:0.95rem;color:var(--text-sand);">
         ${br.pickedRelicId ? '已选取首领遗物：' : '首领遗物祭坛（三选一）：'}

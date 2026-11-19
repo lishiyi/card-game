@@ -17,6 +17,7 @@ import {
   chooseEventOption,
   chooseNeowOption,
   claimBossRelic,
+  claimBossRewardCard,
   claimRewardCard,
   claimRewardGold,
   claimRewardPotion,
@@ -907,6 +908,13 @@ export function mountSpireApp(rootEl) {
         leaveTreasureRoom(state);
         soundEngine.play('ui_click');
         setNotice('');
+        render();
+        break;
+      }
+      case 'claim-boss-card': {
+        const res = claimBossRewardCard(state, target.dataset.instanceId);
+        if (res.ok) soundEngine.play('card_skill');
+        setNotice(res.ok ? '已将首领稀有卡牌收入牌组！' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
       }
