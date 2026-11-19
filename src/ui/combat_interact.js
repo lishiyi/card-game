@@ -20,9 +20,16 @@ const DRAG_THRESHOLD_PX = 10;
 export function clearCombatTacticsUI(rootEl) {
   if (!rootEl) return;
 
-  rootEl.querySelectorAll('.preview-lethal, .preview-shield-break, .preview-target-focus').forEach((el) => {
-    el.classList.remove('preview-lethal', 'preview-shield-break', 'preview-target-focus');
-  });
+  rootEl
+    .querySelectorAll('.preview-lethal, .preview-poison-lethal, .preview-shield-break, .preview-target-focus')
+    .forEach((el) => {
+      el.classList.remove(
+        'preview-lethal',
+        'preview-poison-lethal',
+        'preview-shield-break',
+        'preview-target-focus'
+      );
+    });
 
   rootEl.querySelectorAll('[data-preview-badges]').forEach((el) => {
     el.innerHTML = '';
@@ -32,17 +39,20 @@ export function clearCombatTacticsUI(rootEl) {
   rootEl.querySelectorAll('[data-preview-cut]').forEach((el) => {
     el.style.width = '0%';
     el.style.left = '0%';
-    el.classList.remove('lethal-cut');
+    el.classList.remove('lethal-cut', 'poison-cut');
   });
 
   rootEl
-    .querySelectorAll('.synergy-glow-buff, .synergy-glow-warn, .synergy-card-exhaust, .synergy-card-upgrade')
+    .querySelectorAll(
+      '.synergy-glow-buff, .synergy-glow-warn, .synergy-card-exhaust, .synergy-card-upgrade, .synergy-card-discard'
+    )
     .forEach((el) => {
       el.classList.remove(
         'synergy-glow-buff',
         'synergy-glow-warn',
         'synergy-card-exhaust',
-        'synergy-card-upgrade'
+        'synergy-card-upgrade',
+        'synergy-card-discard'
       );
     });
 
@@ -63,14 +73,24 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
     unitEl.classList.add('preview-target-focus');
   }
 
-  // Update HP bar red projected cut segment
-  if (enemy.maxHp > 0 && preview.hpLoss > 0) {
-    const startPct = Math.max(0, Math.min(100, (preview.remainingHp / enemy.maxHp) * 100));
-    const endPct = Math.max(0, Math.min(100, (enemy.hp / enemy.maxHp) * 100));
-    const widthPct = Math.max(2, endPct - startPct);
-    cutEl.style.left = `${startPct.toFixed(1)}%`;
-    cutEl.style.width = `${widthPct.toFixed(1)}%`;
-    cutEl.classList.toggle('lethal-cut', preview.isLethal);
+  // Update HP bar projected cut segment (direct damage or lethal poison tick)
+  if (enemy.maxHp > 0) {
+    if (preview.hpLoss > 0) {
+      const startPct = Math.max(0, Math.min(100, (preview.remainingHp / enemy.maxHp) * 100));
+      const endPct = Math.max(0, Math.min(100, (enemy.hp / enemy.maxHp) * 100));
+      const widthPct = Math.max(2, endPct - startPct);
+      cutEl.style.left = `${startPct.toFixed(1)}%`;
+      cutEl.style.width = `${widthPct.toFixed(1)}%`;
+      cutEl.classList.toggle('lethal-cut', preview.isLethal);
+    } else if (preview.projectedPoison > 0 && preview.poisonAdded > 0) {
+      const afterPoisonHp = Math.max(0, enemy.hp - preview.projectedPoison);
+      const startPct = Math.max(0, Math.min(100, (afterPoisonHp / enemy.maxHp) * 100));
+      const endPct = Math.max(0, Math.min(100, (enemy.hp / enemy.maxHp) * 100));
+      const widthPct = Math.max(2, endPct - startPct);
+      cutEl.style.left = `${startPct.toFixed(1)}%`;
+      cutEl.style.width = `${widthPct.toFixed(1)}%`;
+      cutEl.classList.add('poison-cut');
+    }
   }
 
   const pills = [];
@@ -80,18 +100,30 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
       ? `破盾斩杀 (-${preview.totalDamage})`
       : `斩杀 (-${preview.totalDamage})`;
     pills.push(`<span class="preview-pill lethal" data-preview-kind="lethal">☠ ${escapeHtml(label)}</span>`);
-  } else if (preview.isShieldBreak) {
-    unitEl.classList.add('preview-shield-break');
-    const remNote = preview.hpLoss > 0 ? `余 ${preview.remainingHp} 血` : '护盾击碎';
+  } else if (preview.isPoisonLethal) {
+    unitEl.classList.add('preview-poison-lethal');
     pills.push(
-      `<span class="preview-pill shield-break" data-preview-kind="shield-break">🛡 破盾 · ${escapeHtml(remNote)}</span>`
+      `<span class="preview-pill poison-lethal" data-preview-kind="poison-lethal">☠ 毒杀 (回合初 -${escapeHtml(preview.projectedPoison)})</span>`
     );
-  } else if (preview.totalDamage > 0) {
-    const note =
-      preview.hpLoss > 0
-        ? `预计 -${preview.totalDamage} → ${preview.remainingHp} 血`
-        : `被格挡 (-${preview.totalDamage} 盾)`;
-    pills.push(`<span class="preview-pill dmg-preview" data-preview-kind="damage">${escapeHtml(note)}</span>`);
+  } else {
+    if (preview.isShieldBreak) {
+      unitEl.classList.add('preview-shield-break');
+      const remNote = preview.hpLoss > 0 ? `余 ${preview.remainingHp} 血` : '护盾击碎';
+      pills.push(
+        `<span class="preview-pill shield-break" data-preview-kind="shield-break">🛡 破盾 · ${escapeHtml(remNote)}</span>`
+      );
+    } else if (preview.totalDamage > 0) {
+      const note =
+        preview.hpLoss > 0
+          ? `预计 -${preview.totalDamage} → ${preview.remainingHp} 血`
+          : `被格挡 (-${preview.totalDamage} 盾)`;
+      pills.push(`<span class="preview-pill dmg-preview" data-preview-kind="damage">${escapeHtml(note)}</span>`);
+    }
+    if (preview.poisonAdded > 0) {
+      pills.push(
+        `<span class="preview-pill poison-preview" data-preview-kind="poison">☠ 中毒 +${escapeHtml(preview.poisonAdded)} → ${escapeHtml(preview.projectedPoison)}</span>`
+      );
+    }
   }
 
   if (pills.length > 0) {
@@ -108,15 +140,21 @@ export function applyCombatTacticsUI(
   clearCombatTacticsUI(rootEl);
   if (!rootEl || !state || state.screen !== 'combat' || !state.combat) return;
   if (state.combat.status !== 'ongoing' || state.combat.phase !== 'player') return;
+  if (state.combat.pendingDiscard) return;
 
   const aliveEnemies = getAliveEnemies(state.combat);
   if (aliveEnemies.length === 0) return;
 
-  // Case A: Fire Potion / Damaging Potion preview
+  // Case A: Damaging / Poison Potion preview
   if (activePotionSlot !== null && activePotionSlot !== undefined) {
     const potionId = state.player.potions[activePotionSlot];
     const pot = potionId ? POTION_LIBRARY[potionId] : null;
-    if (pot && typeof pot.damage === 'number') {
+    if (
+      pot &&
+      (typeof pot.damage === 'number' ||
+        typeof pot.aoeDamage === 'number' ||
+        pot.applyEnemyStatuses?.poison)
+    ) {
       const targets =
         pot.target === 'enemy' && hoveredEnemyId
           ? aliveEnemies.filter((e) => e.id === hoveredEnemyId)
@@ -143,7 +181,7 @@ export function applyCombatTacticsUI(
 
   const stats = getCardStats(cardInstance);
 
-  // 1. Apply Lethal / Shield-Break / Damage previews on targeted enemies
+  // 1. Apply Lethal / Poison-Lethal / Shield-Break / Damage previews on targeted enemies
   if (stats.target === 'all_enemies' || stats.target === 'enemy') {
     const targets =
       stats.target === 'all_enemies'
@@ -203,9 +241,13 @@ export function applyCombatTacticsUI(
   for (const hc of synergies.affectedHandCards) {
     const handCardEl = rootEl.querySelector(`#hand-card-${CSS.escape(hc.instanceId)}`);
     if (handCardEl) {
-      handCardEl.classList.add(
-        hc.tone === 'upgrade' ? 'synergy-card-upgrade' : 'synergy-card-exhaust'
-      );
+      const cls =
+        hc.tone === 'upgrade'
+          ? 'synergy-card-upgrade'
+          : hc.tone === 'discard'
+            ? 'synergy-card-discard'
+            : 'synergy-card-exhaust';
+      handCardEl.classList.add(cls);
     }
   }
 
@@ -429,7 +471,14 @@ export function createCombatDragController({
     if (event.button !== 0 || event.pointerType === 'touch') return;
     const state = getState();
     const ui = getUi();
-    if (ui.modal || state.screen !== 'combat' || !state.combat || state.combat.phase !== 'player') {
+    if (
+      ui.modal ||
+      !state ||
+      state.screen !== 'combat' ||
+      !state.combat ||
+      state.combat.phase !== 'player' ||
+      state.combat.pendingDiscard
+    ) {
       return;
     }
 

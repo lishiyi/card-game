@@ -50,7 +50,8 @@ export function renderTopHud({ state, ui }) {
       const canDrink =
         state.screen === 'combat' &&
         state.combat?.status === 'ongoing' &&
-        state.combat?.phase === 'player';
+        state.combat?.phase === 'player' &&
+        !state.combat?.pendingDiscard;
       const showDiscard =
         (state.screen === 'reward' && state.reward?.potionId && !state.reward.potionClaimed) ||
         state.screen === 'shop' ||
@@ -97,11 +98,14 @@ export function renderTopHud({ state, ui }) {
   const actPrefix = (state.act ?? 1) >= 2 ? `第 ${state.act} 幕 · ` : '';
   const asc = state.ascension ?? 0;
   const ascDef = ASCENSION_DEFS[asc] || ASCENSION_DEFS[0];
+  const charId = state.characterId || 'ironclad';
+  const charName = state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士');
 
   return `
     <header class="top-hud">
       <div class="brand-cluster">
         <h1 class="game-title">杀戮尖塔 · 简明版</h1>
+        <span class="character-hud-pill char-${escapeHtml(charId)}" id="hud-character-pill">${escapeHtml(charName)}</span>
         <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
         ${
           asc > 0
@@ -120,9 +124,10 @@ export function renderTopHud({ state, ui }) {
           data-action="copy-seed"
           data-seed-code="${escapeHtml(seedCode)}"
           data-ascension="${escapeHtml(asc)}"
+          data-character-id="${escapeHtml(charId)}"
           data-tooltip-title="分享挑战链接：${escapeHtml(seedCode)}"
           data-tooltip-tag="点击一键复制链接"
-          data-tooltip-desc="点击直接复制完整挑战链接（含本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！"
+          data-tooltip-desc="点击直接复制完整挑战链接（含角色【${escapeHtml(charName)}】、本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！"
         >
           种子 ${escapeHtml(seedCode)}
         </button>

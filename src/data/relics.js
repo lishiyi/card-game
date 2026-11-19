@@ -22,11 +22,20 @@ export const RELIC_LIBRARY = deepFreeze({
     id: 'burning_blood',
     name: '燃烧之血',
     tier: 'starter',
+    character: 'ironclad',
     price: 150,
     description: '战斗胜利后，回复 6 点生命。',
   },
+  ring_of_the_snake: {
+    id: 'ring_of_the_snake',
+    name: '蛇之戒指',
+    tier: 'starter',
+    character: 'silent',
+    price: 150,
+    description: '每场战斗第 1 回合开始时，额外抽 2 张牌。',
+  },
 
-  // === Common (8) ===
+  // === Common (9) ===
   vajra: {
     id: 'vajra',
     name: '金刚杵',
@@ -83,8 +92,16 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 142,
     description: '每场战斗开始时，回复 2 点生命。',
   },
+  snecko_skull: {
+    id: 'snecko_skull',
+    name: '异蛇头骨',
+    tier: 'common',
+    character: 'silent',
+    price: 155,
+    description: '每当你给予敌人【中毒】时，额外多施加 1 层中毒。',
+  },
 
-  // === Uncommon (5) ===
+  // === Uncommon (7) ===
   horn_cleat: {
     id: 'horn_cleat',
     name: '船夹板',
@@ -117,11 +134,26 @@ export const RELIC_LIBRARY = deepFreeze({
     id: 'paper_phrog',
     name: '折纸青蛙',
     tier: 'uncommon',
+    character: 'ironclad',
     price: 215,
     description: '处于【易伤】状态的敌人受到你的攻击伤害加成由 50% 提升至 75%。',
   },
+  shuriken: {
+    id: 'shuriken',
+    name: '手里剑',
+    tier: 'uncommon',
+    price: 215,
+    description: '每当你单回合内打出 3 张攻击牌时，获得 1 点力量。',
+  },
+  kunai: {
+    id: 'kunai',
+    name: '苦无',
+    tier: 'uncommon',
+    price: 215,
+    description: '每当你单回合内打出 3 张攻击牌时，获得 1 点敏捷。',
+  },
 
-  // === Rare (4) ===
+  // === Rare (7) ===
   captains_wheel: {
     id: 'captains_wheel',
     name: '船长舵轮',
@@ -140,6 +172,7 @@ export const RELIC_LIBRARY = deepFreeze({
     id: 'charons_ashes',
     name: '卡戎之灰',
     tier: 'rare',
+    character: 'ironclad',
     price: 265,
     description: '每当你消耗 1 张卡牌时，对所有敌人造成 3 点固定伤害。',
   },
@@ -150,15 +183,59 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 285,
     description: '每当你将失去生命值时，少失去 1 点生命。',
   },
+  tough_bandages: {
+    id: 'tough_bandages',
+    name: '坚韧绷带',
+    tier: 'rare',
+    character: 'silent',
+    price: 275,
+    description: '每当你在自己回合中主动弃掉 1 张牌时，立即获得 3 点格挡。',
+  },
+  tingsha: {
+    id: 'tingsha',
+    name: '铜钹',
+    tier: 'rare',
+    character: 'silent',
+    price: 275,
+    description: '每当你在自己回合中主动弃掉 1 张牌时，对随机一名存活敌人造成 3 点固定伤害。',
+  },
+  the_specimen: {
+    id: 'the_specimen',
+    name: '毒标本',
+    tier: 'rare',
+    character: 'silent',
+    price: 280,
+    description: '每当一名带有【中毒】的敌人被击败时，将其剩余全部【中毒】层数转移给随机一名存活敌人。',
+  },
 
-  // === Boss (8) ===
+  // === Boss (10) ===
   black_blood: {
     id: 'black_blood',
     name: '漆黑之血',
     tier: 'boss',
+    character: 'ironclad',
     price: 320,
     requiresRelic: 'burning_blood',
+    replacesRelic: 'burning_blood',
     description: '强化初始之血：战斗胜利后回复生命提升至 12 点（替代燃烧之血效果）。',
+  },
+  ring_of_the_serpent: {
+    id: 'ring_of_the_serpent',
+    name: '蛇王戒指',
+    tier: 'boss',
+    character: 'silent',
+    price: 320,
+    requiresRelic: 'ring_of_the_snake',
+    replacesRelic: 'ring_of_the_snake',
+    description: '替换【蛇之戒指】：此后每回合开始时，均额外抽 1 张牌。',
+  },
+  wrist_blade: {
+    id: 'wrist_blade',
+    name: '腕刃',
+    tier: 'boss',
+    character: 'silent',
+    price: 320,
+    description: '所有当前费用为 0 的攻击牌（含【小刀】、【中和】等）每次攻击伤害额外 +4。',
   },
   cursed_key: {
     id: 'cursed_key',
@@ -181,7 +258,7 @@ export const RELIC_LIBRARY = deepFreeze({
     name: '神圣树皮',
     tier: 'boss',
     price: 320,
-    description: '所有药水的数值效果翻倍（伤害、格挡、属性、能量、抽牌与回复全部 ×2）。',
+    description: '所有药水的数值效果翻倍（伤害、格挡、属性、中毒、小刀、能量、抽牌与回复全部 ×2）。',
   },
   runic_pyramid: {
     id: 'runic_pyramid',
@@ -214,6 +291,28 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '最大能量 +1；但每场战斗开始时，所有敌人初始获得 1 点【力量】。',
   },
 });
+
+export function isRelicAllowedForCharacter(relicDef, characterId = 'ironclad') {
+  if (!relicDef) return false;
+  return !relicDef.character || relicDef.character === characterId;
+}
+
+export function getRelicPoolsForCharacter(characterId = 'ironclad') {
+  const allowed = Object.values(RELIC_LIBRARY).filter((r) =>
+    isRelicAllowedForCharacter(r, characterId)
+  );
+  const common = allowed.filter((r) => r.tier === 'common').map((r) => r.id);
+  const uncommon = allowed.filter((r) => r.tier === 'uncommon').map((r) => r.id);
+  const rare = allowed.filter((r) => r.tier === 'rare').map((r) => r.id);
+  const boss = allowed.filter((r) => r.tier === 'boss').map((r) => r.id);
+  return {
+    common,
+    uncommon,
+    rare,
+    boss,
+    allNonBoss: [...common, ...uncommon, ...rare],
+  };
+}
 
 export const RELIC_POOLS = deepFreeze({
   common: Object.values(RELIC_LIBRARY)
@@ -319,9 +418,33 @@ export const POTION_LIBRARY = deepFreeze({
     aoeDamage: 10,
     description: '对所有敌人造成 10 点固定伤害。',
   },
+  poison_potion: {
+    id: 'poison_potion',
+    name: '剧毒药水',
+    character: 'silent',
+    target: 'enemy',
+    price: 52,
+    applyEnemyStatuses: { poison: 6 },
+    description: '给予目标敌人 6 层【中毒】。',
+  },
+  cunning_potion: {
+    id: 'cunning_potion',
+    name: '诡计药水',
+    character: 'silent',
+    target: 'self',
+    price: 56,
+    addCardsToHand: { cardId: 'shiv', count: 3, upgraded: true },
+    description: '将 3 张【小刀+】加入手牌。',
+  },
 });
 
 export const ALL_POTION_IDS = deepFreeze(Object.keys(POTION_LIBRARY));
+
+export function getAvailablePotionIds(characterId = 'ironclad') {
+  return Object.values(POTION_LIBRARY)
+    .filter((p) => !p.character || p.character === characterId)
+    .map((p) => p.id);
+}
 
 export const STATUS_METADATA = deepFreeze({
   strength: {
@@ -359,6 +482,72 @@ export const STATUS_METADATA = deepFreeze({
     name: '脆弱',
     polarity: 'debuff',
     describe: (v) => `从卡牌获得的格挡降低 25%，持续 ${v} 回合。`,
+  },
+  poison: {
+    id: 'poison',
+    name: '中毒',
+    polarity: 'debuff',
+    describe: (v) => `回合开始时无视格挡直接失去 ${v} 点生命，随后层数减 1。`,
+  },
+  corpseExplosion: {
+    id: 'corpseExplosion',
+    name: '尸爆',
+    polarity: 'debuff',
+    describe: () => '被击败时发生剧烈爆裂，对所有存活敌人造成等同于自身最大生命值的伤害。',
+  },
+  noxiousFumes: {
+    id: 'noxiousFumes',
+    name: '毒雾',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，给予所有敌人 ${v} 层【中毒】。`,
+  },
+  accuracy: {
+    id: 'accuracy',
+    name: '精准',
+    polarity: 'buff',
+    describe: (v) => `本场战斗中，所有【小刀】造成的伤害额外 +${v}。`,
+  },
+  infiniteBlades: {
+    id: 'infiniteBlades',
+    name: '无尽刀刃',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，将 ${v} 张【小刀】加入手牌。`,
+  },
+  envenom: {
+    id: 'envenom',
+    name: '涂毒',
+    polarity: 'buff',
+    describe: (v) => `每当你对敌人造成未格挡的攻击伤害时，给予目标 ${v} 层【中毒】。`,
+  },
+  afterImage: {
+    id: 'afterImage',
+    name: '余像',
+    polarity: 'buff',
+    describe: (v) => `每当你打出一张卡牌时，立即获得 ${v} 点格挡。`,
+  },
+  thousandCuts: {
+    id: 'thousandCuts',
+    name: '凌迟',
+    polarity: 'buff',
+    describe: (v) => `每当你打出一张卡牌时，对所有敌人造成 ${v} 点固定伤害。`,
+  },
+  intangible: {
+    id: 'intangible',
+    name: '无实体',
+    polarity: 'buff',
+    describe: (v) => `将受到的所有伤害降至 1 点，持续 ${v} 回合。`,
+  },
+  wraithForm: {
+    id: 'wraithForm',
+    name: '幽魂衰减',
+    polarity: 'debuff',
+    describe: (v) => `每回合开始时，失去 ${v} 点【敏捷】。`,
+  },
+  toolsOfTheTrade: {
+    id: 'toolsOfTheTrade',
+    name: '独门秘技',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，额外抽 ${v} 张牌并选择弃掉 ${v} 张手牌。`,
   },
   metallicize: {
     id: 'metallicize',

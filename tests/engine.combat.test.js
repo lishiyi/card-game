@@ -13,6 +13,7 @@ import { ENCOUNTERS } from '../src/data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../src/data/relics.js';
 import {
   applyStatus,
+  discardHandCard,
   endPlayerTurn,
   MAX_HAND_SIZE,
   playCard,
@@ -482,14 +483,16 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 26);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 35);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    8
+    10
   );
-  assert.equal(Object.keys(POTION_LIBRARY).length, 10);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 46);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 12);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 82);
   assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
+  assert.ok(STATUS_METADATA.poison, 'STATUS_METADATA must include poison for The Silent');
+  assert.ok(STATUS_METADATA.intangible, 'STATUS_METADATA must include intangible for Wraith Form');
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -915,6 +918,267 @@ test('Combat Tactics Engine: Lethal & Shield-Break projections (incl. Curl Up, P
   const synBodySlam = computeCardSynergies(state, bodySlam, nob.id);
   assert.equal(synBodySlam.highlightPlayerBlock, true);
 });
+
+test('The Silent Poison archetype: Deadly Poison, Snecko Skull, Bane double-hit, Catalyst 2x/3x, Noxious Fumes, Poison tick skipping lethal enemy intent, The Specimen, Corpse Explosion chain, and Poison-Lethal preview', () => {
+  const state = createNewRun({ seed: 6101, characterId: 'silent', skipNeow: true });
+  startCombat(
+    state,
+    {
+      id: 'silent_poison_test',
+      name: '静默剧毒测试',
+      enemies: [{ templateId: 'cultist' }, { templateId: 'red_louse' }],
+    },
+    'normal'
+  );
+  const [cultist, louse] = state.combat.enemies;
+  cultist.hp = 35;
+  cultist.maxHp = 35;
+  cultist.block = 10;
+  cultist.intent = { id: 'big_hit', name: '重击', type: 'attack', damage: 20, hits: 1 };
+  louse.hp = 30;
+  louse.maxHp = 30;
+  louse.block = 0;
+
+  grantRelicToPlayer(state, 'snecko_skull');
+  grantRelicToPlayer(state, 'the_specimen');
+  state.player.energy = 10;
+
+  const dp = createCardInstance(state, 'deadly_poison', false); // 5 + 1 skull = 6 poison
+  const bane = createCardInstance(state, 'bane', false); // 7 dmg x2 on poisoned target
+  const catPlus = createCardInstance(state, 'catalyst', true); // 3x poison (+1 skull)
+  const ce = createCardInstance(state, 'corpse_explosion', false); // 6+1=7 poison + corpseExplosion
+  const fumes = createCardInstance(state, 'noxious_fumes', false);
+  state.combat.hand = [dp, bane, catPlus, ce, fumes];
+
+  // 1. Deadly Poison applies 5 + 1 (Snecko Skull) = 6 poison
+  assert.equal(playCard(state, dp.instanceId, cultist.id).ok, true);
+  assert.equal(cultist.statuses.poison, 6);
+
+  // 2. Bane preview & execution deals 2 hits against poisoned enemy (7+7 = 14 -> breaks 10 block + 4 HP -> 31 HP)
+  const banePreview = previewCardDamageOnEnemy(state, bane, cultist);
+  assert.equal(banePreview.hits, 2);
+  assert.equal(banePreview.isShieldBreak, true);
+  assert.equal(banePreview.remainingHp, 31);
+  assert.equal(playCard(state, bane.instanceId, cultist.id).ok, true);
+  assert.equal(cultist.hp, 31);
+
+  // 3. Corpse Explosion adds 6+1=7 poison (now 13) + corpseExplosion 1
+  assert.equal(playCard(state, ce.instanceId, cultist.id).ok, true);
+  assert.equal(cultist.statuses.poison, 13);
+  assert.equal(cultist.statuses.corpseExplosion, 1);
+
+  // 4. Catalyst+ preview predicts Poison-Lethal (13 * 3 + 1 skull = 40 >= 31 HP!)
+  const catPreview = previewCardDamageOnEnemy(state, catPlus, cultist);
+  assert.equal(catPreview.projectedPoison, 40);
+  assert.equal(catPreview.isPoisonLethal, true);
+  const catSyn = computeCardSynergies(state, catPlus, cultist.id);
+  assert.ok(catSyn.relicHighlights.some((r) => r.relicId === 'snecko_skull'));
+  assert.ok(catSyn.callouts.some((c) => c.tone === 'buff' && c.text.includes('催化剂')));
+
+  assert.equal(playCard(state, catPlus.instanceId, cultist.id).ok, true);
+  assert.equal(cultist.statuses.poison, 40);
+
+  // 5. End turn -> Cultist ticks 40 poison at start of enemy turn (bypasses block), dies WITHOUT executing 20 dmg attack,
+  //    transfers 40 poison via The Specimen AND triggers Corpse Explosion (35 dmg) killing 30 HP Louse immediately!
+  const hpBeforeEnd = state.player.hp;
+  assert.equal(endPlayerTurn(state).ok, true);
+  assert.equal(cultist.hp, 0);
+  assert.equal(louse.hp, 0);
+  assert.equal(state.combat.status, 'victory');
+  assert.equal(state.player.hp, hpBeforeEnd, 'Lethal poison at enemy turn start must skip enemy attack');
+});
+
+test('The Silent Shiv & Agile archetype: Blade Dance, Accuracy, Wrist Blade, Envenom, After Image, A Thousand Cuts, Shuriken/Kunai, Finisher, Cunning Potion, and Wraith Form Intangible', () => {
+  const state = createNewRun({ seed: 6102, characterId: 'silent', skipNeow: true });
+  startCombat(
+    state,
+    {
+      id: 'silent_shiv_test',
+      name: '静默小刀测试',
+      enemies: [{ templateId: 'jaw_worm' }],
+    },
+    'normal'
+  );
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.maxHp = 200;
+  enemy.block = 0;
+  enemy.intent = { id: 'chomp', name: '重咬', type: 'attack', damage: 24, hits: 1 };
+
+  grantRelicToPlayer(state, 'wrist_blade');
+  grantRelicToPlayer(state, 'shuriken');
+  grantRelicToPlayer(state, 'kunai');
+  state.player.energy = 12;
+
+  const acc = createCardInstance(state, 'accuracy', false); // +4 on Shiv
+  const env = createCardInstance(state, 'envenom', false); // +1 poison on unblocked attack
+  const ai = createCardInstance(state, 'after_image', false); // +1 block per card
+  const cuts = createCardInstance(state, 'a_thousand_cuts', false); // 1 AoE dmg per card
+  const bd = createCardInstance(state, 'blade_dance', false); // adds 3 Shivs
+  const fin = createCardInstance(state, 'finisher', false); // 6 dmg per attack played this turn
+  const wf = createCardInstance(state, 'wraith_form', false); // 2 Intangible, -1 dex/turn
+  state.combat.hand = [acc, env, ai, cuts, bd, fin, wf];
+
+  assert.equal(playCard(state, acc.instanceId).ok, true);
+  assert.equal(playCard(state, env.instanceId).ok, true);
+  assert.equal(playCard(state, ai.instanceId).ok, true);
+  assert.equal(playCard(state, cuts.instanceId).ok, true);
+  assert.equal(playCard(state, bd.instanceId).ok, true);
+
+  const shivs = state.combat.hand.filter((c) => c.cardId === 'shiv');
+  assert.equal(shivs.length, 3);
+  // Each Shiv = base 4 + Accuracy 4 + Wrist Blade 4 = 12 dmg!
+  assert.equal(previewCardDamageOnEnemy(state, shivs[0], enemy).perHitDamage, 12);
+
+  // Play all 3 Shivs: triggers Envenom (3 poison), Shuriken (+1 Str on 3rd), Kunai (+1 Dex on 3rd), After Image, A Thousand Cuts
+  const blockBeforeShivs = state.player.block;
+  for (const s of shivs) {
+    assert.equal(playCard(state, s.instanceId, enemy.id).ok, true);
+  }
+  assert.equal(state.player.statuses.strength, 1, '3 Shivs must trigger Shuriken (+1 Strength)');
+  assert.equal(state.player.statuses.dexterity, 1, '3 Shivs must trigger Kunai (+1 Dexterity)');
+  assert.equal(enemy.statuses.poison, 3, '3 unblocked Shiv hits must apply 3 Poison via Envenom');
+  assert.equal(state.player.block, blockBeforeShivs + 3, 'After Image must grant +1 block per Shiv');
+  assert.equal(state.combat.attacksPlayedThisTurn, 3);
+
+  // Finisher hits 3 times (base 6 + 1 Str = 7 x 3 = 21) + 1 A Thousand Cuts = 22
+  const finPreview = previewCardDamageOnEnemy(state, fin, enemy);
+  assert.equal(finPreview.hits, 3);
+  assert.equal(finPreview.perHitDamage, 7);
+  const hpBeforeFin = enemy.hp;
+  assert.equal(playCard(state, fin.instanceId, enemy.id).ok, true);
+  assert.equal(enemy.hp, hpBeforeFin - 22);
+
+  // Cunning Potion adds 3 Shiv+ to hand (6 with Sacred Bark)
+  state.player.potions = ['cunning_potion', null, null];
+  assert.equal(usePotion(state, 0).ok, true);
+  assert.equal(state.combat.hand.filter((c) => c.cardId === 'shiv' && c.upgraded).length, 3);
+
+  // Wraith Form grants 2 Intangible -> Enemy 24 dmg intent previews as 1 and deals at most 1 (fully blocked by 1+ block!)
+  assert.equal(playCard(state, wf.instanceId).ok, true);
+  assert.equal(state.player.statuses.intangible, 2);
+  assert.equal(getEnemyIntentPreview(enemy, state.player).perHitDamage, 1);
+
+  state.player.block = 0; // Ensure unblocked Intangible caps 24 dmg to 1!
+  const hpBeforeHit = state.player.hp;
+  assert.equal(endPlayerTurn(state).ok, true);
+  assert.equal(state.player.hp, hpBeforeHit - 1, 'Intangible must reduce 24 unblocked attack damage to 1');
+  assert.equal(state.player.statuses.intangible, 1, 'Intangible decays from 2 -> 1 after Round 1');
+  assert.equal(state.player.statuses.dexterity || 0, 0, 'Wraith Form drops Dexterity 1 -> 0 at start of next turn');
+});
+
+test('The Silent Discard archetype: pendingDiscard selection, Tactician, Reflex, Tough Bandages, Tingsha, Eviscerate dynamic cost + Wrist Blade, Sneaky Strike refund, Calculated Gamble, Storm of Steel, and Tools of the Trade', () => {
+  const state = createNewRun({ seed: 6103, characterId: 'silent', skipNeow: true });
+  startCombat(
+    state,
+    {
+      id: 'silent_discard_test',
+      name: '静默弃牌测试',
+      enemies: [{ templateId: 'slaver_blue' }],
+    },
+    'normal'
+  );
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 150;
+  enemy.maxHp = 150;
+  enemy.block = 0;
+
+  grantRelicToPlayer(state, 'tough_bandages');
+  grantRelicToPlayer(state, 'tingsha');
+  grantRelicToPlayer(state, 'wrist_blade');
+  state.player.energy = 3;
+
+  const survivor = createCardInstance(state, 'survivor', false); // 1 cost, 8 block, discard 1
+  const tact = createCardInstance(state, 'tactician', true); // +2 energy when discarded
+  const refl = createCardInstance(state, 'reflex', false); // +2 draw when discarded
+  const evis = createCardInstance(state, 'eviscerate', false); // 3 cost -> 0 after 3 discards!
+  const sneaky = createCardInstance(state, 'sneaky_strike', false); // 2 cost, refunds 2 if discarded
+  const prep = createCardInstance(state, 'prepared', true); // 0 cost, draw 2, discard 2
+  const gamble = createCardInstance(state, 'calculated_gamble', true); // 0 cost, discard all, draw equal, NO exhaust!
+  state.combat.drawPile = [
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+  ];
+  state.combat.hand = [survivor, tact, refl, evis, sneaky, prep, gamble];
+
+  // Synergy check: hovering Survivor highlights Tough Bandages, Tingsha, and Tactician/Reflex/Eviscerate/Sneaky in hand
+  const survSyn = computeCardSynergies(state, survivor);
+  assert.ok(survSyn.relicHighlights.some((r) => r.relicId === 'tough_bandages'));
+  assert.ok(survSyn.relicHighlights.some((r) => r.relicId === 'tingsha'));
+  assert.ok(survSyn.affectedHandCards.some((h) => h.instanceId === tact.instanceId && h.tone === 'discard'));
+  assert.ok(survSyn.affectedHandCards.some((h) => h.instanceId === refl.instanceId && h.tone === 'discard'));
+
+  // 1. Play Survivor -> enters pendingDiscard (remaining 1), blocks other plays & endTurn until resolved
+  assert.equal(playCard(state, survivor.instanceId).ok, true);
+  assert.equal(state.combat.pendingDiscard.remaining, 1);
+  assert.equal(endPlayerTurn(state).ok, false);
+  assert.equal(playCard(state, sneaky.instanceId, enemy.id).ok, false);
+
+  // 2. Discard Tactician+ -> clears pendingDiscard, +2 energy (2 -> 4), +3 block (Tough Bandages: 8 -> 11), 3 dmg (Tingsha: 150 -> 147)
+  assert.equal(discardHandCard(state, tact.instanceId).ok, true);
+  assert.equal(state.combat.pendingDiscard, null);
+  assert.equal(state.player.energy, 4);
+  assert.equal(state.player.block, 11);
+  assert.equal(enemy.hp, 147);
+  assert.equal(state.combat.discardedThisTurn, 1);
+  assert.equal(getEffectiveCardCost(getCardStats(evis), state.player, state.combat), 2);
+
+  // 3. Play Sneaky Strike (2 cost, refunds 2 -> net 0 energy!)
+  assert.equal(playCard(state, sneaky.instanceId, enemy.id).ok, true);
+  assert.equal(state.player.energy, 4);
+
+  // 4. Play Prepared+ (draw 2, discard 2) -> discard Reflex (+2 draw!) & 1 other card -> discardedThisTurn = 3 -> Eviscerate costs 0!
+  assert.equal(playCard(state, prep.instanceId).ok, true);
+  assert.equal(state.combat.pendingDiscard.remaining, 2);
+  const handCountBeforeReflex = state.combat.hand.length;
+  assert.equal(discardHandCard(state, refl.instanceId).ok, true);
+  assert.equal(state.combat.hand.length, handCountBeforeReflex - 1 + 2, 'Reflex must draw 2 cards on manual discard');
+  const filler = state.combat.hand.find((c) => c.instanceId !== evis.instanceId && c.instanceId !== gamble.instanceId);
+  assert.equal(discardHandCard(state, filler.instanceId).ok, true);
+  assert.equal(state.combat.pendingDiscard, null);
+  assert.equal(state.combat.discardedThisTurn, 3);
+
+  // 5. Eviscerate is now 0 cost AND benefits from Wrist Blade (+4 per hit => 7+4 = 11 x 3 = 33 dmg)!
+  assert.equal(getEffectiveCardCost(getCardStats(evis), state.player, state.combat), 0);
+  const evisPreview = previewCardDamageOnEnemy(state, evis, enemy);
+  assert.equal(evisPreview.perHitDamage, 11);
+  assert.equal(evisPreview.totalDamage, 33);
+  const hpBeforeEvis = enemy.hp;
+  assert.equal(playCard(state, evis.instanceId, enemy.id).ok, true);
+  assert.equal(enemy.hp, hpBeforeEvis - 33);
+
+  // 6. Calculated Gamble+ discards all hand, draws equal count, and goes to discardPile (not exhaustPile!)
+  const otherCards = state.combat.hand.length - 1;
+  assert.equal(playCard(state, gamble.instanceId).ok, true);
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === gamble.instanceId), false);
+  assert.equal(state.combat.discardPile.some((c) => c.instanceId === gamble.instanceId), true);
+  assert.ok(state.combat.hand.length <= otherCards);
+
+  // 7. Storm of Steel+ discards all remaining hand and converts each into Shiv+
+  const sos = createCardInstance(state, 'storm_of_steel', true);
+  const d1 = createCardInstance(state, 'defend', false);
+  const d2 = createCardInstance(state, 'strike', false);
+  state.combat.hand = [sos, d1, d2];
+  assert.equal(playCard(state, sos.instanceId).ok, true);
+  assert.equal(state.combat.hand.length, 2);
+  assert.equal(state.combat.hand.every((c) => c.cardId === 'shiv' && c.upgraded), true);
+
+  // 8. End-of-turn natural discard MUST NOT trigger Tough Bandages, Tingsha, Tactician, or Reflex
+  const enemyHpBeforeEnd = enemy.hp;
+  const tactEnd = createCardInstance(state, 'tactician', true);
+  state.combat.hand = [tactEnd];
+  state.player.block = 0;
+  // Also test Tools of the Trade at next turn start
+  state.player.statuses.toolsOfTheTrade = 1;
+  assert.equal(endPlayerTurn(state).ok, true);
+  assert.equal(enemy.hp, enemyHpBeforeEnd, 'Natural end-of-turn discard must NOT trigger Tingsha');
+  assert.equal(state.player.energy, state.player.maxEnergy, 'Natural end-of-turn discard must NOT trigger Tactician');
+  assert.equal(state.combat.pendingDiscard?.sourceName, '独门秘技', 'Tools of the Trade must prompt 1 discard at turn start');
+});
+
 
 
 

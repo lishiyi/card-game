@@ -59,7 +59,10 @@ export function getEnemyIntentPreview(enemy, player) {
 
   const hits = intent.hits ?? 1;
   const isAttack = typeof intent.damage === 'number' && intent.damage >= 0;
-  const perHitDamage = isAttack ? calculateAttackDamage(intent.damage, enemy, player) : 0;
+  let perHitDamage = isAttack ? calculateAttackDamage(intent.damage, enemy, player) : 0;
+  if (isAttack && perHitDamage > 1 && (player?.statuses?.intangible ?? 0) > 0) {
+    perHitDamage = 1;
+  }
   const totalDamage = perHitDamage * hits;
   const block = intent.block ?? 0;
   const hitText = hits > 1 ? `${perHitDamage}×${hits}` : `${perHitDamage}`;

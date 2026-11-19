@@ -108,9 +108,30 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
     })
     .join('');
 
+  const isPendingDiscard = Boolean(combat.pendingDiscard);
   const previewTarget = getPreviewTargetEnemy();
   const handHtml = combat.hand
     .map((card, idx) => {
+      if (isPendingDiscard) {
+        const cStats = getCardStats(card);
+        const isDiscardSynergy = Boolean(cStats.onDiscardGainEnergy || cStats.onDiscardDraw);
+        return renderCardHtml(card, {
+          idPrefix: 'hand-card',
+          action: 'discard-hand-card',
+          playable: true,
+          selected: false,
+          dimmed: false,
+          discardSelectable: true,
+          discardSynergy: isDiscardSynergy,
+          hotkey: idx < 9 ? idx + 1 : undefined,
+          combatContext: {
+            player: state.player,
+            targetEnemy: previewTarget,
+            combat,
+          },
+        });
+      }
+
       const check = canPlayCard(state, card.instanceId);
       const unplayableReason = check.playable
         ? ''
@@ -131,6 +152,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
         combatContext: {
           player: state.player,
           targetEnemy: previewTarget,
+          combat,
         },
       });
     })
@@ -147,7 +169,10 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
 
   let bannerText = ui.notice;
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
-  if (isTargetingEnemy) {
+  if (isPendingDiscard) {
+    bannerText = `【${combat.pendingDiscard.sourceName}】请选择 ${combat.pendingDiscard.remaining} 张手牌弃置（点击手牌或按数字键 1–9）`;
+    bannerClass = 'discard-prompt';
+  } else if (isTargetingEnemy) {
     const itemName = selectedCardStats
       ? selectedCardStats.name
       : POTION_LIBRARY[state.player.potions[ui.selectedPotionSlot]]?.name;
@@ -158,6 +183,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
   }
 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
+  const playerArtKey = state.player.artKey || state.characterId || 'ironclad';
 
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
@@ -169,7 +195,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
           <div class="intent-stack">
             <div class="intent-badge">第 ${escapeHtml(combat.turn)} 回合</div>
           </div>
-          <div class="unit-figure">${getCharacterSvg('ironclad')}</div>
+          <div class="unit-figure">${getCharacterSvg(playerArtKey)}</div>
           <div class="unit-name-row">
             <span class="unit-name-text">${escapeHtml(state.player.name)}</span>
             ${
@@ -209,7 +235,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
             id="btn-end-turn"
             class="btn-brass"
             data-action="end-turn"
-            ${combat.phase !== 'player' || aliveEnemies.length === 0 ? 'disabled' : ''}
+            ${combat.phase !== 'player' || aliveEnemies.length === 0 || isPendingDiscard ? 'disabled' : ''}
           >
             结束回合 (E)
           </button>
@@ -222,7 +248,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
         </div>
       </div>
 
-      <div class="hand-tray" id="hand-tray">
+      <div class="hand-tray ${isPendingDiscard ? 'discard-selecting' : ''}" id="hand-tray">
         ${handHtml || '<p class="stage-subtitle">当前无手牌，请点击“结束回合”。</p>'}
       </div>
 

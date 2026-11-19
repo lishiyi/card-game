@@ -4,20 +4,19 @@ import {
   createCardInstance,
   CURSE_CARD_IDS,
   getCardStats,
-  REWARD_CARD_POOLS,
-  STARTER_DECK_RECIPE,
+  getRewardCardPools,
 } from '../data/cards.js';
+import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../data/enemies.js';
 import { EVENT_IDS, EVENT_LIBRARY, generateSpireMap, TOTAL_FLOORS } from '../data/events.js';
 import {
-  ALL_POTION_IDS,
-  BOSS_RELIC_IDS,
-  NON_STARTER_RELIC_IDS,
+  getAvailablePotionIds,
+  getRelicPoolsForCharacter,
   POTION_LIBRARY,
   RELIC_LIBRARY,
-  RELIC_POOLS,
 } from '../data/relics.js';
 import {
+  discardHandCard,
   endPlayerTurn,
   hasRelic,
   playCard,
@@ -49,8 +48,17 @@ export function getCurrentBossName(state) {
 
 export function grantRelicToPlayer(state, relicId) {
   if (!relicId || !RELIC_LIBRARY[relicId] || hasRelic(state, relicId)) return false;
-  state.player.relics.push(relicId);
   const def = RELIC_LIBRARY[relicId];
+  if (def.replacesRelic) {
+    const repIdx = state.player.relics.indexOf(def.replacesRelic);
+    if (repIdx !== -1) {
+      state.player.relics.splice(repIdx, 1, relicId);
+    } else {
+      state.player.relics.push(relicId);
+    }
+  } else {
+    state.player.relics.push(relicId);
+  }
   if (def.energyBonus) {
     state.player.maxEnergy += def.energyBonus;
     state.player.energy = state.player.maxEnergy;
@@ -60,15 +68,18 @@ export function grantRelicToPlayer(state, relicId) {
 
 export function createNewRun(options = {}) {
   const seed = normalizeSeed(options.seed);
+  const characterId = normalizeCharacterId(options.characterId);
+  const charDef = getCharacterDef(characterId);
   const ascension = Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
   const unlockedTier = options.unlockedTier ?? 3;
   const unlockAllOverride = Boolean(options.unlockAllOverride);
-  const startingHp = ascension >= 4 ? 75 : 80;
+  const startingHp = ascension >= 4 ? charDef.asc4MaxHp : charDef.maxHp;
 
   const state = {
     seed,
     rngState: seed,
     nextUid: 1,
+    characterId: charDef.id,
     act: 1,
     ascension,
     unlockedTier,
@@ -87,15 +98,16 @@ export function createNewRun(options = {}) {
     visitedEventIds: [],
     neowState: null,
     player: {
-      name: '铁甲战士',
+      name: charDef.name,
+      artKey: charDef.artKey,
       hp: startingHp,
       maxHp: startingHp,
-      gold: 99,
-      maxEnergy: 3,
-      energy: 3,
+      gold: charDef.startingGold ?? 99,
+      maxEnergy: charDef.maxEnergy ?? 3,
+      energy: charDef.maxEnergy ?? 3,
       block: 0,
-      relics: ['burning_blood'],
-      potions: ['fire_potion', null, null],
+      relics: [charDef.starterRelic],
+      potions: [charDef.starterPotion, null, null],
       deck: [],
       statuses: {},
       skipStatusTick: {},
@@ -118,7 +130,7 @@ export function createNewRun(options = {}) {
     },
   };
 
-  state.player.deck = STARTER_DECK_RECIPE.map((cardId) =>
+  state.player.deck = charDef.starterDeck.map((cardId) =>
     createCardInstance(state, cardId, false)
   );
   if (ascension >= 5) {
@@ -162,10 +174,13 @@ export function getAvailableNodeIds(state) {
 }
 
 function getUnlockedPools(state) {
+  const characterId = normalizeCharacterId(state?.characterId);
   const { lockedCardIds, lockedRelicIds } = getLockedContentSets(
     state?.unlockedTier ?? 3,
     Boolean(state?.unlockAllOverride)
   );
+  const charCards = getRewardCardPools(characterId);
+  const charRelics = getRelicPoolsForCharacter(characterId);
   const filterCards = (ids) => {
     const unlocked = ids.filter((id) => !lockedCardIds.has(id));
     return unlocked.length > 0 ? unlocked : ids;
@@ -173,16 +188,18 @@ function getUnlockedPools(state) {
   const filterRelics = (ids) => ids.filter((id) => !lockedRelicIds.has(id));
   return {
     cards: {
-      common: filterCards(REWARD_CARD_POOLS.common),
-      uncommon: filterCards(REWARD_CARD_POOLS.uncommon),
-      rare: filterCards(REWARD_CARD_POOLS.rare),
+      common: filterCards(charCards.common),
+      uncommon: filterCards(charCards.uncommon),
+      rare: filterCards(charCards.rare),
     },
     relics: {
-      common: filterRelics(RELIC_POOLS.common),
-      uncommon: filterRelics(RELIC_POOLS.uncommon),
-      rare: filterRelics(RELIC_POOLS.rare),
-      allNonBoss: NON_STARTER_RELIC_IDS.filter((id) => !lockedRelicIds.has(id)),
+      common: filterRelics(charRelics.common),
+      uncommon: filterRelics(charRelics.uncommon),
+      rare: filterRelics(charRelics.rare),
+      boss: charRelics.boss,
+      allNonBoss: charRelics.allNonBoss.filter((id) => !lockedRelicIds.has(id)),
     },
+    potions: getAvailablePotionIds(characterId),
   };
 }
 
@@ -268,7 +285,7 @@ export function rollRewardCards(state, count = 3, role = 'normal', options = {})
 }
 
 function buildShopState(state) {
-  const { cards: unlockedCards } = getUnlockedPools(state);
+  const { cards: unlockedCards, potions } = getUnlockedPools(state);
   const priceMult = (state.ascension ?? 0) >= 5 ? 1.15 : 1;
 
   const commonOffers = pickDistinct(state, unlockedCards.common, 3);
@@ -300,7 +317,7 @@ function buildShopState(state) {
       }
     : null;
 
-  const potionId = pickRandom(state, ALL_POTION_IDS);
+  const potionId = pickRandom(state, potions);
   const potionOffer = potionId
     ? {
         potionId,
@@ -320,6 +337,8 @@ function buildShopState(state) {
 
 export function transitionCombatVictory(state) {
   const role = state.combat?.role ?? 'normal';
+  const { relics, potions } = getUnlockedPools(state);
+
   if (role === 'boss') {
     if ((state.act ?? 1) >= 2) {
       state.screen = 'game_over';
@@ -331,7 +350,7 @@ export function transitionCombatVictory(state) {
     state.player.gold += bossGold;
     const cardChoices = rollDistinctRareCards(state, 3);
     state.rarePityBonus = 0;
-    const unownedBossRelics = BOSS_RELIC_IDS.filter((id) => {
+    const unownedBossRelics = relics.boss.filter((id) => {
       if (hasRelic(state, id)) return false;
       const req = RELIC_LIBRARY[id]?.requiresRelic;
       if (req && !hasRelic(state, req)) return false;
@@ -358,7 +377,7 @@ export function transitionCombatVictory(state) {
 
   const relicId = isElite ? rollUnownedRelicId(state, 'elite') : null;
   const dropPotion = nextRandom(state) < (isElite ? 0.65 : 0.42);
-  const potionId = dropPotion ? pickRandom(state, ALL_POTION_IDS) : null;
+  const potionId = dropPotion ? pickRandom(state, potions) : null;
   const cardChoices = rollRewardCards(state, 3, role);
 
   state.reward = {
@@ -496,6 +515,10 @@ export function selectMapNode(state, nodeId) {
 
 export function runPlayCard(state, instanceId, targetEnemyId = null) {
   return playCard(state, instanceId, targetEnemyId, transitionCombatVictory);
+}
+
+export function runDiscardHandCard(state, instanceId) {
+  return discardHandCard(state, instanceId, transitionCombatVictory);
 }
 
 export function runUsePotion(state, slotIndex, targetEnemyId = null) {
@@ -1119,10 +1142,11 @@ export function chooseEventOption(state, choiceId) {
           return { ok: false, reason: '药水栏已满，无法购买' };
         }
         state.player.gold -= 35;
+        const { potions } = getUnlockedPools(state);
         const gainedNames = [];
         for (let i = 0; i < state.player.potions.length; i += 1) {
           if (state.player.potions[i] === null) {
-            const pid = pickRandom(state, ALL_POTION_IDS);
+            const pid = pickRandom(state, potions);
             state.player.potions[i] = pid;
             gainedNames.push(`【${POTION_LIBRARY[pid].name}】`);
           }
@@ -1437,22 +1461,41 @@ function rollDistinctRareCards(state, count = 3) {
 }
 
 export function generateNeowState(state) {
-  const opt1 = pickRandom(state, NEOW_SMALL_POOL);
-  const opt2 = pickRandom(state, NEOW_MEDIUM_POOL);
-  const opt3 = pickRandom(state, NEOW_RISK_POOL);
-  const opt4 = NEOW_BOSS_SWAP_OPTION;
+  const charDef = getCharacterDef(state?.characterId);
+  const starterRelicName = RELIC_LIBRARY[charDef.starterRelic]?.name || charDef.starterRelic;
+  const charName = charDef.name;
+  const upgradeHint = charDef.id === 'silent' ? '如中和+ 或 幸存者+' : '如痛击+ 或 防御+';
+  const swapPoolCount = getRelicPoolsForCharacter(charDef.id).boss.filter(
+    (id) => !RELIC_LIBRARY[id]?.requiresRelic
+  ).length;
+
+  const localizeOpt = (raw) => {
+    const opt = { ...raw };
+    if (opt.id === 'upgrade_1') {
+      opt.detail = `从初始牌组中自选 1 张卡牌永久强化（${upgradeHint}）。`;
+    } else if (opt.id === 'choose_card') {
+      opt.detail = `从 3 张随机${charName}卡牌中挑选 1 张加入牌组。`;
+    } else if (opt.id === 'transform_1') {
+      opt.detail = `从牌组中自选 1 张卡牌，将其随机变化为 1 张非基础${charName}卡牌。`;
+    }
+    return opt;
+  };
+
+  const opt1 = localizeOpt(pickRandom(state, NEOW_SMALL_POOL));
+  const opt2 = localizeOpt(pickRandom(state, NEOW_MEDIUM_POOL));
+  const opt3 = localizeOpt(pickRandom(state, NEOW_RISK_POOL));
+  const opt4 = {
+    ...NEOW_BOSS_SWAP_OPTION,
+    title: `放弃【${starterRelicName}】· 换随机首领遗物`,
+    detail: `失去初始遗物【${starterRelicName}】，随机获得 1 件【首领遗物】（含金字塔、异蛇之眼、能量遗物等 ${swapPoolCount} 选 1）！`,
+  };
 
   return {
     resolved: false,
     chosenId: null,
     outcomeText: '',
     pendingAction: null,
-    options: [
-      { ...opt1 },
-      { ...opt2 },
-      { ...opt3 },
-      { ...opt4 },
-    ],
+    options: [opt1, opt2, opt3, opt4],
   };
 }
 
@@ -1506,10 +1549,11 @@ export function chooseNeowOption(state, optionId) {
     }
 
     case 'fill_potions': {
+      const { potions } = getUnlockedPools(state);
       const gainedNames = [];
       for (let i = 0; i < state.player.potions.length; i += 1) {
         if (!state.player.potions[i]) {
-          const potId = pickRandom(state, ALL_POTION_IDS);
+          const potId = pickRandom(state, potions);
           state.player.potions[i] = potId;
           gainedNames.push(POTION_LIBRARY[potId]?.name || potId);
         }
@@ -1555,18 +1599,22 @@ export function chooseNeowOption(state, optionId) {
     }
 
     case 'boss_swap': {
-      const bbIdx = state.player.relics.indexOf('burning_blood');
-      if (bbIdx !== -1) {
-        state.player.relics.splice(bbIdx, 1);
+      const charDef = getCharacterDef(state?.characterId);
+      const starterRelicId = charDef.starterRelic;
+      const starterRelicName = RELIC_LIBRARY[starterRelicId]?.name || starterRelicId;
+      const srIdx = state.player.relics.indexOf(starterRelicId);
+      if (srIdx !== -1) {
+        state.player.relics.splice(srIdx, 1);
       }
-      const eligibleSwaps = BOSS_RELIC_IDS.filter(
-        (id) => id !== 'black_blood' && !hasRelic(state, id)
+      const { relics } = getUnlockedPools(state);
+      const eligibleSwaps = relics.boss.filter(
+        (id) => !RELIC_LIBRARY[id]?.requiresRelic && !hasRelic(state, id)
       );
       const swappedId = pickRandom(state, eligibleSwaps);
       if (swappedId) {
         grantRelicToPlayer(state, swappedId);
         const def = RELIC_LIBRARY[swappedId];
-        neow.outcomeText = `涅奥换核成功：失去【燃烧之血】，获得首领遗物【${def.name}】（${def.description}）`;
+        neow.outcomeText = `涅奥换核成功：失去【${starterRelicName}】，获得首领遗物【${def.name}】（${def.description}）`;
       } else {
         neow.outcomeText = '涅奥换核完成。';
       }
@@ -1676,11 +1724,12 @@ export function chooseNeowOption(state, optionId) {
       if (state.player.deck.length === 0) {
         return { ok: false, reason: '当前牌组为空' };
       }
+      const charName = getCharacterDef(state?.characterId).name;
       neow.pendingAction = {
         type: 'transform',
         optionId: option.id,
         title: '鲸鱼赐福 · 选择 1 张卡牌进行变化',
-        subtitle: '所选卡牌将随机蜕变为 1 张非基础铁甲战士卡牌。',
+        subtitle: `所选卡牌将随机蜕变为 1 张非基础${charName}卡牌。`,
         remaining: 1,
         allowCancel: true,
         committed: false,

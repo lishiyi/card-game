@@ -573,17 +573,26 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
             data-action="copy-seed"
             data-seed-code="${escapeHtml(seedCode)}"
             data-ascension="${escapeHtml(state.ascension ?? 0)}"
+            data-character-id="${escapeHtml(state.characterId || 'ironclad')}"
           >
             分享挑战链接 (${escapeHtml(seedCode)})
           </button>
-          <button type="button" id="btn-replay-current-seed" class="btn-stone" data-action="replay-history-seed" data-seed="${escapeHtml(state.seed)}" data-ascension="${escapeHtml(state.ascension ?? 0)}">
+          <button
+            type="button"
+            id="btn-replay-current-seed"
+            class="btn-stone"
+            data-action="replay-history-seed"
+            data-seed="${escapeHtml(state.seed)}"
+            data-ascension="${escapeHtml(state.ascension ?? 0)}"
+            data-character-id="${escapeHtml(state.characterId || 'ironclad')}"
+          >
             同种子再战
           </button>
           <button type="button" id="btn-gameover-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
             战绩与进阶
           </button>
           <button type="button" id="btn-restart-gameover" class="btn-brass" data-action="new-run">
-            再来一局
+            选择角色再战
           </button>
         </div>
       </div>
@@ -597,6 +606,7 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
       }
 
       <div class="summary-stats">
+        <span>角色：<strong>${escapeHtml(state.player.name)}</strong></span>
         <span>本局种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(seedCode)}</strong></span>
         ${state.isChallengeRun ? `<span>模式：<strong style="color:var(--jade-upgrade);">好友种子挑战</strong></span>` : ''}
         <span>抵达层数：<strong>${escapeHtml(actLabel)}${escapeHtml(state.floor)} / ${escapeHtml(TOTAL_FLOORS)}</strong></span>

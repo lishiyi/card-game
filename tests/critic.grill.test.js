@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
+import { CHARACTER_LIBRARY } from '../src/data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../src/data/enemies.js';
 import { EVENT_LIBRARY } from '../src/data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../src/data/relics.js';
@@ -37,6 +38,7 @@ import {
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runDiscardHandCard,
   runEndTurn,
   runPlayCard,
   runRestartCombat,
@@ -106,6 +108,9 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   }, TypeError);
   assert.throws(() => {
     UNLOCK_TIERS[0].xpRequired = 0;
+  }, TypeError);
+  assert.throws(() => {
+    CHARACTER_LIBRARY.silent.maxHp = 999;
   }, TypeError);
 });
 
@@ -211,15 +216,16 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & Act 2, Ascension 0-5, Treasure, Boss Relics, and all 10 Events maintains all invariants', () => {
+test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad & Silent, Act 1 & Act 2, Ascension 0-5, Treasure, Boss Relics, and all 10 Events maintains all invariants', () => {
   let victories = 0;
   let defeats = 0;
   let act2Entries = 0;
 
   for (let seed = 1000; seed < 1150; seed += 1) {
     const ascension = seed % 2 === 0 ? 0 : seed % 6;
-    const state = createNewRun({ seed, ascension, unlockAllOverride: true });
-    assertRunInvariants(state, `init seed ${seed}`);
+    const characterId = seed % 2 === 0 ? 'silent' : 'ironclad';
+    const state = createNewRun({ seed, characterId, ascension, unlockAllOverride: true });
+    assertRunInvariants(state, `init ${characterId} seed ${seed}`);
 
     let safetySteps = 0;
     while (state.screen !== 'game_over' && safetySteps < 3500) {
@@ -255,6 +261,24 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
         }
         assert.equal(selectMapNode(state, chosen.id).ok, true);
       } else if (state.screen === 'combat') {
+        const resolvePendingDiscards = () => {
+          let guard = 0;
+          while (state.screen === 'combat' && state.combat?.pendingDiscard && guard < 20) {
+            guard += 1;
+            const preferred =
+              state.combat.hand.find((c) => {
+                const st = getCardStats(c);
+                return st.onDiscardGainEnergy || st.onDiscardDraw;
+              }) || state.combat.hand[0];
+            assert.ok(preferred, `Pending discard with empty hand on seed ${seed}`);
+            assert.equal(runDiscardHandCard(state, preferred.instanceId).ok, true);
+            assertRunInvariants(state, `after discardHandCard seed ${seed}`);
+          }
+        };
+
+        resolvePendingDiscards();
+        if (state.screen !== 'combat') continue;
+
         // Use available potions tactically
         for (let slot = 0; slot < state.player.potions.length; slot += 1) {
           if (state.player.potions[slot]) {
@@ -268,8 +292,13 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
 
         // Play playable cards with tactical priority (powers -> needed block -> attacks)
         let playedSomething = true;
-        while (playedSomething && state.screen === 'combat') {
+        let cardLoopGuard = 0;
+        while (playedSomething && state.screen === 'combat' && cardLoopGuard < 60) {
+          cardLoopGuard += 1;
           playedSomething = false;
+          resolvePendingDiscards();
+          if (state.screen !== 'combat') break;
+
           const incoming = state.combat.enemies.reduce(
             (sum, e) => sum + (e.hp > 0 && e.intent?.damage ? e.intent.damage * (e.intent.hits ?? 1) : 0),
             0
@@ -281,7 +310,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
             const rank = (st) =>
               (st.type === 'power' ? 40 : 0) +
               (needBlock && (st.block || st.doubleBlock || st.exhaustNonAttacksBlockEach) ? 30 : 0) +
-              (st.applyEnemyStatuses ? 25 : 0) +
+              (st.applyEnemyStatuses || st.addCardsToHand ? 25 : 0) +
               (st.damage || st.exhaustAllHandDamageEach ? 20 : 0) -
               (st.useBlockAsDamage && state.player.block === 0 ? 30 : 0) -
               (st.doubleBlock && state.player.block === 0 ? 25 : 0);
@@ -299,14 +328,18 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Act 1 & A
             const res = runPlayCard(state, card.instanceId, targetId);
             assert.equal(res.ok, true);
             assertRunInvariants(state, `after playCard ${stats.cardId} seed ${seed}`);
+            resolvePendingDiscards();
             playedSomething = true;
             break;
           }
         }
 
         if (state.screen === 'combat') {
-          assert.equal(runEndTurn(state).ok, true);
-          assertRunInvariants(state, `after endTurn seed ${seed}`);
+          resolvePendingDiscards();
+          if (state.screen === 'combat') {
+            assert.equal(runEndTurn(state).ok, true);
+            assertRunInvariants(state, `after endTurn seed ${seed}`);
+          }
         }
       } else if (state.screen === 'reward') {
         claimRewardGold(state);

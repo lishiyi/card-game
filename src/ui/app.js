@@ -4,6 +4,7 @@
  */
 
 import { formatCardDescription, getCardStats } from '../data/cards.js';
+import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY } from '../data/relics.js';
 import { canPlayCard, getAliveEnemies } from '../engine/combat.js';
@@ -38,6 +39,7 @@ import {
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runDiscardHandCard,
   runEndTurn,
   runPlayCard,
   runRestartCombat,
@@ -68,6 +70,10 @@ import {
 } from './combat_interact.js';
 import { createFxManager } from './fx.js';
 import { escapeHtml } from './helpers.js';
+import {
+  renderCharacterSelectHeader,
+  renderCharacterSelectScreen,
+} from './screens/character_select.js';
 import { renderCombatScreen } from './screens/combat.js';
 import { renderEventScreen } from './screens/event.js';
 import { renderTopHud } from './screens/hud.js';
@@ -99,8 +105,14 @@ function loadSavedRun() {
       parsed.map.length === TOTAL_FLOORS &&
       typeof parsed.screen === 'string'
     ) {
+      const charId = normalizeCharacterId(parsed.characterId);
+      const charDef = getCharacterDef(charId);
+      parsed.characterId = charId;
+      if (!parsed.player.artKey) {
+        parsed.player.artKey = charDef.artKey;
+      }
       if (!Array.isArray(parsed.player.potions)) {
-        parsed.player.potions = ['fire_potion', null, null];
+        parsed.player.potions = [charDef.starterPotion, null, null];
       } else {
         while (parsed.player.potions.length < STARTER_POTION_SLOTS) {
           parsed.player.potions.push(null);
@@ -118,6 +130,7 @@ function loadSavedRun() {
 }
 
 function persistRun(state) {
+  if (!state) return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
@@ -135,6 +148,7 @@ function readIncomingChallengeFromLocation() {
       seed: parsed.seed,
       seedCode: parsed.seedCode,
       ascension: parsed.ascension ?? 0,
+      characterId: normalizeCharacterId(parsed.characterId),
     };
   } catch {
     return null;
@@ -158,6 +172,7 @@ export function mountSpireApp(rootEl) {
 
   function buildNewRunOptions(overrides = {}) {
     return {
+      characterId: normalizeCharacterId(overrides.characterId ?? meta.selectedCharacterId),
       ascension: overrides.ascension ?? meta.selectedAscension ?? 0,
       unlockedTier: meta.unlockedTier ?? 0,
       unlockAllOverride: Boolean(meta.unlockAllOverride),
@@ -175,21 +190,25 @@ export function mountSpireApp(rootEl) {
   let initialModal = null;
   let initialPendingChallenge = null;
   let initialNotice = '';
-  let state;
+  let initialShowCharacterSelect = false;
+  let state = null;
 
   if (incomingChallenge && !hasActiveSave) {
+    const chChar = normalizeCharacterId(incomingChallenge.characterId);
+    const chCharDef = getCharacterDef(chChar);
     state = createNewRun(
       buildNewRunOptions({
+        characterId: chChar,
         seed: incomingChallenge.seed,
         ascension: incomingChallenge.ascension,
         unlockAllOverride: true,
         isChallengeRun: true,
       })
     );
-    initialNotice = `已通过挑战链接开启同图对局【${incomingChallenge.seedCode} · 进阶 ${incomingChallenge.ascension}】（全图鉴临时对齐，不影响生涯解锁）！`;
-  } else {
-    state = savedRun || createNewRun(buildNewRunOptions());
-    if (incomingChallenge && hasActiveSave) {
+    initialNotice = `已通过挑战链接开启同图对局【${chCharDef.name} · ${incomingChallenge.seedCode} · 进阶 ${incomingChallenge.ascension}】（全图鉴临时对齐，不影响生涯解锁）！`;
+  } else if (hasActiveSave) {
+    state = savedRun;
+    if (incomingChallenge) {
       initialPendingChallenge = incomingChallenge;
       initialModal = 'confirm_challenge';
     } else if (
@@ -199,6 +218,9 @@ export function mountSpireApp(rootEl) {
     ) {
       initialModal = 'neow_action';
     }
+  } else {
+    state = null;
+    initialShowCharacterSelect = true;
   }
 
   let lastGameOverSummary = null;
@@ -286,6 +308,8 @@ export function mountSpireApp(rootEl) {
   }
 
   const ui = {
+    showCharacterSelect: initialShowCharacterSelect,
+    selectedCharacterId: state?.characterId || meta.selectedCharacterId || 'ironclad',
     selectedCardId: null,
     selectedPotionSlot: null,
     hoveredCardId: null,
@@ -315,7 +339,9 @@ export function mountSpireApp(rootEl) {
   }
 
   function ensureRunRecorded() {
-    const currentRunKey = `${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
+    if (!state) return null;
+    const charId = state.characterId || 'ironclad';
+    const currentRunKey = `${charId}_${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
     if (!lastGameOverSummary || lastGameOverSummary.runKey !== currentRunKey) {
       const rec = recordCompletedRun(meta, state);
       saveMeta(meta);
@@ -325,7 +351,7 @@ export function mountSpireApp(rootEl) {
   }
 
   function sanitizeUiState() {
-    if (state.screen !== 'combat' || !state.combat) {
+    if (!state || ui.showCharacterSelect || state.screen !== 'combat' || !state.combat) {
       clearCombatSelection();
       return;
     }
@@ -350,7 +376,7 @@ export function mountSpireApp(rootEl) {
   }
 
   function getPreviewTargetEnemy() {
-    if (state.screen !== 'combat' || !state.combat) return null;
+    if (!state || ui.showCharacterSelect || state.screen !== 'combat' || !state.combat) return null;
     const alive = getAliveEnemies(state.combat);
     if (ui.hoveredEnemyId) {
       const hovered = alive.find((e) => e.id === ui.hoveredEnemyId);
@@ -361,7 +387,7 @@ export function mountSpireApp(rootEl) {
   }
 
   function syncCombatTactics(override = null) {
-    if (state.screen !== 'combat' || !state.combat || ui.modal) {
+    if (!state || ui.showCharacterSelect || state.screen !== 'combat' || !state.combat || ui.modal) {
       clearCombatTacticsUI(rootEl);
       return;
     }
@@ -391,6 +417,23 @@ export function mountSpireApp(rootEl) {
     hideTooltip();
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
+
+    if (ui.showCharacterSelect || !state) {
+      const hasActiveRun = Boolean(state && state.screen !== 'game_over');
+      const previewCharId = normalizeCharacterId(ui.selectedCharacterId || meta.selectedCharacterId);
+      stageRoot.innerHTML = `
+        <div class="spire-shell" data-character="${escapeHtml(previewCharId)}">
+          ${renderCharacterSelectHeader({ hasActiveRun })}
+          <main class="stage-viewport">
+            ${renderCharacterSelectScreen({ meta, ui, hasActiveRun })}
+          </main>
+        </div>
+        ${renderModal({ state, meta, settings, ui })}
+      `;
+      clearCombatTacticsUI(rootEl);
+      return;
+    }
+
     persistRun(state);
 
     let mainHtml = '';
@@ -426,8 +469,9 @@ export function mountSpireApp(rootEl) {
         mainHtml = renderMapScreen({ state, settings, ui });
     }
 
+    const shellCharId = normalizeCharacterId(state.characterId);
     stageRoot.innerHTML = `
-      <div class="spire-shell">
+      <div class="spire-shell" data-character="${escapeHtml(shellCharId)}">
         ${renderTopHud({ state, ui })}
         <main class="stage-viewport">
           ${mainHtml}
@@ -469,6 +513,19 @@ export function mountSpireApp(rootEl) {
     }
   }
 
+  function executeDiscardHandCardWithFx(instanceId) {
+    if (!state || state.screen !== 'combat' || !state.combat?.pendingDiscard) return;
+    const prevSnap = fxManager.captureCombatSnapshot(state);
+    const res = runDiscardHandCard(state, instanceId);
+    clearCombatSelection();
+    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    render();
+    if (res.ok) {
+      soundEngine.play('card_skill');
+      fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
+    }
+  }
+
   function executePotionWithFx(slot, targetEnemyId) {
     const prevSnap = fxManager.captureCombatSnapshot(state);
     const res = runUsePotion(state, slot, targetEnemyId);
@@ -494,7 +551,11 @@ export function mountSpireApp(rootEl) {
   }
 
   function handleHandCardInteraction(instanceId) {
-    if (state.screen !== 'combat' || !state.combat) return;
+    if (!state || state.screen !== 'combat' || !state.combat) return;
+    if (state.combat.pendingDiscard) {
+      executeDiscardHandCardWithFx(instanceId);
+      return;
+    }
     const card = state.combat.hand.find((c) => c.instanceId === instanceId);
     if (!card) return;
 
@@ -522,7 +583,7 @@ export function mountSpireApp(rootEl) {
   }
 
   function handleEnemyClick(enemyId) {
-    if (state.screen !== 'combat' || !state.combat) return;
+    if (!state || state.screen !== 'combat' || !state.combat || state.combat.pendingDiscard) return;
 
     if (ui.selectedCardId) {
       executeCardPlayWithFx(ui.selectedCardId, enemyId);
@@ -534,40 +595,63 @@ export function mountSpireApp(rootEl) {
     }
   }
 
+  function launchRunForCharacter(characterId, overrides = {}) {
+    const safeChar = normalizeCharacterId(characterId || ui.selectedCharacterId || meta.selectedCharacterId);
+    meta.selectedCharacterId = safeChar;
+    saveMeta(meta);
+    ui.selectedCharacterId = safeChar;
+    ui.showCharacterSelect = false;
+    state = createNewRun(buildNewRunOptions({ characterId: safeChar, ...overrides }));
+    lastGameOverSummary = null;
+    ui.pendingChallenge = null;
+    ui.modal = null;
+    ui.seedInput = '';
+    clearCombatSelection();
+  }
+
   function startChallengeRun(spec) {
     const targetAsc = Number.isFinite(Number(spec?.ascension))
       ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(Number(spec.ascension))))
       : 0;
-    state = createNewRun(
-      buildNewRunOptions({
-        seed: spec.seed,
-        ascension: targetAsc,
-        unlockAllOverride: true,
-        isChallengeRun: true,
-      })
+    const targetChar = normalizeCharacterId(
+      spec?.characterId || ui.selectedCharacterId || meta.selectedCharacterId
     );
-    lastGameOverSummary = null;
-    ui.pendingChallenge = null;
-    ui.modal = null;
-    clearCombatSelection();
+    const targetCharDef = getCharacterDef(targetChar);
+    launchRunForCharacter(targetChar, {
+      seed: spec.seed,
+      ascension: targetAsc,
+      unlockAllOverride: true,
+      isChallengeRun: true,
+    });
     soundEngine.play('upgrade');
     setNotice(
-      `已进入好友种子挑战【${formatSeedCode(state.seed)} · 进阶 ${state.ascension}】（全图鉴临时对齐，不修改生涯解锁进度）！`
+      `已进入好友种子挑战【${targetCharDef.name} · ${formatSeedCode(state.seed)} · 进阶 ${state.ascension}】（全图鉴临时对齐，不修改生涯解锁进度）！`
     );
     render();
   }
 
-  function copySeedToClipboard(seedCode, ascensionOverride = null) {
-    const parsedSeed = parseSeedInput(seedCode) ?? state.seed;
+  function copySeedToClipboard(seedCode, ascensionOverride = null, characterIdOverride = null) {
+    const parsedSeed = parseSeedInput(seedCode) ?? state?.seed;
+    if (parsedSeed === undefined || parsedSeed === null) return;
     const code = formatSeedCode(parsedSeed);
     const ascVal =
       ascensionOverride !== null && ascensionOverride !== undefined && ascensionOverride !== ''
         ? Number(ascensionOverride)
-        : state.ascension ?? 0;
+        : state?.ascension ?? 0;
     const safeAsc = Number.isFinite(ascVal)
       ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(ascVal)))
       : 0;
-    const shareUrl = buildChallengeUrl(window.location?.href || '', parsedSeed, safeAsc, MAX_ASCENSION);
+    const charId = normalizeCharacterId(
+      characterIdOverride || state?.characterId || ui.selectedCharacterId
+    );
+    const charDef = getCharacterDef(charId);
+    const shareUrl = buildChallengeUrl(
+      window.location?.href || '',
+      parsedSeed,
+      safeAsc,
+      MAX_ASCENSION,
+      charId
+    );
     try {
       if (navigator.clipboard?.writeText) {
         Promise.resolve(navigator.clipboard.writeText(shareUrl)).catch(() => {});
@@ -577,40 +661,57 @@ export function mountSpireApp(rootEl) {
     }
     ui.seedInput = shareUrl;
     soundEngine.play('ui_click');
-    setNotice(`已复制挑战链接（种子 ${code} · 进阶 ${safeAsc}）：${shareUrl}`);
+    setNotice(`已复制挑战链接（${charDef.name} · 种子 ${code} · 进阶 ${safeAsc}）：${shareUrl}`);
     render();
   }
 
-  function startSeededRunFromInput() {
-    const inputEl = rootEl.querySelector('#seed-input-box');
+  function startSeededRunFromInput(inputSelector = '#seed-input-box') {
+    const inputEl = rootEl.querySelector(inputSelector);
     const rawVal = inputEl ? inputEl.value : ui.seedInput;
     ui.seedInput = rawVal || '';
     const parsed = parseChallengeInput(rawVal, MAX_ASCENSION);
     if (!parsed) {
       soundEngine.play('ui_click');
       if (inputEl) inputEl.focus();
-      return;
+      return false;
     }
+    const fallbackChar = normalizeCharacterId(
+      ui.showCharacterSelect
+        ? ui.selectedCharacterId
+        : state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId
+    );
     if (parsed.isUrlLike) {
       startChallengeRun({
         seed: parsed.seed,
         ascension: parsed.ascension ?? meta.selectedAscension ?? 0,
+        characterId: parsed.characterId || fallbackChar,
       });
+      return true;
+    }
+    launchRunForCharacter(fallbackChar, { seed: parsed.seed });
+    soundEngine.play('upgrade');
+    setNotice(`已按指定种子【${getCharacterDef(fallbackChar).name} · ${formatSeedCode(state.seed)}】开启新的一局！`);
+    render();
+    return true;
+  }
+
+  function startCharacterSelectRun() {
+    const seedEl = rootEl.querySelector('#char-seed-input');
+    const rawSeed = (seedEl ? seedEl.value : ui.seedInput || '').trim();
+    if (rawSeed) {
+      startSeededRunFromInput('#char-seed-input');
       return;
     }
-    state = createNewRun(buildNewRunOptions({ seed: parsed.seed }));
-    lastGameOverSummary = null;
-    ui.modal = null;
-    clearCombatSelection();
+    launchRunForCharacter(ui.selectedCharacterId);
     soundEngine.play('upgrade');
-    setNotice(`已按指定种子【${formatSeedCode(state.seed)}】开启新的一局！`);
+    setNotice('');
     render();
   }
 
   function dismissActiveModal() {
     if (!ui.modal) return;
     if (ui.modal === 'neow_action') {
-      if (state.neowState?.pendingAction?.allowCancel) {
+      if (state?.neowState?.pendingAction?.allowCancel) {
         cancelNeowAction(state);
         ui.modal = null;
         soundEngine.play('ui_click');
@@ -632,7 +733,7 @@ export function mountSpireApp(rootEl) {
   const dragController = createCombatDragController({
     rootEl,
     dragLayerEl,
-    getState: () => state,
+    getState: () => (ui.showCharacterSelect ? null : state),
     getUi: () => ui,
     hideTooltip,
     onPlayCard: (instanceId, targetEnemyId) => executeCardPlayWithFx(instanceId, targetEnemyId),
@@ -676,13 +777,43 @@ export function mountSpireApp(rootEl) {
     }
 
     switch (action) {
-      case 'new-run':
-      case 'start-ascension-run': {
-        state = createNewRun(buildNewRunOptions());
-        lastGameOverSummary = null;
-        ui.pendingChallenge = null;
+      case 'select-character': {
+        const nextChar = normalizeCharacterId(target.dataset.characterId);
+        ui.selectedCharacterId = nextChar;
+        meta.selectedCharacterId = nextChar;
+        saveMeta(meta);
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'start-character-run': {
+        startCharacterSelectRun();
+        break;
+      }
+      case 'resume-active-run': {
+        if (state && state.screen !== 'game_over') {
+          ui.showCharacterSelect = false;
+          ui.modal = null;
+          soundEngine.play('ui_click');
+          setNotice('');
+          render();
+        }
+        break;
+      }
+      case 'new-run': {
+        ui.selectedCharacterId = state?.characterId || meta.selectedCharacterId || 'ironclad';
+        ui.showCharacterSelect = true;
         ui.modal = null;
+        ui.seedInput = '';
         clearCombatSelection();
+        soundEngine.play('ui_click');
+        setNotice('');
+        render();
+        break;
+      }
+      case 'start-ascension-run': {
+        const activeChar = state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId;
+        launchRunForCharacter(activeChar);
         soundEngine.play('ui_click');
         setNotice('');
         render();
@@ -706,7 +837,7 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'start-seeded-run': {
-        startSeededRunFromInput();
+        startSeededRunFromInput('#seed-input-box');
         break;
       }
       case 'replay-history-seed': {
@@ -716,24 +847,24 @@ export function mountSpireApp(rootEl) {
         const safeAsc = Number.isFinite(reqAsc)
           ? Math.max(0, Math.min(maxAllowed, Math.floor(reqAsc)))
           : 0;
+        const reqChar = normalizeCharacterId(target.dataset.characterId || state?.characterId);
         meta.selectedAscension = safeAsc;
         saveMeta(meta);
-        state = createNewRun(
-          buildNewRunOptions({
-            seed: seedVal ?? undefined,
-            ascension: safeAsc,
-          })
-        );
-        lastGameOverSummary = null;
-        ui.modal = null;
-        clearCombatSelection();
+        launchRunForCharacter(reqChar, {
+          seed: seedVal ?? undefined,
+          ascension: safeAsc,
+        });
         soundEngine.play('upgrade');
-        setNotice(`已按种子【${formatSeedCode(state.seed)}】开启同图挑战！`);
+        setNotice(`已按种子【${getCharacterDef(reqChar).name} · ${formatSeedCode(state.seed)}】开启同图挑战！`);
         render();
         break;
       }
       case 'copy-seed': {
-        copySeedToClipboard(target.dataset.seedCode, target.dataset.ascension);
+        copySeedToClipboard(
+          target.dataset.seedCode,
+          target.dataset.ascension,
+          target.dataset.characterId
+        );
         break;
       }
       case 'choose-neow': {
@@ -925,6 +1056,10 @@ export function mountSpireApp(rootEl) {
       }
       case 'click-hand-card': {
         handleHandCardInteraction(target.dataset.instanceId);
+        break;
+      }
+      case 'discard-hand-card': {
+        executeDiscardHandCardWithFx(target.dataset.instanceId);
         break;
       }
       case 'click-enemy': {
@@ -1199,7 +1334,10 @@ export function mountSpireApp(rootEl) {
       if (resultsEl) {
         resultsEl.innerHTML = renderGlossaryItemsHtml(ui);
       }
-    } else if (target.id === 'seed-input-box' && target instanceof HTMLInputElement) {
+    } else if (
+      (target.id === 'seed-input-box' || target.id === 'char-seed-input') &&
+      target instanceof HTMLInputElement
+    ) {
       ui.seedInput = target.value;
     }
   });
@@ -1234,6 +1372,8 @@ export function mountSpireApp(rootEl) {
     } else {
       hideTooltip();
     }
+
+    if (!state || ui.showCharacterSelect) return;
 
     if (state.screen === 'map') {
       const mapBtn = targetEl ? targetEl.closest('.map-node-btn[data-node-id]') : null;
@@ -1271,6 +1411,7 @@ export function mountSpireApp(rootEl) {
         const desc = formatCardDescription(selectedCard, {
           player: state.player,
           targetEnemy: getPreviewTargetEnemy(),
+          combat: state.combat,
         });
         cardEl.textContent = desc.text;
         cardEl.classList.toggle('boosted', desc.damageState === 'boosted' || desc.blockState === 'boosted');
@@ -1302,7 +1443,7 @@ export function mountSpireApp(rootEl) {
     if (tipAnchor) {
       showTooltip(tipAnchor);
     }
-    if (state.screen === 'combat' && state.combat) {
+    if (state && !ui.showCharacterSelect && state.screen === 'combat' && state.combat) {
       const handCardEl = targetEl ? targetEl.closest('#hand-tray .game-card[data-instance-id]') : null;
       if (handCardEl) {
         ui.hoveredCardId = handCardEl.dataset.instanceId;
@@ -1330,9 +1471,30 @@ export function mountSpireApp(rootEl) {
   });
 
   rootEl.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.id === 'seed-input-box') {
+    if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+      if (event.target.id === 'seed-input-box') {
+        event.preventDefault();
+        startSeededRunFromInput('#seed-input-box');
+        return;
+      }
+      if (event.target.id === 'char-seed-input') {
+        event.preventDefault();
+        startCharacterSelectRun();
+        return;
+      }
+    }
+
+    if (
+      (event.key === 'Enter' || event.key === ' ') &&
+      event.target?.matches('[role="button"][data-action="select-character"]')
+    ) {
       event.preventDefault();
-      startSeededRunFromInput();
+      const nextChar = normalizeCharacterId(event.target.dataset.characterId);
+      ui.selectedCharacterId = nextChar;
+      meta.selectedCharacterId = nextChar;
+      saveMeta(meta);
+      soundEngine.play('ui_click');
+      render();
       return;
     }
 
@@ -1345,7 +1507,7 @@ export function mountSpireApp(rootEl) {
     }
   });
 
-  // Keyboard shortcuts: 1-9 play/select hand cards, E ends turn, D opens deck, H/? opens help, Escape cancels
+  // Keyboard shortcuts: 1-9 play/select/discard hand cards, E ends turn, D opens deck, H/? opens help, Escape cancels
   window.addEventListener('keydown', (event) => {
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
       if (event.key === 'Escape' && ui.modal) {
@@ -1371,8 +1533,10 @@ export function mountSpireApp(rootEl) {
     if (ui.modal) return;
 
     if (event.key === 'd' || event.key === 'D') {
-      ui.modal = 'deck';
-      render();
+      if (state && !ui.showCharacterSelect) {
+        ui.modal = 'deck';
+        render();
+      }
       return;
     }
 
@@ -1382,8 +1546,8 @@ export function mountSpireApp(rootEl) {
       return;
     }
 
-    if (state.screen === 'combat' && state.combat?.phase === 'player') {
-      if (event.key === 'e' || event.key === 'E') {
+    if (state && !ui.showCharacterSelect && state.screen === 'combat' && state.combat?.phase === 'player') {
+      if ((event.key === 'e' || event.key === 'E') && !state.combat.pendingDiscard) {
         event.preventDefault();
         executeEndTurnWithFx();
         return;
@@ -1404,6 +1568,7 @@ export function mountSpireApp(rootEl) {
     getState: () => state,
     getMeta: () => meta,
     getSettings: () => settings,
+    isCharacterSelect: () => Boolean(ui.showCharacterSelect || !state),
     render,
     openModal: (modalName) => {
       ui.modal = modalName;

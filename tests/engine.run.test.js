@@ -778,7 +778,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 8);
+  assert.equal(BOSS_RELIC_IDS.length, 10);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -910,4 +910,89 @@ test('URL Seeded Challenge: buildChallengeUrl, parseChallengeInput (URL/query/se
   assert.equal(lowRec.unlockedAscension, 1);
   assert.equal(freshMeta.maxAscensionUnlocked, 1);
 });
+
+test('The Silent run setup: 70 HP (65 Asc 4), 12-card deck, Ring of the Snake (+2 T1 draw) -> Ring of the Serpent (+1/turn), strict character pool isolation, Silent Neow Boss Swap, and ?char=silent URL challenge', () => {
+  const silentRun = createNewRun({ seed: 'S-SILENT', characterId: 'silent', unlockAllOverride: true });
+  assert.equal(silentRun.characterId, 'silent');
+  assert.equal(silentRun.player.name, '静默猎手');
+  assert.equal(silentRun.player.artKey, 'silent');
+  assert.equal(silentRun.player.hp, 70);
+  assert.equal(silentRun.player.maxHp, 70);
+  assert.deepEqual(silentRun.player.relics, ['ring_of_the_snake']);
+  assert.equal(silentRun.player.potions[0], 'poison_potion');
+  assert.equal(silentRun.player.deck.length, 12);
+  assert.equal(silentRun.player.deck.filter((c) => c.cardId === 'neutralize').length, 1);
+  assert.equal(silentRun.player.deck.filter((c) => c.cardId === 'survivor').length, 1);
+
+  const silentAsc4 = createNewRun({ seed: 'S-SILENT', characterId: 'silent', ascension: 4, skipNeow: true });
+  assert.equal(silentAsc4.player.maxHp, 65);
+
+  // Ring of the Snake draws 7 on Turn 1; replacing with Ring of the Serpent draws 6 every turn!
+  const mapStart = silentAsc4.map[0][0].id;
+  assert.equal(selectMapNode(silentAsc4, mapStart).ok, true);
+  assert.equal(silentAsc4.combat.hand.length, 7, 'Ring of the Snake must draw 7 cards on Turn 1');
+
+  assert.equal(grantRelicToPlayer(silentAsc4, 'ring_of_the_serpent'), true);
+  assert.equal(silentAsc4.player.relics.includes('ring_of_the_snake'), false, 'Ring of the Serpent must replace Ring of the Snake');
+  assert.equal(silentAsc4.player.relics.includes('ring_of_the_serpent'), true);
+
+  // Silent reward cards NEVER contain Ironclad cards or special token Shiv
+  for (let i = 0; i < 20; i += 1) {
+    const offers = rollRewardCards(silentRun, 3, i % 2 === 0 ? 'normal' : 'elite');
+    for (const card of offers) {
+      const def = CARD_LIBRARY[card.cardId];
+      assert.equal(def.character, 'silent', `Silent reward leaked non-silent card ${def.id}`);
+      assert.notEqual(def.rarity, 'special', 'Shiv token must never appear in reward pools');
+    }
+  }
+
+  // Ironclad reward cards NEVER contain Silent cards
+  const ironRun = createNewRun({ seed: 7007, characterId: 'ironclad', unlockAllOverride: true, skipNeow: true });
+  for (let i = 0; i < 20; i += 1) {
+    const offers = rollRewardCards(ironRun, 3, 'normal');
+    for (const card of offers) {
+      const def = CARD_LIBRARY[card.cardId];
+      assert.notEqual(def.character, 'silent', `Ironclad reward leaked Silent card ${def.id}`);
+    }
+  }
+
+  // Silent Neow Boss Swap removes ring_of_the_snake, never rolls black_blood or ring_of_the_serpent, and Act 1 Boss Altar filters out black_blood & ring_of_the_serpent
+  for (let s = 1; s <= 30; s += 1) {
+    const swapSilent = createNewRun({ seed: 9500 + s, characterId: 'silent', unlockAllOverride: true });
+    assert.ok(swapSilent.neowState.options[3].title.includes('蛇之戒指'));
+    const res = chooseNeowOption(swapSilent, 'boss_swap');
+    assert.equal(res.ok, true);
+    assert.equal(swapSilent.player.relics.includes('ring_of_the_snake'), false);
+    assert.equal(swapSilent.player.relics.includes('ring_of_the_serpent'), false);
+    assert.equal(swapSilent.player.relics.includes('black_blood'), false);
+
+    swapSilent.combat = { role: 'boss' };
+    transitionCombatVictory(swapSilent);
+    assert.equal(swapSilent.bossReward.relicChoices.includes('ring_of_the_serpent'), false);
+    assert.equal(swapSilent.bossReward.relicChoices.includes('black_blood'), false);
+    for (const rc of swapSilent.bossReward.cardChoices) {
+      assert.equal(CARD_LIBRARY[rc.cardId].character, 'silent');
+      assert.equal(CARD_LIBRARY[rc.cardId].rarity, 'rare');
+    }
+  }
+
+  // URL challenge round-trip with ?char=silent
+  const url = buildChallengeUrl('https://lishiyi.github.io/card-game/', 4242, 2, 5, 'silent');
+  assert.ok(url.includes('char=silent'));
+  const parsed = parseChallengeInput(url, 5);
+  assert.equal(parsed.seed, 4242);
+  assert.equal(parsed.ascension, 2);
+  assert.equal(parsed.characterId, 'silent');
+  assert.equal(parsed.isUrlLike, true);
+
+  // Meta run history preserves characterId & characterName
+  const meta = createDefaultMeta();
+  silentRun.floor = 10;
+  silentRun.stats.floorsCleared = 10;
+  silentRun.runOutcome = 'victory';
+  recordCompletedRun(meta, silentRun);
+  assert.equal(meta.runHistory[0].characterId, 'silent');
+  assert.equal(meta.runHistory[0].characterName, '静默猎手');
+});
+
 

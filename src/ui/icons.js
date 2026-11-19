@@ -37,6 +37,49 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'silent':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="sl-cloak" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(154, 48%, 32%)" />
+              <stop offset="100%" stop-color="hsl(164, 46%, 14%)" />
+            </linearGradient>
+            <linearGradient id="sl-blade" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(156, 30%, 88%)" />
+              <stop offset="100%" stop-color="hsl(168, 20%, 48%)" />
+            </linearGradient>
+            <linearGradient id="sl-venom" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(132, 92%, 62%)" />
+              <stop offset="100%" stop-color="hsl(148, 84%, 40%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="38" ry="7" fill="hsla(0,0%,0%,0.48)" />
+          <!-- Flowing dark assassin mantle -->
+          <path d="M36 44 Q18 68 20 102 L48 96 L60 103 L74 96 L96 100 Q92 64 80 44 Z" fill="url(#sl-cloak)" stroke="hsl(152, 42%, 44%)" stroke-width="1.8" />
+          <!-- Inner cowl & leather harness -->
+          <path d="M40 48 Q60 40 78 48 L74 94 L44 94 Z" fill="hsl(168, 34%, 13%)" />
+          <path d="M44 54 L76 80 M76 54 L44 80" stroke="hsl(32, 34%, 42%)" stroke-width="2.4" opacity="0.8" />
+          <!-- Hood -->
+          <path d="M36 42 Q40 14 60 12 Q80 14 84 42 Q72 52 60 52 Q48 52 36 42 Z" fill="url(#sl-cloak)" stroke="hsl(150, 48%, 48%)" stroke-width="1.8" />
+          <!-- Pale bone skull hunter mask & horns -->
+          <path d="M48 20 Q38 8 34 17 Q41 25 48 27 Z" fill="hsl(42, 26%, 82%)" />
+          <path d="M72 20 Q82 8 86 17 Q79 25 72 27 Z" fill="hsl(42, 26%, 82%)" />
+          <path d="M45 25 Q60 18 75 25 L72 44 Q60 49 48 44 Z" fill="hsl(42, 24%, 84%)" stroke="hsl(160, 26%, 18%)" stroke-width="1.8" />
+          <!-- Glowing jade eye slits -->
+          <path d="M49 33 L57 35 L51 38 Z" fill="hsl(142, 95%, 58%)" />
+          <path d="M71 33 L63 35 L69 38 Z" fill="hsl(142, 95%, 58%)" />
+          <!-- Left curved venom dagger -->
+          <path d="M16 56 Q24 44 38 56 L30 64 Q22 58 16 56 Z" fill="url(#sl-blade)" stroke="hsl(162, 28%, 22%)" stroke-width="1.3" />
+          <path d="M16 56 Q22 51 28 55" stroke="url(#sl-venom)" stroke-width="2.6" stroke-linecap="round" fill="none" />
+          <circle cx="19" cy="64" r="2.2" fill="hsl(134, 92%, 58%)" />
+          <!-- Right curved venom dagger -->
+          <path d="M104 46 Q94 34 82 54 L90 60 Q98 52 104 46 Z" fill="url(#sl-blade)" stroke="hsl(162, 28%, 22%)" stroke-width="1.3" />
+          <path d="M104 46 Q96 42 90 50" stroke="url(#sl-venom)" stroke-width="2.6" stroke-linecap="round" fill="none" />
+          <circle cx="99" cy="57" r="2.4" fill="hsl(134, 92%, 58%)" />
+        </svg>
+      `;
+
     case 'cultist':
       return `
         <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">

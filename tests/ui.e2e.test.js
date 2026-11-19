@@ -186,6 +186,23 @@ async function createCdpClient(pageWsUrl) {
   return { ws, send, evaluate, events };
 }
 
+async function launchHeroFromCharacterSelect(cdp, characterId = 'ironclad') {
+  const launched = await cdp.evaluate(`(() => {
+    const screen = document.getElementById('character-select-screen');
+    if (!screen) return false;
+    const card = document.getElementById('char-card-${characterId}');
+    if (card && !card.classList.contains('selected')) {
+      card.click();
+    }
+    const startBtn = document.getElementById('btn-start-character-run');
+    if (startBtn) startBtn.click();
+    return true;
+  })()`);
+  if (launched) {
+    await new Promise((r) => setTimeout(r, 80));
+  }
+}
+
 test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> potion -> end turn -> new run with zero console/page errors', async (t) => {
   if (!resolveBrowserBinary()) {
     t.skip('Chromium/Chrome binary not available');
@@ -216,6 +233,7 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Verify SEO, 3 starter potion slots, 16-Floor Map Bezier curve routes, and distinct monster icons for Combat vs Elite
     const initialAudit = await cdp.evaluate(`(() => {
@@ -399,6 +417,7 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     async function hoverSelector(selector) {
       const pt = await cdp.evaluate(`(() => {
@@ -807,6 +826,7 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Audit 3-4 col map, zero F1-F5 Elites, and Floor 9 Treasure Chest icon
     const mapAudit = await cdp.evaluate(`(() => {
@@ -994,6 +1014,7 @@ test('P2 Real Chromium E2E: @keyframes FX & shield shatter, Settings modal, Glos
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Verify @keyframes animations exist in stylesheet & newbie banner shows on Floor 0
     const cssAndBannerAudit = await cdp.evaluate(`(() => {
@@ -1182,6 +1203,7 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Mobile 390x844 Map viewport audit: zero page horizontal overflow, compact node labels visible, zero overlapping nodes
     const mobileMapAudit = await cdp.evaluate(`(() => {
@@ -1387,13 +1409,18 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
 
     const standaloneAudit = await cdp.evaluate(`(() => {
       const hasApp = Boolean(window.__SPIRE_APP__);
+      const hasCharSelect = Boolean(document.getElementById('character-select-screen'));
+      if (hasCharSelect) {
+        document.getElementById('btn-start-character-run').click();
+      }
       const rowCount = document.querySelectorAll('.map-row').length;
       document.getElementById('btn-open-settings').click();
       const hasSettings = Boolean(document.getElementById('settings-modal'));
       document.getElementById('btn-close-modal').click();
-      return { hasApp, rowCount, hasSettings };
+      return { hasApp, hasCharSelect, rowCount, hasSettings };
     })()`);
     assert.equal(standaloneAudit.hasApp, true);
+    assert.equal(standaloneAudit.hasCharSelect, true);
     assert.equal(standaloneAudit.rowCount, 16);
     assert.equal(standaloneAudit.hasSettings, true);
 
@@ -1439,6 +1466,7 @@ test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seed
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Floor 0 Neow's Blessing panel renders above map, locks Floor 1, warns on clicking locked F1, supports cancelable deck picker & Boss Swap
     const neowStartAudit = await cdp.evaluate(`(() => {
@@ -1655,6 +1683,7 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
     // 1. Treasure Room prominent loot plaque matching battle gold reward style
     const treasureAudit = await cdp.evaluate(`(() => {
@@ -1950,6 +1979,368 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 3 archetypes (Poison-Lethal, Shivs, Interactive Discard), Resume Active Run, and ?char=silent URL Challenge', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    // 1. Fresh load lands on Character Select screen with Ironclad & Silent showcase cards
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const charSelectAudit = await cdp.evaluate(`(() => {
+      const screen = document.getElementById('character-select-screen');
+      const ironcladCard = document.getElementById('char-card-ironclad');
+      const silentCard = document.getElementById('char-card-silent');
+      const startBtn = document.getElementById('btn-start-character-run');
+      const hasResumeBeforeRun = Boolean(document.getElementById('btn-resume-active-run'));
+      return {
+        hasScreen: Boolean(screen),
+        hasIronclad: Boolean(ironcladCard),
+        hasSilent: Boolean(silentCard),
+        ironcladSelectedInitially: ironcladCard?.classList.contains('selected') ?? false,
+        silentSelectedInitially: silentCard?.classList.contains('selected') ?? false,
+        startBtnTextBefore: startBtn?.textContent?.trim() || '',
+        hasResumeBeforeRun,
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    })()`);
+    assert.equal(charSelectAudit.hasScreen, true, 'Fresh load must render Character Select screen');
+    assert.equal(charSelectAudit.hasIronclad, true);
+    assert.equal(charSelectAudit.hasSilent, true);
+    assert.equal(charSelectAudit.ironcladSelectedInitially, true);
+    assert.equal(charSelectAudit.silentSelectedInitially, false);
+    assert.equal(charSelectAudit.hasResumeBeforeRun, false);
+    assert.ok(charSelectAudit.startBtnTextBefore.includes('铁甲战士'));
+    assert.ok(charSelectAudit.docScrollWidth <= charSelectAudit.innerWidth);
+
+    // Select The Silent & capture Desktop Character Select screenshot
+    await cdp.evaluate(`document.getElementById('char-card-silent').click()`);
+    const silentSelectedAudit = await cdp.evaluate(`(() => {
+      const silentCard = document.getElementById('char-card-silent');
+      const shellChar = document.querySelector('.spire-shell')?.dataset?.character || '';
+      const startBtnText = document.getElementById('btn-start-character-run')?.textContent?.trim() || '';
+      return {
+        selected: silentCard?.classList.contains('selected') ?? false,
+        cardText: silentCard?.textContent || '',
+        shellChar,
+        startBtnText,
+      };
+    })()`);
+    assert.equal(silentSelectedAudit.selected, true);
+    assert.equal(silentSelectedAudit.shellChar, 'silent');
+    assert.ok(silentSelectedAudit.startBtnText.includes('静默猎手'));
+    assert.ok(silentSelectedAudit.cardText.includes('蛇之戒指'));
+    assert.ok(silentSelectedAudit.cardText.includes('剧毒药水'));
+    assert.ok(silentSelectedAudit.cardText.includes('12 张'));
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotCharDesktop = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'char_select_desktop.png'),
+        Buffer.from(shotCharDesktop.data, 'base64')
+      );
+    }
+
+    // 2. Launch Silent run -> verify HUD, starter gear, 12-card deck, Neow Boss Swap text, and HUD Switch-Hero + Resume
+    await cdp.evaluate(`document.getElementById('btn-start-character-run').click()`);
+    const silentHudAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const neowBossSwap = document.getElementById('neow-choice-3')?.textContent || '';
+      const relicText = document.querySelector('.relic-badge')?.textContent?.trim() || '';
+      const potionTitle = document.getElementById('potion-slot-0')?.parentElement?.dataset?.tooltipTitle || '';
+      return {
+        characterId: st.characterId,
+        heroName: st.player.name,
+        hp: st.player.hp,
+        maxHp: st.player.maxHp,
+        deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim() || '',
+        heroBadgeText: document.getElementById('hud-character-pill')?.textContent?.trim() || '',
+        relicText,
+        potionTitle,
+        neowBossSwap,
+      };
+    })()`);
+    assert.equal(silentHudAudit.characterId, 'silent');
+    assert.equal(silentHudAudit.heroName, '静默猎手');
+    assert.equal(silentHudAudit.hp, 70);
+    assert.equal(silentHudAudit.maxHp, 70);
+    assert.equal(silentHudAudit.deckBtnText, '牌组 (12)');
+    assert.equal(silentHudAudit.heroBadgeText, '静默猎手');
+    assert.equal(silentHudAudit.relicText, '蛇之戒指');
+    assert.equal(silentHudAudit.potionTitle, '剧毒药水');
+    assert.ok(silentHudAudit.neowBossSwap.includes('蛇之戒指'), `Expected Silent Boss Swap text, got: ${silentHudAudit.neowBossSwap}`);
+
+    // Click HUD "切换角色 / 新开局" -> verifies active run is preserved behind "← 返回当前对局"
+    const resumeAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-new-run').click();
+      const onCharSelect = Boolean(document.getElementById('character-select-screen'));
+      const hasResumeBtn = Boolean(document.getElementById('btn-resume-active-run'));
+      document.getElementById('btn-resume-active-run').click();
+      const resumedMap = Boolean(document.getElementById('map-node-f1_c0'));
+      const stillSilent = window.__SPIRE_APP__.getState().characterId === 'silent';
+      return { onCharSelect, hasResumeBtn, resumedMap, stillSilent };
+    })()`);
+    assert.equal(resumeAudit.onCharSelect, true);
+    assert.equal(resumeAudit.hasResumeBtn, true);
+    assert.equal(resumeAudit.resumedMap, true);
+    assert.equal(resumeAudit.stillSilent, true);
+
+    // 3. Resolve Neow Blessing & enter Floor 1 Combat -> verify Turn 1 draws 7 cards (Ring of the Snake) + Silent SVG portrait
+    const silentCombatStartAudit = await cdp.evaluate(`(() => {
+      document.getElementById('neow-choice-0').click();
+      if (document.getElementById('neow-action-modal')) {
+        document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
+      }
+      document.getElementById('map-node-f1_c0').click();
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        screen: st.screen,
+        handCount: document.querySelectorAll('#hand-tray .game-card').length,
+        playerName: document.querySelector('#player-unit .unit-name-text')?.textContent?.trim() || '',
+        hasSilentPortraitSvg: Boolean(document.querySelector('#player-unit .unit-figure svg')),
+      };
+    })()`);
+    assert.equal(silentCombatStartAudit.screen, 'combat');
+    assert.equal(silentCombatStartAudit.handCount, 7, 'Ring of the Snake must draw 7 cards on Turn 1');
+    assert.equal(silentCombatStartAudit.playerName, '静默猎手');
+    assert.equal(silentCombatStartAudit.hasSilentPortraitSvg, true);
+
+    const getCenter = async (selector) =>
+      cdp.evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      })()`);
+
+    // 4. Poison-Lethal preview (☠ 毒杀) with Catalyst+ over a 20 HP / 7 Poison enemy
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.combat.enemies = [st.combat.enemies[0]];
+      const enemy = st.combat.enemies[0];
+      enemy.id = 'silent_poison_target';
+      enemy.name = '邪教徒';
+      enemy.hp = 20;
+      enemy.maxHp = 48;
+      enemy.block = 0;
+      enemy.statuses = { poison: 7 };
+      enemy.intent = { id: 'stab', name: '重击', type: 'attack', damage: 15, hits: 1 };
+      st.player.energy = 3;
+      st.combat.hand = [
+        { instanceId: 'sil_cat_plus', cardId: 'catalyst', upgraded: true }, // 7 x 3 = 21 >= 20 -> ☠ 毒杀!
+        { instanceId: 'sil_blade_dance', cardId: 'blade_dance', upgraded: false },
+        { instanceId: 'sil_survivor', cardId: 'survivor', upgraded: false },
+        { instanceId: 'sil_tactician', cardId: 'tactician', upgraded: false },
+        { instanceId: 'sil_strike', cardId: 'strike', upgraded: false },
+      ];
+      app.render();
+    })()`);
+    await new Promise((r) => setTimeout(r, 420));
+
+    const catPos = await getCenter('#hand-card-sil_cat_plus');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: catPos.x, y: catPos.y });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const poisonLethalAudit = await cdp.evaluate(`(() => ({
+      hasPoisonLethalBadge: Boolean(
+        document.querySelector('[data-preview-badges="silent_poison_target"] [data-preview-kind="poison-lethal"]')
+      ),
+      badgeText:
+        document.querySelector('[data-preview-badges="silent_poison_target"] [data-preview-kind="poison-lethal"]')?.textContent?.trim() || '',
+      hasPoisonCut:
+        document.querySelector('[data-preview-cut="silent_poison_target"]')?.classList.contains('poison-cut') ?? false,
+      poisonChipGlow:
+        document.querySelector('#enemy-unit-silent_poison_target .status-chip[data-status-key="poison"]')?.classList.contains('synergy-glow-buff') ?? false,
+    }))()`);
+    assert.equal(poisonLethalAudit.hasPoisonLethalBadge, true, 'Hovering Catalyst+ must render Poison-Lethal badge');
+    assert.ok(poisonLethalAudit.badgeText.includes('毒杀'));
+    assert.equal(poisonLethalAudit.hasPoisonCut, true, 'HP bar must show emerald .poison-cut preview');
+    assert.equal(poisonLethalAudit.poisonChipGlow, true, 'Poison status chip must glow with Catalyst synergy');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotPoison = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'silent_poison_lethal.png'),
+        Buffer.from(shotPoison.data, 'base64')
+      );
+    }
+
+    // 5. Play Blade Dance -> 3x Shiv (rarity-special), then play Survivor -> Interactive Manual Discard Mode + Tactician highlight!
+    const shivAndDiscardAudit = await cdp.evaluate(`(() => {
+      document.getElementById('hand-card-sil_blade_dance').click();
+      const shivCards = [...document.querySelectorAll('#hand-tray .game-card[data-rarity="special"]')];
+
+      document.getElementById('hand-card-sil_survivor').click();
+      const banner = document.getElementById('combat-banner');
+      const handTray = document.getElementById('hand-tray');
+      const endTurnDisabled = document.getElementById('btn-end-turn')?.disabled === true;
+      const tacticianEl = document.getElementById('hand-card-sil_tactician');
+
+      return {
+        shivCount: shivCards.length,
+        hasDiscardPromptBanner: banner?.classList.contains('discard-prompt') ?? false,
+        bannerText: banner?.textContent?.trim() || '',
+        handSelectingDiscard: handTray?.classList.contains('discard-selecting') ?? false,
+        endTurnDisabled,
+        tacticianDiscardSelectable: tacticianEl?.classList.contains('discard-selectable') ?? false,
+        tacticianDiscardSynergy: tacticianEl?.classList.contains('discard-synergy-card') ?? false,
+        energyBeforeDiscard: window.__SPIRE_APP__.getState().player.energy,
+      };
+    })()`);
+    assert.equal(shivAndDiscardAudit.shivCount, 3, 'Blade Dance must add 3 special Shiv cards to hand');
+    assert.equal(shivAndDiscardAudit.hasDiscardPromptBanner, true);
+    assert.ok(shivAndDiscardAudit.bannerText.includes('请选择 1 张手牌弃置'));
+    assert.equal(shivAndDiscardAudit.handSelectingDiscard, true);
+    assert.equal(shivAndDiscardAudit.endTurnDisabled, true, 'End Turn must be disabled during pendingDiscard');
+    assert.equal(shivAndDiscardAudit.tacticianDiscardSelectable, true);
+    assert.equal(shivAndDiscardAudit.tacticianDiscardSynergy, true, 'Tactician must highlight as discard synergy');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotDiscard = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'silent_discard_mode.png'),
+        Buffer.from(shotDiscard.data, 'base64')
+      );
+    }
+
+    // Click Tactician to discard it -> gains +1 energy & exits pendingDiscard cleanly, then cast Catalyst+ & End Turn to verify Poison-Lethal kills enemy!
+    const afterDiscardAndPoisonWin = await cdp.evaluate(`(() => {
+      document.getElementById('hand-card-sil_tactician').click();
+      const st = window.__SPIRE_APP__.getState();
+      const energyAfterDiscard = st.player.energy;
+      const pendingAfterDiscard = st.combat.pendingDiscard;
+
+      const hpBeforeEndTurn = st.player.hp;
+      document.getElementById('hand-card-sil_cat_plus').click();
+      document.getElementById('btn-end-turn').click();
+      return {
+        energyAfterDiscard,
+        pendingAfterDiscard,
+        hpBeforeEndTurn,
+        hpAfterEndTurn: st.player.hp,
+        screenAfterPoisonKill: st.screen,
+      };
+    })()`);
+    assert.equal(
+      afterDiscardAndPoisonWin.energyAfterDiscard,
+      shivAndDiscardAudit.energyBeforeDiscard + 1,
+      'Discarding Tactician must grant +1 energy'
+    );
+    assert.equal(afterDiscardAndPoisonWin.pendingAfterDiscard, null);
+    assert.equal(
+      afterDiscardAndPoisonWin.hpAfterEndTurn,
+      afterDiscardAndPoisonWin.hpBeforeEndTurn,
+      'Lethal Poison tick at start of enemy turn must kill enemy before its 15 dmg attack'
+    );
+    assert.equal(afterDiscardAndPoisonWin.screenAfterPoisonKill, 'reward');
+
+    // 6. Mobile 390x844 Character Select responsive audit & screenshot
+    await cdp.evaluate(`window.localStorage.clear()`);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    await cdp.evaluate(`document.getElementById('char-card-silent').click()`);
+    const mobileCharAudit = await cdp.evaluate(`({
+      hasCharSelect: Boolean(document.getElementById('character-select-screen')),
+      docScrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    })`);
+    assert.equal(mobileCharAudit.hasCharSelect, true);
+    assert.ok(
+      mobileCharAudit.docScrollWidth <= mobileCharAudit.innerWidth,
+      `Mobile Character Select overflowed: ${mobileCharAudit.docScrollWidth} > ${mobileCharAudit.innerWidth}`
+    );
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotCharMobile = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'char_select_mobile.png'),
+        Buffer.from(shotCharMobile.data, 'base64')
+      );
+    }
+
+    // 7. URL Seeded Challenge with ?seed=S-16&asc=2&char=silent boots directly into Silent Asc 2 run!
+    await cdp.evaluate(`window.localStorage.clear()`);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: false });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?seed=S-16&asc=2&char=silent` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const silentChallengeAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      document.getElementById('btn-copy-seed').click();
+      const copyNotice = document.querySelector('.toast-banner')?.textContent?.trim() || '';
+      return {
+        onMap: Boolean(document.getElementById('map-node-f1_c0')),
+        characterId: st.characterId,
+        seed: st.seed,
+        ascension: st.ascension,
+        isChallengeRun: st.isChallengeRun,
+        copyNotice,
+      };
+    })()`);
+    assert.equal(silentChallengeAudit.onMap, true, 'Challenge URL with empty save must launch directly onto Map');
+    assert.equal(silentChallengeAudit.characterId, 'silent');
+    assert.equal(silentChallengeAudit.seed, 42);
+    assert.equal(silentChallengeAudit.ascension, 2);
+    assert.equal(silentChallengeAudit.isChallengeRun, true);
+    assert.ok(
+      silentChallengeAudit.copyNotice.includes('char=silent'),
+      `Expected Silent challenge share link to include char=silent, got: ${silentChallengeAudit.copyNotice}`
+    );
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
 
 
 

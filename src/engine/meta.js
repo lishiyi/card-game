@@ -61,26 +61,26 @@ export const UNLOCK_TIERS = deepFreeze([
   {
     tier: 1,
     xpRequired: 100,
-    title: '一阶觉醒 · 鲜血与不屈',
-    summary: '解锁稀有吸血卡【死神收割】、保留防御卡【磐石守备】与稀有遗物【钨合金棍】。',
-    cardIds: ['reaper', 'steadfast_guard'],
+    title: '一阶觉醒 · 鲜血与剧毒',
+    summary: '解锁【死神收割】、【磐石守备】、【涂毒】与稀有遗物【钨合金棍】。',
+    cardIds: ['reaper', 'steadfast_guard', 'envenom'],
     relicIds: ['tungsten_rod'],
   },
   {
     tier: 2,
     xpRequired: 240,
-    title: '二阶觉醒 · 灰烬消耗流',
-    summary: '解锁消耗流核心【腐化】、【恶魔之焰】与稀有遗物【卡戎之灰】。',
-    cardIds: ['corruption', 'fiend_fire'],
-    relicIds: ['charons_ashes'],
+    title: '二阶觉醒 · 灰烬与催化',
+    summary: '解锁【腐化】、【恶魔之焰】、【催化剂】与稀有遗物【卡戎之灰】、【坚韧绷带】。',
+    cardIds: ['corruption', 'fiend_fire', 'catalyst'],
+    relicIds: ['charons_ashes', 'tough_bandages'],
   },
   {
     tier: 3,
     xpRequired: 420,
-    title: '三阶觉醒 · 不破钢铁堡垒',
-    summary: '解锁格挡流终极核心【壁垒】、【黑暗之拥】与稀有遗物【船长舵轮】。',
-    cardIds: ['barricade', 'dark_embrace'],
-    relicIds: ['captains_wheel'],
+    title: '三阶觉醒 · 壁垒与幽魂',
+    summary: '解锁【壁垒】、【黑暗之拥】、【幽魂形态】与稀有遗物【船长舵轮】、【毒标本】。',
+    cardIds: ['barricade', 'dark_embrace', 'wraith_form'],
+    relicIds: ['captains_wheel', 'the_specimen'],
   },
 ]);
 
@@ -90,6 +90,7 @@ export function createDefaultMeta() {
     unlockedTier: 0,
     maxAscensionUnlocked: 0,
     selectedAscension: 0,
+    selectedCharacterId: 'ironclad',
     unlockAllOverride: false,
     runsPlayed: 0,
     victories: 0,
@@ -138,7 +139,8 @@ export function recordCompletedRun(meta, state) {
   if (!meta || !state) {
     return { xpGained: 0, newlyUnlockedTiers: [], unlockedAscension: null, alreadyRecorded: false };
   }
-  const runKey = `${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
+  const charId = state.characterId || 'ironclad';
+  const runKey = `${charId}_${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
   if (!Array.isArray(meta.recordedRunKeys)) {
     meta.recordedRunKeys = [];
   }
@@ -184,6 +186,8 @@ export function recordCompletedRun(meta, state) {
   const historyEntry = {
     id: runKey,
     timestamp: Date.now(),
+    characterId: charId,
+    characterName: state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士'),
     seed: state.seed,
     seedCode: formatSeedCode(state.seed),
     outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',
@@ -227,6 +231,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
     const selAsc = Number.isFinite(parsed.selectedAscension)
       ? Math.max(0, Math.min(maxAsc, Math.floor(parsed.selectedAscension)))
       : 0;
+    const selChar = parsed.selectedCharacterId === 'silent' ? 'silent' : 'ironclad';
     return {
       xp,
       unlockedTier: Math.max(
@@ -235,6 +240,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       ),
       maxAscensionUnlocked: maxAsc,
       selectedAscension: selAsc,
+      selectedCharacterId: selChar,
       unlockAllOverride: Boolean(parsed.unlockAllOverride),
       runsPlayed: Number.isFinite(parsed.runsPlayed) ? parsed.runsPlayed : 0,
       victories: Number.isFinite(parsed.victories) ? parsed.victories : 0,

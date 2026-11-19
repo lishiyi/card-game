@@ -24,6 +24,7 @@ export const RARITY_LABELS = Object.freeze({
   common: '普通',
   uncommon: '罕见',
   rare: '稀有',
+  special: '衍生',
   status: '状态',
   curse: '诅咒',
 });
@@ -48,6 +49,8 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.playable ? 'playable' : '',
     options.selected ? 'selected-card' : '',
     options.dimmed ? 'unplayable-dim' : '',
+    options.discardSelectable ? 'discard-selectable' : '',
+    options.discardSynergy ? 'discard-synergy-card' : '',
     typeof options.dealIndex === 'number' ? 'card-deal-in' : '',
   ]
     .filter(Boolean)
@@ -78,7 +81,7 @@ export function renderCardHtml(cardInstance, options = {}) {
   } else if (stats.costReduced) {
     costTooltipAttrs = `data-tooltip-title="升级减费" data-tooltip-tag="卡牌强化" data-tooltip-desc="${escapeHtml(`升级后费用由 ${stats.baseCost} 点减少至 ${stats.cost} 点。`)}" data-tooltip-tone="buff"`;
   } else if (desc.costReducedNow) {
-    costTooltipAttrs = `data-tooltip-title="临时零费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】等效果影响，当前费用已减至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
+    costTooltipAttrs = `data-tooltip-title="临时减费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】或本回合弃牌减费影响，当前费用已降至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
   }
 
   const keywords = [
@@ -90,13 +93,17 @@ export function renderCardHtml(cardInstance, options = {}) {
     .filter(Boolean)
     .join('·');
 
-  const targetLabel = stats.unplayable
-    ? '不可打出'
-    : stats.target === 'all_enemies'
-      ? '全体目标'
-      : stats.target === 'enemy'
-        ? '单体目标'
-        : '自身';
+  const targetLabel = options.discardSelectable
+    ? options.discardSynergy
+      ? '✦ 弃置触发'
+      : '点击弃置'
+    : stats.unplayable
+      ? '不可打出'
+      : stats.target === 'all_enemies'
+        ? '全体目标'
+        : stats.target === 'enemy'
+          ? '单体目标'
+          : '自身';
 
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';

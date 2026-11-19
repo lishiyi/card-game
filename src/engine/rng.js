@@ -85,10 +85,16 @@ export function parseChallengeInput(rawInput, maxAscension = 5) {
         ascension = Math.max(0, Math.min(maxAscension, parsedAsc));
       }
     }
+    const charRaw = params.get('char') ?? params.get('character');
+    const characterId =
+      typeof charRaw === 'string' && charRaw.trim()
+        ? charRaw.trim().toLowerCase()
+        : null;
     return {
       seed,
       seedCode: formatSeedCode(seed),
       ascension,
+      characterId,
       isUrlLike: true,
     };
   }
@@ -103,24 +109,38 @@ export function parseChallengeInput(rawInput, maxAscension = 5) {
     seed,
     seedCode: formatSeedCode(seed),
     ascension: null,
+    characterId: null,
     isUrlLike: false,
   };
 }
 
-export function buildChallengeUrl(baseHref, seed, ascension = 0, maxAscension = 5) {
+export function buildChallengeUrl(
+  baseHref,
+  seed,
+  ascension = 0,
+  maxAscension = 5,
+  characterId = null
+) {
   const seedCode = formatSeedCode(seed);
   const safeAsc = Number.isFinite(Number(ascension))
     ? Math.max(0, Math.min(maxAscension, Math.floor(Number(ascension))))
     : 0;
+  const safeChar =
+    typeof characterId === 'string' && characterId.trim() && characterId.trim().toLowerCase() !== 'ironclad'
+      ? characterId.trim().toLowerCase()
+      : null;
   try {
     const url = new URL(baseHref);
     url.search = '';
     url.hash = '';
     url.searchParams.set('seed', seedCode);
     url.searchParams.set('asc', String(safeAsc));
+    if (safeChar) {
+      url.searchParams.set('char', safeChar);
+    }
     return url.toString();
   } catch {
-    return `?seed=${encodeURIComponent(seedCode)}&asc=${safeAsc}`;
+    return `?seed=${encodeURIComponent(seedCode)}&asc=${safeAsc}${safeChar ? `&char=${encodeURIComponent(safeChar)}` : ''}`;
   }
 }
 

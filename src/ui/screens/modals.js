@@ -7,6 +7,7 @@
  */
 
 import { CARD_LIBRARY, getCardStats } from '../../data/cards.js';
+import { getCharacterDef } from '../../data/characters.js';
 import { RELIC_LIBRARY } from '../../data/relics.js';
 import {
   getUnclaimedImportantRewards,
@@ -83,7 +84,9 @@ function renderMetaModal({ state, meta, ui }) {
   const xpPct = meta.unlockAllOverride
     ? 100
     : Math.min(100, Math.round(((meta.xp ?? 0) / maxTierXp) * 100));
-  const currentSeedCode = formatSeedCode(state.seed);
+  const currentSeedCode = state ? formatSeedCode(state.seed) : '';
+  const activeCharId = state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId || 'ironclad';
+  const activeCharDef = getCharacterDef(activeCharId);
 
   const ascensionButtonsHtml = ASCENSION_DEFS.map((def) => {
     const unlocked = def.level <= maxAscAllowed;
@@ -134,10 +137,13 @@ function renderMetaModal({ state, meta, ui }) {
               const isWin = rec.outcome === 'victory';
               const sCode = rec.seedCode || formatSeedCode(rec.seed);
               const dateLabel = formatRunDate(rec.timestamp);
+              const recCharId = rec.characterId || 'ironclad';
+              const recCharName = rec.characterName || getCharacterDef(recCharId).name;
               return `
                 <div class="history-row ${isWin ? 'win' : 'loss'}" data-history-idx="${idx}">
                   <div class="history-main">
                     <span class="history-badge ${isWin ? 'win' : 'loss'}">${isWin ? '凯旋' : '折戟'}</span>
+                    <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
                     ${rec.isChallenge ? `<span class="history-badge challenge">挑战</span>` : ''}
                     <span class="history-floor">第 ${escapeHtml(rec.act ?? 1)} 幕 · F${escapeHtml(rec.floor ?? 1)}</span>
                     ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
@@ -152,6 +158,7 @@ function renderMetaModal({ state, meta, ui }) {
                       data-action="copy-seed"
                       data-seed-code="${escapeHtml(sCode)}"
                       data-ascension="${escapeHtml(rec.ascension ?? 0)}"
+                      data-character-id="${escapeHtml(recCharId)}"
                     >复制链接</button>
                     <button
                       type="button"
@@ -159,6 +166,7 @@ function renderMetaModal({ state, meta, ui }) {
                       data-action="replay-history-seed"
                       data-seed="${escapeHtml(rec.seed)}"
                       data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
+                      data-character-id="${escapeHtml(recCharId)}"
                     >重玩种子</button>
                   </div>
                 </div>
@@ -188,39 +196,44 @@ function renderMetaModal({ state, meta, ui }) {
 
         <div class="meta-section">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;">用种子或挑战链接开局（当前局种子：${escapeHtml(currentSeedCode)}）</h3>
-            <button
-              type="button"
-              id="btn-copy-active-seed"
-              class="btn-stone btn-compact"
-              data-action="copy-seed"
-              data-seed-code="${escapeHtml(currentSeedCode)}"
-              data-ascension="${escapeHtml(state.ascension ?? 0)}"
-            >
-              复制挑战链接
-            </button>
+            <h3 style="margin:0;">用种子或挑战链接开局（当前角色：${escapeHtml(activeCharDef.name)}${currentSeedCode ? ` · 本局种子：${escapeHtml(currentSeedCode)}` : ''}）</h3>
+            ${
+              currentSeedCode
+                ? `<button
+                    type="button"
+                    id="btn-copy-active-seed"
+                    class="btn-stone btn-compact"
+                    data-action="copy-seed"
+                    data-seed-code="${escapeHtml(currentSeedCode)}"
+                    data-ascension="${escapeHtml(state.ascension ?? 0)}"
+                    data-character-id="${escapeHtml(activeCharId)}"
+                  >
+                    复制挑战链接
+                  </button>`
+                : ''
+            }
           </div>
           <div class="seed-launcher-bar">
             <input
               type="text"
               id="seed-input-box"
               class="spire-input"
-              placeholder="输入种子代码（如 S-16）或直接粘贴挑战链接（?seed=...&asc=...）"
+              placeholder="输入种子代码（如 S-16）或直接粘贴挑战链接（?seed=...&asc=...&char=...）"
               value="${escapeHtml(ui.seedInput || '')}"
               maxlength="240"
               aria-label="指定种子代码或挑战链接"
             />
             <button type="button" id="btn-start-seeded-run" class="btn-brass" data-action="start-seeded-run">
-              以此种子开启【进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
+              以此种子开启【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
             </button>
           </div>
         </div>
 
         <div class="meta-section">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;">选择下局【进阶难度】（当前本局：进阶 ${escapeHtml(state.ascension ?? 0)}）</h3>
+            <h3 style="margin:0;">选择下局【进阶难度】${state ? `（当前本局：进阶 ${escapeHtml(state.ascension ?? 0)}）` : ''}</h3>
             <button type="button" id="btn-start-ascension-run" class="btn-brass" data-action="start-ascension-run">
-              以【进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启随机新局
+              以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
             </button>
           </div>
           <div class="ascension-grid">${ascensionButtonsHtml}</div>
@@ -474,7 +487,7 @@ export function renderModal({ state, meta, settings, ui }) {
 
   if (ui.modal === 'confirm_challenge') {
     const req = ui.pendingChallenge;
-    if (!req) {
+    if (!req || !state) {
       ui.modal = null;
       return '';
     }
@@ -482,6 +495,8 @@ export function renderModal({ state, meta, settings, ui }) {
     const curAct = state.act ?? 1;
     const curFloor = Math.max(0, state.floor ?? 0);
     const ascLabel = `进阶 ${req.ascension ?? 0}`;
+    const reqCharDef = getCharacterDef(req.characterId);
+    const curCharName = state.player?.name || getCharacterDef(state.characterId).name;
     return `
       <div class="modal-backdrop" id="modal-backdrop" data-action="decline-challenge" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="challenge-invite-desc">
         <div class="modal-sheet modal-confirm-sheet" id="challenge-invite-modal">
@@ -489,13 +504,13 @@ export function renderModal({ state, meta, settings, ui }) {
             <div>
               <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">收到好友种子挑战邀请！</h2>
               <p id="challenge-invite-desc" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);line-height:1.55;">
-                目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong>
+                挑战角色：<strong>${escapeHtml(reqCharDef.name)}</strong> · 目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong>
                 · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度）。
               </p>
             </div>
           </div>
           <div class="challenge-current-save-note">
-            你本地尚有一局进行中的存档（种子 <code>${escapeHtml(curSeed)}</code> · 第 ${escapeHtml(curAct)} 幕 · 第 ${escapeHtml(curFloor)} 层 · 生命 ${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}）。是否覆盖当前进度并接受挑战？
+            你本地尚有一局进行中的存档（${escapeHtml(curCharName)} · 种子 <code>${escapeHtml(curSeed)}</code> · 第 ${escapeHtml(curAct)} 幕 · 第 ${escapeHtml(curFloor)} 层 · 生命 ${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}）。是否覆盖当前进度并接受挑战？
           </div>
           <div class="confirm-actions">
             <button type="button" id="btn-decline-challenge" class="btn-stone" data-action="decline-challenge">保留当前进度</button>
@@ -505,6 +520,8 @@ export function renderModal({ state, meta, settings, ui }) {
       </div>
     `;
   }
+
+  if (!state) return '';
 
   if (ui.modal === 'neow_action') {
     const action = state.neowState?.pendingAction;
