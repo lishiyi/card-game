@@ -116,6 +116,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       data-rarity="${escapeHtml(stats.rarity)}"
       data-action="${escapeHtml(options.action || 'noop')}"
       data-instance-id="${escapeHtml(cardInstance.instanceId)}"
+      ${options.unplayableReason ? `data-unplayable-reason="${escapeHtml(options.unplayableReason)}"` : ''}
       ${options.offerIndex !== undefined ? `data-offer-index="${options.offerIndex}"` : ''}
       ${options.disabled ? 'disabled' : ''}
     >
@@ -162,6 +163,7 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
       return `<span
         class="status-chip ${escapeHtml(polarity)}"
+        data-status-key="${escapeHtml(key)}"
         tabindex="0"
         data-tooltip-title="${escapeHtml(`${metaInfo.name} (${val})`)}"
         data-tooltip-tag="${escapeHtml(`${ownerLabel} · ${polarityLabel}`)}"

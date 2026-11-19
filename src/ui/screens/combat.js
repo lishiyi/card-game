@@ -96,8 +96,10 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
                 : ''
             }
           </div>
+          <div class="combat-preview-badges" data-preview-badges="${escapeHtml(enemy.id)}" hidden></div>
           <div class="hp-track">
             <div class="hp-fill ${enemy.block > 0 ? 'shielded' : ''}" style="width: ${hpPct}%;"></div>
+            <div class="hp-preview-cut" data-preview-cut="${escapeHtml(enemy.id)}" style="left: 0%; width: 0%;"></div>
             <span class="hp-label">${escapeHtml(enemy.hp)} / ${escapeHtml(enemy.maxHp)}</span>
           </div>
           ${renderStatusesHtml(enemy, enemy.name)}
@@ -110,12 +112,20 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
   const handHtml = combat.hand
     .map((card, idx) => {
       const check = canPlayCard(state, card.instanceId);
+      const unplayableReason = check.playable
+        ? ''
+        : check.reason.includes('能量')
+          ? 'energy'
+          : check.reason.includes('天鹅绒项圈')
+            ? 'choker'
+            : 'unplayable';
       return renderCardHtml(card, {
         idPrefix: 'hand-card',
         action: 'click-hand-card',
         playable: check.playable,
         selected: ui.selectedCardId === card.instanceId,
         dimmed: !check.playable,
+        unplayableReason,
         hotkey: idx < 9 ? idx + 1 : undefined,
         dealIndex: idx,
         combatContext: {
@@ -144,7 +154,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
     bannerText = `请点击一名敌人作为【${itemName}】的目标（再次点击卡牌或按 Esc 取消）`;
     bannerClass = 'targeting';
   } else if (!bannerText) {
-    bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}（数字键 1-9 快速出牌，E 键结束回合）`;
+    bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}（可点击或拖拽出牌，数字键 1-9 快速出牌，E 键结束回合）`;
   }
 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
@@ -152,7 +162,8 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
 
-    <section class="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
+    <section class="combat-arena" id="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
+      <div class="synergy-callout-bar" id="synergy-callout-bar" aria-live="polite" hidden></div>
       <div class="fighters-group player-side">
         <div class="fighter-unit" id="player-unit">
           <div class="intent-stack">
@@ -163,7 +174,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
             <span class="unit-name-text">${escapeHtml(state.player.name)}</span>
             ${
               state.player.block > 0
-                ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${state.player.block})`)}" data-tooltip-tag="自身" data-tooltip-desc="优先抵消敌方攻击伤害，下回合开始时清零。">盾 ${escapeHtml(state.player.block)}</span>`
+                ? `<span id="player-block-pill" class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${state.player.block})`)}" data-tooltip-tag="自身" data-tooltip-desc="优先抵消敌方攻击伤害，下回合开始时清零。">盾 ${escapeHtml(state.player.block)}</span>`
                 : ''
             }
           </div>

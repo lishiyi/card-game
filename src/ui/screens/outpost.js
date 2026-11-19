@@ -18,6 +18,7 @@ export function renderTreasureScreen({ state }) {
   if (!ts) return '';
   const hasCursedKey = state.player.relics.includes('cursed_key');
   const relicObj = ts.relicId ? RELIC_LIBRARY[ts.relicId] : null;
+  const relicTierLabel = relicObj ? RELIC_TIER_LABELS[relicObj.tier] || '远古遗物' : '';
   const curseCard = ts.curseCardId
     ? state.player.deck.find((c) => c.instanceId === ts.curseCardId)
     : null;
@@ -30,21 +31,43 @@ export function renderTreasureScreen({ state }) {
             <h2 id="treasure-heading" class="stage-heading">远古宝箱室</h2>
             <p class="stage-subtitle">幽深石室中央摆放着一具镶金古铜宝箱，缝隙间溢出一缕温暖秘光。</p>
           </div>
+          <button type="button" id="btn-skip-treasure" class="btn-stone" data-action="leave-treasure">
+            跳过宝箱，继续前进 →
+          </button>
         </div>
 
         ${
           hasCursedKey
-            ? `<div class="toast-banner warn" style="margin-bottom:14px;">注意：你持有【诅咒钥匙】，开启宝箱时会将 1 张随机【诅咒】牌加入牌组（也可选择不开启直接离开）。</div>`
+            ? `<div class="toast-banner warn" style="margin-bottom:14px;">注意：你持有【诅咒钥匙】，开启宝箱时会将 1 张随机【诅咒】牌加入牌组（也可选择跳过宝箱直接离开）。</div>`
             : ''
         }
 
-        <div class="choice-stack">
-          <button type="button" id="btn-open-treasure" class="choice-btn" data-action="open-treasure">
-            <span class="choice-title">开启远古宝箱</span>
-            <span class="choice-detail">获得 1 件随机遗物（并有概率附赠金币）${hasCursedKey ? '，但触发【诅咒钥匙】获得 1 张诅咒牌' : ''}。</span>
-          </button>
-          <button type="button" id="btn-skip-treasure" class="btn-stone" style="align-self:flex-start;" data-action="leave-treasure">
-            不开启宝箱，继续前进 →
+        <h3 class="reward-section-heading">远古秘宝（点击拿走）：</h3>
+        <div class="loot-list treasure-loot-list">
+          <button
+            type="button"
+            id="btn-open-treasure"
+            class="loot-reward-card loot-kind-gold treasure-chest-cta"
+            data-action="open-treasure"
+            data-tooltip-title="开启远古宝箱 · 拿走秘宝"
+            data-tooltip-tag="${hasCursedKey ? '会触发诅咒钥匙' : '必出遗物'}"
+            data-tooltip-desc="${escapeHtml(
+              `开启宝箱即可直接拿走 1 件随机遗物（并有概率附赠金币）${
+                hasCursedKey ? '；因持有【诅咒钥匙】还会获得 1 张随机诅咒牌。' : '。'
+              }`
+            )}"
+          >
+            <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('chest')}</span>
+            <span class="loot-card-body">
+              <span class="loot-card-title">
+                开启远古宝箱 · 拿走宝物
+                <span class="loot-sub-pill">${hasCursedKey ? '⚠ 触发诅咒钥匙' : '必出遗物'}</span>
+              </span>
+              <span class="loot-card-desc">
+                获得 1 件随机遗物（并有概率附赠金币）${hasCursedKey ? '，但【诅咒钥匙】会塞入 1 张诅咒牌' : ''}
+              </span>
+            </span>
+            <span class="loot-claim-cta">开启并拿走</span>
           </button>
         </div>
       </section>
@@ -55,28 +78,54 @@ export function renderTreasureScreen({ state }) {
     <section class="panel-stage" aria-labelledby="treasure-heading">
       <div class="stage-header">
         <div>
-          <h2 id="treasure-heading" class="stage-heading">远古宝箱 · 已开启</h2>
-          <p class="stage-subtitle">机括轻响，沉睡的秘宝重见天日。</p>
+          <h2 id="treasure-heading" class="stage-heading">远古宝箱 · 秘宝已收入囊中</h2>
+          <p class="stage-subtitle">机括轻响，沉睡的远古秘宝已归你所有。</p>
         </div>
         <button type="button" id="btn-leave-treasure" class="btn-brass" data-action="leave-treasure">
           继续前进 →
         </button>
       </div>
 
-      <div class="summary-stats">
+      <div class="summary-stats" style="margin-bottom:14px;">
         <p style="margin:0;">${escapeHtml(ts.outcomeText)}</p>
       </div>
 
-      ${
-        relicObj
-          ? `<div class="choice-stack" style="margin-bottom:14px;">
-              <div class="choice-btn" style="cursor:default;">
-                <span class="choice-title">已装备遗物：${escapeHtml(relicObj.name)}（${escapeHtml(RELIC_TIER_LABELS[relicObj.tier] || '遗物')}）</span>
-                <span class="choice-detail">${escapeHtml(relicObj.description)}</span>
-              </div>
-            </div>`
-          : ''
-      }
+      <div class="loot-list" style="margin-bottom:16px;">
+        ${
+          relicObj
+            ? `<div
+                class="loot-reward-card loot-kind-relic loot-claimed"
+                tabindex="0"
+                data-tooltip-title="${escapeHtml(relicObj.name)}"
+                data-tooltip-tag="${escapeHtml(relicTierLabel)}"
+                data-tooltip-desc="${escapeHtml(relicObj.description)}"
+                data-tooltip-tone="relic"
+              >
+                <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+                <span class="loot-card-body">
+                  <span class="loot-card-title">
+                    已装备遗物：${escapeHtml(relicObj.name)}
+                    <span class="loot-sub-pill">${escapeHtml(relicTierLabel)}</span>
+                  </span>
+                  <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+                </span>
+                <span class="loot-claim-cta claimed">✓ 已拿走</span>
+              </div>`
+            : ''
+        }
+        ${
+          ts.gold > 0
+            ? `<div class="loot-reward-card loot-kind-gold loot-claimed">
+                <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
+                <span class="loot-card-body">
+                  <span class="loot-card-title">附赠金币 +${escapeHtml(ts.gold)}</span>
+                  <span class="loot-card-desc">已自动收入囊中，当前共持有 ${escapeHtml(state.player.gold)} 枚金币</span>
+                </span>
+                <span class="loot-claim-cta claimed">✓ 已拿走</span>
+              </div>`
+            : ''
+        }
+      </div>
 
       ${
         curseCard

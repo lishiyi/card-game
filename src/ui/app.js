@@ -61,6 +61,11 @@ import {
   parseSeedInput,
 } from '../engine/rng.js';
 import { createSoundEngine } from './audio.js';
+import {
+  applyCombatTacticsUI,
+  clearCombatTacticsUI,
+  createCombatDragController,
+} from './combat_interact.js';
 import { createFxManager } from './fx.js';
 import { escapeHtml } from './helpers.js';
 import { renderCombatScreen } from './screens/combat.js';
@@ -206,13 +211,18 @@ export function mountSpireApp(rootEl) {
   fxLayerEl.className = 'spire-fx-layer';
   fxLayerEl.setAttribute('aria-hidden', 'true');
 
+  const dragLayerEl = document.createElement('div');
+  dragLayerEl.id = 'spire-drag-layer';
+  dragLayerEl.className = 'spire-drag-layer';
+  dragLayerEl.setAttribute('aria-hidden', 'true');
+
   const tooltipEl = document.createElement('div');
   tooltipEl.id = 'spire-tooltip';
   tooltipEl.className = 'spire-tooltip';
   tooltipEl.setAttribute('role', 'tooltip');
   tooltipEl.hidden = true;
 
-  rootEl.append(stageRoot, fxLayerEl, tooltipEl);
+  rootEl.append(stageRoot, fxLayerEl, dragLayerEl, tooltipEl);
 
   const soundEngine = createSoundEngine(() => settings);
   const fxManager = createFxManager(rootEl, fxLayerEl, () => settings);
@@ -278,6 +288,8 @@ export function mountSpireApp(rootEl) {
   const ui = {
     selectedCardId: null,
     selectedPotionSlot: null,
+    hoveredCardId: null,
+    hoveredPotionSlot: null,
     hoveredEnemyId: null,
     modal: initialModal,
     pendingChallenge: initialPendingChallenge,
@@ -292,6 +304,8 @@ export function mountSpireApp(rootEl) {
   function clearCombatSelection() {
     ui.selectedCardId = null;
     ui.selectedPotionSlot = null;
+    ui.hoveredCardId = null;
+    ui.hoveredPotionSlot = null;
     ui.hoveredEnemyId = null;
   }
 
@@ -318,8 +332,14 @@ export function mountSpireApp(rootEl) {
     if (ui.selectedCardId && !state.combat.hand.some((c) => c.instanceId === ui.selectedCardId)) {
       ui.selectedCardId = null;
     }
+    if (ui.hoveredCardId && !state.combat.hand.some((c) => c.instanceId === ui.hoveredCardId)) {
+      ui.hoveredCardId = null;
+    }
     if (ui.selectedPotionSlot !== null && !state.player.potions[ui.selectedPotionSlot]) {
       ui.selectedPotionSlot = null;
+    }
+    if (ui.hoveredPotionSlot !== null && !state.player.potions[ui.hoveredPotionSlot]) {
+      ui.hoveredPotionSlot = null;
     }
     if (
       ui.hoveredEnemyId &&
@@ -338,6 +358,33 @@ export function mountSpireApp(rootEl) {
     }
     if (alive.length === 1) return alive[0];
     return null;
+  }
+
+  function syncCombatTactics(override = null) {
+    if (state.screen !== 'combat' || !state.combat || ui.modal) {
+      clearCombatTacticsUI(rootEl);
+      return;
+    }
+    const activeCardId =
+      override?.activeCardId !== undefined
+        ? override.activeCardId
+        : ui.selectedCardId || (ui.selectedPotionSlot === null ? ui.hoveredCardId : null);
+    const activePotionSlot =
+      override?.activePotionSlot !== undefined
+        ? override.activePotionSlot
+        : activeCardId
+          ? null
+          : ui.selectedPotionSlot !== null
+            ? ui.selectedPotionSlot
+            : ui.hoveredPotionSlot;
+    const hoveredEnemyId =
+      override?.hoveredEnemyId !== undefined ? override.hoveredEnemyId : ui.hoveredEnemyId;
+
+    applyCombatTacticsUI(rootEl, state, {
+      activeCardId,
+      activePotionSlot,
+      hoveredEnemyId,
+    });
   }
 
   function render() {
@@ -388,6 +435,10 @@ export function mountSpireApp(rootEl) {
       </div>
       ${renderModal({ state, meta, settings, ui })}
     `;
+
+    if (state.screen === 'combat') {
+      syncCombatTactics();
+    }
   }
 
   function executeCardPlayWithFx(instanceId, targetEnemyId) {
@@ -578,7 +629,18 @@ export function mountSpireApp(rootEl) {
     render();
   }
 
+  const dragController = createCombatDragController({
+    rootEl,
+    dragLayerEl,
+    getState: () => state,
+    getUi: () => ui,
+    hideTooltip,
+    onPlayCard: (instanceId, targetEnemyId) => executeCardPlayWithFx(instanceId, targetEnemyId),
+    onSyncTactics: (override) => syncCombatTactics(override),
+  });
+
   rootEl.addEventListener('click', (event) => {
+    if (dragController.shouldSuppressClick()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
     const target = targetEl ? targetEl.closest('[data-action]') : null;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
@@ -1162,8 +1224,9 @@ export function mountSpireApp(rootEl) {
     });
   }
 
-  // Instant hover tooltips + map route highlight + selected card's live damage preview in-place
+  // Instant hover tooltips + map route highlight + live combat Lethal/Shield-Break & Synergy previews in-place
   rootEl.addEventListener('mouseover', (event) => {
+    if (dragController.isDragging()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
     if (tipAnchor) {
@@ -1184,9 +1247,22 @@ export function mountSpireApp(rootEl) {
 
     if (state.screen !== 'combat' || !state.combat) return;
     const enemyEl = targetEl ? targetEl.closest('[data-enemy-id]') : null;
-    const nextHover = enemyEl ? enemyEl.dataset.enemyId : null;
-    if (nextHover === ui.hoveredEnemyId) return;
-    ui.hoveredEnemyId = nextHover;
+    const handCardEl = targetEl ? targetEl.closest('#hand-tray .game-card[data-instance-id]') : null;
+    const potionEl = targetEl ? targetEl.closest('button.potion-slot.filled[data-slot]') : null;
+
+    const nextHoverEnemy = enemyEl ? enemyEl.dataset.enemyId : null;
+    const nextHoverCard = handCardEl ? handCardEl.dataset.instanceId : null;
+    const nextHoverPotion = potionEl ? Number(potionEl.dataset.slot) : null;
+
+    const changed =
+      nextHoverEnemy !== ui.hoveredEnemyId ||
+      nextHoverCard !== ui.hoveredCardId ||
+      nextHoverPotion !== ui.hoveredPotionSlot;
+    if (!changed) return;
+
+    ui.hoveredEnemyId = nextHoverEnemy;
+    ui.hoveredCardId = nextHoverCard;
+    ui.hoveredPotionSlot = Number.isInteger(nextHoverPotion) ? nextHoverPotion : null;
 
     if (ui.selectedCardId) {
       const selectedCard = state.combat.hand.find((c) => c.instanceId === ui.selectedCardId);
@@ -1201,11 +1277,23 @@ export function mountSpireApp(rootEl) {
         cardEl.classList.toggle('reduced', desc.damageState === 'reduced' || desc.blockState === 'reduced');
       }
     }
+
+    syncCombatTactics();
   });
 
   rootEl.addEventListener('mouseleave', () => {
     hideTooltip();
     updateHoveredMapEdges(null);
+    if (
+      ui.hoveredCardId !== null ||
+      ui.hoveredPotionSlot !== null ||
+      ui.hoveredEnemyId !== null
+    ) {
+      ui.hoveredCardId = null;
+      ui.hoveredPotionSlot = null;
+      ui.hoveredEnemyId = null;
+      syncCombatTactics();
+    }
   });
 
   rootEl.addEventListener('focusin', (event) => {
@@ -1213,6 +1301,13 @@ export function mountSpireApp(rootEl) {
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
     if (tipAnchor) {
       showTooltip(tipAnchor);
+    }
+    if (state.screen === 'combat' && state.combat) {
+      const handCardEl = targetEl ? targetEl.closest('#hand-tray .game-card[data-instance-id]') : null;
+      if (handCardEl) {
+        ui.hoveredCardId = handCardEl.dataset.instanceId;
+        syncCombatTactics();
+      }
     }
   });
 
@@ -1260,6 +1355,10 @@ export function mountSpireApp(rootEl) {
     }
 
     if (event.key === 'Escape') {
+      if (dragController.isDragging()) {
+        dragController.cancel();
+        return;
+      }
       if (ui.modal) {
         dismissActiveModal();
       } else if (ui.selectedCardId || ui.selectedPotionSlot !== null) {

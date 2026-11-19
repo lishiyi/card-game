@@ -19,6 +19,7 @@ export function renderTopHud({ state, ui }) {
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
       return `<span
         class="relic-badge tier-${escapeHtml(r.tier)}"
+        data-relic-id="${escapeHtml(id)}"
         tabindex="0"
         data-tooltip-title="${escapeHtml(r.name)}"
         data-tooltip-tag="${escapeHtml(tierLabel)}"

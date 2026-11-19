@@ -26,6 +26,11 @@ import {
   calculateCardBlock,
   getEnemyIntentPreview,
 } from '../src/engine/math.js';
+import {
+  computeCardSynergies,
+  previewCardDamageOnEnemy,
+  previewPotionDamageOnEnemy,
+} from '../src/engine/tactics.js';
 
 function setupCustomCombat(seed = 42, encounter = ENCOUNTERS.floor1[0], deckCardIds = null) {
   const state = createNewRun({ seed });
@@ -823,6 +828,94 @@ test('New Boss Relics: Runic Pyramid hand retention, Snecko Eye Confusion (+2 dr
   assert.equal(stoneState.combat.enemies[0].statuses.strength, 1);
   assert.equal(stoneState.combat.enemies[1].statuses.strength, 1);
 });
+
+test('Combat Tactics Engine: Lethal & Shield-Break projections (incl. Curl Up, Paper Phrog, Multi-hit, X-cost, Potion) and Card Synergy/Warning detection', () => {
+  const state = createNewRun({ seed: 2501, skipNeow: true });
+  grantRelicToPlayer(state, 'paper_phrog');
+  grantRelicToPlayer(state, 'charons_ashes');
+  grantRelicToPlayer(state, 'sacred_bark');
+  startCombat(
+    state,
+    {
+      id: 'tactics_enc',
+      name: '联动测试',
+      enemies: [{ templateId: 'gremlin_nob' }, { templateId: 'red_louse' }],
+    },
+    'elite'
+  );
+
+  const nob = state.combat.enemies[0];
+  const louse = state.combat.enemies[1];
+  nob.hp = 12;
+  nob.maxHp = 84;
+  nob.block = 6;
+  nob.statuses.enrage = 2;
+  nob.statuses.vulnerable = 2;
+
+  louse.hp = 9;
+  louse.maxHp = 15;
+  louse.block = 0;
+  louse.statuses.curlUp = 5;
+
+  state.player.statuses.strength = 2;
+  state.player.statuses.feelNoPain = 3;
+  state.player.block = 10;
+
+  const strike = createCardInstance(state, 'strike', false); // (6 + 2) * 1.75 = 14 -> breaks 6 block, deals 8 HP -> 4 HP left (Shield Break, NOT Lethal)
+  const bludgeon = createCardInstance(state, 'bludgeon', false); // (32 + 2) * 1.75 = 59 -> Shield Break + Lethal
+  const twin = createCardInstance(state, 'twin_strike', false); // (5 + 2) = 7 x 2 vs Louse (9 HP, Curl Up 5): hit 1 deals 7 (2 HP left, Curl Up +5 block), hit 2 deals 7 (5 blocked, 2 HP -> Lethal!)
+  const defend = createCardInstance(state, 'defend', false);
+  const secondWind = createCardInstance(state, 'second_wind', false);
+  const bodySlam = createCardInstance(state, 'body_slam', false);
+  state.combat.hand = [strike, bludgeon, twin, defend, secondWind, bodySlam];
+
+  const pStrike = previewCardDamageOnEnemy(state, strike, nob);
+  assert.equal(pStrike.totalDamage, 14);
+  assert.equal(pStrike.isShieldBreak, true);
+  assert.equal(pStrike.isLethal, false);
+  assert.equal(pStrike.remainingHp, 4);
+
+  const pBludgeon = previewCardDamageOnEnemy(state, bludgeon, nob);
+  assert.equal(pBludgeon.isShieldBreak, true);
+  assert.equal(pBludgeon.isLethal, true);
+  assert.equal(pBludgeon.remainingHp, 0);
+
+  // Louse with 10 HP + Curl Up 5 vs Twin Strike (7x2): hit 1 -> 3 HP + 5 block; hit 2 -> 5 blocked, 2 HP -> 1 HP left (NOT lethal!)
+  louse.hp = 10;
+  const pTwinNotLethal = previewCardDamageOnEnemy(state, twin, louse);
+  assert.equal(pTwinNotLethal.isLethal, false);
+  assert.equal(pTwinNotLethal.remainingHp, 1);
+
+  // Fire Potion with Sacred Bark = 40 fixed damage -> Lethal on Nob (6 block + 12 HP)
+  const pFire = previewPotionDamageOnEnemy(state, 'fire_potion', nob);
+  assert.equal(pFire.totalDamage, 40);
+  assert.equal(pFire.isShieldBreak, true);
+  assert.equal(pFire.isLethal, true);
+
+  // Synergy & Warning checks:
+  // 1) Defend (Skill) triggers Gremlin Nob Enrage warning
+  const synDefend = computeCardSynergies(state, defend);
+  assert.ok(synDefend.enemyTriggers.some((t) => t.enemyId === nob.id && t.statusKey === 'enrage' && t.tone === 'warn'));
+  assert.ok(synDefend.callouts.some((c) => c.tone === 'warn' && c.text.includes('激怒')));
+
+  // 2) Strike vs Vulnerable Nob highlights Strength, enemy Vulnerable, and Paper Phrog relic
+  const synStrike = computeCardSynergies(state, strike, nob.id);
+  assert.ok(synStrike.relicHighlights.some((r) => r.relicId === 'paper_phrog' && r.tone === 'buff'));
+  assert.ok(synStrike.playerStatusHighlights.some((s) => s.key === 'strength' && s.tone === 'buff'));
+  assert.ok(synStrike.enemyTriggers.some((t) => t.enemyId === nob.id && t.statusKey === 'vulnerable' && t.tone === 'buff'));
+
+  // 3) Second Wind highlights Feel No Pain, Charon's Ashes, and other non-attack cards in hand (defend)
+  const synSecondWind = computeCardSynergies(state, secondWind);
+  assert.ok(synSecondWind.relicHighlights.some((r) => r.relicId === 'charons_ashes'));
+  assert.ok(synSecondWind.playerStatusHighlights.some((s) => s.key === 'feelNoPain'));
+  assert.ok(synSecondWind.affectedHandCards.some((h) => h.instanceId === defend.instanceId && h.tone === 'exhaust'));
+  assert.equal(synSecondWind.affectedHandCards.some((h) => h.instanceId === strike.instanceId), false);
+
+  // 4) Body Slam highlights player's current Block pill
+  const synBodySlam = computeCardSynergies(state, bodySlam, nob.id);
+  assert.equal(synBodySlam.highlightPlayerBlock, true);
+});
+
 
 
 

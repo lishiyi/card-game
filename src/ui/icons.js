@@ -481,6 +481,15 @@ export function getLootIconSvg(kind) {
         <circle cx="12" cy="20.5" r="1.1" fill="currentColor"/>
         <circle cx="16.2" cy="19.2" r="0.9" fill="currentColor"/>
       </svg>`;
+    case 'chest':
+      // 远古秘宝宝箱：镶金古铜宝箱与星芒
+      return `<svg viewBox="0 0 28 28" width="28" height="28" data-loot-icon="chest" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4.5 11.5h19v11a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-11z" fill="currentColor" fill-opacity="0.22"/>
+        <path d="M4 11.5V9.2C4 6.6 8.2 5 14 5s10 1.6 10 4.2v2.3H4z" fill="currentColor" fill-opacity="0.36"/>
+        <path d="M10 5.6v18.9M18 5.6v18.9" stroke-opacity="0.65"/>
+        <rect x="12" y="10.2" width="4" height="4.8" rx="1" fill="currentColor" fill-opacity="0.72"/>
+        <path d="M23.5 3.4v2.8M22.1 4.8h2.8" stroke-width="1.5"/>
+      </svg>`;
     default:
       return '';
   }

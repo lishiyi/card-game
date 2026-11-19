@@ -580,11 +580,12 @@ button:disabled {
 
 /* === Combat Arena === */
 .combat-arena {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.55fr);
   gap: 20px;
   align-items: end;
-  padding: 16px 22px;
+  padding: 40px 22px 16px;
   background:
     radial-gradient(ellipse 38% 48% at 24% 82%, hsla(30, 28%, 22%, 0.42), transparent 72%),
     radial-gradient(ellipse 46% 48% at 74% 82%, hsla(18, 28%, 20%, 0.38), transparent 74%),
@@ -592,6 +593,35 @@ button:disabled {
   border: 1px solid var(--border-stone);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft), var(--bevel-highlight);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.combat-arena.drag-drop-ready {
+  border-color: hsla(40, 86%, 58%, 0.9);
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 2px hsla(40, 86%, 58%, 0.35),
+    inset 0 0 36px hsla(38, 72%, 44%, 0.18);
+}
+
+.combat-arena.drag-drop-ready::after {
+  content: attr(data-drag-prompt);
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: hsla(32, 34%, 14%, 0.94);
+  border: 1px solid hsla(40, 86%, 58%, 0.85);
+  color: hsl(42, 95%, 76%);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  z-index: 6;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px hsla(0, 0%, 0%, 0.65);
 }
 
 .combat-arena[data-enemy-count='1'] {
@@ -955,6 +985,17 @@ button:disabled {
   z-index: 5;
 }
 
+#hand-tray .game-card.playable {
+  cursor: grab;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 1px hsla(38, 60%, 54%, 0.24);
+}
+
+#hand-tray .game-card.playable:active {
+  cursor: grabbing;
+}
+
 .game-card.selected-card {
   transform: translateY(-14px) scale(1.04);
   box-shadow: 0 14px 28px hsla(20, 35%, 3%, 0.82), 0 0 0 2px var(--accent-brass);
@@ -962,7 +1003,33 @@ button:disabled {
 }
 
 .game-card.unplayable-dim {
+  opacity: 0.44;
+  filter: saturate(0.38) brightness(0.82);
+}
+
+#hand-tray .game-card.unplayable-dim {
+  opacity: 0.42;
+  filter: saturate(0.24) brightness(0.76);
+  transform: translateY(8px) scale(0.96);
+  box-shadow: none;
+  border-color: hsla(26, 10%, 24%, 0.72);
+  cursor: not-allowed;
+}
+
+#hand-tray .game-card.unplayable-dim:hover {
   opacity: 0.56;
+  filter: saturate(0.42) brightness(0.84);
+  transform: translateY(8px) scale(0.96);
+}
+
+#hand-tray .game-card.unplayable-dim[data-unplayable-reason='energy'] .card-cost {
+  color: hsl(8, 92%, 72%);
+  border-color: hsla(8, 82%, 54%, 0.85);
+  background: hsla(8, 44%, 13%, 0.96);
+}
+
+#hand-tray .game-card.unplayable-dim .card-hotkey {
+  opacity: 0.4;
 }
 
 .card-top {
@@ -2434,8 +2501,13 @@ button.loot-reward-card.loot-kind-potion:hover {
 }
 
 .card-deal-in {
-  animation: cardDealIn calc(240ms * var(--anim-scale, 1)) ease-out both;
+  animation: cardDealIn calc(240ms * var(--anim-scale, 1)) ease-out backwards;
   animation-delay: calc(var(--card-idx, 0) * 28ms * var(--anim-scale, 1));
+}
+
+#hand-tray .game-card.unplayable-dim.card-deal-in,
+#hand-tray .game-card.selected-card.card-deal-in {
+  animation: none;
 }
 
 .fighter-unit.fx-hit-shake {
@@ -2466,6 +2538,262 @@ button.loot-reward-card.loot-kind-potion:hover {
   transition: none !important;
 }
 
+/* === Treasure Chest Prominent Gold Plaque === */
+.treasure-loot-list {
+  grid-template-columns: minmax(0, 560px);
+}
+
+.treasure-chest-cta {
+  min-height: 92px;
+  box-shadow:
+    0 12px 26px hsla(22, 42%, 4%, 0.65),
+    0 0 0 1px hsla(43, 86%, 56%, 0.34),
+    inset 0 1px 0 hsla(46, 95%, 82%, 0.16);
+}
+
+/* === Combat Lethal / Shield-Break Previews & HP Cut Bar === */
+.hp-preview-cut {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    hsla(10, 92%, 62%, 0.92),
+    hsla(10, 92%, 62%, 0.92) 4px,
+    hsla(36, 96%, 68%, 0.92) 4px,
+    hsla(36, 96%, 68%, 0.92) 8px
+  );
+  pointer-events: none;
+  transition: width 0.12s ease, left 0.12s ease;
+  z-index: 1;
+}
+
+.hp-preview-cut.lethal-cut {
+  background: repeating-linear-gradient(
+    -45deg,
+    hsla(4, 96%, 58%, 0.98),
+    hsla(4, 96%, 58%, 0.98) 5px,
+    hsla(44, 100%, 72%, 0.96) 5px,
+    hsla(44, 100%, 72%, 0.96) 10px
+  );
+  box-shadow: 0 0 10px hsla(6, 96%, 58%, 0.8);
+}
+
+.hp-label {
+  z-index: 2;
+}
+
+.combat-preview-badges {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 0;
+}
+
+.combat-preview-badges[hidden] {
+  display: none;
+}
+
+.preview-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-pill.lethal {
+  background: linear-gradient(180deg, hsl(6, 74%, 42%), hsl(4, 72%, 28%));
+  border: 1px solid hsl(40, 96%, 68%);
+  color: hsl(44, 100%, 92%);
+  box-shadow: 0 0 14px hsla(8, 92%, 54%, 0.65);
+  animation: previewLethalPulse calc(1100ms * var(--anim-scale, 1)) ease-in-out infinite;
+}
+
+.preview-pill.shield-break {
+  background: linear-gradient(180deg, hsl(198, 66%, 34%), hsl(204, 62%, 22%));
+  border: 1px solid hsl(194, 92%, 72%);
+  color: hsl(194, 100%, 92%);
+  box-shadow: 0 0 12px hsla(196, 92%, 62%, 0.55);
+}
+
+.preview-pill.dmg-preview {
+  background: hsla(24, 18%, 12%, 0.92);
+  border: 1px solid hsla(34, 34%, 42%, 0.7);
+  color: var(--text-sand);
+}
+
+@keyframes previewLethalPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px hsla(8, 92%, 54%, 0.58);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 18px hsla(40, 96%, 62%, 0.78);
+  }
+}
+
+.fighter-unit.preview-lethal {
+  border-color: hsl(8, 86%, 58%);
+  box-shadow: 0 0 0 1px hsla(8, 86%, 58%, 0.55), 0 0 22px hsla(8, 90%, 48%, 0.34);
+}
+
+.fighter-unit.preview-shield-break {
+  border-color: hsl(196, 86%, 62%);
+  box-shadow: 0 0 0 1px hsla(196, 86%, 62%, 0.48), 0 0 18px hsla(196, 86%, 54%, 0.28);
+}
+
+.fighter-unit.preview-target-focus {
+  background: hsla(32, 26%, 18%, 0.92);
+}
+
+/* === Card Selection / Hover Synergy & Warning Highlights === */
+.synergy-callout-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.synergy-callout-bar[hidden] {
+  display: none;
+}
+
+.synergy-callout-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.55);
+}
+
+.synergy-callout-pill.warn {
+  background: hsla(8, 62%, 18%, 0.95);
+  border: 1px solid hsl(10, 86%, 60%);
+  color: hsl(16, 96%, 84%);
+}
+
+.synergy-callout-pill.buff {
+  background: hsla(152, 46%, 16%, 0.95);
+  border: 1px solid hsl(148, 70%, 56%);
+  color: hsl(148, 86%, 82%);
+}
+
+.relic-badge.synergy-glow-buff,
+.status-chip.synergy-glow-buff,
+.block-pill.synergy-glow-buff {
+  box-shadow: 0 0 0 2px hsla(148, 72%, 58%, 0.88), 0 0 14px hsla(148, 78%, 54%, 0.55);
+  filter: brightness(1.2);
+  transform: translateY(-1px) scale(1.04);
+  z-index: 4;
+}
+
+.relic-badge.synergy-glow-warn,
+.status-chip.synergy-glow-warn {
+  box-shadow: 0 0 0 2px hsla(8, 88%, 60%, 0.92), 0 0 14px hsla(8, 92%, 54%, 0.62);
+  filter: brightness(1.22);
+  transform: translateY(-1px) scale(1.05);
+  z-index: 4;
+}
+
+#hand-tray .game-card.synergy-card-exhaust {
+  box-shadow: 0 0 0 2px hsla(292, 78%, 62%, 0.88), 0 0 16px hsla(292, 76%, 54%, 0.45);
+}
+
+#hand-tray .game-card.synergy-card-upgrade {
+  box-shadow: 0 0 0 2px hsla(148, 70%, 56%, 0.88), 0 0 16px hsla(148, 74%, 50%, 0.42);
+}
+
+/* === Desktop Drag-to-Play Overlay === */
+body.spire-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing !important;
+}
+
+.spire-drag-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 120;
+  overflow: hidden;
+}
+
+.drag-aim-svg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+.drag-aim-path {
+  filter: drop-shadow(0 0 6px hsla(38, 90%, 58%, 0.6));
+}
+
+.drag-aim-path.locked {
+  filter: drop-shadow(0 0 9px hsla(8, 94%, 58%, 0.82));
+}
+
+.drag-card-ghost {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  z-index: 122;
+  opacity: 0.94;
+  box-shadow:
+    0 22px 42px hsla(0, 0%, 0%, 0.78),
+    0 0 0 2px hsla(38, 78%, 58%, 0.78);
+  transition: box-shadow 0.12s ease;
+}
+
+.drag-card-ghost.ready-to-drop {
+  box-shadow:
+    0 24px 48px hsla(0, 0%, 0%, 0.82),
+    0 0 0 2px hsl(148, 72%, 58%),
+    0 0 24px hsla(148, 76%, 52%, 0.45);
+}
+
+#hand-tray .game-card.is-dragging-source {
+  opacity: 0.24;
+  transform: scale(0.95);
+}
+
+#hand-tray .game-card.is-aiming-source {
+  transform: translateY(-16px) scale(1.04);
+  box-shadow: 0 14px 28px hsla(20, 35%, 3%, 0.85), 0 0 0 2px var(--accent-brass);
+  z-index: 8;
+}
+
+.fighter-unit.drag-enemy-candidate {
+  border-color: hsla(38, 62%, 50%, 0.75);
+  background: hsla(30, 22%, 15%, 0.82);
+}
+
+.fighter-unit.drag-target-hover {
+  transform: translateY(-6px) scale(1.03);
+  border-color: hsl(10, 88%, 62%);
+  background: hsla(16, 36%, 18%, 0.94);
+  box-shadow: 0 0 0 2px hsla(10, 90%, 62%, 0.62), 0 14px 28px hsla(0, 0%, 0%, 0.65);
+}
+
 /* === Deep Mobile & Tablet Responsive Adaptation === */
 @media (max-width: 980px) {
   .spire-shell {
@@ -2489,7 +2817,7 @@ button.loot-reward-card.loot-kind-potion:hover {
 
   .combat-arena {
     gap: 14px;
-    padding: 14px 16px;
+    padding: 36px 16px 14px;
   }
 
   .fighters-group {
@@ -2594,7 +2922,7 @@ button.loot-reward-card.loot-kind-potion:hover {
 
   .combat-arena {
     gap: 10px;
-    padding: 12px;
+    padding: 32px 12px 12px;
   }
 
   .combat-arena[data-enemy-count='2'] {
@@ -2813,7 +3141,7 @@ button.loot-reward-card.loot-kind-potion:hover {
 
   .combat-arena {
     gap: 8px;
-    padding: 10px 8px;
+    padding: 28px 8px 10px;
   }
 
   .fighters-group {

@@ -1626,5 +1626,331 @@ test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seed
   }
 });
 
+test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/Shield-Break previews, card synergy highlights, and desktop drag-to-play', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Treasure Room prominent loot plaque matching battle gold reward style
+    const treasureAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'treasure';
+      st.treasureState = {
+        opened: false,
+        relicId: null,
+        gold: 0,
+        curseCardId: null,
+        outcomeText: '',
+      };
+      app.render();
+
+      const btn = document.getElementById('btn-open-treasure');
+      const rect = btn.getBoundingClientRect();
+      return {
+        hasLootCardClass: btn.classList.contains('loot-reward-card') && btn.classList.contains('loot-kind-gold'),
+        hasChestIcon: Boolean(btn.querySelector('[data-loot-icon="chest"]')),
+        hasCtaBadge: Boolean(btn.querySelector('.loot-claim-cta')),
+        height: rect.height,
+      };
+    })()`);
+    assert.equal(treasureAudit.hasLootCardClass, true);
+    assert.equal(treasureAudit.hasChestIcon, true);
+    assert.equal(treasureAudit.hasCtaBadge, true);
+    assert.ok(treasureAudit.height >= 80, `Expected prominent treasure plaque height >= 80px, got ${treasureAudit.height}`);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotTreasure = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'treasure_plaque.png'),
+        Buffer.from(shotTreasure.data, 'base64')
+      );
+    }
+
+    // 2. Setup 2-enemy combat to test: unplayable card dimming, Lethal/Shield-Break previews, Synergy/Warning highlights, and Desktop Drag-to-Play
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      st.currentNodeId = null;
+      if (st.neowState) st.neowState.resolved = true;
+      st.player.relics = ['burning_blood', 'paper_phrog', 'charons_ashes'];
+      app.render();
+      document.getElementById('map-node-f1_c0').click();
+
+      const stc = app.getState();
+      const baseEnemy = stc.combat.enemies[0];
+      stc.combat.enemies = [
+        {
+          ...structuredClone(baseEnemy),
+          id: 'enemy_nob',
+          name: '地精大块头',
+          artKey: 'gremlin_nob',
+          hp: 10,
+          maxHp: 84,
+          block: 0,
+          statuses: { enrage: 2 },
+        },
+        {
+          ...structuredClone(baseEnemy),
+          id: 'enemy_shield',
+          name: '邪教徒',
+          artKey: 'cultist',
+          hp: 25,
+          maxHp: 48,
+          block: 5,
+          statuses: { vulnerable: 2 },
+        },
+      ];
+      stc.player.energy = 2;
+      stc.player.statuses = { strength: 2, feelNoPain: 3 };
+      stc.combat.hand = [
+        { instanceId: 'ux_strike', cardId: 'strike', upgraded: false }, // cost 1 -> playable, 8 dmg (14 w/ vuln+phrog -> Shield Break on enemy_shield)
+        { instanceId: 'ux_defend', cardId: 'defend', upgraded: false }, // cost 1 -> playable, triggers Enrage warn on enemy_nob
+        { instanceId: 'ux_bludgeon', cardId: 'bludgeon', upgraded: false }, // cost 3 -> UNPLAYABLE at 2 energy!
+        { instanceId: 'ux_second_wind', cardId: 'second_wind', upgraded: false }, // cost 1 -> playable, exhausts non-attack ux_defend!
+      ];
+      app.render();
+    })()`);
+    // Wait for .card-deal-in (240ms + stagger) to complete before reading settled styles
+    await new Promise((r) => setTimeout(r, 420));
+    const setupAudit = await cdp.evaluate(`(() => {
+      const playableStyle = getComputedStyle(document.getElementById('hand-card-ux_strike'));
+      const unplayableEl = document.getElementById('hand-card-ux_bludgeon');
+      const unplayableStyle = getComputedStyle(unplayableEl);
+      return {
+        playableOpacity: Number(playableStyle.opacity),
+        unplayableOpacity: Number(unplayableStyle.opacity),
+        unplayableFilter: unplayableStyle.filter,
+        unplayableReason: unplayableEl.dataset.unplayableReason,
+      };
+    })()`);
+    assert.ok(setupAudit.playableOpacity >= 0.95, `Playable card should be bright, got ${setupAudit.playableOpacity}`);
+    assert.ok(setupAudit.unplayableOpacity <= 0.45, `Unplayable card should be clearly dimmed, got ${setupAudit.unplayableOpacity}`);
+    assert.ok(setupAudit.unplayableFilter.includes('saturate'), `Unplayable card should be desaturated, got ${setupAudit.unplayableFilter}`);
+    assert.equal(setupAudit.unplayableReason, 'energy');
+
+    const getCenter = async (selector) =>
+      cdp.evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      })()`);
+
+    // 3. Hover Defend (Skill) -> verify Gremlin Nob Enrage warning highlight + callout bar
+    const defendPos = await getCenter('#hand-card-ux_defend');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: defendPos.x, y: defendPos.y });
+    await new Promise((r) => setTimeout(r, 60));
+    const defendHoverAudit = await cdp.evaluate(`(() => {
+      const enrageChip = document.querySelector('#enemy-unit-enemy_nob .status-chip[data-status-key="enrage"]');
+      const callout = document.getElementById('synergy-callout-bar');
+      return {
+        enrageWarnGlow: enrageChip?.classList.contains('synergy-glow-warn') ?? false,
+        calloutVisible: callout ? !callout.hidden : false,
+        calloutText: callout?.textContent?.trim() || '',
+      };
+    })()`);
+    assert.equal(defendHoverAudit.enrageWarnGlow, true);
+    assert.equal(defendHoverAudit.calloutVisible, true);
+    assert.ok(defendHoverAudit.calloutText.includes('激怒'));
+
+    // 4. Hover Second Wind -> verify Feel No Pain, Charon's Ashes, and other non-attack card (ux_defend) highlight
+    const swPos = await getCenter('#hand-card-ux_second_wind');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: swPos.x, y: swPos.y });
+    await new Promise((r) => setTimeout(r, 60));
+    const swHoverAudit = await cdp.evaluate(`(() => ({
+      fnpGlow: document.querySelector('#player-unit .status-chip[data-status-key="feelNoPain"]')?.classList.contains('synergy-glow-buff') ?? false,
+      charonGlow: document.querySelector('.relic-badge[data-relic-id="charons_ashes"]')?.classList.contains('synergy-glow-buff') ?? false,
+      defendExhaustGlow: document.getElementById('hand-card-ux_defend')?.classList.contains('synergy-card-exhaust') ?? false,
+      strikeExhaustGlow: document.getElementById('hand-card-ux_strike')?.classList.contains('synergy-card-exhaust') ?? false,
+    }))()`);
+    assert.equal(swHoverAudit.fnpGlow, true);
+    assert.equal(swHoverAudit.charonGlow, true);
+    assert.equal(swHoverAudit.defendExhaustGlow, true);
+    assert.equal(swHoverAudit.strikeExhaustGlow, false);
+
+    // 5. Hover Strike (8 dmg vs 7 HP Nob -> Lethal; 14 dmg vs 5 block + 25 HP Vulnerable Cultist -> Shield Break + Paper Phrog glow!)
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.getState().combat.enemies[0].hp = 7;
+      app.render();
+    })()`);
+    await new Promise((r) => setTimeout(r, 420));
+    const strikePos = await getCenter('#hand-card-ux_strike');
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: strikePos.x, y: strikePos.y });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const tacticsHoverAudit = await cdp.evaluate(`(() => ({
+      nobLethalBadge: Boolean(document.querySelector('[data-preview-badges="enemy_nob"] [data-preview-kind="lethal"]')),
+      shieldBreakBadge: Boolean(document.querySelector('[data-preview-badges="enemy_shield"] [data-preview-kind="shield-break"]')),
+      paperPhrogGlow: document.querySelector('.relic-badge[data-relic-id="paper_phrog"]')?.classList.contains('synergy-glow-buff') ?? false,
+      strengthGlow: document.querySelector('#player-unit .status-chip[data-status-key="strength"]')?.classList.contains('synergy-glow-buff') ?? false,
+    }))()`);
+    assert.equal(tacticsHoverAudit.nobLethalBadge, true, 'Expected Lethal badge on 7 HP Gremlin Nob');
+    assert.equal(tacticsHoverAudit.shieldBreakBadge, true, 'Expected Shield-Break badge on 5-Block Cultist');
+    assert.equal(tacticsHoverAudit.paperPhrogGlow, true, 'Expected Paper Phrog relic glow on Vulnerable attack');
+    assert.equal(tacticsHoverAudit.strengthGlow, true, 'Expected Strength chip glow on attack');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotTactics = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'combat_tactics_synergy.png'),
+        Buffer.from(shotTactics.data, 'base64')
+      );
+    }
+
+    // 6. Real Desktop Drag-to-Play #1: Drag single-target Strike onto Cultist (#enemy-unit-enemy_shield)
+    const cultistPos = await getCenter('#enemy-unit-enemy_shield');
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: strikePos.x,
+      y: strikePos.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    });
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round((strikePos.x + cultistPos.x) / 2),
+      y: Math.round((strikePos.y + cultistPos.y) / 2),
+      buttons: 1,
+    });
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: cultistPos.x,
+      y: cultistPos.y,
+      buttons: 1,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    const midDragAimAudit = await cdp.evaluate(`(() => ({
+      hasAimSvg: Boolean(document.querySelector('#spire-drag-layer .drag-aim-svg')),
+      targetHovered: document.getElementById('enemy-unit-enemy_shield')?.classList.contains('drag-target-hover') ?? false,
+    }))()`);
+    assert.equal(midDragAimAudit.hasAimSvg, true, 'Dragging single-target card must render SVG aiming arrow');
+    assert.equal(midDragAimAudit.targetHovered, true, 'Aimed enemy unit must receive drag-target-hover highlight');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotDrag = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'combat_drag_aim.png'),
+        Buffer.from(shotDrag.data, 'base64')
+      );
+    }
+
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: cultistPos.x,
+      y: cultistPos.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const afterSingleDragAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const cultist = st.combat.enemies.find((e) => e.id === 'enemy_shield');
+      return {
+        cultistBlock: cultist.block,
+        cultistHp: cultist.hp,
+        strikeStillInHand: st.combat.hand.some((c) => c.instanceId === 'ux_strike'),
+        energyLeft: st.player.energy,
+      };
+    })()`);
+    assert.equal(afterSingleDragAudit.cultistBlock, 0);
+    assert.equal(afterSingleDragAudit.cultistHp, 16); // 25 - (14 - 5) = 16
+    assert.equal(afterSingleDragAudit.strikeStillInHand, false);
+    assert.equal(afterSingleDragAudit.energyLeft, 1);
+
+    // 7. Real Desktop Drag-to-Play #2: Drag self-target Defend up into #combat-arena drop zone
+    const defendPos2 = await getCenter('#hand-card-ux_defend');
+    const arenaPos = await getCenter('#combat-arena');
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: defendPos2.x,
+      y: defendPos2.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+    });
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: arenaPos.x,
+      y: arenaPos.y,
+      buttons: 1,
+    });
+    await new Promise((r) => setTimeout(r, 50));
+
+    const midDragSelfAudit = await cdp.evaluate(`(() => ({
+      hasGhostCard: Boolean(document.querySelector('#spire-drag-layer .drag-card-ghost')),
+      arenaDropReady: document.getElementById('combat-arena')?.classList.contains('drag-drop-ready') ?? false,
+    }))()`);
+    assert.equal(midDragSelfAudit.hasGhostCard, true, 'Dragging self-target card must show floating ghost card');
+    assert.equal(midDragSelfAudit.arenaDropReady, true, 'Dragging self-target card into arena must light up drop zone');
+
+    await cdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: arenaPos.x,
+      y: arenaPos.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+    });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const afterSelfDragAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        playerBlock: st.player.block,
+        defendStillInHand: st.combat.hand.some((c) => c.instanceId === 'ux_defend'),
+        energyLeft: st.player.energy,
+      };
+    })()`);
+    assert.equal(afterSelfDragAudit.playerBlock, 5);
+    assert.equal(afterSelfDragAudit.defendStillInHand, false);
+    assert.equal(afterSelfDragAudit.energyLeft, 0);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+
 
 
