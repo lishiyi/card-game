@@ -892,7 +892,9 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
       app.render();
 
       document.getElementById('map-node-' + bossNode.id).click();
-      // Set Boss HP to 10 (and player HP to 34 so Burning Blood +6 -> 40 before Act 2 heal -> 70)
+      // Reset relics/maxHp so random Treasure Chest relics (e.g. Strawberry/Meat on the Bone) cannot flake the exact Burning Blood (+6) + Act 2 heal (40 -> 70) check
+      st.player.relics = ['burning_blood'];
+      st.player.maxHp = 80;
       st.player.hp = 34;
       st.combat.enemies[0].hp = 10;
       app.render();
