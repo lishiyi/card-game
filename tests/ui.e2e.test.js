@@ -187,6 +187,12 @@ async function createCdpClient(pageWsUrl) {
 }
 
 async function launchHeroFromCharacterSelect(cdp, characterId = 'ironclad') {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const ready = await cdp.evaluate(`Boolean(window.__SPIRE_APP__)`);
+    if (ready) break;
+    await new Promise((r) => setTimeout(r, 30));
+  }
   const launched = await cdp.evaluate(`(() => {
     const screen = document.getElementById('character-select-screen');
     if (!screen) return false;
@@ -3441,6 +3447,277 @@ test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged s
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & overscroll lock, potion-row restart/new-run actions, and right-side End Turn & Proceed buttons', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget, 'Expected a page target in Chromium');
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 700,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 400));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    // Enter Floor 1 combat with 6 relics and 3 potion slots
+    await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      st.player.relics = ['burning_blood', 'vajra', 'anchor', 'lantern', 'akabeko', 'paper_phrog'];
+      window.__SPIRE_APP__.render();
+      document.querySelector('.map-node-btn.available').click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 120));
+
+    // 1. 390px Combat HUD Row 3 (Potions + Restart Combat + New Run) & Right-Side End Turn Dock
+    const combat390 = await cdp.evaluate(`(() => {
+      const hud = document.querySelector('.top-hud').getBoundingClientRect();
+      const potionStrip = document.querySelector('.potion-strip').getBoundingClientRect();
+      const potions = [...document.querySelectorAll('.potion-strip .potion-slot')].map((el) => el.getBoundingClientRect());
+      const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
+      const newRunBtn = document.getElementById('btn-new-run')?.getBoundingClientRect();
+      const dock = document.querySelector('.dock-controls').getBoundingClientRect();
+      const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
+      const energy = document.getElementById('energy-orb').getBoundingClientRect();
+      const drawBtn = document.getElementById('btn-draw-pile').getBoundingClientRect();
+      const discardBtn = document.getElementById('btn-discard-pile').getBoundingClientRect();
+      const exhaustBtn = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
+      return {
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        hudHeight: Math.round(hud.height),
+        potionCount: potions.length,
+        allPotionsFitStrip: potions.every((p) => p.left >= potionStrip.left - 1 && p.right <= potionStrip.right + 1),
+        restartSameRow: Boolean(restartBtn) && Math.abs((restartBtn.top + restartBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
+        newRunSameRow: Boolean(newRunBtn) && Math.abs((newRunBtn.top + newRunBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
+        restartRightOfPotions: Boolean(restartBtn) && restartBtn.left >= potionStrip.right - 1,
+        newRunRightOfRestart: Boolean(restartBtn && newRunBtn) && newRunBtn.left >= restartBtn.right - 1,
+        newRunInsideHud: Boolean(newRunBtn) && newRunBtn.right <= hud.right + 1,
+        endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
+        endTurnRightOfEnergy: endTurn.left > energy.right,
+        pilesOnRow1: Math.abs(drawBtn.top - discardBtn.top) <= 2 && Math.abs(discardBtn.top - exhaustBtn.top) <= 2,
+      };
+    })()`);
+    assert.ok(combat390.docScrollWidth <= combat390.innerWidth, `390px combat overflowed: ${combat390.docScrollWidth} > ${combat390.innerWidth}`);
+    assert.ok(combat390.hudHeight <= 170, `390px HUD too tall: ${combat390.hudHeight}px`);
+    assert.equal(combat390.potionCount, 3);
+    assert.equal(combat390.allPotionsFitStrip, true, 'All 3 potion slots must fit inside potion strip at 390px');
+    assert.equal(combat390.restartSameRow, true, 'Restart combat button must share the potion row');
+    assert.equal(combat390.newRunSameRow, true, 'New run button must share the potion row');
+    assert.equal(combat390.restartRightOfPotions, true, 'Restart combat button must be to the right of potions');
+    assert.equal(combat390.newRunRightOfRestart, true, 'New run button must be to the right of restart button');
+    assert.equal(combat390.newRunInsideHud, true, 'New run button must stay inside HUD bounds');
+    assert.equal(combat390.endTurnRightAligned, true, 'End Turn button must be aligned to the right edge at 390px');
+    assert.equal(combat390.endTurnRightOfEnergy, true, 'End Turn button must sit to the right of Energy orb');
+    assert.equal(combat390.pilesOnRow1, true, 'Draw/Discard/Exhaust pile buttons should share top dock row at 390px');
+
+    // 2. Deck & Map Modals during combat: top-row clearance, non-scrolling header, body scroll lock, and overscroll touch guard
+    const deckModalAudit = await cdp.evaluate(`(() => {
+      window.scrollTo(0, 80);
+      const scrollBeforeModal = window.scrollY;
+      document.getElementById('btn-open-deck').click();
+      const sheet = document.querySelector('.modal-sheet');
+      const header = document.querySelector('.modal-header');
+      const body = document.querySelector('.modal-body');
+      const firstCard = body?.querySelector('.game-card');
+      const sheetRect = sheet.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const firstCardRect = firstCard.getBoundingClientRect();
+
+      // Scroll inside modal body and confirm header does not move or clip
+      body.scrollTop = 140;
+      const headerRectAfterScroll = header.getBoundingClientRect();
+
+      // At bottom boundary: upward swipe (scrolling down past bottom) must be prevented
+      body.scrollTop = body.scrollHeight;
+      const tsBottom = new TouchEvent('touchstart', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 101, target: body, clientX: 195, clientY: 420 })],
+      });
+      body.dispatchEvent(tsBottom);
+      const tmBottom = new TouchEvent('touchmove', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 101, target: body, clientX: 195, clientY: 360 })],
+      });
+      body.dispatchEvent(tmBottom);
+
+      // At top boundary: downward pull must be prevented
+      body.scrollTop = 0;
+      const tsTop = new TouchEvent('touchstart', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 102, target: body, clientX: 195, clientY: 220 })],
+      });
+      body.dispatchEvent(tsTop);
+      const tmTop = new TouchEvent('touchmove', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 102, target: body, clientX: 195, clientY: 280 })],
+      });
+      body.dispatchEvent(tmTop);
+
+      // Dragging header itself must be prevented
+      const tsHeader = new TouchEvent('touchstart', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 103, target: header, clientX: 195, clientY: 75 })],
+      });
+      header.dispatchEvent(tsHeader);
+      const tmHeader = new TouchEvent('touchmove', {
+        bubbles: true, cancelable: true,
+        touches: [new Touch({ identifier: 103, target: header, clientX: 195, clientY: 120 })],
+      });
+      header.dispatchEvent(tmHeader);
+
+      const lockedWhileOpen =
+        document.documentElement.classList.contains('spire-modal-open') &&
+        document.body.classList.contains('spire-modal-open') &&
+        document.body.style.position === 'fixed';
+      const bodyOverscroll = getComputedStyle(body).overscrollBehavior;
+
+      document.getElementById('btn-close-modal').click();
+      const unlockedAfterClose =
+        !document.documentElement.classList.contains('spire-modal-open') &&
+        !document.body.classList.contains('spire-modal-open') &&
+        document.body.style.position === '';
+      const scrollAfterClose = window.scrollY;
+
+      return {
+        scrollBeforeModal,
+        scrollAfterClose,
+        sheetWithinViewport: sheetRect.top >= 0 && sheetRect.bottom <= window.innerHeight + 1,
+        firstCardBelowHeader: firstCardRect.top >= headerRect.bottom - 0.5,
+        headerStableOnScroll: Math.abs(headerRectAfterScroll.top - headerRect.top) < 0.5,
+        lockedWhileOpen,
+        unlockedAfterClose,
+        bodyOverscroll,
+        bottomOverscrollPrevented: tmBottom.defaultPrevented,
+        topOverscrollPrevented: tmTop.defaultPrevented,
+        headerDragPrevented: tmHeader.defaultPrevented,
+      };
+    })()`);
+    assert.equal(deckModalAudit.sheetWithinViewport, true, 'Deck modal must fit completely inside mobile viewport');
+    assert.equal(deckModalAudit.firstCardBelowHeader, true, 'Deck modal first row must not be occluded by header');
+    assert.equal(deckModalAudit.headerStableOnScroll, true, 'Modal header must stay fixed above .modal-body while scrolling');
+    assert.equal(deckModalAudit.lockedWhileOpen, true, 'Background scroll must be locked while modal is open');
+    assert.equal(deckModalAudit.unlockedAfterClose, true, 'Background scroll lock must clear on modal close');
+    assert.equal(deckModalAudit.scrollAfterClose, deckModalAudit.scrollBeforeModal, 'Closing modal must restore underlying scrollY');
+    assert.equal(deckModalAudit.bodyOverscroll, 'contain', '.modal-body must enforce overscroll-behavior: contain');
+    assert.equal(deckModalAudit.bottomOverscrollPrevented, true, 'Bottom overscroll inside modal must prevent underlying page bounce');
+    assert.equal(deckModalAudit.topOverscrollPrevented, true, 'Top overscroll inside modal must prevent underlying page bounce');
+    assert.equal(deckModalAudit.headerDragPrevented, true, 'Dragging modal header must not scroll underlying page');
+
+    // Verify Map modal in combat: legend & F16 top row strictly below modal header when scrolled to top
+    const mapModalAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-map').click();
+      const modal = document.getElementById('map-inspector-modal');
+      const header = modal.querySelector('.modal-header').getBoundingClientRect();
+      const body = modal.querySelector('.modal-body');
+      body.scrollTop = 0;
+      const legend = body.querySelector('.map-legend-strip').getBoundingClientRect();
+      const bossRow = body.querySelector('.map-row:last-child').getBoundingClientRect();
+      const ok = {
+        legendBelowHeader: legend.top >= header.bottom - 0.5,
+        bossRowBelowHeader: bossRow.top >= header.bottom - 0.5,
+        headerWithinViewport: header.top >= 0,
+      };
+      document.getElementById('btn-close-modal').click();
+      return ok;
+    })()`);
+    assert.equal(mapModalAudit.headerWithinViewport, true);
+    assert.equal(mapModalAudit.legendBelowHeader, true, 'Map modal legend must not be occluded by header');
+    assert.equal(mapModalAudit.bossRowBelowHeader, true, 'Map modal top boss row must not be occluded by header');
+
+    // 3. 640px (tablet/wide portrait <=768px) check: End Turn right-aligned + Potion-row restart button
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 640,
+      height: 800,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const combat640 = await cdp.evaluate(`(() => {
+      const dock = document.querySelector('.dock-controls').getBoundingClientRect();
+      const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
+      const discard = document.getElementById('btn-discard-pile').getBoundingClientRect();
+      const exhaust = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
+      const potionStrip = document.querySelector('.potion-strip').getBoundingClientRect();
+      const restartBtn = document.getElementById('btn-restart-combat').getBoundingClientRect();
+      return {
+        endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
+        endTurnRightOfPiles: endTurn.left >= discard.right && endTurn.left >= exhaust.right,
+        restartSameRow: Math.abs((restartBtn.top + restartBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
+      };
+    })()`);
+    assert.equal(combat640.endTurnRightAligned, true, '640px End Turn button must align to right edge');
+    assert.equal(combat640.endTurnRightOfPiles, true, '640px End Turn button must sit to the right of Discard/Exhaust piles');
+    assert.equal(combat640.restartSameRow, true, '640px Restart Combat button must sit on the potion row');
+
+    // 4. Post-combat Reward screen ("继续前进 →") aligned right at both 640px and 390px
+    await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      st.combat.enemies.forEach((e) => { e.hp = 1; e.block = 0; });
+      st.combat.hand = [{ instanceId: 'mob_ux_cleave', cardId: 'cleave', upgraded: false }];
+      st.player.energy = 3;
+      window.__SPIRE_APP__.render();
+      document.getElementById('hand-card-mob_ux_cleave').click();
+    })()`);
+
+    const reward640 = await cdp.evaluate(`(() => {
+      const sh = document.querySelector('.stage-header').getBoundingClientRect();
+      const btn = document.getElementById('btn-proceed-reward').getBoundingClientRect();
+      return { rightAligned: Math.abs(sh.right - btn.right) <= 2 };
+    })()`);
+    assert.equal(reward640.rightAligned, true, '640px Reward Proceed button must align to right edge');
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 700,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const reward390 = await cdp.evaluate(`(() => {
+      const sh = document.querySelector('.stage-header').getBoundingClientRect();
+      const btn = document.getElementById('btn-proceed-reward').getBoundingClientRect();
+      return {
+        rightAligned: Math.abs(sh.right - btn.right) <= 2,
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    })()`);
+    assert.equal(reward390.rightAligned, true, '390px Reward Proceed button must align to right edge');
+    assert.ok(reward390.docScrollWidth <= reward390.innerWidth, '390px Reward screen must not overflow horizontally');
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
 
 
 

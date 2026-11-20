@@ -457,15 +457,53 @@ export function mountSpireApp(rootEl) {
     });
   }
 
+  let isModalScrollLocked = false;
+  let lockedWindowScrollY = 0;
+
+  function syncModalScrollLock(shouldLock, { restoreScroll = true } = {}) {
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+    if (!htmlEl || !bodyEl) return;
+
+    if (shouldLock && !isModalScrollLocked) {
+      lockedWindowScrollY = Math.max(
+        0,
+        Math.round(window.scrollY || window.pageYOffset || htmlEl.scrollTop || 0)
+      );
+      isModalScrollLocked = true;
+      htmlEl.classList.add('spire-modal-open');
+      bodyEl.classList.add('spire-modal-open');
+      bodyEl.style.position = 'fixed';
+      bodyEl.style.top = `-${lockedWindowScrollY}px`;
+      bodyEl.style.left = '0';
+      bodyEl.style.right = '0';
+      bodyEl.style.width = '100%';
+    } else if (!shouldLock && isModalScrollLocked) {
+      const prevY = lockedWindowScrollY;
+      isModalScrollLocked = false;
+      lockedWindowScrollY = 0;
+      htmlEl.classList.remove('spire-modal-open');
+      bodyEl.classList.remove('spire-modal-open');
+      bodyEl.style.position = '';
+      bodyEl.style.top = '';
+      bodyEl.style.left = '';
+      bodyEl.style.right = '';
+      bodyEl.style.width = '';
+      if (restoreScroll && prevY > 0 && typeof window.scrollTo === 'function') {
+        window.scrollTo(0, prevY);
+      }
+    }
+  }
+
   function render() {
     hideTooltip();
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
     const prevModal = lastRenderedModal;
-    lastRenderedModal = ui.modal;
 
     if (ui.showCharacterSelect || !state) {
       const prevScreen = lastRenderedScreen;
+      const screenChanged = Boolean(prevScreen && prevScreen !== 'character_select');
       lastRenderedScreen = 'character_select';
       fxLayerEl.innerHTML = '';
       const hasActiveRun = Boolean(state && state.screen !== 'game_over');
@@ -479,8 +517,12 @@ export function mountSpireApp(rootEl) {
         </div>
         ${renderModal({ state, meta, settings, ui })}
       `;
+      lastRenderedModal = ui.modal;
+      syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
+        restoreScroll: !screenChanged,
+      });
       clearCombatTacticsUI(rootEl);
-      if (prevScreen && prevScreen !== 'character_select' && typeof window.scrollTo === 'function') {
+      if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
         window.scrollTo(0, 0);
       }
       return;
@@ -488,6 +530,7 @@ export function mountSpireApp(rootEl) {
 
     persistRun(state);
     const prevScreen = lastRenderedScreen;
+    const screenChanged = Boolean(prevScreen && prevScreen !== state.screen);
     lastRenderedScreen = state.screen;
     if (state.screen !== 'combat') {
       fxLayerEl.innerHTML = '';
@@ -536,17 +579,32 @@ export function mountSpireApp(rootEl) {
       </div>
       ${renderModal({ state, meta, settings, ui })}
     `;
+    lastRenderedModal = ui.modal;
+    syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
+      restoreScroll: !screenChanged,
+    });
 
     if (ui.modal === 'map' && prevModal !== 'map' && state.currentNodeId) {
+      const modalBodyEl = rootEl.querySelector('#map-inspector-modal .modal-body');
       const modalNodeEl = rootEl.querySelector(`#map-modal-node-${CSS.escape(state.currentNodeId)}`);
-      if (modalNodeEl && typeof modalNodeEl.scrollIntoView === 'function') {
-        modalNodeEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      if (modalBodyEl && modalNodeEl) {
+        const bodyRect = modalBodyEl.getBoundingClientRect();
+        const nodeRect = modalNodeEl.getBoundingClientRect();
+        const scaleY =
+          modalBodyEl.clientHeight > 0 && bodyRect.height > 0
+            ? bodyRect.height / modalBodyEl.clientHeight
+            : 1;
+        const offsetInBody = (nodeRect.top - bodyRect.top) / scaleY + modalBodyEl.scrollTop;
+        const nodeHeight = nodeRect.height / scaleY;
+        const targetTop = offsetInBody - (modalBodyEl.clientHeight - nodeHeight) / 2;
+        const maxScroll = Math.max(0, modalBodyEl.scrollHeight - modalBodyEl.clientHeight);
+        modalBodyEl.scrollTop = Math.max(0, Math.min(maxScroll, Math.round(targetTop)));
       }
     }
 
     if (state.screen === 'combat') {
       syncCombatTactics();
-      if (prevScreen && prevScreen !== 'combat' && typeof window.scrollTo === 'function') {
+      if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
         window.scrollTo(0, 0);
       }
     } else if (
@@ -559,7 +617,7 @@ export function mountSpireApp(rootEl) {
       if (currentNodeEl && typeof currentNodeEl.scrollIntoView === 'function') {
         currentNodeEl.scrollIntoView({ block: 'center', behavior: 'auto' });
       }
-    } else if (prevScreen && prevScreen !== state.screen && !ui.modal && typeof window.scrollTo === 'function') {
+    } else if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
       window.scrollTo(0, 0);
     }
   }
@@ -1684,6 +1742,64 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener('focusout', () => {
     hideTooltip();
   });
+
+  let modalTouchLastY = 0;
+  let modalTouchLastX = 0;
+
+  rootEl.addEventListener(
+    'touchstart',
+    (event) => {
+      if (!ui.modal || event.touches.length !== 1) return;
+      modalTouchLastY = event.touches[0].clientY;
+      modalTouchLastX = event.touches[0].clientX;
+    },
+    { passive: true }
+  );
+
+  rootEl.addEventListener(
+    'touchmove',
+    (event) => {
+      if (!ui.modal || event.touches.length !== 1) return;
+      const targetEl = event.target instanceof Element ? event.target : null;
+      if (targetEl?.closest('input[type="range"]')) return;
+
+      const touch = event.touches[0];
+      const deltaY = touch.clientY - modalTouchLastY;
+      const deltaX = touch.clientX - modalTouchLastX;
+      modalTouchLastY = touch.clientY;
+      modalTouchLastX = touch.clientX;
+
+      const bodyEl = targetEl ? targetEl.closest('.modal-body') : null;
+      if (!bodyEl) {
+        event.preventDefault();
+        return;
+      }
+
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        let cur = targetEl;
+        while (cur && cur !== bodyEl) {
+          if (cur.scrollWidth > cur.clientWidth + 1) {
+            const ovX = window.getComputedStyle(cur).overflowX;
+            if (ovX === 'auto' || ovX === 'scroll') return;
+          }
+          cur = cur.parentElement;
+        }
+      }
+
+      const maxScrollTop = bodyEl.scrollHeight - bodyEl.clientHeight;
+      if (maxScrollTop <= 1) {
+        event.preventDefault();
+        return;
+      }
+
+      const atTop = bodyEl.scrollTop <= 0;
+      const atBottom = bodyEl.scrollTop >= maxScrollTop - 1;
+      if ((deltaY > 0 && atTop) || (deltaY < 0 && atBottom)) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
 
   window.addEventListener(
     'scroll',

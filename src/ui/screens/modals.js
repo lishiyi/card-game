@@ -232,108 +232,110 @@ function renderMetaModal({ state, meta, ui }) {
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
 
-        <div class="summary-stats" style="margin-top:0;">
-          <span>总攀登场次：<strong>${escapeHtml(meta.runsPlayed ?? 0)}</strong></span>
-          <span>凯旋通关：<strong>${escapeHtml(meta.victories ?? 0)}</strong></span>
-          <span>最高推进总层数：<strong>${escapeHtml(meta.bestFloor ?? 0)} 层</strong></span>
-          <span>最高战绩评分：<strong style="color:var(--accent-brass);">${escapeHtml((meta.bestScore ?? 0).toLocaleString())}</strong></span>
-          <span>累计击败敌人：<strong>${escapeHtml(meta.totalEnemiesSlain ?? 0)}</strong></span>
-          <span>累计历练：<strong style="color:var(--jade-upgrade);">${escapeHtml(meta.xp ?? 0)} XP</strong></span>
-        </div>
+        <div class="modal-body">
+          <div class="summary-stats" style="margin-top:0;">
+            <span>总攀登场次：<strong>${escapeHtml(meta.runsPlayed ?? 0)}</strong></span>
+            <span>凯旋通关：<strong>${escapeHtml(meta.victories ?? 0)}</strong></span>
+            <span>最高推进总层数：<strong>${escapeHtml(meta.bestFloor ?? 0)} 层</strong></span>
+            <span>最高战绩评分：<strong style="color:var(--accent-brass);">${escapeHtml((meta.bestScore ?? 0).toLocaleString())}</strong></span>
+            <span>累计击败敌人：<strong>${escapeHtml(meta.totalEnemiesSlain ?? 0)}</strong></span>
+            <span>累计历练：<strong style="color:var(--jade-upgrade);">${escapeHtml(meta.xp ?? 0)} XP</strong></span>
+          </div>
 
-        <div class="meta-section">
-          <div class="daily-challenge-banner compact" id="meta-daily-banner">
-            <div class="daily-banner-main">
-              <div class="daily-banner-top">
-                <span class="daily-pill">今日每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
-                <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
-                ${
-                  dailyBest
-                    ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)})</span>`
-                    : `<span class="daily-best-pill fresh">今日尚未挑战</span>`
-                }
+          <div class="meta-section">
+            <div class="daily-challenge-banner compact" id="meta-daily-banner">
+              <div class="daily-banner-main">
+                <div class="daily-banner-top">
+                  <span class="daily-pill">今日每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
+                  <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
+                  ${
+                    dailyBest
+                      ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)})</span>`
+                      : `<span class="daily-best-pill fresh">今日尚未挑战</span>`
+                  }
+                </div>
+                <div class="daily-mod-row">${dailyModsHtml}</div>
               </div>
-              <div class="daily-mod-row">${dailyModsHtml}</div>
+              <button
+                type="button"
+                id="btn-meta-start-daily"
+                class="btn-brass btn-compact"
+                data-action="start-daily-challenge"
+                data-daily-date="${escapeHtml(dailySpec.dateKey)}"
+              >
+                立即挑战 →
+              </button>
             </div>
-            <button
-              type="button"
-              id="btn-meta-start-daily"
-              class="btn-brass btn-compact"
-              data-action="start-daily-challenge"
-              data-daily-date="${escapeHtml(dailySpec.dateKey)}"
-            >
-              立即挑战 →
-            </button>
           </div>
-        </div>
 
-        <div class="meta-section">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;">用种子或挑战链接开局（当前角色：${escapeHtml(activeCharDef.name)}${currentSeedCode ? ` · 本局种子：${escapeHtml(currentSeedCode)}` : ''}）</h3>
-            ${
-              currentSeedCode
-                ? `<button
-                    type="button"
-                    id="btn-copy-active-seed"
-                    class="btn-stone btn-compact"
-                    data-action="copy-seed"
-                    data-seed-code="${escapeHtml(currentSeedCode)}"
-                    data-ascension="${escapeHtml(state.ascension ?? 0)}"
-                    data-character-id="${escapeHtml(activeCharId)}"
-                    data-daily-date="${escapeHtml(state.dailyChallenge?.dateKey || '')}"
-                  >
-                    复制挑战链接
-                  </button>`
-                : ''
-            }
+          <div class="meta-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+              <h3 style="margin:0;">用种子或挑战链接开局（当前角色：${escapeHtml(activeCharDef.name)}${currentSeedCode ? ` · 本局种子：${escapeHtml(currentSeedCode)}` : ''}）</h3>
+              ${
+                currentSeedCode
+                  ? `<button
+                      type="button"
+                      id="btn-copy-active-seed"
+                      class="btn-stone btn-compact"
+                      data-action="copy-seed"
+                      data-seed-code="${escapeHtml(currentSeedCode)}"
+                      data-ascension="${escapeHtml(state.ascension ?? 0)}"
+                      data-character-id="${escapeHtml(activeCharId)}"
+                      data-daily-date="${escapeHtml(state.dailyChallenge?.dateKey || '')}"
+                    >
+                      复制挑战链接
+                    </button>`
+                  : ''
+              }
+            </div>
+            <div class="seed-launcher-bar">
+              <input
+                type="text"
+                id="seed-input-box"
+                class="spire-input"
+                placeholder="输入种子代码（如 S-16）或粘贴挑战链接（?seed=... / ?daily=YYYY-MM-DD）"
+                value="${escapeHtml(ui.seedInput || '')}"
+                maxlength="240"
+                aria-label="指定种子代码或挑战链接"
+              />
+              <button type="button" id="btn-start-seeded-run" class="btn-brass" data-action="start-seeded-run">
+                以此种子开启【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
+              </button>
+            </div>
           </div>
-          <div class="seed-launcher-bar">
-            <input
-              type="text"
-              id="seed-input-box"
-              class="spire-input"
-              placeholder="输入种子代码（如 S-16）或粘贴挑战链接（?seed=... / ?daily=YYYY-MM-DD）"
-              value="${escapeHtml(ui.seedInput || '')}"
-              maxlength="240"
-              aria-label="指定种子代码或挑战链接"
-            />
-            <button type="button" id="btn-start-seeded-run" class="btn-brass" data-action="start-seeded-run">
-              以此种子开启【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
-            </button>
-          </div>
-        </div>
 
-        <div class="meta-section">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;">选择下局【进阶难度】${state ? `（当前本局：进阶 ${escapeHtml(state.ascension ?? 0)}）` : ''}</h3>
-            <button type="button" id="btn-start-ascension-run" class="btn-brass" data-action="start-ascension-run">
-              以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
-            </button>
+          <div class="meta-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+              <h3 style="margin:0;">选择下局【进阶难度】${state ? `（当前本局：进阶 ${escapeHtml(state.ascension ?? 0)}）` : ''}</h3>
+              <button type="button" id="btn-start-ascension-run" class="btn-brass" data-action="start-ascension-run">
+                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
+              </button>
+            </div>
+            <div class="ascension-grid">${ascensionButtonsHtml}</div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+              <button type="button" id="btn-start-ascension-run-bottom" class="btn-brass" data-action="start-ascension-run">
+                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
+              </button>
+            </div>
           </div>
-          <div class="ascension-grid">${ascensionButtonsHtml}</div>
-          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-            <button type="button" id="btn-start-ascension-run-bottom" class="btn-brass" data-action="start-ascension-run">
-              以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
-            </button>
-          </div>
-        </div>
 
-        <div class="meta-section">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-            <h3 style="margin:0;">历练觉醒解锁进度（已解锁 ${effectiveTier} / ${UNLOCK_TIERS.length} 阶）</h3>
-            ${
-              meta.unlockAllOverride && maxAscAllowed >= MAX_ASCENSION
-                ? `<span style="font-size:0.8rem;color:var(--jade-upgrade);font-weight:700;">已开启全图鉴与全进阶</span>`
-                : `<button type="button" id="btn-unlock-all-meta" class="btn-stone" data-action="toggle-unlock-all">一键解锁全部进阶与图鉴（测试用）</button>`
-            }
+          <div class="meta-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <h3 style="margin:0;">历练觉醒解锁进度（已解锁 ${effectiveTier} / ${UNLOCK_TIERS.length} 阶）</h3>
+              ${
+                meta.unlockAllOverride && maxAscAllowed >= MAX_ASCENSION
+                  ? `<span style="font-size:0.8rem;color:var(--jade-upgrade);font-weight:700;">已开启全图鉴与全进阶</span>`
+                  : `<button type="button" id="btn-unlock-all-meta" class="btn-stone" data-action="toggle-unlock-all">一键解锁全部进阶与图鉴（测试用）</button>`
+              }
+            </div>
+            <div class="xp-bar-track"><div class="xp-bar-fill" style="width: ${xpPct}%;"></div></div>
+            <div class="unlock-tier-list">${unlockTiersHtml}</div>
           </div>
-          <div class="xp-bar-track"><div class="xp-bar-fill" style="width: ${xpPct}%;"></div></div>
-          <div class="unlock-tier-list">${unlockTiersHtml}</div>
-        </div>
 
-        <div class="meta-section">
-          <h3>历史战绩编年史（最近 ${escapeHtml(historyList.length)} 场 · 点击“复盘”查看完整构筑）</h3>
-          ${historyHtml}
+          <div class="meta-section">
+            <h3>历史战绩编年史（最近 ${escapeHtml(historyList.length)} 场 · 点击“复盘”查看完整构筑）</h3>
+            ${historyHtml}
+          </div>
         </div>
       </div>
     </div>
@@ -440,95 +442,97 @@ function renderHistoryDetailModal({ meta, ui }) {
           </div>
         </div>
 
-        <div class="battle-report-card ${isWin ? 'report-win' : 'report-loss'}">
-          <div class="report-hero-row">
-            <div class="report-identity">
-              <div class="report-tags-row">
-                <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
-                ${isDaily ? `<span class="daily-pill">每日挑战 ${escapeHtml(rec.dailyDateKey)}</span>` : ''}
-                ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
-                <code class="seed-code-tag">${escapeHtml(sCode)}</code>
+        <div class="modal-body">
+          <div class="battle-report-card ${isWin ? 'report-win' : 'report-loss'}">
+            <div class="report-hero-row">
+              <div class="report-identity">
+                <div class="report-tags-row">
+                  <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
+                  ${isDaily ? `<span class="daily-pill">每日挑战 ${escapeHtml(rec.dailyDateKey)}</span>` : ''}
+                  ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
+                  <code class="seed-code-tag">${escapeHtml(sCode)}</code>
+                </div>
+                ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}
               </div>
-              ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}
-            </div>
-            <div class="score-rank-badge ${getRankCssClass(grade)}">
-              <span class="score-rank-letter">${escapeHtml(grade)}</span>
-              <div class="score-rank-meta">
-                <span class="score-rank-label">战绩评分</span>
-                <strong class="score-rank-value">${escapeHtml(score.toLocaleString())}</strong>
+              <div class="score-rank-badge ${getRankCssClass(grade)}">
+                <span class="score-rank-letter">${escapeHtml(grade)}</span>
+                <div class="score-rank-meta">
+                  <span class="score-rank-label">战绩评分</span>
+                  <strong class="score-rank-value">${escapeHtml(score.toLocaleString())}</strong>
+                </div>
               </div>
             </div>
+
+            <div class="report-stats-grid">
+              <div class="report-stat-cell">
+                <span class="report-stat-label">获胜战斗</span>
+                <strong class="report-stat-val">${escapeHtml(rec.combatsWon ?? 0)}${(rec.perfectCombats ?? 0) > 0 ? ` <small class="stat-jade">(无伤 ${escapeHtml(rec.perfectCombats)})</small>` : ''}</strong>
+              </div>
+              <div class="report-stat-cell">
+                <span class="report-stat-label">精英 / 强敌</span>
+                <strong class="report-stat-val">${escapeHtml(rec.elitesSlain ?? 0)} / ${escapeHtml(rec.enemiesSlain ?? 0)}</strong>
+              </div>
+              <div class="report-stat-cell">
+                <span class="report-stat-label">总输出伤害</span>
+                <strong class="report-stat-val">${escapeHtml((rec.totalDamageDealt ?? 0).toLocaleString())}</strong>
+              </div>
+              <div class="report-stat-cell">
+                <span class="report-stat-label">最高单次伤害</span>
+                <strong class="report-stat-val">${escapeHtml((rec.highestSingleHit ?? 0).toLocaleString())}</strong>
+              </div>
+              <div class="report-stat-cell">
+                <span class="report-stat-label">累计格挡</span>
+                <strong class="report-stat-val">${escapeHtml((rec.totalBlockGained ?? 0).toLocaleString())}</strong>
+              </div>
+              <div class="report-stat-cell">
+                <span class="report-stat-label">牌组 / 遗物</span>
+                <strong class="report-stat-val">${escapeHtml(rec.deckSize ?? 0)} 张 / ${escapeHtml(rec.relicCount ?? 0)} 件</strong>
+              </div>
+            </div>
+
+            ${
+              breakdownHtml
+                ? `<div class="score-breakdown-wrap">
+                    <div class="report-subhead">评分明细</div>
+                    <div class="score-breakdown-grid">${breakdownHtml}</div>
+                  </div>`
+                : ''
+            }
+
+            <div class="report-relics-wrap">
+              <div class="report-subhead">最终遗物（${escapeHtml(rec.relicIds?.length ?? rec.relicCount ?? 0)} 件）</div>
+              <div class="report-relics-strip">${relicsHtml || '<span class="stage-subtitle">未记录遗物详情</span>'}</div>
+            </div>
           </div>
 
-          <div class="report-stats-grid">
-            <div class="report-stat-cell">
-              <span class="report-stat-label">获胜战斗</span>
-              <strong class="report-stat-val">${escapeHtml(rec.combatsWon ?? 0)}${(rec.perfectCombats ?? 0) > 0 ? ` <small class="stat-jade">(无伤 ${escapeHtml(rec.perfectCombats)})</small>` : ''}</strong>
-            </div>
-            <div class="report-stat-cell">
-              <span class="report-stat-label">精英 / 强敌</span>
-              <strong class="report-stat-val">${escapeHtml(rec.elitesSlain ?? 0)} / ${escapeHtml(rec.enemiesSlain ?? 0)}</strong>
-            </div>
-            <div class="report-stat-cell">
-              <span class="report-stat-label">总输出伤害</span>
-              <strong class="report-stat-val">${escapeHtml((rec.totalDamageDealt ?? 0).toLocaleString())}</strong>
-            </div>
-            <div class="report-stat-cell">
-              <span class="report-stat-label">最高单次伤害</span>
-              <strong class="report-stat-val">${escapeHtml((rec.highestSingleHit ?? 0).toLocaleString())}</strong>
-            </div>
-            <div class="report-stat-cell">
-              <span class="report-stat-label">累计格挡</span>
-              <strong class="report-stat-val">${escapeHtml((rec.totalBlockGained ?? 0).toLocaleString())}</strong>
-            </div>
-            <div class="report-stat-cell">
-              <span class="report-stat-label">牌组 / 遗物</span>
-              <strong class="report-stat-val">${escapeHtml(rec.deckSize ?? 0)} 张 / ${escapeHtml(rec.relicCount ?? 0)} 件</strong>
-            </div>
+          <div class="history-detail-actions">
+            <button
+              type="button"
+              id="btn-copy-history-report"
+              class="btn-brass"
+              data-action="copy-history-report"
+              data-history-idx="${idx}"
+            >
+              复制本局战绩卡
+            </button>
+            <button
+              type="button"
+              class="btn-stone"
+              data-action="${isDaily ? 'start-daily-challenge' : 'replay-history-seed'}"
+              data-daily-date="${escapeHtml(rec.dailyDateKey || '')}"
+              data-seed="${escapeHtml(rec.seed)}"
+              data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
+              data-character-id="${escapeHtml(recCharId)}"
+            >
+              ${isDaily ? '再战该日每日挑战 →' : '以此种子再战 →'}
+            </button>
           </div>
 
-          ${
-            breakdownHtml
-              ? `<div class="score-breakdown-wrap">
-                  <div class="report-subhead">评分明细</div>
-                  <div class="score-breakdown-grid">${breakdownHtml}</div>
-                </div>`
-              : ''
-          }
-
-          <div class="report-relics-wrap">
-            <div class="report-subhead">最终遗物（${escapeHtml(rec.relicIds?.length ?? rec.relicCount ?? 0)} 件）</div>
-            <div class="report-relics-strip">${relicsHtml || '<span class="stage-subtitle">未记录遗物详情</span>'}</div>
-          </div>
+          <h3 style="margin:14px 0 8px;font-size:0.95rem;color:var(--text-sand);">
+            最终牌组快照（共 ${escapeHtml(rec.deckSize ?? 0)} 张 · 相同牌自动合并展示数量）
+          </h3>
+          <div class="card-showcase">${deckCardsHtml}</div>
         </div>
-
-        <div class="history-detail-actions">
-          <button
-            type="button"
-            id="btn-copy-history-report"
-            class="btn-brass"
-            data-action="copy-history-report"
-            data-history-idx="${idx}"
-          >
-            复制本局战绩卡
-          </button>
-          <button
-            type="button"
-            class="btn-stone"
-            data-action="${isDaily ? 'start-daily-challenge' : 'replay-history-seed'}"
-            data-daily-date="${escapeHtml(rec.dailyDateKey || '')}"
-            data-seed="${escapeHtml(rec.seed)}"
-            data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
-            data-character-id="${escapeHtml(recCharId)}"
-          >
-            ${isDaily ? '再战该日每日挑战 →' : '以此种子再战 →'}
-          </button>
-        </div>
-
-        <h3 style="margin:14px 0 8px;font-size:0.95rem;color:var(--text-sand);">
-          最终牌组快照（共 ${escapeHtml(rec.deckSize ?? 0)} 张 · 相同牌自动合并展示数量）
-        </h3>
-        <div class="card-showcase">${deckCardsHtml}</div>
       </div>
     </div>
   `;
@@ -561,93 +565,95 @@ function renderSettingsModal({ settings }) {
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
 
-        <div class="settings-list">
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">战斗与界面音效</div>
-              <div class="settings-desc">启用零外部依赖 Web Audio 实时合成音效（斩击、叠盾、破盾、铁砧锻造等）。</div>
+        <div class="modal-body">
+          <div class="settings-list">
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">战斗与界面音效</div>
+                <div class="settings-desc">启用零外部依赖 Web Audio 实时合成音效（斩击、叠盾、破盾、铁砧锻造等）。</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button
+                  type="button"
+                  id="btn-toggle-sound"
+                  class="${settings.soundEnabled ? 'btn-brass' : 'btn-stone'}"
+                  data-action="toggle-sound"
+                >
+                  ${settings.soundEnabled ? '音效：已开启' : '音效：已静音'}
+                </button>
+                <button type="button" id="btn-test-sound" class="btn-stone" data-action="test-sound" ${settings.soundEnabled ? '' : 'disabled'}>
+                  试听
+                </button>
+              </div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
+
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">主音量大小：<span id="settings-volume-label">${escapeHtml(settings.volume)}%</span></div>
+                <div class="settings-desc">拖动滑块实时调节合成音效响度。</div>
+              </div>
+              <div class="settings-slider-wrap">
+                <input
+                  type="range"
+                  id="input-sound-volume"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value="${escapeHtml(settings.volume)}"
+                  aria-label="主音量百分比"
+                />
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">动画速度</div>
+                <div class="settings-desc">调节出牌飞行、受击震动、发牌与护盾击碎动画节奏。</div>
+              </div>
+              <div class="segmented-group">
+                ${speedButtonsHtml}
+              </div>
+            </div>
+
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">伤害与格挡飘字</div>
+                <div class="settings-desc">受击扣血、治疗回血、获得护盾与破盾时在角色上方弹出动态数字。</div>
+              </div>
               <button
                 type="button"
-                id="btn-toggle-sound"
-                class="${settings.soundEnabled ? 'btn-brass' : 'btn-stone'}"
-                data-action="toggle-sound"
+                id="btn-toggle-damage-numbers"
+                class="${settings.showDamageNumbers ? 'btn-brass' : 'btn-stone'}"
+                data-action="toggle-damage-numbers"
               >
-                ${settings.soundEnabled ? '音效：已开启' : '音效：已静音'}
-              </button>
-              <button type="button" id="btn-test-sound" class="btn-stone" data-action="test-sound" ${settings.soundEnabled ? '' : 'disabled'}>
-                试听
+                ${settings.showDamageNumbers ? '飘字：显示' : '飘字：隐藏'}
               </button>
             </div>
-          </div>
 
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">主音量大小：<span id="settings-volume-label">${escapeHtml(settings.volume)}%</span></div>
-              <div class="settings-desc">拖动滑块实时调节合成音效响度。</div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">二段点击确认出牌（防误触）</div>
+                <div class="settings-desc">开启后，点击手牌先高亮并预览斩杀/破盾与联动提示，再次点击该牌（或直接上滑拖出）才真正打出；非常适合手机端防误触。</div>
+              </div>
+              <button
+                type="button"
+                id="btn-toggle-mobile-tap-confirm"
+                class="${settings.mobileTapConfirm ? 'btn-brass' : 'btn-stone'}"
+                data-action="toggle-mobile-tap-confirm"
+              >
+                ${settings.mobileTapConfirm ? '二段确认：已开启' : '二段确认：已关闭'}
+              </button>
             </div>
-            <div class="settings-slider-wrap">
-              <input
-                type="range"
-                id="input-sound-volume"
-                min="0"
-                max="100"
-                step="5"
-                value="${escapeHtml(settings.volume)}"
-                aria-label="主音量百分比"
-              />
-            </div>
-          </div>
 
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">动画速度</div>
-              <div class="settings-desc">调节出牌飞行、受击震动、发牌与护盾击碎动画节奏。</div>
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">地图顶部新手提示条</div>
+                <div class="settings-desc">恢复第 1 层出发前的新手快捷引导横幅。</div>
+              </div>
+              <button type="button" id="btn-reset-tutorial" class="btn-stone" data-action="reset-tutorial">
+                重新开启新手提示
+              </button>
             </div>
-            <div class="segmented-group">
-              ${speedButtonsHtml}
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">伤害与格挡飘字</div>
-              <div class="settings-desc">受击扣血、治疗回血、获得护盾与破盾时在角色上方弹出动态数字。</div>
-            </div>
-            <button
-              type="button"
-              id="btn-toggle-damage-numbers"
-              class="${settings.showDamageNumbers ? 'btn-brass' : 'btn-stone'}"
-              data-action="toggle-damage-numbers"
-            >
-              ${settings.showDamageNumbers ? '飘字：显示' : '飘字：隐藏'}
-            </button>
-          </div>
-
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">二段点击确认出牌（防误触）</div>
-              <div class="settings-desc">开启后，点击手牌先高亮并预览斩杀/破盾与联动提示，再次点击该牌（或直接上滑拖出）才真正打出；非常适合手机端防误触。</div>
-            </div>
-            <button
-              type="button"
-              id="btn-toggle-mobile-tap-confirm"
-              class="${settings.mobileTapConfirm ? 'btn-brass' : 'btn-stone'}"
-              data-action="toggle-mobile-tap-confirm"
-            >
-              ${settings.mobileTapConfirm ? '二段确认：已开启' : '二段确认：已关闭'}
-            </button>
-          </div>
-
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">地图顶部新手提示条</div>
-              <div class="settings-desc">恢复第 1 层出发前的新手快捷引导横幅。</div>
-            </div>
-            <button type="button" id="btn-reset-tutorial" class="btn-stone" data-action="reset-tutorial">
-              重新开启新手提示
-            </button>
           </div>
         </div>
       </div>
@@ -731,28 +737,30 @@ function renderHelpModal({ ui }) {
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
 
-        <div class="help-tab-bar" role="tablist">
-          <button
-            type="button"
-            id="tab-help-glossary"
-            class="btn-stone ${activeTab === 'glossary' ? 'btn-active-choice' : ''}"
-            data-action="switch-help-tab"
-            data-help-tab="glossary"
-          >
-            关键词与状态词典
-          </button>
-          <button
-            type="button"
-            id="tab-help-tutorial"
-            class="btn-stone ${activeTab === 'tutorial' ? 'btn-active-choice' : ''}"
-            data-action="switch-help-tab"
-            data-help-tab="tutorial"
-          >
-            三步新手引导
-          </button>
-        </div>
+        <div class="modal-body">
+          <div class="help-tab-bar" role="tablist">
+            <button
+              type="button"
+              id="tab-help-glossary"
+              class="btn-stone ${activeTab === 'glossary' ? 'btn-active-choice' : ''}"
+              data-action="switch-help-tab"
+              data-help-tab="glossary"
+            >
+              关键词与状态词典
+            </button>
+            <button
+              type="button"
+              id="tab-help-tutorial"
+              class="btn-stone ${activeTab === 'tutorial' ? 'btn-active-choice' : ''}"
+              data-action="switch-help-tab"
+              data-help-tab="tutorial"
+            >
+              三步新手引导
+            </button>
+          </div>
 
-        ${contentHtml}
+          ${contentHtml}
+        </div>
       </div>
     </div>
   `;
@@ -779,12 +787,14 @@ function renderMapModal({ state }) {
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc / M)</button>
         </div>
-        <div class="map-legend-strip" aria-hidden="true">
-          <span class="map-legend-item"><i class="legend-swatch swatch-active"></i>下层可选路线</span>
-          <span class="map-legend-item"><i class="legend-swatch swatch-traveled"></i>已攀登足迹</span>
-          <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
+        <div class="modal-body">
+          <div class="map-legend-strip" aria-hidden="true">
+            <span class="map-legend-item"><i class="legend-swatch swatch-active"></i>下层可选路线</span>
+            <span class="map-legend-item"><i class="legend-swatch swatch-traveled"></i>已攀登足迹</span>
+            <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
+          </div>
+          ${renderMapBoardHtml(state, { interactive: false, idPrefix: 'map-modal-node' })}
         </div>
-        ${renderMapBoardHtml(state, { interactive: false, idPrefix: 'map-modal-node' })}
       </div>
     </div>
   `;
@@ -844,12 +854,14 @@ export function renderModal({ state, meta, settings, ui }) {
               </p>
             </div>
           </div>
-          <div class="challenge-current-save-note">
-            你本地尚有一局进行中的存档（${escapeHtml(curCharName)} · 种子 <code>${escapeHtml(curSeed)}</code> · 第 ${escapeHtml(curAct)} 幕 · 第 ${escapeHtml(curFloor)} 层 · 生命 ${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}）。是否覆盖当前进度并接受挑战？
-          </div>
-          <div class="confirm-actions">
-            <button type="button" id="btn-decline-challenge" class="btn-stone" data-action="decline-challenge">保留当前进度</button>
-            <button type="button" id="btn-accept-challenge" class="btn-brass" data-action="accept-challenge">接受挑战并开新局 →</button>
+          <div class="modal-body">
+            <div class="challenge-current-save-note">
+              你本地尚有一局进行中的存档（${escapeHtml(curCharName)} · 种子 <code>${escapeHtml(curSeed)}</code> · 第 ${escapeHtml(curAct)} 幕 · 第 ${escapeHtml(curFloor)} 层 · 生命 ${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}）。是否覆盖当前进度并接受挑战？
+            </div>
+            <div class="confirm-actions">
+              <button type="button" id="btn-decline-challenge" class="btn-stone" data-action="decline-challenge">保留当前进度</button>
+              <button type="button" id="btn-accept-challenge" class="btn-brass" data-action="accept-challenge">接受挑战并开新局 →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -875,12 +887,14 @@ export function renderModal({ state, meta, settings, ui }) {
               </p>
             </div>
           </div>
-          <div class="challenge-current-save-note">
-            当前对局：<strong>${escapeHtml(curCharName)}</strong> · 第 ${escapeHtml(curAct)} 幕 F${escapeHtml(curFloor)} · 生命 <strong>${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}</strong> · 金币 ${escapeHtml(state.player.gold)} · 遗物 ${escapeHtml(relicCount)} 件 · 牌组 ${escapeHtml(deckCount)} 张
-          </div>
-          <div class="confirm-actions">
-            <button type="button" id="btn-cancel-new-run" class="btn-stone" data-action="close-modal">继续当前对局 (Esc)</button>
-            <button type="button" id="btn-confirm-new-run" class="btn-brass" data-action="confirm-new-run">前往选择角色 / 开启新局 →</button>
+          <div class="modal-body">
+            <div class="challenge-current-save-note">
+              当前对局：<strong>${escapeHtml(curCharName)}</strong> · 第 ${escapeHtml(curAct)} 幕 F${escapeHtml(curFloor)} · 生命 <strong>${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}</strong> · 金币 ${escapeHtml(state.player.gold)} · 遗物 ${escapeHtml(relicCount)} 件 · 牌组 ${escapeHtml(deckCount)} 张
+            </div>
+            <div class="confirm-actions">
+              <button type="button" id="btn-cancel-new-run" class="btn-stone" data-action="close-modal">继续当前对局 (Esc)</button>
+              <button type="button" id="btn-confirm-new-run" class="btn-brass" data-action="confirm-new-run">前往选择角色 / 开启新局 →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -945,7 +959,9 @@ export function renderModal({ state, meta, settings, ui }) {
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">${headerActions.join('')}</div>
           </div>
-          <div class="card-showcase">${cardsHtml}</div>
+          <div class="modal-body">
+            <div class="card-showcase">${cardsHtml}</div>
+          </div>
         </div>
       </div>
     `;
@@ -968,10 +984,12 @@ export function renderModal({ state, meta, settings, ui }) {
               </p>
             </div>
           </div>
-          <div class="confirm-actions">
-            <button type="button" id="btn-cancel-skip-reward" class="btn-stone" data-action="close-modal">返回拾取</button>
-            <button type="button" id="btn-claim-and-proceed" class="btn-brass" data-action="claim-important-and-proceed">一键拾取并继续 →</button>
-            <button type="button" id="btn-confirm-skip-reward" class="btn-stone btn-danger-subtle" data-action="confirm-proceed-reward">放弃并继续</button>
+          <div class="modal-body">
+            <div class="confirm-actions">
+              <button type="button" id="btn-cancel-skip-reward" class="btn-stone" data-action="close-modal">返回拾取</button>
+              <button type="button" id="btn-claim-and-proceed" class="btn-brass" data-action="claim-important-and-proceed">一键拾取并继续 →</button>
+              <button type="button" id="btn-confirm-skip-reward" class="btn-stone btn-danger-subtle" data-action="confirm-proceed-reward">放弃并继续</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1046,7 +1064,9 @@ export function renderModal({ state, meta, settings, ui }) {
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
-        <div class="card-showcase">${cardsHtml}</div>
+        <div class="modal-body">
+          <div class="card-showcase">${cardsHtml}</div>
+        </div>
       </div>
     </div>
   `;

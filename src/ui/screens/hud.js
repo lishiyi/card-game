@@ -162,65 +162,71 @@ export function renderTopHud({ state, ui }) {
       </div>
 
       <div class="vitals-cluster">
-        <div class="vitals-numbers-row">
-          <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
-          <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
-        </div>
-        <div class="hud-gear-scroll" aria-label="遗物栏区域">
-          <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>
+        <div class="vitals-top-row">
+          <div class="vitals-numbers-row">
+            <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
+            <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
+          </div>
+          <div class="hud-gear-scroll" aria-label="遗物栏区域">
+            <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>
+          </div>
         </div>
         <div class="potion-strip" aria-label="药水栏">${potionsHtml}</div>
       </div>
 
       <nav class="top-actions" aria-label="全局操作">
-        <button type="button" id="btn-open-deck" class="btn-stone" data-action="open-modal" data-modal="deck">
-          牌组 (${escapeHtml(state.player.deck.length)})
-        </button>
-        ${
-          state.screen !== 'map' && state.screen !== 'game_over'
-            ? `<button
-                type="button"
-                id="btn-open-map"
-                class="btn-stone"
-                data-action="open-modal"
-                data-modal="map"
-                data-tooltip-title="查看尖塔地图 (M)"
-                data-tooltip-tag="路线预览"
-                data-tooltip-desc="随时查看当前幕完整攀登路线、当前所在位置、后续可选分支与关底首领，关闭后直接回到当前房间。"
-              >
-                地图
-              </button>`
-            : ''
-        }
-        <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
-          进阶/生涯
-        </button>
-        <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
-          词典/引导
-        </button>
-        <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
-          设置
-        </button>
-        ${
-          state.screen === 'combat' && state.combat?.status === 'ongoing'
-            ? `<button
-                type="button"
-                id="btn-restart-combat"
-                class="btn-stone"
-                data-action="restart-combat"
-                ${
-                  state.combatSnapshot
-                    ? 'data-tooltip-title="重启本场战斗" data-tooltip-tag="战斗操作" data-tooltip-desc="放弃当前回合进度，恢复到本场战斗第 1 回合初始状态。"'
-                    : 'disabled'
-                }
-              >
-                重启本场战斗
-              </button>`
-            : ''
-        }
-        <button type="button" id="btn-new-run" class="btn-stone" data-action="new-run">
-          新的一局
-        </button>
+        <div class="top-nav-actions">
+          <button type="button" id="btn-open-deck" class="btn-stone" data-action="open-modal" data-modal="deck">
+            牌组 (${escapeHtml(state.player.deck.length)})
+          </button>
+          ${
+            state.screen !== 'map' && state.screen !== 'game_over'
+              ? `<button
+                  type="button"
+                  id="btn-open-map"
+                  class="btn-stone"
+                  data-action="open-modal"
+                  data-modal="map"
+                  data-tooltip-title="查看尖塔地图 (M)"
+                  data-tooltip-tag="路线预览"
+                  data-tooltip-desc="随时查看当前幕完整攀登路线、当前所在位置、后续可选分支与关底首领，关闭后直接回到当前房间。"
+                >
+                  地图
+                </button>`
+              : ''
+          }
+          <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
+            进阶/生涯
+          </button>
+          <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
+            词典/引导
+          </button>
+          <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
+            设置
+          </button>
+        </div>
+        <div class="top-run-actions">
+          ${
+            state.screen === 'combat' && state.combat?.status === 'ongoing'
+              ? `<button
+                  type="button"
+                  id="btn-restart-combat"
+                  class="btn-stone"
+                  data-action="restart-combat"
+                  ${
+                    state.combatSnapshot
+                      ? 'data-tooltip-title="重启本场战斗" data-tooltip-tag="战斗操作" data-tooltip-desc="放弃当前回合进度，恢复到本场战斗第 1 回合初始状态。"'
+                      : 'disabled'
+                  }
+                >
+                  重启本场战斗
+                </button>`
+              : ''
+          }
+          <button type="button" id="btn-new-run" class="btn-stone" data-action="new-run">
+            新的一局
+          </button>
+        </div>
       </nav>
     </header>
   `;

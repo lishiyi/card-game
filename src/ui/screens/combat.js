@@ -230,7 +230,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
     <section class="combat-dock" aria-label="手牌与能量控制区">
       <div class="dock-controls">
-        <div class="pile-group">
+        <div class="pile-group dock-left-group">
           <button type="button" id="btn-draw-pile" class="btn-stone" data-action="open-modal" data-modal="draw">
             抽牌堆 (${escapeHtml(combat.drawPile.length)})
           </button>
@@ -240,7 +240,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           </div>
         </div>
 
-        <div class="pile-group">
+        <div class="pile-group dock-right-group">
           <button
             type="button"
             id="btn-end-turn"
