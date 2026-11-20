@@ -2389,6 +2389,513 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
   }
 });
 
+test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf + Battle Report/History Review + Mobile 390x844 compact HUD, collapsible log, 2-tap confirm & touch swipe-up drag', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Desktop Character Select displays Daily Challenge Banner with 3 modifiers -> capture screenshot
+    const charDailyAudit = await cdp.evaluate(`(() => {
+      const banner = document.getElementById('daily-challenge-banner');
+      const launchBtn = document.getElementById('btn-start-daily-challenge');
+      const modChips = [...document.querySelectorAll('#daily-challenge-banner .daily-mod-chip')];
+      return {
+        hasBanner: Boolean(banner),
+        hasLaunchBtn: Boolean(launchBtn),
+        dailyDate: launchBtn?.dataset?.dailyDate || '',
+        modCount: modChips.length,
+      };
+    })()`);
+    assert.equal(charDailyAudit.hasBanner, true);
+    assert.equal(charDailyAudit.hasLaunchBtn, true);
+    assert.match(charDailyAudit.dailyDate, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(charDailyAudit.modCount, 3);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'daily_char_select.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 2. Launch Today's Daily Challenge -> verify HUD Daily pill & Map modifier bar
+    await cdp.evaluate(`document.getElementById('btn-start-daily-challenge').click()`);
+    const dailyStartAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        hasHudDailyPill: Boolean(document.getElementById('hud-daily-pill')),
+        hudDailyText: document.getElementById('hud-daily-pill')?.textContent?.trim() || '',
+        mapModCount: document.querySelectorAll('#map-daily-modifiers .daily-mod-chip').length,
+        dailyDateKey: st.dailyChallenge?.dateKey || '',
+        copySeedDailyAttr: document.getElementById('btn-copy-seed')?.dataset?.dailyDate || '',
+      };
+    })()`);
+    assert.equal(dailyStartAudit.hasHudDailyPill, true);
+    assert.equal(dailyStartAudit.mapModCount, 3);
+    assert.equal(dailyStartAudit.dailyDateKey, charDailyAudit.dailyDate);
+    assert.equal(dailyStartAudit.copySeedDailyAttr, charDailyAudit.dailyDate);
+
+    // 3. Open Shop -> verify dedicated Colorless Shelf (1 Uncommon + 1 Rare), capture desktop screenshot, buy 1 colorless card
+    const shopSetupAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      const shopNode = st.map.flat().find((n) => n.type === 'shop');
+      const prevNode = st.map[shopNode.row - 1][0];
+      st.currentNodeId = prevNode.id;
+      prevNode.nextIds = [shopNode.id];
+      st.player.gold = 600;
+      app.render();
+      document.getElementById('map-node-' + shopNode.id).click();
+
+      const colorlessCards = [...document.querySelectorAll('#shop-colorless-cards .game-card')];
+      return {
+        screen: st.screen,
+        colorlessCount: colorlessCards.length,
+        allHaveColorlessClass: colorlessCards.every((el) => el.classList.contains('card-colorless')),
+        rarities: colorlessCards.map((el) => el.dataset.rarity),
+        badges: colorlessCards.map((el) => el.querySelector('.rarity-badge')?.textContent?.trim() || ''),
+      };
+    })()`);
+    assert.equal(shopSetupAudit.screen, 'shop');
+    assert.equal(shopSetupAudit.colorlessCount, 2);
+    assert.equal(shopSetupAudit.allHaveColorlessClass, true);
+    assert.deepEqual(shopSetupAudit.rarities, ['uncommon', 'rare']);
+    assert.deepEqual(shopSetupAudit.badges, ['无色·罕见', '无色·稀有']);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'shop_colorless_desktop.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    const buyColorlessAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const goldBefore = st.player.gold;
+      const deckBefore = st.player.deck.length;
+      const firstOfferPrice = st.shop.colorlessCards[0].price;
+      const btn = document.querySelector('#shop-colorless-cards .game-card[data-offer-index="0"]');
+      btn.click();
+      const btnAfter = document.querySelector('#shop-colorless-cards .game-card[data-offer-index="0"]');
+      return {
+        goldDelta: goldBefore - st.player.gold,
+        firstOfferPrice,
+        deckDelta: st.player.deck.length - deckBefore,
+        colorlessBought: st.stats.colorlessBought,
+        disabledAfter: btnAfter?.disabled === true,
+      };
+    })()`);
+    assert.equal(buyColorlessAudit.goldDelta, buyColorlessAudit.firstOfferPrice);
+    assert.equal(buyColorlessAudit.deckDelta, 1);
+    assert.equal(buyColorlessAudit.colorlessBought, 1);
+    assert.equal(buyColorlessAudit.disabledAfter, true);
+
+    // 4. Transition to Game Over Battle Report -> verify score, grade, breakdown, relics, copy report -> capture screenshot
+    const gameOverAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.act = 2;
+      st.floor = 16;
+      st.stats.floorsCleared = 32;
+      st.stats.combatsWon = 14;
+      st.stats.perfectCombats = 5;
+      st.stats.elitesSlain = 3;
+      st.stats.bossesSlain = 2;
+      st.stats.enemiesSlain = 21;
+      st.stats.cardsPlayed = 118;
+      st.stats.totalDamageDealt = 1640;
+      st.stats.totalBlockGained = 520;
+      st.stats.highestSingleHit = 54;
+      st.player.relics.push('vajra', 'anchor', 'paper_phrog');
+      st.runOutcome = 'victory';
+      st.screen = 'game_over';
+      app.render();
+
+      document.getElementById('btn-copy-battle-report').click();
+      const copied = app.getLastCopiedReport();
+      return {
+        hasReportCard: Boolean(document.getElementById('battle-report-card')),
+        scoreText: document.getElementById('gameover-score-value')?.textContent?.trim() || '',
+        gradeText: document.querySelector('#gameover-score-badge .score-rank-letter')?.textContent?.trim() || '',
+        breakdownCount: document.querySelectorAll('#battle-report-card .score-breakdown-item').length,
+        relicBadgeCount: document.querySelectorAll('#battle-report-card .report-relics-strip .relic-badge').length,
+        copied,
+      };
+    })()`);
+    assert.equal(gameOverAudit.hasReportCard, true);
+    assert.ok(Number(gameOverAudit.scoreText.replace(/,/g, '')) >= 1000);
+    assert.ok(['S+', 'S', 'A'].includes(gameOverAudit.gradeText));
+    assert.ok(gameOverAudit.breakdownCount >= 6);
+    assert.ok(gameOverAudit.relicBadgeCount >= 4);
+    assert.ok(gameOverAudit.copied.includes(`每日挑战 ${charDailyAudit.dailyDate}`));
+    assert.ok(gameOverAudit.copied.includes('总输出 1640'));
+    assert.ok(gameOverAudit.copied.includes(`?daily=${charDailyAudit.dailyDate}`));
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'gameover_report_desktop.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 5. Open Meta Modal -> verify today's personal best in #meta-daily-banner -> open History Review Modal (#history-detail-modal)
+    const historyReviewAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-gameover-meta').click();
+      const dailyBannerText = document.getElementById('meta-daily-banner')?.textContent?.trim() || '';
+      const inspectBtn = document.querySelector('#run-history-list [data-action="inspect-history-run"]');
+      inspectBtn.click();
+
+      const modal = document.getElementById('history-detail-modal');
+      const deckCards = modal ? [...modal.querySelectorAll('.card-showcase .game-card')] : [];
+      const stackBadges = modal ? [...modal.querySelectorAll('.card-stack-badge')] : [];
+      const relicBadges = modal ? [...modal.querySelectorAll('.report-relics-strip .relic-badge')] : [];
+      document.getElementById('btn-copy-history-report').click();
+      const copiedHist = window.__SPIRE_APP__.getLastCopiedReport();
+      return {
+        dailyBannerText,
+        hasHistoryModal: Boolean(modal),
+        deckCardCount: deckCards.length,
+        stackBadgeCount: stackBadges.length,
+        relicCount: relicBadges.length,
+        copiedHistHasDaily: copiedHist.includes('每日挑战'),
+      };
+    })()`);
+    assert.ok(historyReviewAudit.dailyBannerText.includes('今日最高'));
+    assert.equal(historyReviewAudit.hasHistoryModal, true);
+    assert.ok(historyReviewAudit.deckCardCount >= 4);
+    assert.ok(historyReviewAudit.stackBadgeCount >= 1, 'Duplicate cards should merge with ×N stack badge in history review');
+    assert.ok(historyReviewAudit.relicCount >= 4);
+    assert.equal(historyReviewAudit.copiedHistHasDaily, true);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      await new Promise((r) => setTimeout(r, 250));
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'history_detail_modal.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 6. ?daily=2026-11-19 deep link with active run -> verify confirmation modal & accept
+    await cdp.evaluate(`(() => {
+      document.getElementById('btn-close-modal').click();
+      document.getElementById('btn-replay-current-seed').click();
+    })()`);
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?daily=2026-11-19` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const dailyInviteAudit = await cdp.evaluate(`(() => {
+      const hasInvite = Boolean(document.getElementById('challenge-invite-modal'));
+      const title = document.getElementById('modal-title')?.textContent?.trim() || '';
+      const desc = document.getElementById('challenge-invite-desc')?.textContent?.trim() || '';
+      document.getElementById('btn-accept-challenge').click();
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        hasInvite,
+        title,
+        desc,
+        acceptedDateKey: st.dailyChallenge?.dateKey || '',
+        acceptedModCount: st.dailyChallenge?.modifierIds?.length ?? 0,
+      };
+    })()`);
+    assert.equal(dailyInviteAudit.hasInvite, true);
+    assert.ok(dailyInviteAudit.title.includes('2026-11-19'));
+    assert.ok(dailyInviteAudit.desc.includes('规则词条'));
+    assert.equal(dailyInviteAudit.acceptedDateKey, '2026-11-19');
+    assert.equal(dailyInviteAudit.acceptedModCount, 3);
+
+    // 7. Mobile 390x844 Experience Upgrade Audits (Touch Emulation ON)
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    await cdp.evaluate(`window.localStorage.clear()`);
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 7a. Mobile Character Select + Daily Banner
+    const mobileSelectAudit = await cdp.evaluate(`({
+      hasDailyBanner: Boolean(document.getElementById('daily-challenge-banner')),
+      docScrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    })`);
+    assert.equal(mobileSelectAudit.hasDailyBanner, true);
+    assert.ok(
+      mobileSelectAudit.docScrollWidth <= mobileSelectAudit.innerWidth,
+      `Mobile Char Select overflowed: ${mobileSelectAudit.docScrollWidth} > ${mobileSelectAudit.innerWidth}`
+    );
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_daily_select.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 7b. Mobile Shop 2-Column Colorless Grid + zero overflow
+    await cdp.evaluate(`document.getElementById('btn-start-daily-challenge').click()`);
+    const mobileShopAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      const shopNode = st.map.flat().find((n) => n.type === 'shop');
+      const prevNode = st.map[shopNode.row - 1][0];
+      st.currentNodeId = prevNode.id;
+      prevNode.nextIds = [shopNode.id];
+      st.player.gold = 500;
+      app.render();
+      document.getElementById('map-node-' + shopNode.id).click();
+
+      const colorlessCards = [...document.querySelectorAll('#shop-colorless-cards .game-card')];
+      const r0 = colorlessCards[0]?.getBoundingClientRect();
+      const r1 = colorlessCards[1]?.getBoundingClientRect();
+      return {
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        twoColSideBySide: Boolean(r0 && r1 && r1.left > r0.left + 20 && Math.abs(r0.top - r1.top) < 16),
+      };
+    })()`);
+    assert.ok(
+      mobileShopAudit.docScrollWidth <= mobileShopAudit.innerWidth,
+      `Mobile Shop overflowed: ${mobileShopAudit.docScrollWidth} > ${mobileShopAudit.innerWidth}`
+    );
+    assert.equal(mobileShopAudit.twoColSideBySide, true, 'Mobile Shop colorless shelf should render 2-column side-by-side');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_shop_colorless.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 7c. Mobile Combat: Compact single-row HUD with 6 relics, collapsible log, 2-tap confirm, and directional touch swipe-up drag
+    const mobileCombatBaseAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      document.getElementById('btn-leave-shop').click();
+      // Jump to Floor 1 combat and equip 6 relics to stress-test single-row scrollable HUD
+      st.currentNodeId = null;
+      st.player.relics = ['burning_blood', 'vajra', 'anchor', 'lantern', 'akabeko', 'paper_phrog'];
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+
+      // Keep 1 healthy enemy + deterministic hand (Defend + Strike) for touch tests
+      st.combat.enemies = [st.combat.enemies[0]];
+      st.combat.enemies[0].hp = 40;
+      st.combat.enemies[0].maxHp = 40;
+      st.combat.enemies[0].block = 0;
+      delete st.combat.enemies[0].statuses.curlUp;
+      st.player.energy = 3;
+      st.player.block = 0;
+      st.combat.hand = [
+        { instanceId: 'mob_defend_1', cardId: 'defend', upgraded: false },
+        { instanceId: 'mob_strike_1', cardId: 'strike', upgraded: false },
+        { instanceId: 'mob_strike_2', cardId: 'strike', upgraded: false },
+      ];
+      app.render();
+
+      const combatLog = document.getElementById('combat-log');
+      const logDisplayBefore = combatLog ? getComputedStyle(combatLog).display : '';
+
+      document.getElementById('btn-toggle-mobile-log').click();
+      const logDisplayAfter = document.getElementById('combat-log')
+        ? getComputedStyle(document.getElementById('combat-log')).display
+        : '';
+      // Collapse back so combat stays compact for screenshot
+      document.getElementById('btn-toggle-mobile-log').click();
+
+      const hudRect = document.querySelector('.top-hud')?.getBoundingClientRect();
+      const gearScroll = document.querySelector('.hud-gear-scroll');
+      const mobileBar = document.getElementById('mobile-hand-bar');
+
+      return {
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        hudHeight: Math.round(hudRect?.height ?? 999),
+        gearOverflowX: gearScroll ? getComputedStyle(gearScroll).overflowX : '',
+        mobileBarVisible: mobileBar ? getComputedStyle(mobileBar).display !== 'none' : false,
+        logDisplayBefore,
+        logDisplayAfter,
+      };
+    })()`);
+    assert.ok(
+      mobileCombatBaseAudit.docScrollWidth <= mobileCombatBaseAudit.innerWidth,
+      `Mobile Combat with 6 relics overflowed: ${mobileCombatBaseAudit.docScrollWidth} > ${mobileCombatBaseAudit.innerWidth}`
+    );
+    assert.ok(
+      mobileCombatBaseAudit.hudHeight <= 170,
+      `Compact mobile HUD with 6 relics should stay compact (<=170px), got ${mobileCombatBaseAudit.hudHeight}px`
+    );
+    assert.equal(mobileCombatBaseAudit.gearOverflowX, 'auto');
+    assert.equal(mobileCombatBaseAudit.mobileBarVisible, true);
+    assert.equal(mobileCombatBaseAudit.logDisplayBefore, 'none');
+    assert.notEqual(mobileCombatBaseAudit.logDisplayAfter, 'none');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_combat_compact.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    // 7d. Two-tap confirm mode on mobile (via Settings toggle)
+    const twoTapAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-settings').click();
+      document.getElementById('btn-toggle-mobile-tap-confirm').click();
+      const btnText = document.getElementById('btn-toggle-mobile-tap-confirm')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal').click();
+
+      const st = window.__SPIRE_APP__.getState();
+      const blockBefore = st.player.block;
+      // 1st tap selects Defend without playing it
+      document.getElementById('hand-card-mob_defend_1').click();
+      const selectedAfterTap1 = document.getElementById('hand-card-mob_defend_1')?.classList.contains('selected-card') ?? false;
+      const blockAfterTap1 = st.player.block;
+      // 2nd tap plays Defend
+      document.getElementById('hand-card-mob_defend_1').click();
+      const blockAfterTap2 = st.player.block;
+
+      // Turn off tap-confirm afterwards
+      document.getElementById('btn-open-settings').click();
+      document.getElementById('btn-toggle-mobile-tap-confirm').click();
+      document.getElementById('btn-close-modal').click();
+
+      return { btnText, blockBefore, selectedAfterTap1, blockAfterTap1, blockAfterTap2 };
+    })()`);
+    assert.ok(twoTapAudit.btnText.includes('已开启'));
+    assert.equal(twoTapAudit.selectedAfterTap1, true);
+    assert.equal(twoTapAudit.blockAfterTap1, twoTapAudit.blockBefore, '1st tap must preview without playing');
+    assert.ok(twoTapAudit.blockAfterTap2 > twoTapAudit.blockBefore, '2nd tap must play selected card');
+
+    // 7e. Directional touch drag: horizontal swipe does NOT play card; upward swipe onto enemy plays Strike!
+    const touchDragAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const enemy = st.combat.enemies[0];
+      const hpBefore = enemy.hp;
+      const strikeEl = document.getElementById('hand-card-mob_strike_1');
+      const sRect = strikeEl.getBoundingClientRect();
+      const startX = sRect.left + sRect.width / 2;
+      const startY = sRect.top + sRect.height / 2;
+
+      // A) Horizontal swipe (should cancel drag & preserve horizontal scroll)
+      strikeEl.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, pointerId: 11, pointerType: 'touch', clientX: startX, clientY: startY,
+      }));
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerId: 11, pointerType: 'touch', clientX: startX - 50, clientY: startY - 4,
+      }));
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true, pointerId: 11, pointerType: 'touch', clientX: startX - 50, clientY: startY - 4,
+      }));
+      const hpAfterHorizSwipe = enemy.hp;
+
+      // B) Clear upward swipe aiming onto enemy unit (accounting for thumb offset)
+      const enemyEl = document.getElementById('enemy-unit-' + enemy.id);
+      const eRect = enemyEl.getBoundingClientRect();
+      const targetX = eRect.left + eRect.width / 2;
+      const targetY = eRect.top + eRect.height / 2 + 24;
+
+      strikeEl.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, pointerId: 12, pointerType: 'touch', clientX: startX, clientY: startY,
+      }));
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerId: 12, pointerType: 'touch', clientX: startX, clientY: startY - 36,
+      }));
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerId: 12, pointerType: 'touch', clientX: targetX, clientY: targetY,
+      }));
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true, pointerId: 12, pointerType: 'touch', clientX: targetX, clientY: targetY,
+      }));
+
+      return {
+        hpBefore,
+        hpAfterHorizSwipe,
+        hpAfterUpwardSwipe: enemy.hp,
+      };
+    })()`);
+    assert.equal(touchDragAudit.hpAfterHorizSwipe, touchDragAudit.hpBefore, 'Horizontal touch swipe must NOT play card');
+    assert.ok(touchDragAudit.hpAfterUpwardSwipe < touchDragAudit.hpBefore, 'Upward touch drag onto enemy must play Strike');
+
+    // 7f. Mobile Game Over Battle Report zero overflow + screenshot
+    const mobileReportAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.runOutcome = 'defeat';
+      st.stats.defeatedBy = '大颚虫';
+      st.screen = 'game_over';
+      app.render();
+      return {
+        hasReportCard: Boolean(document.getElementById('battle-report-card')),
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    })()`);
+    assert.equal(mobileReportAudit.hasReportCard, true);
+    assert.ok(
+      mobileReportAudit.docScrollWidth <= mobileReportAudit.innerWidth,
+      `Mobile Game Over report overflowed: ${mobileReportAudit.docScrollWidth} > ${mobileReportAudit.innerWidth}`
+    );
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_gameover_report.png'),
+        Buffer.from(shot.data, 'base64')
+      );
+    }
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+
 
 
 

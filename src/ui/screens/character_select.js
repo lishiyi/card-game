@@ -7,6 +7,7 @@
 import { CARD_LIBRARY, formatCardDescription } from '../../data/cards.js';
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getDailyChallengeSpec } from '../../engine/daily.js';
 import { ASCENSION_DEFS, MAX_ASCENSION } from '../../engine/meta.js';
 import { escapeHtml } from '../helpers.js';
 import { getCharacterSvg } from '../icons.js';
@@ -188,6 +189,22 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
   }).join('');
 
   const ascDef = ASCENSION_DEFS[selectedAsc] || ASCENSION_DEFS[0];
+  const dailySpec = getDailyChallengeSpec();
+  const dailyBest = meta.dailyRecords?.[dailySpec.dateKey] || null;
+  const dailyModsHtml = dailySpec.modifiers
+    .map(
+      (mod) => `
+        <span
+          class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
+          tabindex="0"
+          data-tooltip-title="${escapeHtml(mod.name)}"
+          data-tooltip-tag="今日词条 · ${escapeHtml(mod.shortTag)}"
+          data-tooltip-desc="${escapeHtml(mod.description)}"
+          data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
+        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+      `
+    )
+    .join('');
 
   return `
     <section class="panel-stage character-select-stage" id="character-select-screen" aria-labelledby="char-select-heading">
@@ -199,6 +216,33 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
       </div>
 
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:14px;">${escapeHtml(ui.notice)}</div>` : ''}
+
+      <div class="daily-challenge-banner" id="daily-challenge-banner" aria-label="今日每日挑战">
+        <div class="daily-banner-main">
+          <div class="daily-banner-top">
+            <span class="daily-pill">每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
+            <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
+            <code class="seed-code-tag">${escapeHtml(dailySpec.seedCode)}</code>
+            ${
+              dailyBest
+                ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)}) · 已战 ${escapeHtml(dailyBest.attempts)} 次</span>`
+                : `<span class="daily-best-pill fresh">全网同图同词条 · 结算评分与分享</span>`
+            }
+          </div>
+          <div class="daily-mod-row">${dailyModsHtml}</div>
+        </div>
+        <div class="daily-banner-cta">
+          <button
+            type="button"
+            id="btn-start-daily-challenge"
+            class="btn-brass btn-daily-launch"
+            data-action="start-daily-challenge"
+            data-daily-date="${escapeHtml(dailySpec.dateKey)}"
+          >
+            开启今日挑战 →
+          </button>
+        </div>
+      </div>
 
       <div class="character-select-grid">
         ${cardsHtml}
@@ -217,7 +261,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
               type="text"
               id="char-seed-input"
               class="spire-input char-seed-input"
-              placeholder="留空随机开局，或输入种子码 / 好友挑战链接"
+              placeholder="留空随机开局，或输入种子码 / 挑战链接 / ?daily=日期"
               value="${escapeHtml(ui.seedInput || '')}"
               maxlength="240"
             />

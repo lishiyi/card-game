@@ -10,7 +10,7 @@ import { getEnemyIntentPreview } from '../../engine/math.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
 import { getCharacterSvg, getIntentIconSvg } from '../icons.js';
 
-export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
+export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy }) {
   const combat = state.combat;
   const aliveEnemies = getAliveEnemies(combat);
   const selectedCard = ui.selectedCardId
@@ -21,6 +21,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
     (selectedCardStats && selectedCardStats.target === 'enemy') ||
     (ui.selectedPotionSlot !== null &&
       POTION_LIBRARY[state.player.potions[ui.selectedPotionSlot]]?.target === 'enemy');
+  const isConfirmingSelfCard = Boolean(selectedCardStats && selectedCardStats.target !== 'enemy');
 
   const playerHpPct = Math.max(
     0,
@@ -168,6 +169,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
         `<div class="log-entry"><span class="log-turn">[T${escapeHtml(entry.turn)}]</span><span>${escapeHtml(entry.message)}</span></div>`
     )
     .join('');
+  const latestLogMsg = combat.logs.length > 0 ? combat.logs[combat.logs.length - 1].message : '';
 
   let bannerText = ui.notice;
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
@@ -178,7 +180,13 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
     const itemName = selectedCardStats
       ? selectedCardStats.name
       : POTION_LIBRARY[state.player.potions[ui.selectedPotionSlot]]?.name;
-    bannerText = `请点击一名敌人作为【${itemName}】的目标（再次点击卡牌或按 Esc 取消）`;
+    bannerText =
+      selectedCardStats && aliveEnemies.length === 1 && settings?.mobileTapConfirm
+        ? `已选中【${itemName}】，再次点击该牌或点击敌人即可打出`
+        : `请点击一名敌人作为【${itemName}】的目标（再次点击卡牌或按 Esc 取消）`;
+    bannerClass = 'targeting';
+  } else if (isConfirmingSelfCard) {
+    bannerText = `已选中【${selectedCardStats.name}】，再次点击该牌或上滑至战场即可打出（点击别处取消）`;
     bannerClass = 'targeting';
   } else if (!bannerText) {
     bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}（可点击或拖拽出牌，数字键 1-9 快速出牌，E 键结束回合）`;
@@ -186,6 +194,7 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
   const playerArtKey = state.player.artKey || state.characterId || 'ironclad';
+  const mobileLogExpanded = Boolean(ui.mobileLogExpanded);
 
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
@@ -250,13 +259,38 @@ export function renderCombatScreen({ state, ui, getPreviewTargetEnemy }) {
         </div>
       </div>
 
+      <div class="mobile-hand-bar" id="mobile-hand-bar">
+        <span class="mobile-hand-meta">手牌 ${escapeHtml(combat.hand.length)} / 10</span>
+        <span class="mobile-hand-hint">${
+          isPendingDiscard
+            ? '点击下方手牌弃置'
+            : settings?.mobileTapConfirm
+              ? '点选预览 · 再点/上滑出牌'
+              : '左右滑选牌 · 上滑拖出牌'
+        }</span>
+        <button
+          type="button"
+          id="btn-toggle-mobile-log"
+          class="mobile-log-toggle"
+          data-action="toggle-mobile-log"
+          aria-expanded="${mobileLogExpanded ? 'true' : 'false'}"
+        >
+          ${mobileLogExpanded ? '收起日志 ▲' : '战斗日志 ▼'}
+        </button>
+      </div>
+
       <div class="hand-tray ${isPendingDiscard ? 'discard-selecting' : ''}" id="hand-tray">
         ${handHtml || '<p class="stage-subtitle">当前无手牌，请点击“结束回合”。</p>'}
       </div>
 
-      <div class="combat-log" id="combat-log" aria-live="polite">
+      <div class="combat-log ${mobileLogExpanded ? 'mobile-expanded' : ''}" id="combat-log" aria-live="polite">
         ${recentLogs}
       </div>
+      ${
+        !mobileLogExpanded && latestLogMsg
+          ? `<div class="mobile-log-peek" id="mobile-log-peek" data-action="toggle-mobile-log">${escapeHtml(latestLogMsg)}</div>`
+          : ''
+      }
     </section>
   `;
 }

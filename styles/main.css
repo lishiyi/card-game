@@ -3285,6 +3285,514 @@ body.spire-dragging {
   background: linear-gradient(180deg, hsl(150, 66%, 44%), hsl(160, 66%, 28%));
 }
 
+/* === HUD Containers & Mobile Helper Bars (Desktop Defaults) === */
+.vitals-numbers-row,
+.hud-gear-scroll {
+  display: contents;
+}
+
+.potion-slot-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.mobile-hand-bar,
+.mobile-log-peek {
+  display: none;
+}
+
+/* === Shop-Exclusive Colorless Card Theme === */
+.game-card.card-colorless {
+  background: linear-gradient(175deg, hsl(222, 12%, 23%), hsl(220, 12%, 14%) 62%, hsl(225, 14%, 11%));
+  border-color: hsla(212, 22%, 68%, 0.65);
+  box-shadow:
+    inset 0 1px 0 hsla(210, 40%, 92%, 0.16),
+    0 6px 16px hsla(220, 30%, 5%, 0.45);
+}
+
+.game-card.card-colorless.rarity-uncommon {
+  border-color: hsla(206, 54%, 66%, 0.78);
+}
+
+.game-card.card-colorless.rarity-uncommon::before {
+  background: linear-gradient(90deg, hsl(208, 30%, 72%), hsl(204, 78%, 68%), hsl(212, 28%, 76%));
+}
+
+.game-card.card-colorless.rarity-rare {
+  border-color: hsla(42, 74%, 68%, 0.85);
+  box-shadow:
+    inset 0 1px 0 hsla(44, 88%, 88%, 0.2),
+    0 0 18px hsla(42, 72%, 52%, 0.16),
+    0 6px 16px hsla(220, 30%, 5%, 0.45);
+}
+
+.game-card.card-colorless.rarity-rare::before {
+  background: linear-gradient(90deg, hsl(216, 26%, 78%), hsl(44, 92%, 66%), hsl(216, 26%, 78%));
+}
+
+.game-card.card-colorless .card-cost {
+  background: radial-gradient(circle at 32% 30%, hsl(212, 22%, 52%), hsl(218, 22%, 26%));
+  border-color: hsl(210, 34%, 76%);
+  color: hsl(210, 40%, 96%);
+}
+
+.game-card.card-colorless .card-name:not(.upgraded) {
+  color: hsl(210, 34%, 92%);
+}
+
+.rarity-badge.badge-colorless {
+  background: hsla(216, 24%, 24%, 0.92);
+  border-color: hsla(210, 32%, 72%, 0.65);
+  color: hsl(210, 44%, 90%);
+}
+
+.rarity-badge.badge-colorless.rarity-rare {
+  border-color: hsla(43, 82%, 64%, 0.8);
+  color: hsl(44, 92%, 82%);
+}
+
+.card-stack-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  border-radius: 999px;
+  background: hsla(38, 66%, 44%, 0.22);
+  border: 1px solid hsla(38, 72%, 58%, 0.55);
+  color: hsl(42, 92%, 82%);
+}
+
+.shop-colorless-section {
+  padding: 14px 16px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsla(218, 18%, 16%, 0.88), hsla(220, 16%, 11%, 0.92));
+  border: 1px solid hsla(212, 24%, 56%, 0.36);
+}
+
+.shop-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.shop-section-head h3 {
+  margin: 0;
+  color: hsl(210, 38%, 88%);
+}
+
+.shop-colorless-note {
+  font-size: 0.78rem;
+  color: hsl(212, 22%, 72%);
+}
+
+.price-tag.colorless-price {
+  color: hsl(210, 44%, 84%);
+}
+
+/* === Daily Challenge Banner, Pills & Modifier Chips === */
+.daily-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, hsla(268, 48%, 34%, 0.92), hsla(262, 46%, 22%, 0.95));
+  border: 1px solid hsla(274, 72%, 68%, 0.65);
+  color: hsl(276, 100%, 92%);
+  cursor: help;
+}
+
+.daily-challenge-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 12% 18%, hsla(270, 56%, 42%, 0.24), transparent 55%),
+    linear-gradient(135deg, hsla(264, 28%, 16%, 0.94), hsla(28, 22%, 13%, 0.95));
+  border: 1px solid hsla(272, 58%, 62%, 0.5);
+  box-shadow: 0 8px 24px hsla(268, 40%, 6%, 0.35);
+}
+
+.daily-challenge-banner.compact {
+  margin-bottom: 0;
+  padding: 12px 14px;
+}
+
+.daily-banner-main {
+  flex: 1 1 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.daily-banner-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-best-pill {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: hsla(42, 74%, 44%, 0.18);
+  border: 1px solid hsla(42, 82%, 58%, 0.45);
+  color: hsl(44, 92%, 82%);
+}
+
+.daily-best-pill.fresh {
+  background: hsla(268, 34%, 26%, 0.55);
+  border-color: hsla(272, 48%, 58%, 0.4);
+  color: hsl(274, 48%, 84%);
+}
+
+.daily-mod-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.daily-mod-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-stone);
+  background: hsla(24, 18%, 13%, 0.9);
+  color: var(--text-ivory);
+  cursor: help;
+  transition: transform 0.14s ease, border-color 0.14s ease;
+}
+
+.daily-mod-chip:hover,
+.daily-mod-chip:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.daily-mod-chip.tone-buff {
+  border-color: hsla(148, 56%, 48%, 0.55);
+  color: hsl(146, 72%, 82%);
+  background: hsla(152, 34%, 14%, 0.85);
+}
+
+.daily-mod-chip.tone-mixed {
+  border-color: hsla(40, 72%, 54%, 0.55);
+  color: hsl(42, 88%, 84%);
+  background: hsla(36, 36%, 15%, 0.85);
+}
+
+.daily-mod-chip.tone-challenge {
+  border-color: hsla(8, 72%, 54%, 0.6);
+  color: hsl(12, 88%, 82%);
+  background: hsla(10, 36%, 15%, 0.85);
+}
+
+.daily-banner-cta {
+  flex-shrink: 0;
+}
+
+.btn-daily-launch {
+  background: linear-gradient(180deg, hsl(270, 56%, 46%), hsl(264, 58%, 31%));
+  border-color: hsl(274, 72%, 68%);
+  color: hsl(278, 100%, 96%);
+  box-shadow: 0 6px 18px hsla(268, 60%, 24%, 0.5);
+}
+
+.daily-active-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: hsla(266, 28%, 15%, 0.78);
+  border: 1px solid hsla(272, 48%, 56%, 0.42);
+}
+
+.daily-active-label {
+  font-size: 0.79rem;
+  font-weight: 700;
+  color: hsl(276, 80%, 88%);
+}
+
+/* === Battle Report Card, Score Rank & History Review === */
+.gameover-actions-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.battle-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 12px 0 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 92% 14%, hsla(40, 70%, 44%, 0.14), transparent 46%),
+    var(--bg-cavern);
+  border: 1px solid var(--border-stone);
+  box-shadow: var(--shadow-soft);
+}
+
+.battle-report-card.report-win {
+  border-color: hsla(148, 52%, 44%, 0.55);
+}
+
+.battle-report-card.report-loss {
+  border-color: hsla(12, 48%, 42%, 0.52);
+}
+
+.report-hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.report-identity {
+  flex: 1 1 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.report-tags-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.report-meta-line {
+  font-size: 0.88rem;
+  color: var(--text-sand);
+}
+
+.report-xp-pill {
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border-radius: var(--radius-sm);
+  background: hsla(148, 48%, 22%, 0.75);
+  border: 1px solid hsla(148, 64%, 48%, 0.5);
+  color: var(--jade-upgrade);
+}
+
+.score-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 15px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-stone);
+  background: hsla(26, 20%, 14%, 0.92);
+}
+
+.score-rank-letter {
+  font-size: 1.85rem;
+  font-weight: 900;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+
+.score-rank-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.score-rank-label {
+  font-size: 0.7rem;
+  color: var(--text-ash);
+  letter-spacing: 0.04em;
+}
+
+.score-rank-value {
+  font-size: 1.24rem;
+  font-family: var(--font-mono);
+  color: var(--text-ivory);
+}
+
+.score-rank-badge.rank-sp,
+.history-score-pill.rank-sp {
+  border-color: hsla(45, 92%, 62%, 0.85);
+  background: linear-gradient(135deg, hsla(44, 68%, 24%, 0.92), hsla(28, 48%, 14%, 0.96));
+  color: hsl(46, 100%, 78%);
+}
+
+.score-rank-badge.rank-s,
+.history-score-pill.rank-s {
+  border-color: hsla(38, 82%, 56%, 0.75);
+  background: hsla(38, 44%, 18%, 0.9);
+  color: hsl(42, 96%, 76%);
+}
+
+.score-rank-badge.rank-a,
+.history-score-pill.rank-a {
+  border-color: hsla(148, 62%, 48%, 0.7);
+  background: hsla(152, 34%, 15%, 0.9);
+  color: hsl(146, 80%, 74%);
+}
+
+.score-rank-badge.rank-b,
+.history-score-pill.rank-b {
+  border-color: hsla(206, 62%, 54%, 0.65);
+  background: hsla(210, 32%, 16%, 0.9);
+  color: hsl(206, 84%, 78%);
+}
+
+.score-rank-badge.rank-c,
+.history-score-pill.rank-c {
+  border-color: var(--border-stone);
+  color: var(--text-sand);
+}
+
+.report-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  gap: 8px;
+}
+
+.report-stat-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: hsla(26, 16%, 12%, 0.88);
+  border: 1px solid var(--border-muted);
+}
+
+.report-stat-label {
+  font-size: 0.72rem;
+  color: var(--text-ash);
+}
+
+.report-stat-val {
+  font-size: 0.98rem;
+  font-family: var(--font-mono);
+  color: var(--text-ivory);
+}
+
+.stat-jade {
+  font-size: 0.72rem;
+  color: var(--jade-upgrade);
+  font-weight: 700;
+}
+
+.report-subhead {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-ash);
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+
+.score-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+}
+
+.score-breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border-radius: var(--radius-sm);
+  background: hsla(26, 14%, 13%, 0.75);
+  border: 1px solid hsla(32, 16%, 26%, 0.65);
+  font-size: 0.78rem;
+}
+
+.score-bd-label {
+  font-weight: 700;
+  color: var(--text-ivory);
+  white-space: nowrap;
+}
+
+.score-bd-detail {
+  flex: 1;
+  color: var(--text-ash);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-bd-pts {
+  font-family: var(--font-mono);
+  color: var(--accent-brass);
+  white-space: nowrap;
+}
+
+.report-relics-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.deck-composition-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.deck-composition-pills {
+  font-size: 0.78rem;
+  color: var(--text-ash);
+  font-family: var(--font-mono);
+}
+
+.history-badge.daily {
+  background: hsla(268, 48%, 28%, 0.9);
+  border: 1px solid hsla(274, 70%, 64%, 0.6);
+  color: hsl(276, 100%, 92%);
+}
+
+.history-score-pill {
+  padding: 2px 7px;
+  font-size: 0.73rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-stone);
+}
+
+.history-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 /* === Deep Mobile & Tablet Responsive Adaptation === */
 @media (max-width: 980px) {
   .character-select-grid {
@@ -3348,10 +3856,15 @@ body.spire-dragging {
 }
 
 @media (max-width: 768px) {
+  .spire-shell {
+    padding: max(8px, env(safe-area-inset-top)) 10px max(18px, env(safe-area-inset-bottom));
+  }
+
   .top-hud {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
+    padding: 8px 10px;
   }
 
   .brand-cluster,
@@ -3361,21 +3874,95 @@ body.spire-dragging {
     justify-content: flex-start;
   }
 
+  .brand-cluster {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 1px;
+  }
+
+  .brand-cluster > * {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Compact 2-row mobile vitals: HP/Gold pinned left + relics & potions scroll horizontally in 1 slim row */
+  .vitals-cluster {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .vitals-numbers-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .hud-gear-scroll {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 1px;
+  }
+
+  .brand-cluster::-webkit-scrollbar,
+  .hud-gear-scroll::-webkit-scrollbar,
+  .top-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .relic-strip,
+  .potion-strip {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 4px;
+  }
+
+  .relic-badge,
+  .potion-slot {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .top-actions {
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 2px;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
 
   .top-actions button {
     flex-shrink: 0;
+    min-height: 34px;
     padding: 6px 10px;
     font-size: 0.78rem;
   }
 
   .panel-stage {
-    padding: 14px 12px;
+    padding: 13px 11px;
+  }
+
+  .daily-challenge-banner {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .daily-banner-cta,
+  .btn-daily-launch {
+    width: 100%;
   }
 
   .neow-panel {
@@ -3492,6 +4079,42 @@ body.spire-dragging {
     gap: 8px;
   }
 
+  .mobile-hand-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px;
+    font-size: 0.73rem;
+    color: var(--text-ash);
+  }
+
+  .mobile-hand-meta {
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-sand);
+  }
+
+  .mobile-hand-hint {
+    flex: 1;
+    text-align: center;
+    color: hsl(38, 42%, 70%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-log-toggle {
+    display: none;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-stone);
+    background: var(--bg-cavern);
+    color: var(--text-sand);
+  }
+
   .hand-tray {
     flex-wrap: nowrap;
     justify-content: safe center;
@@ -3501,8 +4124,9 @@ body.spire-dragging {
     scrollbar-color: hsl(30, 14%, 28%) transparent;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
-    padding: 12px 6px 8px;
+    padding: 16px 8px 10px;
     gap: 10px;
+    touch-action: pan-x;
   }
 
   .hand-tray .game-card {
@@ -3511,23 +4135,43 @@ body.spire-dragging {
     min-height: 190px;
     scroll-snap-align: center;
   }
+
+  /* Sticky modal header so Close button is always one tap away while scrolling */
+  .modal-header {
+    position: sticky;
+    top: -14px;
+    z-index: 6;
+    background: var(--surface-stone);
+    margin-top: -6px;
+    padding-top: 8px;
+  }
+
+  .spire-tooltip {
+    max-width: min(300px, calc(100vw - 20px));
+  }
 }
 
 @media (max-width: 520px) {
   .spire-shell {
-    padding: 6px 8px 16px;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(16px, env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .stage-viewport {
+    gap: 8px;
   }
 
   .game-title {
-    font-size: 1rem;
+    font-size: 0.96rem;
   }
 
   .floor-indicator,
   .seed-pill,
   .ascension-pill,
-  .challenge-pill {
-    font-size: 0.7rem;
-    padding: 2px 7px;
+  .challenge-pill,
+  .daily-pill {
+    font-size: 0.69rem;
+    padding: 2px 6px;
   }
 
   .neow-choice-grid {
@@ -3540,20 +4184,26 @@ body.spire-dragging {
 
   .vital-chip,
   .relic-badge {
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     padding: 3px 7px;
   }
 
   .potion-slot {
-    font-size: 0.71rem;
-    padding: 3px 6px;
+    font-size: 0.7rem;
+    padding: 4px 7px;
+    min-height: 28px;
   }
 
   .stage-heading {
-    font-size: 1.05rem;
+    font-size: 1.04rem;
   }
 
   .stage-subtitle {
+    font-size: 0.77rem;
+  }
+
+  .toast-banner {
+    padding: 7px 10px;
     font-size: 0.78rem;
   }
 
@@ -3603,6 +4253,7 @@ body.spire-dragging {
 
   .map-node-btn {
     width: 62px;
+    min-height: 36px;
     padding: 4px 4px;
     gap: 3px;
     justify-content: center;
@@ -3636,7 +4287,7 @@ body.spire-dragging {
 
   .combat-arena {
     gap: 8px;
-    padding: 28px 8px 10px;
+    padding: 26px 8px 8px;
   }
 
   .fighters-group {
@@ -3660,8 +4311,8 @@ body.spire-dragging {
   }
 
   .combat-arena[data-enemy-count='1'] .unit-figure {
-    width: 64px;
-    height: 64px;
+    width: 60px;
+    height: 60px;
   }
 
   .combat-arena[data-enemy-count='2'] {
@@ -3679,8 +4330,8 @@ body.spire-dragging {
   }
 
   .combat-arena[data-enemy-count='2'] .unit-figure {
-    width: 52px;
-    height: 52px;
+    width: 50px;
+    height: 50px;
   }
 
   .combat-arena[data-enemy-count='3'] {
@@ -3705,8 +4356,8 @@ body.spire-dragging {
   }
 
   .combat-arena[data-enemy-count='3'] .unit-figure {
-    width: 50px;
-    height: 50px;
+    width: 48px;
+    height: 48px;
   }
 
   .intent-badge {
@@ -3749,40 +4400,162 @@ body.spire-dragging {
     font-size: 0.64rem;
   }
 
+  .combat-dock {
+    padding: 8px 8px;
+    gap: 6px;
+  }
+
+  .dock-controls {
+    gap: 6px;
+  }
+
   .energy-orb {
-    width: 48px;
-    height: 48px;
-    font-size: 0.92rem;
+    width: 44px;
+    height: 44px;
+    font-size: 0.86rem;
+  }
+
+  .pile-group {
+    gap: 5px;
   }
 
   .pile-group button {
-    padding: 6px 9px;
-    font-size: 0.75rem;
+    min-height: 36px;
+    padding: 5px 8px;
+    font-size: 0.73rem;
+  }
+
+  #btn-end-turn {
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+  }
+
+  .mobile-log-toggle {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .combat-log {
+    display: none;
+  }
+
+  .combat-log.mobile-expanded {
+    display: block;
+    max-height: 112px;
+  }
+
+  .mobile-log-peek {
+    display: block;
+    padding: 5px 9px;
+    font-size: 0.72rem;
+    color: var(--text-ash);
+    background: var(--bg-cavern);
+    border: 1px solid var(--border-muted);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .hand-tray {
+    padding: 12px 4px 6px;
+    gap: 8px;
   }
 
   .hand-tray .game-card {
     flex: 0 0 132px;
     width: 132px;
-    min-height: 180px;
+    min-height: 174px;
     padding: 8px;
   }
 
+  /* Crisp 2-column responsive showcase on phones for Shop, Rewards, Deck & Battle Report */
+  .card-showcase {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    justify-items: stretch;
+  }
+
+  .card-showcase .game-card,
+  .card-showcase .shop-card-wrap {
+    width: 100%;
+    min-width: 0;
+  }
+
   .card-showcase .game-card {
-    width: 142px;
-    min-height: 188px;
+    min-height: 182px;
+  }
+
+  .shop-colorless-section {
+    padding: 11px 10px 12px;
   }
 
   .card-hotkey {
     display: none;
   }
 
+  .battle-report-card {
+    padding: 12px;
+    gap: 11px;
+  }
+
+  .score-rank-badge {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .report-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .score-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .score-breakdown-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label pts'
+      'detail pts';
+    gap: 1px 10px;
+    align-items: center;
+    padding: 6px 9px;
+  }
+
+  .score-bd-label {
+    grid-area: label;
+  }
+
+  .score-bd-detail {
+    grid-area: detail;
+    font-size: 0.72rem;
+    white-space: normal;
+  }
+
+  .score-bd-pts {
+    grid-area: pts;
+  }
+
+  .gameover-actions-bar button {
+    flex: 1 1 calc(50% - 6px);
+    min-height: 40px;
+    font-size: 0.8rem;
+  }
+
   .modal-backdrop {
-    padding: 8px;
+    padding: 6px;
+    align-items: flex-end;
   }
 
   .modal-sheet {
-    padding: 14px 12px;
+    padding: 14px 12px max(16px, env(safe-area-inset-bottom));
     max-height: 92vh;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-sm);
   }
 
   .settings-row {

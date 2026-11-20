@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   CARD_LIBRARY,
+  COLORLESS_CARD_POOLS,
   createCardInstance,
   formatCardDescription,
   formatUpgradePreview,
@@ -517,7 +518,7 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
     10
   );
   assert.equal(Object.keys(POTION_LIBRARY).length, 12);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 82);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 92);
   assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
   assert.ok(STATUS_METADATA.poison, 'STATUS_METADATA must include poison for The Silent');
   assert.ok(STATUS_METADATA.intangible, 'STATUS_METADATA must include intangible for Wraith Form');
@@ -1205,6 +1206,179 @@ test('The Silent Discard archetype: pendingDiscard selection, Tactician, Reflex,
   assert.equal(enemy.hp, enemyHpBeforeEnd, 'Natural end-of-turn discard must NOT trigger Tingsha');
   assert.equal(state.player.energy, state.player.maxEnergy, 'Natural end-of-turn discard must NOT trigger Tactician');
   assert.equal(state.combat.pendingDiscard?.sourceName, '独门秘技', 'Tools of the Trade must prompt 1 discard at turn start');
+});
+
+test('Shop-exclusive Colorless Cards (10): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 6);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 4);
+  assert.equal(COLORLESS_CARD_POOLS.all.length, 10);
+  for (const cid of COLORLESS_CARD_POOLS.all) {
+    assert.equal(CARD_LIBRARY[cid].character, 'colorless');
+    assert.equal(CARD_LIBRARY[cid].shopOnly, true);
+  }
+
+  // Verify Blind & Trip upgrade diff highlights target change from 目标 -> 所有敌人
+  const blindPrev = formatUpgradePreview({ instanceId: 'b1', cardId: 'blind', upgraded: false });
+  assert.ok(blindPrev.segments.some((s) => s.changed && s.text.includes('所有敌人')));
+  const tripPrev = formatUpgradePreview({ instanceId: 't1', cardId: 'trip', upgraded: false });
+  assert.ok(tripPrev.segments.some((s) => s.changed && s.text.includes('所有敌人')));
+
+  // Build 2-enemy encounter to test AoE, debuff triggers, Hand of Greed kill gold, Apotheosis, and stats
+  const state = createNewRun({ seed: 9191, characterId: 'silent', skipNeow: true, unlockAllOverride: true });
+  state.player.hp = 50;
+  state.player.maxHp = 70;
+  state.player.gold = 100;
+  state.player.relics = ['wrist_blade'];
+  state.player.deck = [
+    createCardInstance(state, 'dramatic_entrance', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+  ];
+
+  startCombat(
+    state,
+    {
+      id: 'colorless_test_enc',
+      name: '双敌试炼',
+      enemies: [
+        { templateId: 'jaw_worm', customHp: 50 },
+        { templateId: 'cultist', customHp: 50 },
+      ],
+    },
+    'normal'
+  );
+  const [e1, e2] = state.combat.enemies;
+
+  // 1. Dramatic Entrance is Innate -> starts in T1 hand, 0 cost, benefits from Wrist Blade (+4 => 12 dmg AoE), exhausts!
+  const de = state.combat.hand.find((c) => c.cardId === 'dramatic_entrance');
+  assert.ok(de, 'Dramatic Entrance must start in Turn 1 hand (Innate)');
+  assert.equal(playCard(state, de.instanceId).ok, true);
+  assert.equal(e1.hp, 38);
+  assert.equal(e2.hp, 38);
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === de.instanceId), true);
+  assert.ok(state.stats.totalDamageDealt >= 24);
+
+  // 2. Bandage Up+ heals 6 HP and exhausts
+  const bandage = createCardInstance(state, 'bandage_up', true);
+  state.combat.hand.push(bandage);
+  assert.equal(playCard(state, bandage.instanceId).ok, true);
+  assert.equal(state.player.hp, 56);
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === bandage.instanceId), true);
+
+  // 3. Sadistic Nature (5 dmg per debuff applied) + Blind+ (AoE 2 weak) + Trip+ (AoE 2 vuln) + synergy check
+  const sadistic = createCardInstance(state, 'sadistic_nature', false);
+  const blindUp = createCardInstance(state, 'blind', true);
+  const tripUp = createCardInstance(state, 'trip', true);
+  state.combat.hand.push(sadistic, blindUp, tripUp);
+  assert.equal(playCard(state, sadistic.instanceId).ok, true);
+  assert.equal(state.player.statuses.sadisticNature, 5);
+
+  const blindSyn = computeCardSynergies(state, blindUp);
+  assert.equal(
+    blindSyn.playerStatusHighlights.some((s) => s.key === 'sadisticNature'),
+    true,
+    'Hovering debuff card must highlight Sadistic Nature status'
+  );
+
+  assert.equal(playCard(state, blindUp.instanceId).ok, true);
+  assert.equal(e1.statuses.weak, 2);
+  assert.equal(e2.statuses.weak, 2);
+  assert.equal(e1.hp, 33, 'Sadistic Nature must deal 5 dmg to e1 on Weak');
+  assert.equal(e2.hp, 33, 'Sadistic Nature must deal 5 dmg to e2 on Weak');
+
+  assert.equal(playCard(state, tripUp.instanceId).ok, true);
+  assert.equal(e1.statuses.vulnerable, 2);
+  assert.equal(e2.statuses.vulnerable, 2);
+  assert.equal(e1.hp, 28, 'Sadistic Nature must deal 5 dmg to e1 on Vulnerable');
+  assert.equal(e2.hp, 28, 'Sadistic Nature must deal 5 dmg to e2 on Vulnerable');
+
+  // 4. Flash of Steel (0-cost attack -> Wrist Blade +4 = 7, x1.5 vuln = 10, draws 1) & Finesse (2 block, draws 1)
+  const flash = createCardInstance(state, 'flash_of_steel', false);
+  const fin = createCardInstance(state, 'finesse', false);
+  const mos = createCardInstance(state, 'master_of_strategy', false);
+  state.combat.drawPile.push(
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false),
+    createCardInstance(state, 'defend', false),
+    createCardInstance(state, 'strike', false)
+  );
+  state.combat.hand = [flash, fin, mos];
+  assert.equal(playCard(state, flash.instanceId, e1.id).ok, true);
+  assert.equal(e1.hp, 18); // (3 + 4 Wrist Blade) * 1.5 = 10
+  assert.equal(state.combat.hand.length, 3); // -1 played +1 drawn
+
+  assert.equal(playCard(state, fin.instanceId).ok, true);
+  assert.equal(state.player.block, 2);
+  assert.equal(state.stats.totalBlockGained, 2);
+
+  assert.equal(playCard(state, mos.instanceId).ok, true);
+  assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === mos.instanceId), true);
+
+  // 5. Apotheosis upgrades all cards in hand, drawPile, and discardPile without mutating master deck!
+  const apo = createCardInstance(state, 'apotheosis', false);
+  const unupHand = createCardInstance(state, 'strike', false);
+  const unupDraw = createCardInstance(state, 'defend', false);
+  const unupDisc = createCardInstance(state, 'bash', false);
+  state.combat.hand = [apo, unupHand];
+  state.combat.drawPile = [unupDraw];
+  state.combat.discardPile = [unupDisc];
+  state.player.energy = 5;
+
+  const apoSyn = computeCardSynergies(state, apo);
+  assert.equal(
+    apoSyn.affectedHandCards.some((x) => x.instanceId === unupHand.instanceId && x.tone === 'upgrade'),
+    true
+  );
+
+  assert.equal(playCard(state, apo.instanceId).ok, true);
+  assert.equal(unupHand.upgraded, true);
+  assert.equal(unupDraw.upgraded, true);
+  assert.equal(unupDisc.upgraded, true);
+  assert.equal(
+    state.player.deck.every((c) => !c.upgraded),
+    true,
+    'Apotheosis must NOT permanently mutate master deck cards'
+  );
+
+  // 6. Hand of Greed: non-lethal does NOT grant gold; lethal grants +20 permanent gold & tracks stats/preview!
+  const hog = createCardInstance(state, 'hand_of_greed', false);
+  state.combat.hand = [hog];
+  state.player.energy = 6;
+  e1.statuses = {};
+  e2.statuses = {};
+  e1.hp = 30;
+  e2.hp = 18;
+
+  const hogNonLethalPreview = previewCardDamageOnEnemy(state, hog, e1);
+  assert.equal(hogNonLethalPreview.isLethal, false);
+  assert.equal(hogNonLethalPreview.goldOnKill, 20);
+  const goldBeforeMiss = state.player.gold;
+  assert.equal(playCard(state, hog.instanceId, e1.id).ok, true);
+  assert.equal(e1.hp, 10);
+  assert.equal(state.player.gold, goldBeforeMiss, 'Hand of Greed must not grant gold on non-lethal hit');
+
+  const hogLethal = createCardInstance(state, 'hand_of_greed', false);
+  state.combat.hand = [hogLethal];
+  const hogLethalPreview = previewCardDamageOnEnemy(state, hogLethal, e2);
+  assert.equal(hogLethalPreview.isLethal, true);
+  assert.equal(hogLethalPreview.goldOnKill, 20);
+  assert.equal(playCard(state, hogLethal.instanceId, e2.id).ok, true);
+  assert.equal(e2.hp, 0);
+  assert.equal(state.player.gold, goldBeforeMiss + 20, 'Hand of Greed must grant +20 gold on kill');
+  assert.equal(state.stats.goldEarned, 20);
+
+  // Finish e1 cleanly with 0 HP lost -> perfectCombats increments to 1!
+  const finisherStrike = createCardInstance(state, 'bludgeon', false);
+  state.combat.hand = [finisherStrike];
+  state.player.energy = 3;
+  assert.equal(playCard(state, finisherStrike.instanceId, e1.id).ok, true);
+  assert.equal(state.stats.perfectCombats, 1);
+  assert.ok(state.stats.highestSingleHit >= 20);
 });
 
 

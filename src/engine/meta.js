@@ -1,7 +1,12 @@
 /**
- * Meta-progression: Ascension difficulty levels (0-5), career XP, unlockable card/relic tiers, and run history.
+ * Meta-progression: Ascension difficulty levels (0-5), career XP, unlockable card/relic tiers,
+ * deterministic run scoring, Daily Challenge personal bests, detailed run review history,
+ * and one-click shareable battle reports.
  */
 
+import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
+import { RELIC_LIBRARY } from '../data/relics.js';
+import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
 
 export const MAX_ASCENSION = 5;
@@ -95,8 +100,10 @@ export function createDefaultMeta() {
     runsPlayed: 0,
     victories: 0,
     bestFloor: 0,
+    bestScore: 0,
     totalEnemiesSlain: 0,
     recordedRunKeys: [],
+    dailyRecords: {},
     runHistory: [],
   };
 }
@@ -132,28 +139,336 @@ export function calculateRunXp(state) {
   const elites = state?.stats?.elitesSlain ?? 0;
   const actBonus = (state?.act ?? 1) >= 2 ? 60 : 0;
   const winBonus = state?.runOutcome === 'victory' ? 120 + (state?.ascension ?? 0) * 25 : 0;
-  return Math.max(15, floors * 8 + wins * 12 + elites * 18 + actBonus + winBonus);
+  const dailyBonus = state?.dailyChallenge ? 25 : 0;
+  return Math.max(15, floors * 8 + wins * 12 + elites * 18 + actBonus + winBonus + dailyBonus);
+}
+
+export function getScoreGrade(score) {
+  const s = Number.isFinite(score) ? score : 0;
+  if (s >= 1350) return 'S+';
+  if (s >= 1000) return 'S';
+  if (s >= 700) return 'A';
+  if (s >= 400) return 'B';
+  return 'C';
+}
+
+export function calculateRunScore(state) {
+  if (!state) {
+    return { totalScore: 0, grade: 'C', breakdown: [] };
+  }
+  const act = Math.max(1, state.act ?? 1);
+  const floor = Math.max(1, state.floor ?? 1);
+  const totalFloorsReached = (act - 1) * 16 + floor;
+  const enemiesSlain = state.stats?.enemiesSlain ?? 0;
+  const elitesSlain = state.stats?.elitesSlain ?? 0;
+  const bossesSlain =
+    state.stats?.bossesSlain ??
+    (state.runOutcome === 'victory' ? (act >= 2 ? 2 : 1) : act >= 2 ? 1 : 0);
+  const perfectCombats = state.stats?.perfectCombats ?? 0;
+  const deck = Array.isArray(state.player?.deck) ? state.player.deck : [];
+  const relics = Array.isArray(state.player?.relics) ? state.player.relics : [];
+  const upgradedCount = deck.filter((c) => Boolean(c.upgraded)).length;
+  const colorlessCount = deck.filter((c) => getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless').length;
+  const isVictory = state.runOutcome === 'victory';
+
+  const breakdown = [];
+  breakdown.push({
+    label: '攀登层数',
+    points: totalFloorsReached * 10,
+    detail: `第 ${act} 幕 F${floor}（共 ${totalFloorsReached} 层）`,
+  });
+  if (enemiesSlain > 0) {
+    breakdown.push({
+      label: '斩敌战功',
+      points: enemiesSlain * 8,
+      detail: `击败 ${enemiesSlain} 名敌人`,
+    });
+  }
+  if (elitesSlain > 0) {
+    breakdown.push({
+      label: '精英猎手',
+      points: elitesSlain * 35,
+      detail: `击败 ${elitesSlain} 名精英`,
+    });
+  }
+  if (bossesSlain > 0) {
+    breakdown.push({
+      label: '首领击破',
+      points: bossesSlain * 120,
+      detail: `击败 ${bossesSlain} 位首领`,
+    });
+  }
+  if (isVictory) {
+    breakdown.push({
+      label: act >= 2 ? '双幕登顶凯旋' : '第一幕凯旋结算',
+      points: act >= 2 ? 300 : 150,
+      detail: act >= 2 ? '征服钢铁城邦终战' : '成功斩落第一幕首领',
+    });
+  }
+  if (perfectCombats > 0) {
+    breakdown.push({
+      label: '无伤完美战斗',
+      points: perfectCombats * 25,
+      detail: `${perfectCombats} 场 0 失血胜仗`,
+    });
+  }
+  if (relics.length > 0) {
+    breakdown.push({
+      label: '遗物收藏',
+      points: relics.length * 15,
+      detail: `共持有 ${relics.length} 件遗物`,
+    });
+  }
+  if (upgradedCount > 0) {
+    breakdown.push({
+      label: '精工锻造',
+      points: upgradedCount * 8,
+      detail: `${upgradedCount} 张已升级卡牌`,
+    });
+  }
+  if (colorlessCount > 0) {
+    breakdown.push({
+      label: '无色秘宝',
+      points: colorlessCount * 20,
+      detail: `购入 ${colorlessCount} 张商店无色牌`,
+    });
+  }
+  if (isVictory && deck.length > 0 && deck.length <= 20) {
+    breakdown.push({
+      label: '精简构筑',
+      points: 60,
+      detail: `通关牌组仅 ${deck.length} 张`,
+    });
+  }
+
+  const subtotal = breakdown.reduce((sum, item) => sum + item.points, 0);
+  let totalScore = subtotal;
+
+  const asc = Math.max(0, state.ascension ?? 0);
+  if (asc > 0) {
+    const ascBonus = Math.round(subtotal * asc * 0.15);
+    totalScore += ascBonus;
+    breakdown.push({
+      label: `进阶 ${asc} 倍率加成`,
+      points: ascBonus,
+      detail: `+${asc * 15}% 难度评分`,
+    });
+  }
+
+  if (hasDailyModifier(state, 'cursed_run')) {
+    const cursedBonus = Math.round(subtotal * 0.15);
+    totalScore += cursedBonus;
+    breakdown.push({
+      label: '暗影试炼加成',
+      points: cursedBonus,
+      detail: '每日词条 +15% 评分',
+    });
+  }
+
+  return {
+    totalScore,
+    grade: getScoreGrade(totalScore),
+    breakdown,
+  };
+}
+
+const RARITY_SORT_WEIGHT = Object.freeze({
+  rare: 0,
+  uncommon: 1,
+  common: 2,
+  starter: 3,
+  curse: 4,
+  status: 5,
+  special: 6,
+});
+
+export function summarizeDeckForHistory(deck) {
+  if (!Array.isArray(deck)) return [];
+  const grouped = new Map();
+  for (const card of deck) {
+    if (!card || !CARD_LIBRARY[card.cardId]) continue;
+    const key = `${card.cardId}|${card.upgraded ? '1' : '0'}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      grouped.set(key, {
+        cardId: card.cardId,
+        upgraded: Boolean(card.upgraded),
+        count: 1,
+      });
+    }
+  }
+  return [...grouped.values()].sort((a, b) => {
+    const da = CARD_LIBRARY[a.cardId];
+    const db = CARD_LIBRARY[b.cardId];
+    const ra = RARITY_SORT_WEIGHT[da?.rarity] ?? 9;
+    const rb = RARITY_SORT_WEIGHT[db?.rarity] ?? 9;
+    if (ra !== rb) return ra - rb;
+    if (a.upgraded !== b.upgraded) return a.upgraded ? -1 : 1;
+    return (da?.name || a.cardId).localeCompare(db?.name || b.cardId, 'zh-CN');
+  });
+}
+
+export function buildRunReportFromState(state) {
+  const charId = state.characterId || 'ironclad';
+  const scoreObj = calculateRunScore(state);
+  const deck = Array.isArray(state.player?.deck) ? state.player.deck : [];
+  const relics = Array.isArray(state.player?.relics) ? [...state.player.relics] : [];
+  const startedAt = Number.isFinite(state.stats?.startedAt) ? state.stats.startedAt : null;
+  const durationSec = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : null;
+
+  return {
+    characterId: charId,
+    characterName: state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士'),
+    seed: state.seed,
+    seedCode: formatSeedCode(state.seed),
+    outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',
+    act: state.act ?? 1,
+    floor: Math.max(1, state.floor ?? 1),
+    ascension: state.ascension ?? 0,
+    isChallenge: Boolean(state.isChallengeRun),
+    dailyDateKey: state.dailyChallenge?.dateKey || null,
+    dailyModifierIds: Array.isArray(state.dailyChallenge?.modifierIds)
+      ? [...state.dailyChallenge.modifierIds]
+      : [],
+    score: scoreObj.totalScore,
+    grade: scoreObj.grade,
+    scoreBreakdown: scoreObj.breakdown,
+    deckSize: deck.length,
+    upgradedCount: deck.filter((c) => Boolean(c.upgraded)).length,
+    relicCount: relics.length,
+    relicIds: relics,
+    deckSummary: summarizeDeckForHistory(deck),
+    combatsWon: state.stats?.combatsWon ?? 0,
+    perfectCombats: state.stats?.perfectCombats ?? 0,
+    elitesSlain: state.stats?.elitesSlain ?? 0,
+    bossesSlain: state.stats?.bossesSlain ?? 0,
+    enemiesSlain: state.stats?.enemiesSlain ?? 0,
+    cardsPlayed: state.stats?.cardsPlayed ?? 0,
+    totalDamageDealt: state.stats?.totalDamageDealt ?? 0,
+    totalBlockGained: state.stats?.totalBlockGained ?? 0,
+    totalDamageTaken: state.stats?.totalDamageTaken ?? 0,
+    highestSingleHit: state.stats?.highestSingleHit ?? 0,
+    goldEarned: state.stats?.goldEarned ?? 0,
+    defeatedBy: state.stats?.defeatedBy || '',
+    durationSec,
+  };
+}
+
+export function formatShareableBattleReport(report, shareUrl = '') {
+  if (!report) return '';
+  const isWin = report.outcome === 'victory';
+  const modeHeader = report.dailyDateKey
+    ? `每日挑战 ${report.dailyDateKey}`
+    : (report.ascension ?? 0) > 0
+      ? `进阶 ${report.ascension}`
+      : '标准攀登';
+  const outcomeTitle = isWin
+    ? (report.act ?? 1) >= 2
+      ? '🏆 双幕登顶凯旋'
+      : '🏆 第一幕凯旋'
+    : `💀 折戟于第 ${report.act ?? 1} 幕 · F${report.floor ?? 1}`;
+
+  const lines = [
+    `【杀戮尖塔 · 简明版】${modeHeader} 战绩卡`,
+    `${outcomeTitle}（第 ${report.act ?? 1} 幕 · F${report.floor ?? 1}）| 总分：${(report.score ?? 0).toLocaleString()} 分 (${report.grade || getScoreGrade(report.score)})`,
+    `🧙 角色：${report.characterName || '铁甲战士'} | 种子：${report.seedCode || formatSeedCode(report.seed)}`,
+  ];
+
+  const modDefs = getDailyModifierDefs(report.dailyModifierIds);
+  if (modDefs.length > 0) {
+    lines.push(`🎲 今日词条：${modDefs.map((m) => m.name).join(' · ')}`);
+  }
+
+  const statBits = [
+    `胜 ${report.combatsWon ?? 0} 场${(report.perfectCombats ?? 0) > 0 ? `（无伤 ${report.perfectCombats}）` : ''}`,
+    `精英 ${report.elitesSlain ?? 0}`,
+  ];
+  if ((report.totalDamageDealt ?? 0) > 0) {
+    statBits.push(`总输出 ${report.totalDamageDealt}`);
+  }
+  if ((report.highestSingleHit ?? 0) > 0) {
+    statBits.push(`最高单击 ${report.highestSingleHit}`);
+  }
+  lines.push(`⚔️ 战绩：${statBits.join(' | ')}`);
+
+  if (!isWin && report.defeatedBy) {
+    lines.push(`🕯️ 败因：${report.defeatedBy}`);
+  }
+
+  const relicNames = (report.relicIds || [])
+    .map((id) => RELIC_LIBRARY[id]?.name)
+    .filter(Boolean);
+  if (relicNames.length > 0) {
+    const shown = relicNames.slice(0, 7).join('、');
+    const suffix = relicNames.length > 7 ? ` 等 ${relicNames.length} 件` : '';
+    lines.push(`💎 遗物 (${relicNames.length})：${shown}${suffix}`);
+  }
+
+  const deckItems = Array.isArray(report.deckSummary) ? report.deckSummary : [];
+  if (deckItems.length > 0) {
+    const highlights = deckItems
+      .filter((item) => {
+        const def = CARD_LIBRARY[item.cardId];
+        return def && def.rarity !== 'starter';
+      })
+      .slice(0, 8)
+      .map((item) => {
+        const stats = getCardStats({ instanceId: 'r', cardId: item.cardId, upgraded: item.upgraded });
+        return item.count > 1 ? `${stats.name}×${item.count}` : stats.name;
+      });
+    const upgCount =
+      report.upgradedCount ??
+      deckItems.reduce((sum, item) => sum + (item.upgraded ? item.count : 0), 0);
+    lines.push(
+      `🃏 牌组 (${report.deckSize ?? 0} 张，升级 ${upgCount})${highlights.length > 0 ? `：${highlights.join('、')}` : ''}`
+    );
+  }
+
+  if (shareUrl) {
+    lines.push(`🔗 来挑战同图：${shareUrl}`);
+  }
+
+  return lines.join('\n');
+}
+
+export function getRunRecordKey(state) {
+  if (!state) return '';
+  if (state.runId) return String(state.runId);
+  const charId = state.characterId || 'ironclad';
+  const dailyPart = state.dailyChallenge?.dateKey ? `_daily_${state.dailyChallenge.dateKey}` : '';
+  return `${charId}_${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}${dailyPart}`;
 }
 
 export function recordCompletedRun(meta, state) {
   if (!meta || !state) {
     return { xpGained: 0, newlyUnlockedTiers: [], unlockedAscension: null, alreadyRecorded: false };
   }
-  const charId = state.characterId || 'ironclad';
-  const runKey = `${charId}_${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
+  const runKey = getRunRecordKey(state);
   if (!Array.isArray(meta.recordedRunKeys)) {
     meta.recordedRunKeys = [];
   }
   if (!Array.isArray(meta.runHistory)) {
     meta.runHistory = [];
   }
+  if (!meta.dailyRecords || typeof meta.dailyRecords !== 'object') {
+    meta.dailyRecords = {};
+  }
   if (meta.recordedRunKeys.includes(runKey)) {
-    return { xpGained: 0, newlyUnlockedTiers: [], unlockedAscension: null, alreadyRecorded: true };
+    const existing = meta.runHistory.find((r) => r.id === runKey) || null;
+    return {
+      xpGained: existing?.xpGained ?? 0,
+      newlyUnlockedTiers: [],
+      unlockedAscension: null,
+      alreadyRecorded: true,
+      historyEntry: existing,
+    };
   }
 
   meta.recordedRunKeys.push(runKey);
-  if (meta.recordedRunKeys.length > 40) {
-    meta.recordedRunKeys.splice(0, meta.recordedRunKeys.length - 40);
+  if (meta.recordedRunKeys.length > 60) {
+    meta.recordedRunKeys.splice(0, meta.recordedRunKeys.length - 60);
   }
 
   const prevTier = computeUnlockedTierFromXp(meta.xp);
@@ -166,40 +481,51 @@ export function recordCompletedRun(meta, state) {
     (t) => t.tier > prevTier && t.tier <= meta.unlockedTier
   );
 
+  const report = buildRunReportFromState(state);
+
   meta.runsPlayed = (meta.runsPlayed ?? 0) + 1;
   meta.totalEnemiesSlain = (meta.totalEnemiesSlain ?? 0) + (state.stats?.enemiesSlain ?? 0);
   const totalFloorReached = ((state.act ?? 1) - 1) * 16 + (state.floor ?? 0);
   meta.bestFloor = Math.max(meta.bestFloor ?? 0, totalFloorReached);
+  meta.bestScore = Math.max(meta.bestScore ?? 0, report.score);
 
   let unlockedAscension = null;
   if (state.runOutcome === 'victory') {
     meta.victories = (meta.victories ?? 0) + 1;
     const asc = state.ascension ?? 0;
     const currentMax = meta.maxAscensionUnlocked ?? 0;
-    const canAdvanceAscension = !state.isChallengeRun || asc <= currentMax;
+    const canAdvanceAscension =
+      !state.dailyChallenge && (!state.isChallengeRun || asc <= currentMax);
     if (canAdvanceAscension && asc >= currentMax && currentMax < MAX_ASCENSION) {
       meta.maxAscensionUnlocked = Math.min(MAX_ASCENSION, asc + 1);
       unlockedAscension = meta.maxAscensionUnlocked;
     }
   }
 
+  if (report.dailyDateKey) {
+    const prevDaily = meta.dailyRecords[report.dailyDateKey];
+    const isNewBest = !prevDaily || report.score >= (prevDaily.bestScore ?? 0);
+    meta.dailyRecords[report.dailyDateKey] = {
+      dateKey: report.dailyDateKey,
+      bestScore: isNewBest ? report.score : prevDaily.bestScore,
+      bestGrade: isNewBest ? report.grade : prevDaily.bestGrade,
+      outcome:
+        prevDaily?.outcome === 'victory' || report.outcome === 'victory' ? 'victory' : 'defeat',
+      attempts: (prevDaily?.attempts ?? 0) + 1,
+      bestFloor: Math.max(prevDaily?.bestFloor ?? 0, totalFloorReached),
+      lastPlayedAt: Date.now(),
+    };
+    const dateKeys = Object.keys(meta.dailyRecords).sort();
+    while (dateKeys.length > 45) {
+      const oldest = dateKeys.shift();
+      delete meta.dailyRecords[oldest];
+    }
+  }
+
   const historyEntry = {
     id: runKey,
     timestamp: Date.now(),
-    characterId: charId,
-    characterName: state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士'),
-    seed: state.seed,
-    seedCode: formatSeedCode(state.seed),
-    outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',
-    act: state.act ?? 1,
-    floor: Math.max(1, state.floor ?? 1),
-    ascension: state.ascension ?? 0,
-    isChallenge: Boolean(state.isChallengeRun),
-    deckSize: state.player?.deck?.length ?? 0,
-    relicCount: state.player?.relics?.length ?? 0,
-    combatsWon: state.stats?.combatsWon ?? 0,
-    elitesSlain: state.stats?.elitesSlain ?? 0,
-    enemiesSlain: state.stats?.enemiesSlain ?? 0,
+    ...report,
     xpGained,
   };
   meta.runHistory.unshift(historyEntry);
@@ -232,6 +558,10 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       ? Math.max(0, Math.min(maxAsc, Math.floor(parsed.selectedAscension)))
       : 0;
     const selChar = parsed.selectedCharacterId === 'silent' ? 'silent' : 'ironclad';
+    const dailyRecords =
+      parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
+        ? parsed.dailyRecords
+        : {};
     return {
       xp,
       unlockedTier: Math.max(
@@ -245,8 +575,10 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       runsPlayed: Number.isFinite(parsed.runsPlayed) ? parsed.runsPlayed : 0,
       victories: Number.isFinite(parsed.victories) ? parsed.victories : 0,
       bestFloor: Number.isFinite(parsed.bestFloor) ? parsed.bestFloor : 0,
+      bestScore: Number.isFinite(parsed.bestScore) ? parsed.bestScore : 0,
       totalEnemiesSlain: Number.isFinite(parsed.totalEnemiesSlain) ? parsed.totalEnemiesSlain : 0,
-      recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-40) : [],
+      recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
+      dailyRecords,
       runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory.slice(0, MAX_RUN_HISTORY) : [],
     };
   } catch {

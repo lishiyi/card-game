@@ -8,8 +8,10 @@ import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY } from '../data/relics.js';
 import { canPlayCard, getAliveEnemies } from '../engine/combat.js';
+import { getDailyChallengeSpec, getLocalDateKey } from '../engine/daily.js';
 import {
   buyShopCard,
+  buyShopColorlessCard,
   buyShopPotion,
   buyShopPurge,
   buyShopRelic,
@@ -50,6 +52,9 @@ import {
   STARTER_POTION_SLOTS,
 } from '../engine/game.js';
 import {
+  buildRunReportFromState,
+  formatShareableBattleReport,
+  getRunRecordKey,
   loadSavedMeta,
   MAX_ASCENSION,
   recordCompletedRun,
@@ -58,6 +63,7 @@ import {
 } from '../engine/meta.js';
 import {
   buildChallengeUrl,
+  buildDailyChallengeUrl,
   formatSeedCode,
   parseChallengeInput,
   parseSeedInput,
@@ -141,14 +147,27 @@ function persistRun(state) {
 function readIncomingChallengeFromLocation() {
   try {
     const search = window.location?.search || '';
-    if (!search || !search.includes('seed=')) return null;
+    if (!search || (!search.includes('seed=') && !search.includes('daily='))) return null;
     const parsed = parseChallengeInput(search, MAX_ASCENSION);
     if (!parsed || !parsed.isUrlLike) return null;
+    if (parsed.isDaily && parsed.dailyDateKey) {
+      const spec = getDailyChallengeSpec(parsed.dailyDateKey);
+      return {
+        seed: spec.seed,
+        seedCode: spec.seedCode,
+        ascension: 0,
+        characterId: spec.characterId,
+        isDaily: true,
+        dailyDateKey: spec.dateKey,
+      };
+    }
     return {
       seed: parsed.seed,
       seedCode: parsed.seedCode,
       ascension: parsed.ascension ?? 0,
       characterId: normalizeCharacterId(parsed.characterId),
+      isDaily: false,
+      dailyDateKey: null,
     };
   } catch {
     return null;
@@ -194,18 +213,25 @@ export function mountSpireApp(rootEl) {
   let state = null;
 
   if (incomingChallenge && !hasActiveSave) {
-    const chChar = normalizeCharacterId(incomingChallenge.characterId);
-    const chCharDef = getCharacterDef(chChar);
-    state = createNewRun(
-      buildNewRunOptions({
-        characterId: chChar,
-        seed: incomingChallenge.seed,
-        ascension: incomingChallenge.ascension,
-        unlockAllOverride: true,
-        isChallengeRun: true,
-      })
-    );
-    initialNotice = `已通过挑战链接开启同图对局【${chCharDef.name} · ${incomingChallenge.seedCode} · 进阶 ${incomingChallenge.ascension}】（全图鉴临时对齐，不影响生涯解锁）！`;
+    if (incomingChallenge.isDaily && incomingChallenge.dailyDateKey) {
+      const spec = getDailyChallengeSpec(incomingChallenge.dailyDateKey);
+      state = createNewRun(buildNewRunOptions({ dailyDateKey: spec.dateKey }));
+      const modNames = spec.modifiers.map((m) => m.name).join(' · ');
+      initialNotice = `已通过直连进入每日挑战【${spec.dateKey} · ${spec.characterName}】（词条：${modNames}）！`;
+    } else {
+      const chChar = normalizeCharacterId(incomingChallenge.characterId);
+      const chCharDef = getCharacterDef(chChar);
+      state = createNewRun(
+        buildNewRunOptions({
+          characterId: chChar,
+          seed: incomingChallenge.seed,
+          ascension: incomingChallenge.ascension,
+          unlockAllOverride: true,
+          isChallengeRun: true,
+        })
+      );
+      initialNotice = `已通过挑战链接开启同图对局【${chCharDef.name} · ${incomingChallenge.seedCode} · 进阶 ${incomingChallenge.ascension}】（全图鉴临时对齐，不影响生涯解锁）！`;
+    }
   } else if (hasActiveSave) {
     state = savedRun;
     if (incomingChallenge) {
@@ -273,6 +299,7 @@ export function mountSpireApp(rootEl) {
     ) {
       top = rect.top - tipRect.height - 8;
     }
+    top = Math.max(margin, Math.min(window.innerHeight - tipRect.height - margin, top));
 
     tooltipEl.style.left = `${Math.round(left)}px`;
     tooltipEl.style.top = `${Math.round(top)}px`;
@@ -317,6 +344,9 @@ export function mountSpireApp(rootEl) {
     hoveredEnemyId: null,
     modal: initialModal,
     pendingChallenge: initialPendingChallenge,
+    inspectedHistoryIdx: null,
+    mobileLogExpanded: false,
+    lastCopiedReport: '',
     helpTab: 'glossary',
     glossaryCategory: 'all',
     glossaryQuery: '',
@@ -324,6 +354,8 @@ export function mountSpireApp(rootEl) {
     notice: initialNotice,
     noticeTone: 'normal',
   };
+
+  let lastRenderedScreen = null;
 
   function clearCombatSelection() {
     ui.selectedCardId = null;
@@ -340,8 +372,7 @@ export function mountSpireApp(rootEl) {
 
   function ensureRunRecorded() {
     if (!state) return null;
-    const charId = state.characterId || 'ironclad';
-    const currentRunKey = `${charId}_${state.seed}_${state.ascension ?? 0}_${state.stats?.floorsCleared ?? 0}_${state.runOutcome ?? 'end'}${state.isChallengeRun ? '_ch' : ''}`;
+    const currentRunKey = getRunRecordKey(state);
     if (!lastGameOverSummary || lastGameOverSummary.runKey !== currentRunKey) {
       const rec = recordCompletedRun(meta, state);
       saveMeta(meta);
@@ -419,6 +450,9 @@ export function mountSpireApp(rootEl) {
     fxManager.applyAnimSpeedAttr();
 
     if (ui.showCharacterSelect || !state) {
+      const prevScreen = lastRenderedScreen;
+      lastRenderedScreen = 'character_select';
+      fxLayerEl.innerHTML = '';
       const hasActiveRun = Boolean(state && state.screen !== 'game_over');
       const previewCharId = normalizeCharacterId(ui.selectedCharacterId || meta.selectedCharacterId);
       stageRoot.innerHTML = `
@@ -431,10 +465,18 @@ export function mountSpireApp(rootEl) {
         ${renderModal({ state, meta, settings, ui })}
       `;
       clearCombatTacticsUI(rootEl);
+      if (prevScreen && prevScreen !== 'character_select' && typeof window.scrollTo === 'function') {
+        window.scrollTo(0, 0);
+      }
       return;
     }
 
     persistRun(state);
+    const prevScreen = lastRenderedScreen;
+    lastRenderedScreen = state.screen;
+    if (state.screen !== 'combat') {
+      fxLayerEl.innerHTML = '';
+    }
 
     let mainHtml = '';
     switch (state.screen) {
@@ -442,7 +484,7 @@ export function mountSpireApp(rootEl) {
         mainHtml = renderMapScreen({ state, settings, ui });
         break;
       case 'combat':
-        mainHtml = renderCombatScreen({ state, ui, getPreviewTargetEnemy });
+        mainHtml = renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy });
         break;
       case 'reward':
         mainHtml = renderRewardScreen({ state, ui });
@@ -482,6 +524,21 @@ export function mountSpireApp(rootEl) {
 
     if (state.screen === 'combat') {
       syncCombatTactics();
+      if (prevScreen && prevScreen !== 'combat' && typeof window.scrollTo === 'function') {
+        window.scrollTo(0, 0);
+      }
+    } else if (
+      state.screen === 'map' &&
+      prevScreen !== 'map' &&
+      state.currentNodeId &&
+      !ui.modal
+    ) {
+      const currentNodeEl = rootEl.querySelector(`#map-node-${CSS.escape(state.currentNodeId)}`);
+      if (currentNodeEl && typeof currentNodeEl.scrollIntoView === 'function') {
+        currentNodeEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    } else if (prevScreen && prevScreen !== state.screen && !ui.modal && typeof window.scrollTo === 'function') {
+      window.scrollTo(0, 0);
     }
   }
 
@@ -578,6 +635,15 @@ export function mountSpireApp(rootEl) {
       return;
     }
 
+    // Optional two-tap confirmation mode for mobile anti-misclick
+    if (settings.mobileTapConfirm && ui.selectedCardId !== instanceId) {
+      ui.selectedCardId = instanceId;
+      soundEngine.play('ui_click');
+      setNotice('');
+      render();
+      return;
+    }
+
     const targetId = stats.target === 'enemy' ? alive[0]?.id ?? null : null;
     executeCardPlayWithFx(instanceId, targetId);
   }
@@ -606,10 +672,26 @@ export function mountSpireApp(rootEl) {
     ui.pendingChallenge = null;
     ui.modal = null;
     ui.seedInput = '';
+    ui.mobileLogExpanded = false;
     clearCombatSelection();
   }
 
+  function startDailyChallengeRun(dateKeyOverride = '') {
+    const spec = getDailyChallengeSpec(dateKeyOverride || getLocalDateKey());
+    launchRunForCharacter(spec.characterId, {
+      dailyDateKey: spec.dateKey,
+    });
+    const modNames = spec.modifiers.map((m) => m.name).join(' · ');
+    soundEngine.play('upgrade');
+    setNotice(`已开启每日挑战【${spec.dateKey} · ${spec.characterName}】（词条：${modNames}）！`);
+    render();
+  }
+
   function startChallengeRun(spec) {
+    if (spec?.isDaily && spec?.dailyDateKey) {
+      startDailyChallengeRun(spec.dailyDateKey);
+      return;
+    }
     const targetAsc = Number.isFinite(Number(spec?.ascension))
       ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(Number(spec.ascension))))
       : 0;
@@ -630,7 +712,33 @@ export function mountSpireApp(rootEl) {
     render();
   }
 
-  function copySeedToClipboard(seedCode, ascensionOverride = null, characterIdOverride = null) {
+  function writeTextToClipboard(text) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        Promise.resolve(navigator.clipboard.writeText(text)).catch(() => {});
+      }
+    } catch {
+      // Clipboard API may be restricted in non-HTTPS contexts
+    }
+  }
+
+  function copySeedToClipboard(
+    seedCode,
+    ascensionOverride = null,
+    characterIdOverride = null,
+    dailyDateKeyOverride = ''
+  ) {
+    const dailyKey = (dailyDateKeyOverride || '').trim();
+    if (dailyKey) {
+      const dailyUrl = buildDailyChallengeUrl(window.location?.href || '', dailyKey);
+      writeTextToClipboard(dailyUrl);
+      ui.seedInput = dailyUrl;
+      soundEngine.play('ui_click');
+      setNotice(`已复制每日挑战链接（${dailyKey}）：${dailyUrl}`);
+      render();
+      return;
+    }
+
     const parsedSeed = parseSeedInput(seedCode) ?? state?.seed;
     if (parsedSeed === undefined || parsedSeed === null) return;
     const code = formatSeedCode(parsedSeed);
@@ -652,16 +760,29 @@ export function mountSpireApp(rootEl) {
       MAX_ASCENSION,
       charId
     );
-    try {
-      if (navigator.clipboard?.writeText) {
-        Promise.resolve(navigator.clipboard.writeText(shareUrl)).catch(() => {});
-      }
-    } catch {
-      // Clipboard API may be restricted in non-HTTPS contexts; notice still displays link
-    }
+    writeTextToClipboard(shareUrl);
     ui.seedInput = shareUrl;
     soundEngine.play('ui_click');
     setNotice(`已复制挑战链接（${charDef.name} · 种子 ${code} · 进阶 ${safeAsc}）：${shareUrl}`);
+    render();
+  }
+
+  function copyBattleReportToClipboard(report) {
+    if (!report) return;
+    const shareUrl = report.dailyDateKey
+      ? buildDailyChallengeUrl(window.location?.href || '', report.dailyDateKey)
+      : buildChallengeUrl(
+          window.location?.href || '',
+          report.seed,
+          report.ascension ?? 0,
+          MAX_ASCENSION,
+          report.characterId || 'ironclad'
+        );
+    const text = formatShareableBattleReport(report, shareUrl);
+    ui.lastCopiedReport = text;
+    writeTextToClipboard(text);
+    soundEngine.play('upgrade');
+    setNotice(`已复制战绩卡到剪贴板（评分 ${report.score ?? 0} · ${report.grade || ''}），可直接粘贴分享给好友！`);
     render();
   }
 
@@ -674,6 +795,10 @@ export function mountSpireApp(rootEl) {
       soundEngine.play('ui_click');
       if (inputEl) inputEl.focus();
       return false;
+    }
+    if (parsed.isDaily && parsed.dailyDateKey) {
+      startDailyChallengeRun(parsed.dailyDateKey);
+      return true;
     }
     const fallbackChar = normalizeCharacterId(
       ui.showCharacterSelect
@@ -859,12 +984,40 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'start-daily-challenge': {
+        startDailyChallengeRun(target.dataset.dailyDate || '');
+        break;
+      }
       case 'copy-seed': {
         copySeedToClipboard(
           target.dataset.seedCode,
           target.dataset.ascension,
-          target.dataset.characterId
+          target.dataset.characterId,
+          target.dataset.dailyDate || ''
         );
+        break;
+      }
+      case 'copy-battle-report': {
+        const rec = ensureRunRecorded()?.historyEntry || (state ? buildRunReportFromState(state) : null);
+        copyBattleReportToClipboard(rec);
+        break;
+      }
+      case 'copy-history-report': {
+        const idx = Number(target.dataset.historyIdx);
+        const rec = Array.isArray(meta.runHistory) ? meta.runHistory[idx] : null;
+        if (rec) {
+          copyBattleReportToClipboard(rec);
+        }
+        break;
+      }
+      case 'inspect-history-run': {
+        const idx = Number(target.dataset.historyIdx);
+        if (Array.isArray(meta.runHistory) && meta.runHistory[idx]) {
+          ui.inspectedHistoryIdx = idx;
+          ui.modal = 'history_detail';
+          soundEngine.play('ui_click');
+          render();
+        }
         break;
       }
       case 'choose-neow': {
@@ -975,6 +1128,20 @@ export function mountSpireApp(rootEl) {
       case 'toggle-damage-numbers': {
         settings.showDamageNumbers = !settings.showDamageNumbers;
         saveSettings(settings);
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'toggle-mobile-tap-confirm': {
+        settings.mobileTapConfirm = !settings.mobileTapConfirm;
+        saveSettings(settings);
+        clearCombatSelection();
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'toggle-mobile-log': {
+        ui.mobileLogExpanded = !ui.mobileLogExpanded;
         soundEngine.play('ui_click');
         render();
         break;
@@ -1234,6 +1401,16 @@ export function mountSpireApp(rootEl) {
         const res = buyShopCard(state, Number(target.dataset.offerIndex));
         if (res.ok) soundEngine.play('gold');
         setNotice(res.ok ? '购买成功，卡牌已加入牌组！' : res.reason, res.ok ? 'normal' : 'warn');
+        render();
+        break;
+      }
+      case 'buy-shop-colorless-card': {
+        const res = buyShopColorlessCard(state, Number(target.dataset.offerIndex));
+        if (res.ok) soundEngine.play('upgrade');
+        setNotice(
+          res.ok ? '已购入商店专属无色秘牌，卡牌已加入牌组！' : res.reason,
+          res.ok ? 'normal' : 'warn'
+        );
         render();
         break;
       }
@@ -1568,6 +1745,7 @@ export function mountSpireApp(rootEl) {
     getState: () => state,
     getMeta: () => meta,
     getSettings: () => settings,
+    getLastCopiedReport: () => ui.lastCopiedReport,
     isCharacterSelect: () => Boolean(ui.showCharacterSelect || !state),
     render,
     openModal: (modalName) => {

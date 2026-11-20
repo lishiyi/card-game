@@ -43,9 +43,11 @@ export function renderCardHtml(cardInstance, options = {}) {
   const combatCtx = options.combatContext ?? null;
   const desc = formatCardDescription(cardInstance, combatCtx);
   const idPrefix = options.idPrefix || 'card';
+  const isColorless = stats.character === 'colorless';
   const extraClasses = [
     'game-card',
     `rarity-${stats.rarity}`,
+    isColorless ? 'card-colorless' : '',
     options.playable ? 'playable' : '',
     options.selected ? 'selected-card' : '',
     options.dimmed ? 'unplayable-dim' : '',
@@ -121,6 +123,10 @@ export function renderCardHtml(cardInstance, options = {}) {
       ? 'upgraded'
       : '';
 
+  const rarityText = isColorless
+    ? `无色·${RARITY_LABELS[stats.rarity] || ''}`
+    : RARITY_LABELS[stats.rarity] || '';
+
   return `
     <button
       type="button"
@@ -128,6 +134,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       class="${extraClasses}"
       ${styleAttr}
       data-rarity="${escapeHtml(stats.rarity)}"
+      data-character="${escapeHtml(stats.character)}"
       data-action="${escapeHtml(options.action || 'noop')}"
       data-instance-id="${escapeHtml(cardInstance.instanceId)}"
       ${options.unplayableReason ? `data-unplayable-reason="${escapeHtml(options.unplayableReason)}"` : ''}
@@ -138,14 +145,20 @@ export function renderCardHtml(cardInstance, options = {}) {
         <div class="card-top">
           <span class="card-cost ${costBadgeClass}" ${costTooltipAttrs}>${escapeHtml(desc.displayCost)}</span>
           <span class="card-name ${stats.upgraded ? 'upgraded' : ''}">${escapeHtml(stats.name)}</span>
-          ${typeof options.hotkey === 'number' ? `<span class="card-hotkey">[${options.hotkey}]</span>` : ''}
+          ${
+            typeof options.stackCount === 'number' && options.stackCount > 1
+              ? `<span class="card-stack-badge">×${options.stackCount}</span>`
+              : typeof options.hotkey === 'number'
+                ? `<span class="card-hotkey">[${options.hotkey}]</span>`
+                : ''
+          }
         </div>
         <div class="card-banner type-${escapeHtml(stats.type)}">
           <span class="card-type-label">
             <span>${escapeHtml(CARD_TYPE_LABELS[stats.type] || stats.type)}</span>
             ${getCardTypeIconSvg(stats.type)}
           </span>
-          <span class="rarity-badge rarity-${escapeHtml(stats.rarity)}">${escapeHtml(RARITY_LABELS[stats.rarity] || '')}</span>
+          <span class="rarity-badge rarity-${escapeHtml(stats.rarity)} ${isColorless ? 'badge-colorless' : ''}">${escapeHtml(rarityText)}</span>
         </div>
         <div class="card-desc ${descToneClass}">${escapeHtml(desc.text)}</div>
       </div>

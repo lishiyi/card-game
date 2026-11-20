@@ -6,6 +6,7 @@
  */
 
 import { NODE_TYPE_META, TOTAL_FLOORS } from '../../data/events.js';
+import { getDailyModifierDefs } from '../../engine/daily.js';
 import {
   getAvailableNodeIds,
   getCurrentBossName,
@@ -290,6 +291,32 @@ export function renderMapScreen({ state, settings, ui }) {
     `;
   }
 
+  const dailyMods = state.dailyChallenge
+    ? getDailyModifierDefs(state.dailyChallenge.modifierIds)
+    : [];
+  const dailyActiveBarHtml =
+    dailyMods.length > 0
+      ? `<div class="daily-active-strip" id="map-daily-modifiers" aria-label="每日挑战生效词条">
+          <span class="daily-active-label">每日挑战 ${escapeHtml(state.dailyChallenge.dateKey)} 生效词条：</span>
+          <div class="daily-mod-row">
+            ${dailyMods
+              .map(
+                (mod) => `
+                  <span
+                    class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
+                    tabindex="0"
+                    data-tooltip-title="${escapeHtml(mod.name)}"
+                    data-tooltip-tag="${escapeHtml(mod.shortTag)}"
+                    data-tooltip-desc="${escapeHtml(mod.description)}"
+                    data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
+                  >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+                `
+              )
+              .join('')}
+          </div>
+        </div>`
+      : '';
+
   return `
     <section class="panel-stage" aria-labelledby="map-heading">
       <div class="stage-header">
@@ -303,6 +330,8 @@ export function renderMapScreen({ state, settings, ui }) {
             : ''
         }
       </div>
+
+      ${dailyActiveBarHtml}
 
       ${
         ui?.notice

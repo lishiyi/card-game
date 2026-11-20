@@ -4,6 +4,7 @@
 
 import { TOTAL_FLOORS } from '../../data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getDailyModifierDefs } from '../../engine/daily.js';
 import { ASCENSION_DEFS } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml } from '../helpers.js';
@@ -11,6 +12,11 @@ import { escapeHtml } from '../helpers.js';
 export function renderTopHud({ state, ui }) {
   const hasSacredBark = state.player.relics.includes('sacred_bark');
   const seedCode = formatSeedCode(state.seed);
+  const daily = state.dailyChallenge || null;
+  const dailyMods = daily ? getDailyModifierDefs(daily.modifierIds) : [];
+  const dailyTooltipDesc = dailyMods
+    .map((m) => `【${m.name}】${m.description}`)
+    .join('\n');
 
   const relicsHtml = state.player.relics
     .map((id) => {
@@ -64,7 +70,7 @@ export function renderTopHud({ state, ui }) {
         : pot.description;
 
       return `
-        <span style="display:inline-flex;align-items:center;gap:3px;">
+        <span class="potion-slot-group">
           <span
             class="potion-tooltip-anchor"
             tabindex="0"
@@ -108,12 +114,17 @@ export function renderTopHud({ state, ui }) {
         <span class="character-hud-pill char-${escapeHtml(charId)}" id="hud-character-pill">${escapeHtml(charName)}</span>
         <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
         ${
+          daily
+            ? `<span class="daily-pill" id="hud-daily-pill" tabindex="0" data-tooltip-title="每日挑战 · ${escapeHtml(daily.dateKey)}" data-tooltip-tag="今日 3 条规则词条" data-tooltip-desc="${escapeHtml(dailyTooltipDesc)}" data-tooltip-tone="relic">每日 ${escapeHtml(daily.dateKey.slice(5))}</span>`
+            : ''
+        }
+        ${
           asc > 0
             ? `<span class="ascension-pill" id="hud-ascension-pill" tabindex="0" data-tooltip-title="${escapeHtml(ascDef.name)}" data-tooltip-tag="当前进阶难度" data-tooltip-desc="${escapeHtml(ascDef.description)}" data-tooltip-tone="debuff">进阶 ${escapeHtml(asc)}</span>`
             : ''
         }
         ${
-          state.isChallengeRun
+          state.isChallengeRun && !daily
             ? `<span class="challenge-pill" id="hud-challenge-pill" tabindex="0" data-tooltip-title="好友种子挑战模式" data-tooltip-tag="全图鉴临时对齐" data-tooltip-desc="本局通过挑战链接开启，已临时对齐全图鉴卡池与目标进阶难度，确保与好友 100% 同图同掉落；不会覆盖你的本地生涯解锁进度。" data-tooltip-tone="buff">挑战</span>`
             : ''
         }
@@ -125,19 +136,28 @@ export function renderTopHud({ state, ui }) {
           data-seed-code="${escapeHtml(seedCode)}"
           data-ascension="${escapeHtml(asc)}"
           data-character-id="${escapeHtml(charId)}"
-          data-tooltip-title="分享挑战链接：${escapeHtml(seedCode)}"
+          data-daily-date="${escapeHtml(daily?.dateKey || '')}"
+          data-tooltip-title="${daily ? `分享每日挑战：${escapeHtml(daily.dateKey)}` : `分享挑战链接：${escapeHtml(seedCode)}`}"
           data-tooltip-tag="点击一键复制链接"
-          data-tooltip-desc="点击直接复制完整挑战链接（含角色【${escapeHtml(charName)}】、本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！"
+          data-tooltip-desc="${
+            daily
+              ? `点击直接复制今日每日挑战直连链接（?daily=${escapeHtml(daily.dateKey)}）。好友点开即可体验完全相同的角色、词条、地图与掉落！`
+              : `点击直接复制完整挑战链接（含角色【${escapeHtml(charName)}】、本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！`
+          }"
         >
           种子 ${escapeHtml(seedCode)}
         </button>
       </div>
 
       <div class="vitals-cluster">
-        <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
-        <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
-        <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>
-        <div class="potion-strip" aria-label="药水栏">${potionsHtml}</div>
+        <div class="vitals-numbers-row">
+          <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
+          <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
+        </div>
+        <div class="hud-gear-scroll">
+          <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>
+          <div class="potion-strip" aria-label="药水栏">${potionsHtml}</div>
+        </div>
       </div>
 
       <nav class="top-actions" aria-label="全局操作">

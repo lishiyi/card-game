@@ -1,3 +1,4 @@
+import { hasDailyModifier } from '../engine/daily.js';
 import { getEnemyIntentPreview } from '../engine/math.js';
 import { nextRandom, randomInt } from '../engine/rng.js';
 
@@ -421,6 +422,9 @@ export function createEnemyInstance(state, spec) {
       maxHp = Math.round(maxHp * 1.12);
     } else if (asc >= 3 && (tpl.role === 'elite' || tpl.role === 'boss')) {
       maxHp = Math.round(maxHp * 1.15);
+    }
+    if (hasDailyModifier(state, 'cursed_run')) {
+      maxHp = Math.round(maxHp * 1.12);
     }
   }
 

@@ -17,6 +17,7 @@ export function createDefaultSettings() {
     animSpeed: 'normal',
     showDamageNumbers: true,
     tutorialDismissed: false,
+    mobileTapConfirm: false,
   };
 }
 
@@ -43,6 +44,7 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
           ? parsed.showDamageNumbers
           : base.showDamageNumbers,
       tutorialDismissed: Boolean(parsed.tutorialDismissed),
+      mobileTapConfirm: Boolean(parsed.mobileTapConfirm),
     };
   } catch {
     return base;

@@ -163,6 +163,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
 
   return {
     ...baseResult,
+    goldOnKill: stats.goldOnKill ?? 0,
     poisonAdded,
     projectedPoison,
     isPoisonLethal,
@@ -368,6 +369,21 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     pushRelic('snecko_skull', 'buff');
   }
 
+  // Colorless: Sadistic Nature triggers on any enemy debuff
+  const appliesEnemyDebuff = Boolean(
+    appliesPoison ||
+      stats.applyEnemyStatuses?.weak ||
+      stats.applyEnemyStatuses?.vulnerable ||
+      stats.applyEnemyStatuses?.corpseExplosion
+  );
+  if (appliesEnemyDebuff && (player.statuses?.sadisticNature ?? 0) > 0) {
+    pushPlayerStatus('sadisticNature', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 【残虐本性】触发：每次施加负面状态附加 ${player.statuses.sadisticNature} 点伤害`,
+    });
+  }
+
   if (stats.bonusHitIfPoisoned && poisonedTargets.length > 0) {
     result.callouts.push({
       tone: 'buff',
@@ -546,7 +562,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       if (c.instanceId === cardInstance.instanceId) continue;
       result.affectedHandCards.push({ instanceId: c.instanceId, tone: 'exhaust' });
     }
-  } else if (stats.upgradeAllHand) {
+  } else if (stats.upgradeAllHand || stats.upgradeAllCombatCards) {
     for (const c of combat.hand) {
       if (c.instanceId === cardInstance.instanceId) continue;
       if (canUpgradeCard(c)) {

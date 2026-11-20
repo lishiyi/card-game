@@ -12,6 +12,7 @@ import {
   rollEnemyIntent,
 } from '../data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../data/relics.js';
+import { hasDailyModifier } from './daily.js';
 import { calculateAttackDamage, calculateCardBlock } from './math.js';
 import { pickRandom, randomInt, shuffled } from './rng.js';
 
@@ -24,6 +25,24 @@ const SIGNED_STATUSES = new Set(['strength', 'dexterity']);
 
 export function hasRelic(state, relicId) {
   return Array.isArray(state?.player?.relics) && state.player.relics.includes(relicId);
+}
+
+function addPlayerBlock(state, amount) {
+  const gain = Math.floor(amount);
+  if (!state?.player || !Number.isFinite(gain) || gain <= 0) return 0;
+  state.player.block += gain;
+  if (state.stats) {
+    state.stats.totalBlockGained = (state.stats.totalBlockGained ?? 0) + gain;
+  }
+  return gain;
+}
+
+function triggerSadisticNature(state, enemy) {
+  const combat = state?.combat;
+  const dmg = state?.player?.statuses?.sadisticNature ?? 0;
+  if (!combat || !enemy || enemy.hp <= 0 || dmg <= 0) return;
+  pushCombatLog(combat, `【残虐本性】触发：对【${enemy.name}】造成 ${dmg} 点伤害！`, 'attack');
+  dealDamageToEnemy(state, enemy, dmg, { isAttack: false });
 }
 
 export function getAliveEnemies(combat) {
@@ -111,6 +130,7 @@ export function applyPoisonToEnemy(state, enemy, amount, options = {}) {
     `【${enemy.name}】获得 ${total} 层【中毒】${skullBonus > 0 ? '（异蛇头骨 +1）' : ''}。`,
     'status'
   );
+  triggerSadisticNature(state, enemy);
   return total;
 }
 
@@ -242,7 +262,12 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
   const hpLoss = amount - blocked;
 
   if (hpLoss > 0) {
+    const actualLoss = Math.min(enemy.hp, hpLoss);
     enemy.hp = Math.max(0, enemy.hp - hpLoss);
+    if (state.stats) {
+      state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualLoss;
+      state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualLoss);
+    }
     pushCombatLog(
       combat,
       `对【${enemy.name}】造成 ${hpLoss} 点伤害${blocked > 0 ? `（击穿 ${blocked} 点格挡）` : ''}。`,
@@ -352,7 +377,12 @@ export function dealDamageToPlayer(state, rawAmount, sourceLabel = '敌人', opt
   }
 
   if (hpLoss > 0) {
+    const actualLoss = Math.min(state.player.hp, hpLoss);
     state.player.hp = Math.max(0, state.player.hp - hpLoss);
+    combat.hpLostThisCombat = (combat.hpLostThisCombat ?? 0) + actualLoss;
+    if (state.stats) {
+      state.stats.totalDamageTaken = (state.stats.totalDamageTaken ?? 0) + actualLoss;
+    }
     pushCombatLog(
       combat,
       `${sourceLabel}造成 ${hpLoss} 点伤害${blocked > 0 ? `（格挡 ${blocked} 点）` : ''}。`,
@@ -386,7 +416,12 @@ export function losePlayerHp(state, amount, reasonLabel = '效果') {
     }
   }
 
+  const actualLoss = Math.min(state.player.hp, loss);
   state.player.hp = Math.max(0, state.player.hp - loss);
+  combat.hpLostThisCombat = (combat.hpLostThisCombat ?? 0) + actualLoss;
+  if (state.stats) {
+    state.stats.totalDamageTaken = (state.stats.totalDamageTaken ?? 0) + actualLoss;
+  }
   pushCombatLog(combat, `因【${reasonLabel}】失去 ${loss} 点生命。`, 'damage');
 
   if (state.player.hp <= 0) {
@@ -431,7 +466,7 @@ export function discardCardsBatch(state, cardInstances, { manual = true } = {}) 
 
   if (hasRelic(state, 'tough_bandages')) {
     const gain = 3 * count;
-    state.player.block += gain;
+    addPlayerBlock(state, gain);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.tough_bandages.name}】触发：获得 ${gain} 点格挡！`, 'block');
   }
 
@@ -553,7 +588,7 @@ export function exhaustCardsBatch(state, cardInstances) {
   const fnp = state.player.statuses.feelNoPain ?? 0;
   if (fnp > 0) {
     const gain = fnp * count;
-    state.player.block += gain;
+    addPlayerBlock(state, gain);
     pushCombatLog(combat, `【无惧疼痛】生效：获得 ${gain} 点格挡。`, 'block');
   }
 
@@ -592,6 +627,9 @@ function handleCombatDefeat(state) {
   state.combat.phase = 'ended';
   state.player.block = 0;
   state.combatSnapshot = null;
+  if (state.stats) {
+    state.stats.defeatedBy = `第 ${state.act ?? 1} 幕 F${Math.max(1, state.floor ?? 1)} · ${state.combat.encounterName || '未知强敌'}`;
+  }
   pushCombatLog(state.combat, '你在尖塔中倒下了……', 'defeat');
   state.screen = 'game_over';
   state.runOutcome = 'defeat';
@@ -623,18 +661,22 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
 
   if (combat.turn === 1) {
     if (hasRelic(state, 'anchor')) {
-      state.player.block += 10;
+      addPlayerBlock(state, 10);
       pushCombatLog(combat, `遗物【${RELIC_LIBRARY.anchor.name}】生效：获得 10 点格挡。`, 'block');
     }
     if (hasRelic(state, 'lantern')) {
       state.player.energy += 1;
       pushCombatLog(combat, `遗物【${RELIC_LIBRARY.lantern.name}】生效：获得 1 点能量。`, 'info');
     }
+    if (hasDailyModifier(state, 'time_dilation')) {
+      state.player.energy += 1;
+      pushCombatLog(combat, '每日词条【先发制人】生效：第 1 回合额外获得 1 点能量并多抽 1 张牌！', 'info');
+    }
   } else if (combat.turn === 2 && hasRelic(state, 'horn_cleat')) {
-    state.player.block += 14;
+    addPlayerBlock(state, 14);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.horn_cleat.name}】生效：获得 14 点格挡。`, 'block');
   } else if (combat.turn === 3 && hasRelic(state, 'captains_wheel')) {
-    state.player.block += 18;
+    addPlayerBlock(state, 18);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.captains_wheel.name}】生效：获得 18 点格挡。`, 'block');
   }
 
@@ -672,6 +714,10 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
       for (const enemy of alive) {
         applyPoisonToEnemy(state, enemy, fumes);
       }
+      if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+        finalizeCombatVictory(state, onVictoryCallback);
+        return;
+      }
     }
   }
 
@@ -681,6 +727,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
 
   const bagDraw = combat.turn === 1 && hasRelic(state, 'bag_of_prep') ? 2 : 0;
   const snakeDraw = combat.turn === 1 && hasRelic(state, 'ring_of_the_snake') ? 2 : 0;
+  const dailyT1Draw = combat.turn === 1 && hasDailyModifier(state, 'time_dilation') ? 1 : 0;
   const serpentDraw = hasRelic(state, 'ring_of_the_serpent') ? 1 : 0;
   const sneckoDraw = hasRelic(state, 'snecko_eye') ? 2 : 0;
   const toolsDraw = state.player.statuses.toolsOfTheTrade ?? 0;
@@ -692,7 +739,10 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.ring_of_the_serpent.name}】生效：本回合额外抽 1 张牌。`, 'info');
   }
 
-  drawCards(state, BASE_DRAW_PER_TURN + bagDraw + snakeDraw + serpentDraw + sneckoDraw + toolsDraw);
+  drawCards(
+    state,
+    BASE_DRAW_PER_TURN + bagDraw + snakeDraw + dailyT1Draw + serpentDraw + sneckoDraw + toolsDraw
+  );
 
   if (toolsDraw > 0) {
     requestManualDiscard(state, toolsDraw, '独门秘技', onVictoryCallback);
@@ -725,6 +775,7 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     turn: 0,
     phase: 'setup',
     status: 'ongoing',
+    hpLostThisCombat: 0,
     cardsPlayedThisTurn: 0,
     attacksPlayedThisTurn: 0,
     discardedThisTurn: 0,
@@ -791,6 +842,19 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
       `遗物【${RELIC_LIBRARY.philosophers_stone.name}】副作用：所有敌人初始获得 1 点【力量】。`,
       'status'
     );
+  }
+  if (hasDailyModifier(state, 'lethality')) {
+    applyStatus(state.player, 'strength', 3);
+    for (const enemy of getAliveEnemies(combat)) {
+      applyStatus(enemy, 'strength', 3);
+    }
+    pushCombatLog(combat, '每日词条【嗜血狂潮】生效：敌我双方初始获得 +3 点【力量】！', 'status');
+  }
+  if (hasDailyModifier(state, 'time_dilation')) {
+    for (const enemy of getAliveEnemies(combat)) {
+      enemy.block += 6;
+    }
+    pushCombatLog(combat, '每日词条【先发制人】生效：所有敌人开场获得 6 点初始格挡。', 'block');
   }
 
   startPlayerTurn(state, onVictoryCallback);
@@ -913,12 +977,22 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     'card'
   );
 
-  // 2. Self HP cost
+  // 2. Self HP cost & self heal (Bandage Up)
   if (stats.loseHp) {
     losePlayerHp(state, stats.loseHp, stats.name);
     if (combat.status !== 'ongoing') {
       return { ok: true, outcome: combat.status };
     }
+  }
+  if (stats.healHp && state.player.hp > 0) {
+    const before = state.player.hp;
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + stats.healHp);
+    const healed = state.player.hp - before;
+    pushCombatLog(
+      combat,
+      healed > 0 ? `【${stats.name}】回复了 ${healed} 点生命。` : `【${stats.name}】生效，生命值已满。`,
+      'victory'
+    );
   }
 
   // 3. Energy gain & Sneaky Strike discard refund
@@ -934,19 +1008,35 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
   // 4. Block gain & Entrench double block (before Body Slam / Iron Wave attack resolution!)
   if (typeof stats.block === 'number') {
     const gainedBlock = calculateCardBlock(stats.block, state.player);
-    state.player.block += gainedBlock;
+    addPlayerBlock(state, gainedBlock);
     if (gainedBlock > 0) {
       pushCombatLog(combat, `获得 ${gainedBlock} 点格挡。`, 'block');
     }
   }
   if (stats.doubleBlock && state.player.block > 0) {
     const added = state.player.block;
-    state.player.block += added;
+    addPlayerBlock(state, added);
     pushCombatLog(combat, `格挡值翻倍，额外获得 ${added} 点格挡！`, 'block');
   }
 
-  // 4b. Armaments temporary in-combat hand upgrades
-  if (stats.upgradeAllHand) {
+  // 4b. Apotheosis & Armaments temporary in-combat upgrades
+  if (stats.upgradeAllCombatCards) {
+    let upCount = 0;
+    const allCombatCards = [...combat.hand, ...combat.drawPile, ...combat.discardPile];
+    for (const c of allCombatCards) {
+      if (canUpgradeCard(c)) {
+        c.upgraded = true;
+        upCount += 1;
+      }
+    }
+    pushCombatLog(
+      combat,
+      upCount > 0
+        ? `【${stats.name}】神圣光芒降临，本场战斗升级了 ${upCount} 张卡牌！`
+        : `【${stats.name}】生效，所有在场卡牌均已达到满级！`,
+      'info'
+    );
+  } else if (stats.upgradeAllHand) {
     let upCount = 0;
     for (const hc of combat.hand) {
       if (canUpgradeCard(hc)) {
@@ -995,7 +1085,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       const perCardBlock = calculateCardBlock(stats.exhaustNonAttacksBlockEach, state.player);
       const totalBlock = perCardBlock * nonAttacks.length;
       if (totalBlock > 0) {
-        state.player.block += totalBlock;
+        addPlayerBlock(state, totalBlock);
         pushCombatLog(combat, `【${stats.name}】获得 ${totalBlock} 点格挡。`, 'block');
       }
       exhaustCardsBatch(state, nonAttacks);
@@ -1019,7 +1109,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     }
   }
 
-  // 5. Attack hits (including Fiend Fire, Reaper, Bane, Finisher, Accuracy & Wrist Blade)
+  // 5. Attack hits (including Fiend Fire, Reaper, Bane, Finisher, Hand of Greed, Accuracy & Wrist Blade)
   if (stats.exhaustAllHandDamageEach) {
     const toExhaust = [...combat.hand];
     combat.hand = [];
@@ -1052,6 +1142,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     if ((typeof stats.damage === 'number' || stats.useBlockAsDamage) && hits > 0) {
       const baseDmg = stats.useBlockAsDamage ? state.player.block : stats.damage;
       const strMult = stats.strengthMultiplier ?? 1;
+      const targetAliveBefore = Boolean(targetEnemy && targetEnemy.hp > 0);
       let totalUnblocked = 0;
 
       if (stats.target === 'all_enemies') {
@@ -1077,6 +1168,18 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
         }
       }
 
+      if (stats.goldOnKill && targetAliveBefore && targetEnemy && targetEnemy.hp <= 0) {
+        state.player.gold += stats.goldOnKill;
+        if (state.stats) {
+          state.stats.goldEarned = (state.stats.goldEarned ?? 0) + stats.goldOnKill;
+        }
+        pushCombatLog(
+          combat,
+          `【${stats.name}】斩杀目标，永久获得 ${stats.goldOnKill} 枚金币！`,
+          'victory'
+        );
+      }
+
       if (stats.lifestealUnblocked && totalUnblocked > 0 && state.player.hp > 0) {
         const before = state.player.hp;
         state.player.hp = Math.min(state.player.maxHp, state.player.hp + totalUnblocked);
@@ -1094,7 +1197,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     pushCombatLog(combat, `将 1 张【${stats.name}】复制品放入弃牌堆。`, 'info');
   }
 
-  // 6. Enemy status application (Poison routed through Snecko Skull helper, Bouncing Flask, Catalyst)
+  // 6. Enemy status application (Poison routed through Snecko Skull helper, Bouncing Flask, Catalyst, Sadistic Nature)
   if (stats.applyEnemyStatuses) {
     const recipients =
       stats.target === 'all_enemies'
@@ -1104,12 +1207,17 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
           : [];
     for (const enemy of recipients) {
       for (const [statusKey, val] of Object.entries(stats.applyEnemyStatuses)) {
+        if (enemy.hp <= 0) break;
         if (statusKey === 'poison') {
           applyPoisonToEnemy(state, enemy, val);
         } else {
           applyStatus(enemy, statusKey, val);
-          const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
+          const statusMeta = STATUS_METADATA[statusKey];
+          const statusName = statusMeta?.name ?? statusKey;
           pushCombatLog(combat, `【${enemy.name}】获得 ${val} 层【${statusName}】。`, 'status');
+          if (statusMeta?.polarity === 'debuff') {
+            triggerSadisticNature(state, enemy);
+          }
         }
       }
     }
@@ -1195,7 +1303,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
 
   if ((state.player.statuses.afterImage ?? 0) > 0 && stats.cardId !== 'after_image') {
     const aiBlock = state.player.statuses.afterImage;
-    state.player.block += aiBlock;
+    addPlayerBlock(state, aiBlock);
   }
   if ((state.player.statuses.thousandCuts ?? 0) > 0 && stats.cardId !== 'a_thousand_cuts') {
     const cutDmg = state.player.statuses.thousandCuts;
@@ -1288,7 +1396,7 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   }
   if (potion.block) {
     const val = potion.block * mult;
-    state.player.block += val;
+    addPlayerBlock(state, val);
     pushCombatLog(combat, `获得 ${val} 点格挡。`, 'block');
   }
   if (potion.strength) {
@@ -1325,13 +1433,18 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   }
   if (potion.applyEnemyStatuses && targetRes.enemy && targetRes.enemy.hp > 0) {
     for (const [sKey, sVal] of Object.entries(potion.applyEnemyStatuses)) {
+      if (targetRes.enemy.hp <= 0) break;
       const val = sVal * mult;
       if (sKey === 'poison') {
         applyPoisonToEnemy(state, targetRes.enemy, val);
       } else {
         applyStatus(targetRes.enemy, sKey, val);
-        const sName = STATUS_METADATA[sKey]?.name ?? sKey;
+        const sMeta = STATUS_METADATA[sKey];
+        const sName = sMeta?.name ?? sKey;
         pushCombatLog(combat, `【${targetRes.enemy.name}】获得 ${val} 层【${sName}】。`, 'status');
+        if (sMeta?.polarity === 'debuff') {
+          triggerSadisticNature(state, targetRes.enemy);
+        }
       }
     }
   }
@@ -1412,12 +1525,12 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
 
   // 2. End of turn relics & powers
   if (hasRelic(state, 'orichalcum') && state.player.block === 0) {
-    state.player.block += 6;
+    addPlayerBlock(state, 6);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.orichalcum.name}】生效：获得 6 点格挡。`, 'block');
   }
   if ((state.player.statuses.metallicize ?? 0) > 0) {
     const m = state.player.statuses.metallicize;
-    state.player.block += m;
+    addPlayerBlock(state, m);
     pushCombatLog(combat, `【金属化】生效：获得 ${m} 点格挡。`, 'block');
   }
 
@@ -1434,7 +1547,12 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     // Poison ticks at the start of the enemy's turn (bypasses block, decrements by 1; lethal Poison skips enemy intent!)
     if ((enemy.statuses?.poison ?? 0) > 0) {
       const poisonDmg = enemy.statuses.poison;
+      const actualPoisonLoss = Math.min(enemy.hp, poisonDmg);
       enemy.hp = Math.max(0, enemy.hp - poisonDmg);
+      if (state.stats && actualPoisonLoss > 0) {
+        state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualPoisonLoss;
+        state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualPoisonLoss);
+      }
       pushCombatLog(combat, `【${enemy.name}】受【中毒】折磨失去 ${poisonDmg} 点生命！`, 'damage');
       if (enemy.hp <= 0) {
         enemy.block = 0;
@@ -1471,6 +1589,10 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
         if (hasRelic(state, 'philosophers_stone')) {
           applyStatus(childA, 'strength', 1);
           applyStatus(childB, 'strength', 1);
+        }
+        if (hasDailyModifier(state, 'lethality')) {
+          applyStatus(childA, 'strength', 3);
+          applyStatus(childB, 'strength', 3);
         }
         if (idx !== -1) {
           combat.enemies.splice(idx, 1, childA, childB);
@@ -1630,6 +1752,11 @@ function finalizeCombatVictory(state, onVictoryCallback = null) {
   state.stats.combatsWon = (state.stats.combatsWon ?? 0) + 1;
   if (combat.role === 'elite') {
     state.stats.elitesSlain = (state.stats.elitesSlain ?? 0) + 1;
+  } else if (combat.role === 'boss') {
+    state.stats.bossesSlain = (state.stats.bossesSlain ?? 0) + 1;
+  }
+  if ((combat.hpLostThisCombat ?? 0) === 0) {
+    state.stats.perfectCombats = (state.stats.perfectCombats ?? 0) + 1;
   }
 
   if (

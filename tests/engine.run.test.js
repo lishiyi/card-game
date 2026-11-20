@@ -4,13 +4,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
+import {
+  canUpgradeCard,
+  CARD_LIBRARY,
+  COLORLESS_CARD_POOLS,
+  createCardInstance,
+  getCardCharacter,
+  getCardStats,
+} from '../src/data/cards.js';
 import { ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
 import { TOTAL_FLOORS } from '../src/data/events.js';
-import { BOSS_RELIC_IDS, NON_STARTER_RELIC_IDS } from '../src/data/relics.js';
+import { BOSS_RELIC_IDS, NON_STARTER_RELIC_IDS, RELIC_LIBRARY } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
+import { DAILY_MODIFIERS, getDailyChallengeSpec, isValidDailyDateKey } from '../src/engine/daily.js';
 import {
   buyShopCard,
+  buyShopColorlessCard,
   buyShopPotion,
   buyShopPurge,
   buyShopRelic,
@@ -54,14 +63,19 @@ import {
   transitionCombatVictory,
 } from '../src/engine/game.js';
 import {
+  buildRunReportFromState,
+  calculateRunScore,
   createDefaultMeta,
+  formatShareableBattleReport,
   getLockedContentSets,
+  getScoreGrade,
   loadSavedMeta,
   recordCompletedRun,
   saveMeta,
 } from '../src/engine/meta.js';
 import {
   buildChallengeUrl,
+  buildDailyChallengeUrl,
   formatSeedCode,
   parseChallengeInput,
   parseSeedInput,
@@ -994,5 +1008,257 @@ test('The Silent run setup: 70 HP (65 Asc 4), 12-card deck, Ring of the Snake (+
   assert.equal(meta.runHistory[0].characterId, 'silent');
   assert.equal(meta.runHistory[0].characterName, '静默猎手');
 });
+
+test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Uncommon + 1 Rare shelf, purchase & stats tracking', () => {
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 6);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 4);
+
+  // 1. 40+ normal/elite/boss reward rolls across both Ironclad and Silent must NEVER drop colorless cards
+  for (const characterId of ['ironclad', 'silent']) {
+    const run = createNewRun({ seed: characterId === 'ironclad' ? 3101 : 3102, characterId, unlockAllOverride: true, skipNeow: true });
+    for (let i = 0; i < 25; i += 1) {
+      const role = i % 3 === 0 ? 'normal' : i % 3 === 1 ? 'elite' : 'boss';
+      const offers = rollRewardCards(run, 3, role);
+      for (const card of offers) {
+        const def = CARD_LIBRARY[card.cardId];
+        assert.notEqual(getCardCharacter(def), 'colorless', `Combat reward (${role}) leaked colorless card ${card.cardId}`);
+        assert.notEqual(def.shopOnly, true, `Combat reward leaked shopOnly card ${card.cardId}`);
+      }
+    }
+  }
+
+  // 2. Shop always stocks exactly 2 colorless cards (1 uncommon + 1 rare) for both classes, supports purchase, tracks stats, rejects double-buy
+  for (const characterId of ['ironclad', 'silent']) {
+    const shopRun = createNewRun({ seed: characterId === 'ironclad' ? 4201 : 4202, characterId, skipNeow: true });
+    const shopNode = shopRun.map.flat().find((n) => n.type === 'shop');
+    const prevNode = shopRun.map[shopNode.row - 1][0];
+    shopRun.currentNodeId = prevNode.id;
+    prevNode.nextIds = [shopNode.id];
+
+    assert.equal(selectMapNode(shopRun, shopNode.id).ok, true);
+    assert.equal(shopRun.screen, 'shop');
+    assert.equal(shopRun.shop.colorlessCards.length, 2);
+
+    const [uncOffer, rareOffer] = shopRun.shop.colorlessCards;
+    assert.equal(getCardCharacter(CARD_LIBRARY[uncOffer.card.cardId]), 'colorless');
+    assert.equal(CARD_LIBRARY[uncOffer.card.cardId].rarity, 'uncommon');
+    assert.equal(getCardCharacter(CARD_LIBRARY[rareOffer.card.cardId]), 'colorless');
+    assert.equal(CARD_LIBRARY[rareOffer.card.cardId].rarity, 'rare');
+    assert.ok(uncOffer.price >= 60 && rareOffer.price > uncOffer.price);
+
+    // Insufficient gold fails cleanly
+    shopRun.player.gold = 10;
+    assert.equal(buyShopColorlessCard(shopRun, 0).ok, false);
+    assert.equal(uncOffer.sold, false);
+
+    // Sufficient gold buys colorless card, deducts gold, increments colorlessBought, rejects duplicate buy
+    shopRun.player.gold = 600;
+    const deckLenBefore = shopRun.player.deck.length;
+    const buyRes = buyShopColorlessCard(shopRun, 1);
+    assert.equal(buyRes.ok, true);
+    assert.equal(rareOffer.sold, true);
+    assert.equal(shopRun.player.gold, 600 - rareOffer.price);
+    assert.equal(shopRun.player.deck.length, deckLenBefore + 1);
+    assert.equal(shopRun.stats.colorlessBought, 1);
+    assert.equal(getCardCharacter(CARD_LIBRARY[buyRes.addedCard.cardId]), 'colorless');
+    assert.equal(buyShopColorlessCard(shopRun, 1).ok, false);
+  }
+});
+
+test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run Scoring, dailyRecords & Shareable Battle Report', () => {
+  assert.equal(Object.keys(DAILY_MODIFIERS).length, 10);
+  assert.equal(isValidDailyDateKey('2026-11-19'), true);
+  assert.equal(isValidDailyDateKey('2026-02-30'), false);
+  assert.equal(isValidDailyDateKey('not-a-date'), false);
+
+  // 1. Deterministic spec for same date + alternating heroes + 3 non-conflicting modifier categories
+  const specA = getDailyChallengeSpec('2026-11-19');
+  const specB = getDailyChallengeSpec('2026-11-19');
+  const specNextDay = getDailyChallengeSpec('2026-11-20');
+  assert.deepEqual(specA, specB);
+  assert.equal(specA.modifierIds.length, 3);
+  assert.deepEqual(
+    specA.modifiers.map((m) => m.category),
+    ['build', 'twist', 'challenge']
+  );
+  assert.notEqual(specA.characterId, specNextDay.characterId, 'Adjacent daily dates should rotate featured hero');
+
+  // 2. ?daily= URL round-trip
+  const dailyUrl = buildDailyChallengeUrl('https://lishiyi.github.io/card-game/?seed=OLD', '2026-11-19');
+  assert.equal(dailyUrl, 'https://lishiyi.github.io/card-game/?daily=2026-11-19');
+  const parsedDaily = parseChallengeInput(dailyUrl);
+  assert.equal(parsedDaily.isDaily, true);
+  assert.equal(parsedDaily.dailyDateKey, '2026-11-19');
+  assert.equal(parsedDaily.seed, specA.seed);
+  assert.equal(parsedDaily.ascension, 0);
+  assert.equal(parsedDaily.isUrlLike, true);
+  assert.equal(getDailyChallengeSpec(parsedDaily.dailyDateKey).characterId, specA.characterId);
+  assert.equal(parseChallengeInput('?daily=invalid-date'), null);
+
+  const parsedQueryDaily = parseChallengeInput('?daily=2026-11-20');
+  assert.equal(parsedQueryDaily.dailyDateKey, '2026-11-20');
+  assert.equal(parsedQueryDaily.seed, specNextDay.seed);
+
+  // 3. Verify all 10 daily modifiers across deterministic dates (plus explicit modifier checks)
+  const seenModIds = new Set();
+  const sampleDateForMod = new Map();
+  for (let day = 1; day <= 90; day += 1) {
+    const dt = new Date(Date.UTC(2026, 0, day));
+    const dateKey = dt.toISOString().slice(0, 10);
+    const sp = getDailyChallengeSpec(dateKey);
+    for (const mid of sp.modifierIds) {
+      seenModIds.add(mid);
+      if (!sampleDateForMod.has(mid)) sampleDateForMod.set(mid, dateKey);
+    }
+  }
+  assert.equal(seenModIds.size, 10, 'All 10 daily modifiers should be reachable across calendar rotation');
+
+  // 3a. Starting deck/relic/gold modifiers: all_star, shiny, heirloom, specialized, hoarder_gold, cursed_run
+  const allStarRun = createNewRun({ dailyDateKey: sampleDateForMod.get('all_star'), skipNeow: true });
+  const allStarColorless = allStarRun.player.deck.filter((c) => getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless');
+  assert.equal(allStarColorless.length, 2, 'all_star must add 2 colorless cards');
+  assert.equal(allStarColorless.filter((c) => CARD_LIBRARY[c.cardId].rarity === 'uncommon').length, 1);
+  assert.equal(allStarColorless.filter((c) => CARD_LIBRARY[c.cardId].rarity === 'rare').length, 1);
+
+  const shinyRun = createNewRun({ dailyDateKey: sampleDateForMod.get('shiny'), skipNeow: true });
+  const shinyRares = shinyRun.player.deck.filter(
+    (c) => CARD_LIBRARY[c.cardId].rarity === 'rare' && getCardCharacter(CARD_LIBRARY[c.cardId]) === shinyRun.characterId
+  );
+  assert.equal(shinyRares.length, 2, 'shiny must add 2 class rare cards');
+
+  const heirloomRun = createNewRun({ dailyDateKey: sampleDateForMod.get('heirloom'), skipNeow: true });
+  assert.equal(heirloomRun.player.relics.length, 2, 'heirloom must add 1 extra relic');
+  assert.equal(RELIC_LIBRARY[heirloomRun.player.relics[1]].tier, 'rare');
+
+  const specRun = createNewRun({ dailyDateKey: sampleDateForMod.get('specialized'), skipNeow: true });
+  assert.equal(specRun.player.deck.filter((c) => c.upgraded).length, 4, 'specialized must upgrade 4 starter cards');
+
+  const hoarderRun = createNewRun({ dailyDateKey: sampleDateForMod.get('hoarder_gold'), skipNeow: true });
+  assert.equal(hoarderRun.player.gold, 99 + 150, 'hoarder_gold must add +150 starting gold');
+  assert.equal(getCurrentPurgeCost(hoarderRun), Math.round(75 * 1.15), 'hoarder_gold must increase purge cost by 15%');
+
+  // 3b. midas: +65% combat gold & blocks restUpgradeCard
+  const midasRun = createNewRun({ dailyDateKey: sampleDateForMod.get('midas'), skipNeow: true });
+  midasRun.screen = 'rest';
+  midasRun.restState = { completed: false, lastAction: null, featherHealed: 0 };
+  const midasSmith = restUpgradeCard(midasRun, midasRun.player.deck[0].instanceId);
+  assert.equal(midasSmith.ok, false);
+  assert.ok(midasSmith.reason.includes('点金之手'));
+
+  const baseGoldRun = createNewRun({ seed: 7777, skipNeow: true });
+  baseGoldRun.floor = 4;
+  baseGoldRun.combat = { role: 'normal' };
+  transitionCombatVictory(baseGoldRun);
+  const midasGoldRun = createNewRun({ seed: 7777, skipNeow: true });
+  midasGoldRun.dailyChallenge = { dateKey: '2026-11-19', seedCode: 'S-T', characterId: 'ironclad', modifierIds: ['midas'] };
+  midasGoldRun.floor = 4;
+  midasGoldRun.combat = { role: 'normal' };
+  transitionCombatVictory(midasGoldRun);
+  assert.ok(midasGoldRun.reward.gold > Math.round(baseGoldRun.reward.gold * 1.5), 'midas must significantly boost combat gold');
+
+  // 3c. big_game_hunter: >= 6 elites on map & +35 elite gold
+  const bghRun = createNewRun({ dailyDateKey: sampleDateForMod.get('big_game_hunter'), skipNeow: true });
+  const bghElites = bghRun.map.flat().filter((n) => n.type === 'elite').length;
+  assert.ok(bghElites >= 6, `big_game_hunter expected >= 6 elites, got ${bghElites}`);
+  const normalEliteRun = createNewRun({ seed: 8888, skipNeow: true });
+  normalEliteRun.floor = 8;
+  normalEliteRun.combat = { role: 'elite' };
+  transitionCombatVictory(normalEliteRun);
+  const bghEliteRun = createNewRun({ seed: 8888, skipNeow: true });
+  bghEliteRun.dailyChallenge = { dateKey: '2026-11-19', seedCode: 'S-T', characterId: 'ironclad', modifierIds: ['big_game_hunter'] };
+  bghEliteRun.floor = 8;
+  bghEliteRun.combat = { role: 'elite' };
+  transitionCombatVictory(bghEliteRun);
+  assert.equal(bghEliteRun.reward.gold, normalEliteRun.reward.gold + 35);
+
+  // 3d. lethality, time_dilation, cursed_run in combat
+  const lethalRun = createNewRun({ seed: 601, skipNeow: true });
+  lethalRun.dailyChallenge = { dateKey: '2026-11-19', seedCode: 'S-L', characterId: 'ironclad', modifierIds: ['lethality', 'time_dilation', 'cursed_run'] };
+  const baselineCombatRun = createNewRun({ seed: 601, skipNeow: true });
+  const testEnc = { id: 'daily_mod_probe', name: '探针怪', enemies: [{ templateId: 'jaw_worm' }] };
+  startCombat(baselineCombatRun, testEnc, 'normal');
+  startCombat(lethalRun, testEnc, 'normal');
+  assert.equal(lethalRun.player.statuses.strength, 3, 'lethality grants player +3 Strength');
+  assert.equal(lethalRun.combat.enemies[0].statuses.strength, 3, 'lethality grants enemies +3 Strength');
+  assert.equal(lethalRun.player.energy, lethalRun.player.maxEnergy + 1, 'time_dilation grants T1 +1 Energy');
+  assert.equal(lethalRun.combat.hand.length, 6, 'time_dilation grants T1 +1 Draw (5 -> 6)');
+  assert.equal(lethalRun.combat.enemies[0].block, 6, 'time_dilation grants enemies +6 starting Block');
+  assert.ok(
+    lethalRun.combat.enemies[0].maxHp > baselineCombatRun.combat.enemies[0].maxHp,
+    'cursed_run must boost enemy maxHp by +12%'
+  );
+
+  // 4. Deterministic Run Scoring, Grade thresholds, dailyRecords, anti-Ascension-skip, & Shareable Battle Report
+  assert.equal(getScoreGrade(1400), 'S+');
+  assert.equal(getScoreGrade(1050), 'S');
+  assert.equal(getScoreGrade(750), 'A');
+  assert.equal(getScoreGrade(450), 'B');
+  assert.equal(getScoreGrade(200), 'C');
+
+  const meta = createDefaultMeta();
+  const dailyAttempt1 = createNewRun({ dailyDateKey: '2026-11-19', skipNeow: true });
+  dailyAttempt1.act = 1;
+  dailyAttempt1.floor = 10;
+  dailyAttempt1.stats.floorsCleared = 10;
+  dailyAttempt1.stats.combatsWon = 5;
+  dailyAttempt1.stats.perfectCombats = 2;
+  dailyAttempt1.stats.elitesSlain = 1;
+  dailyAttempt1.stats.enemiesSlain = 7;
+  dailyAttempt1.stats.totalDamageDealt = 420;
+  dailyAttempt1.stats.highestSingleHit = 28;
+  dailyAttempt1.stats.defeatedBy = '六火亡魂';
+  dailyAttempt1.runOutcome = 'defeat';
+
+  const score1 = calculateRunScore(dailyAttempt1);
+  assert.ok(score1.totalScore > 0);
+  assert.ok(score1.breakdown.length >= 4);
+
+  const rec1 = recordCompletedRun(meta, dailyAttempt1);
+  assert.equal(rec1.alreadyRecorded, false);
+  assert.equal(meta.dailyRecords['2026-11-19'].attempts, 1);
+  assert.equal(meta.dailyRecords['2026-11-19'].bestScore, score1.totalScore);
+  assert.equal(meta.dailyRecords['2026-11-19'].outcome, 'defeat');
+  assert.equal(meta.runHistory[0].dailyDateKey, '2026-11-19');
+  assert.ok(Array.isArray(meta.runHistory[0].deckSummary) && meta.runHistory[0].deckSummary.length > 0);
+  assert.ok(Array.isArray(meta.runHistory[0].relicIds) && meta.runHistory[0].relicIds.length >= 1);
+
+  // Duplicate call on same attempt stays idempotent
+  assert.equal(recordCompletedRun(meta, dailyAttempt1).alreadyRecorded, true);
+  assert.equal(meta.dailyRecords['2026-11-19'].attempts, 1);
+
+  // Second attempt on same daily date winning Act 2 beats personal best & does NOT advance maxAscensionUnlocked
+  const dailyAttempt2 = createNewRun({ dailyDateKey: '2026-11-19', skipNeow: true });
+  dailyAttempt2.act = 2;
+  dailyAttempt2.floor = 16;
+  dailyAttempt2.stats.floorsCleared = 32;
+  dailyAttempt2.stats.combatsWon = 16;
+  dailyAttempt2.stats.perfectCombats = 6;
+  dailyAttempt2.stats.elitesSlain = 4;
+  dailyAttempt2.stats.bossesSlain = 2;
+  dailyAttempt2.stats.enemiesSlain = 24;
+  dailyAttempt2.stats.totalDamageDealt = 1850;
+  dailyAttempt2.stats.highestSingleHit = 64;
+  dailyAttempt2.runOutcome = 'victory';
+
+  const rec2 = recordCompletedRun(meta, dailyAttempt2);
+  assert.equal(rec2.alreadyRecorded, false);
+  assert.equal(rec2.unlockedAscension, null, 'Daily victory must not unlock Ascension');
+  assert.equal(meta.maxAscensionUnlocked, 0);
+  assert.equal(meta.dailyRecords['2026-11-19'].attempts, 2);
+  assert.equal(meta.dailyRecords['2026-11-19'].outcome, 'victory');
+  assert.ok(meta.dailyRecords['2026-11-19'].bestScore > score1.totalScore);
+  assert.equal(meta.bestScore, meta.dailyRecords['2026-11-19'].bestScore);
+
+  // Shareable battle report contains key highlights & share URL
+  const report = buildRunReportFromState(dailyAttempt2);
+  const text = formatShareableBattleReport(report, dailyUrl);
+  assert.ok(text.includes('每日挑战 2026-11-19'));
+  assert.ok(text.includes(report.grade));
+  assert.ok(text.includes('今日词条：'));
+  assert.ok(text.includes('总输出 1850'));
+  assert.ok(text.includes('最高单击 64'));
+  assert.ok(text.includes('?daily=2026-11-19'));
+});
+
 
 

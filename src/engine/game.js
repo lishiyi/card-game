@@ -4,6 +4,7 @@ import {
   createCardInstance,
   CURSE_CARD_IDS,
   getCardStats,
+  getColorlessCardPools,
   getRewardCardPools,
 } from '../data/cards.js';
 import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
@@ -24,14 +25,29 @@ import {
   startCombat,
   usePotion,
 } from './combat.js';
+import { getDailyChallengeSpec, hasDailyModifier } from './daily.js';
 import { getLockedContentSets, MAX_ASCENSION } from './meta.js';
 import { nextRandom, normalizeSeed, pickDistinct, pickRandom, randomInt } from './rng.js';
 
 export const STARTER_POTION_SLOTS = 3;
 
+let nextRunNonce = 1;
+
+function addPlayerGold(state, amount) {
+  const gain = Math.floor(amount);
+  if (!state?.player || !Number.isFinite(gain) || gain <= 0) return 0;
+  state.player.gold += gain;
+  if (state.stats) {
+    state.stats.goldEarned = (state.stats.goldEarned ?? 0) + gain;
+  }
+  return gain;
+}
+
 export function getCurrentPurgeCost(state) {
   const base = 75 + (state?.purgeCount ?? 0) * 25;
-  return (state?.ascension ?? 0) >= 5 ? Math.round(base * 1.15) : base;
+  const ascMult = (state?.ascension ?? 0) >= 5 ? 1.15 : 1;
+  const dailyMult = hasDailyModifier(state, 'hoarder_gold') ? 1.15 : 1;
+  return Math.round(base * ascMult * dailyMult);
 }
 
 export function getCurrentBossEncounter(state) {
@@ -67,15 +83,27 @@ export function grantRelicToPlayer(state, relicId) {
 }
 
 export function createNewRun(options = {}) {
-  const seed = normalizeSeed(options.seed);
-  const characterId = normalizeCharacterId(options.characterId);
+  const dailySpec = options.dailyChallenge
+    ? getDailyChallengeSpec(options.dailyChallenge.dateKey || options.dailyDateKey)
+    : options.dailyDateKey
+      ? getDailyChallengeSpec(options.dailyDateKey)
+      : null;
+
+  const seed = dailySpec ? dailySpec.seed : normalizeSeed(options.seed);
+  const characterId = normalizeCharacterId(dailySpec ? dailySpec.characterId : options.characterId);
   const charDef = getCharacterDef(characterId);
-  const ascension = Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
-  const unlockedTier = options.unlockedTier ?? 3;
-  const unlockAllOverride = Boolean(options.unlockAllOverride);
+  const ascension = dailySpec
+    ? 0
+    : Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
+  const unlockedTier = dailySpec ? 3 : options.unlockedTier ?? 3;
+  const unlockAllOverride = dailySpec ? true : Boolean(options.unlockAllOverride);
   const startingHp = ascension >= 4 ? charDef.asc4MaxHp : charDef.maxHp;
 
+  nextRunNonce += 1;
+  const runId = `run_${Date.now().toString(36)}_${nextRunNonce}_${(seed >>> 0).toString(36)}`;
+
   const state = {
+    runId,
     seed,
     rngState: seed,
     nextUid: 1,
@@ -84,7 +112,15 @@ export function createNewRun(options = {}) {
     ascension,
     unlockedTier,
     unlockAllOverride,
-    isChallengeRun: Boolean(options.isChallengeRun),
+    isChallengeRun: dailySpec ? true : Boolean(options.isChallengeRun),
+    dailyChallenge: dailySpec
+      ? {
+          dateKey: dailySpec.dateKey,
+          seedCode: dailySpec.seedCode,
+          characterId: dailySpec.characterId,
+          modifierIds: [...dailySpec.modifierIds],
+        }
+      : null,
     purgeCount: 0,
     rarePityBonus: 0,
     bossEncounterId: null,
@@ -124,9 +160,19 @@ export function createNewRun(options = {}) {
     stats: {
       floorsCleared: 0,
       combatsWon: 0,
+      perfectCombats: 0,
       elitesSlain: 0,
+      bossesSlain: 0,
       enemiesSlain: 0,
       cardsPlayed: 0,
+      totalDamageDealt: 0,
+      totalBlockGained: 0,
+      totalDamageTaken: 0,
+      highestSingleHit: 0,
+      goldEarned: 0,
+      colorlessBought: 0,
+      defeatedBy: '',
+      startedAt: Date.now(),
     },
   };
 
@@ -141,7 +187,50 @@ export function createNewRun(options = {}) {
   state.bossEncounterId = pickRandom(state, ENCOUNTERS.boss).id;
   state.neowState = options.skipNeow ? null : generateNeowState(state);
 
+  if (state.dailyChallenge) {
+    applyDailyStartModifiers(state);
+  }
+
   return state;
+}
+
+function applyDailyStartModifiers(state) {
+  if (hasDailyModifier(state, 'hoarder_gold')) {
+    addPlayerGold(state, 150);
+  }
+  if (hasDailyModifier(state, 'all_star')) {
+    const colorless = getColorlessCardPools();
+    const uncId = pickRandom(state, colorless.uncommon);
+    const rareId = pickRandom(state, colorless.rare);
+    if (uncId) state.player.deck.push(createCardInstance(state, uncId, false));
+    if (rareId) state.player.deck.push(createCardInstance(state, rareId, false));
+  }
+  if (hasDailyModifier(state, 'shiny')) {
+    const { cards } = getUnlockedPools(state);
+    const rares = pickDistinct(state, cards.rare, 2);
+    for (const cid of rares) {
+      state.player.deck.push(createCardInstance(state, cid, false));
+    }
+  }
+  if (hasDailyModifier(state, 'heirloom')) {
+    const relicId = rollUnownedRelicByTier(state, 'rare');
+    if (relicId) {
+      grantRelicToPlayer(state, relicId);
+    }
+  }
+  if (hasDailyModifier(state, 'specialized')) {
+    const upgradable = getUpgradableDeckCards(state);
+    const chosen = pickDistinct(state, upgradable, 4);
+    for (const c of chosen) {
+      c.upgraded = true;
+    }
+  }
+  if (hasDailyModifier(state, 'cursed_run')) {
+    const curseId = pickRandom(state, CURSE_CARD_IDS);
+    if (curseId) {
+      state.player.deck.push(createCardInstance(state, curseId, false));
+    }
+  }
 }
 
 export function hasPendingNeowBlessing(state) {
@@ -286,7 +375,9 @@ export function rollRewardCards(state, count = 3, role = 'normal', options = {})
 
 function buildShopState(state) {
   const { cards: unlockedCards, potions } = getUnlockedPools(state);
-  const priceMult = (state.ascension ?? 0) >= 5 ? 1.15 : 1;
+  const priceMult =
+    ((state.ascension ?? 0) >= 5 ? 1.15 : 1) *
+    (hasDailyModifier(state, 'hoarder_gold') ? 1.15 : 1);
 
   const commonOffers = pickDistinct(state, unlockedCards.common, 3);
   const uncommonOffer = pickDistinct(state, unlockedCards.uncommon, 1);
@@ -326,8 +417,27 @@ function buildShopState(state) {
       }
     : null;
 
+  // Shop-exclusive Colorless shelf: 1 Uncommon Colorless + 1 Rare Colorless
+  const colorlessPools = getColorlessCardPools();
+  const colorlessUncommon = pickDistinct(state, colorlessPools.uncommon, 1);
+  const colorlessRare = pickDistinct(state, colorlessPools.rare, 1);
+  const colorlessIds = [...colorlessUncommon, ...colorlessRare];
+  const colorlessCards = colorlessIds.map((cardId) => {
+    const instance = createCardInstance(state, cardId, false);
+    const stats = getCardStats(instance);
+    const jitter = randomInt(state, -6, 8);
+    const price = Math.round(Math.max(60, stats.price + jitter) * priceMult);
+    return {
+      card: instance,
+      price,
+      onSale: false,
+      sold: false,
+    };
+  });
+
   return {
     cards,
+    colorlessCards,
     relicOffer,
     potionOffer,
     purgeCost: getCurrentPurgeCost(state),
@@ -338,6 +448,7 @@ function buildShopState(state) {
 export function transitionCombatVictory(state) {
   const role = state.combat?.role ?? 'normal';
   const { relics, potions } = getUnlockedPools(state);
+  const goldMult = hasDailyModifier(state, 'midas') ? 1.65 : 1;
 
   if (role === 'boss') {
     if ((state.act ?? 1) >= 2) {
@@ -346,8 +457,8 @@ export function transitionCombatVictory(state) {
       return;
     }
 
-    const bossGold = randomInt(state, 92, 115);
-    state.player.gold += bossGold;
+    const bossGold = Math.round(randomInt(state, 92, 115) * goldMult);
+    addPlayerGold(state, bossGold);
     const cardChoices = rollDistinctRareCards(state, 3);
     state.rarePityBonus = 0;
     const unownedBossRelics = relics.boss.filter((id) => {
@@ -371,9 +482,10 @@ export function transitionCombatVictory(state) {
 
   const isElite = role === 'elite';
   const effectiveFloor = ((state.act ?? 1) - 1) * TOTAL_FLOORS + Math.max(1, state.floor || 1);
-  const gold = isElite
-    ? randomInt(state, 38, 50) + Math.floor(effectiveFloor * 2.2)
+  const baseGold = isElite
+    ? randomInt(state, 38, 50) + Math.floor(effectiveFloor * 2.2) + (hasDailyModifier(state, 'big_game_hunter') ? 35 : 0)
     : randomInt(state, 18, 26) + Math.floor(effectiveFloor * 1.5);
+  const gold = Math.round(baseGold * goldMult);
 
   const relicId = isElite ? rollUnownedRelicId(state, 'elite') : null;
   const dropPotion = nextRandom(state) < (isElite ? 0.65 : 0.42);
@@ -561,7 +673,7 @@ export function openTreasureChest(state) {
     grantRelicToPlayer(state, relicId);
   }
   if (gold > 0) {
-    state.player.gold += gold;
+    addPlayerGold(state, gold);
   }
 
   let curseCard = null;
@@ -674,7 +786,7 @@ export function claimRewardGold(state) {
   if (state.reward.goldClaimed) {
     return { ok: false, reason: '金币已领取' };
   }
-  state.player.gold += state.reward.gold;
+  addPlayerGold(state, state.reward.gold);
   state.reward.goldClaimed = true;
   return { ok: true };
 }
@@ -802,6 +914,9 @@ export function restUpgradeCard(state, instanceId) {
   if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
     return { ok: false, reason: '当前不能在营地锻造' };
   }
+  if (hasDailyModifier(state, 'midas')) {
+    return { ok: false, reason: '受每日词条【点金之手】限制，本局无法在篝火营地进行铁砧锻造' };
+  }
   const card = state.player.deck.find((c) => c.instanceId === instanceId);
   if (!card || !canUpgradeCard(card)) {
     return { ok: false, reason: '该卡牌无法升级' };
@@ -838,6 +953,27 @@ export function buyShopCard(state, offerIndex) {
   offer.sold = true;
   const added = createCardInstance(state, offer.card.cardId, offer.card.upgraded);
   state.player.deck.push(added);
+  return { ok: true, addedCard: added };
+}
+
+export function buyShopColorlessCard(state, offerIndex) {
+  if (state.screen !== 'shop' || !state.shop || !Array.isArray(state.shop.colorlessCards)) {
+    return { ok: false, reason: '当前不在商店界面' };
+  }
+  const offer = state.shop.colorlessCards[offerIndex];
+  if (!offer || offer.sold) {
+    return { ok: false, reason: '该无色卡牌已售出或不存在' };
+  }
+  if (state.player.gold < offer.price) {
+    return { ok: false, reason: '金币不足' };
+  }
+  state.player.gold -= offer.price;
+  offer.sold = true;
+  const added = createCardInstance(state, offer.card.cardId, offer.card.upgraded);
+  state.player.deck.push(added);
+  if (state.stats) {
+    state.stats.colorlessBought = (state.stats.colorlessBought ?? 0) + 1;
+  }
   return { ok: true, addedCard: added };
 }
 

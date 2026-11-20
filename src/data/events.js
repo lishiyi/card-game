@@ -1,3 +1,4 @@
+import { hasDailyModifier } from '../engine/daily.js';
 import { nextRandom, pickDistinct } from '../engine/rng.js';
 
 function deepFreeze(obj) {
@@ -435,6 +436,7 @@ export function generateSpireMap(state) {
       const parents = parentsById.get(node.id) || [];
       const parentTypes = new Set(parents.map((p) => p.type));
 
+      const bigGame = hasDailyModifier(state, 'big_game_hunter');
       const weights = {
         combat: floor <= 2 ? 55 : 42,
         event: floor <= 2 ? 45 : 24,
@@ -442,9 +444,11 @@ export function generateSpireMap(state) {
         rest: floor >= 4 && floor <= 13 && !parentTypes.has('rest') ? 14 : 0,
         elite:
           floor >= 6 && floor <= 14 && !parentTypes.has('elite')
-            ? asc >= 1
-              ? 25
-              : 17
+            ? bigGame
+              ? 32
+              : asc >= 1
+                ? 25
+                : 17
             : 0,
       };
 
@@ -501,9 +505,10 @@ export function generateSpireMap(state) {
     }
   };
 
+  const bigGameHunter = hasDailyModifier(state, 'big_game_hunter');
   ensureMinimum('shop', 2, [3, 4, 5, 7, 11, 13, 14]);
   ensureMinimum('rest', 3, [4, 5, 7, 8, 10, 12, 13]);
-  ensureMinimum('elite', asc >= 1 ? 5 : 3, [6, 7, 8, 10, 11, 12, 13, 14]);
+  ensureMinimum('elite', bigGameHunter ? 6 : asc >= 1 ? 5 : 3, [6, 7, 8, 10, 11, 12, 13, 14]);
 
   return rows;
 }

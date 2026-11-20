@@ -591,6 +591,12 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) => `本回合每受到一次敌方攻击，便对攻击者反击 ${v} 点固定伤害。`,
   },
+  sadisticNature: {
+    id: 'sadisticNature',
+    name: '残虐本性',
+    polarity: 'buff',
+    describe: (v) => `每当你对敌人施加 1 个负面状态（中毒/虚弱/易伤/尸爆）时，对其造成 ${v} 点固定伤害。`,
+  },
   tempStrengthDown: {
     id: 'tempStrengthDown',
     name: '力量消退',

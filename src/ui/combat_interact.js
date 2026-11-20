@@ -96,9 +96,10 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
   const pills = [];
   if (preview.isLethal) {
     unitEl.classList.add('preview-lethal');
+    const goldNote = preview.goldOnKill > 0 ? ` +${preview.goldOnKill}金` : '';
     const label = preview.isShieldBreak
-      ? `破盾斩杀 (-${preview.totalDamage})`
-      : `斩杀 (-${preview.totalDamage})`;
+      ? `破盾斩杀 (-${preview.totalDamage}${goldNote})`
+      : `斩杀 (-${preview.totalDamage}${goldNote})`;
     pills.push(`<span class="preview-pill lethal" data-preview-kind="lethal">☠ ${escapeHtml(label)}</span>`);
   } else if (preview.isPoisonLethal) {
     unitEl.classList.add('preview-poison-lethal');
@@ -264,8 +265,11 @@ export function applyCombatTacticsUI(
 }
 
 /**
- * Desktop pointer drag-to-play controller.
- * Keeps touch scrolling & click-to-play completely intact (activates only on non-touch primary button drag >= 10px).
+ * Desktop & Mobile pointer drag-to-play controller.
+ * - Mouse / pen: activates after >= 10px drag in any direction.
+ * - Touch: preserves horizontal hand scrolling (cancels on horizontal swipe) and activates
+ *   drag-to-play on clear upward swipe (>= 24px upward & steeper than 1.25x horizontal),
+ *   lifting the aim point above the thumb so targets & lethal previews stay unobstructed.
  */
 export function createCombatDragController({
   rootEl,
@@ -279,40 +283,44 @@ export function createCombatDragController({
   let drag = null;
   let suppressNextClickUntil = 0;
 
-  function findHoveredEnemyId(clientX, clientY) {
+  function findHoveredEnemyId(clientX, clientY, isTouch = false) {
     const enemyEls = rootEl.querySelectorAll('[id^="enemy-unit-"][data-enemy-id]:not(.dead)');
-    for (const el of enemyEls) {
-      const rect = el.getBoundingClientRect();
-      // Small generous 6px padding around enemy card for crisp aiming feel
-      if (
-        clientX >= rect.left - 6 &&
-        clientX <= rect.right + 6 &&
-        clientY >= rect.top - 6 &&
-        clientY <= rect.bottom + 6
-      ) {
-        return { enemyId: el.dataset.enemyId, rect };
+    const pad = isTouch ? 14 : 6;
+    const probeYs = isTouch ? [clientY - 38, clientY] : [clientY];
+    for (const py of probeYs) {
+      for (const el of enemyEls) {
+        const rect = el.getBoundingClientRect();
+        if (
+          clientX >= rect.left - pad &&
+          clientX <= rect.right + pad &&
+          py >= rect.top - pad &&
+          py <= rect.bottom + pad
+        ) {
+          return { enemyId: el.dataset.enemyId, rect };
+        }
       }
     }
     return { enemyId: null, rect: null };
   }
 
-  function isInArenaDropZone(clientX, clientY) {
+  function isInArenaDropZone(clientX, clientY, isTouch = false) {
+    const effectiveY = isTouch ? clientY - 30 : clientY;
     const handTray = rootEl.querySelector('#hand-tray');
     const arena = rootEl.querySelector('#combat-arena');
     if (arena) {
       const aRect = arena.getBoundingClientRect();
       if (
-        clientX >= aRect.left - 16 &&
-        clientX <= aRect.right + 16 &&
-        clientY >= aRect.top - 24 &&
-        clientY <= aRect.bottom + 42
+        clientX >= aRect.left - 18 &&
+        clientX <= aRect.right + 18 &&
+        effectiveY >= aRect.top - 28 &&
+        effectiveY <= aRect.bottom + 54
       ) {
         return true;
       }
     }
     if (handTray) {
       const hRect = handTray.getBoundingClientRect();
-      return clientY < hRect.top - 12;
+      return effectiveY < hRect.top - 12;
     }
     return false;
   }
@@ -400,11 +408,13 @@ export function createCombatDragController({
     const state = getState();
     const aliveEnemies = getAliveEnemies(state.combat);
     const arena = rootEl.querySelector('#combat-arena');
+    const isTouch = Boolean(drag.isTouch);
+    const visualY = isTouch ? clientY - 40 : clientY;
 
     if (drag.stats.target === 'enemy') {
-      const hit = findHoveredEnemyId(clientX, clientY);
+      const hit = findHoveredEnemyId(clientX, clientY, isTouch);
       const inArenaSingle =
-        !hit.enemyId && aliveEnemies.length === 1 && isInArenaDropZone(clientX, clientY);
+        !hit.enemyId && aliveEnemies.length === 1 && isInArenaDropZone(clientX, clientY, isTouch);
       const effectiveEnemyId = hit.enemyId || (inArenaSingle ? aliveEnemies[0].id : null);
       drag.hoveredEnemyId = effectiveEnemyId;
 
@@ -413,7 +423,7 @@ export function createCombatDragController({
       });
 
       let targetX = clientX;
-      let targetY = clientY;
+      let targetY = visualY;
       if (effectiveEnemyId) {
         const enemyEl = rootEl.querySelector(`#enemy-unit-${CSS.escape(effectiveEnemyId)}`);
         if (enemyEl) {
@@ -439,7 +449,7 @@ export function createCombatDragController({
         hoveredEnemyId: effectiveEnemyId,
       });
     } else {
-      const ready = isInArenaDropZone(clientX, clientY);
+      const ready = isInArenaDropZone(clientX, clientY, isTouch);
       drag.dropReady = ready;
       if (arena) {
         arena.classList.toggle('drag-drop-ready', ready);
@@ -453,7 +463,7 @@ export function createCombatDragController({
         const dx = clientX - drag.lastX;
         const tilt = Math.max(-14, Math.min(14, dx * 0.45));
         drag.ghostEl.style.left = `${Math.round(clientX)}px`;
-        drag.ghostEl.style.top = `${Math.round(clientY)}px`;
+        drag.ghostEl.style.top = `${Math.round(visualY)}px`;
         drag.ghostEl.style.transform = `translate(-50%, -56%) rotate(${tilt.toFixed(1)}deg) scale(${ready ? 1.05 : 0.96})`;
         drag.ghostEl.classList.toggle('ready-to-drop', ready);
       }
@@ -468,7 +478,8 @@ export function createCombatDragController({
   }
 
   rootEl.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || event.pointerType === 'touch') return;
+    const isTouch = event.pointerType === 'touch';
+    if (!isTouch && event.button !== 0) return;
     const state = getState();
     const ui = getUi();
     if (
@@ -493,6 +504,7 @@ export function createCombatDragController({
 
     drag = {
       pointerId: event.pointerId,
+      isTouch,
       instanceId,
       cardEl,
       stats: getCardStats(cardObj),
@@ -511,13 +523,40 @@ export function createCombatDragController({
   window.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
     if (!drag.active) {
-      const dist = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (drag.isTouch) {
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        // Horizontal swipe -> hand-out to native horizontal hand-tray scrolling!
+        if (absDx >= 10 && absDx >= absDy * 0.9) {
+          drag = null;
+          return;
+        }
+        // Clear upward swipe -> lift & drag-play card!
+        if (drag.startY - event.clientY >= 24 && drag.startY - event.clientY > absDx * 1.25) {
+          activateDrag(event);
+        }
+        return;
+      }
+      const dist = Math.hypot(dx, dy);
       if (dist < DRAG_THRESHOLD_PX) return;
       activateDrag(event);
       return;
     }
     updateDragPosition(event.clientX, event.clientY);
   });
+
+  // Prevent browser pull-to-refresh / vertical scroll while actively dragging a card by touch
+  window.addEventListener(
+    'touchmove',
+    (event) => {
+      if (drag && drag.active && drag.isTouch) {
+        event.preventDefault();
+      }
+    },
+    { passive: false }
+  );
 
   function finishDrag(event, cancelled = false) {
     if (!drag) return;
@@ -534,7 +573,7 @@ export function createCombatDragController({
       return;
     }
 
-    suppressNextClickUntil = Date.now() + 200;
+    suppressNextClickUntil = Date.now() + 260;
     cleanupDrag({ restoreTactics: false });
 
     if (cancelled) {

@@ -832,6 +832,129 @@ export const CARD_LIBRARY = deepFreeze({
     upgraded: { cost: 0, applySelfStatuses: { toolsOfTheTrade: 1 } },
   },
 
+  // === Shop-Exclusive Colorless Cards (Uncommon: 6, Rare: 4) ===
+  flash_of_steel: {
+    id: 'flash_of_steel',
+    name: '寒光一闪',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 92,
+    base: { cost: 0, damage: 3, hits: 1, draw: 1 },
+    upgraded: { cost: 0, damage: 6, hits: 1, draw: 1 },
+  },
+  finesse: {
+    id: 'finesse',
+    name: '技巧',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 92,
+    base: { cost: 0, block: 2, draw: 1 },
+    upgraded: { cost: 0, block: 4, draw: 1 },
+  },
+  dramatic_entrance: {
+    id: 'dramatic_entrance',
+    name: '华丽登场',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'all_enemies',
+    price: 90,
+    innate: true,
+    base: { cost: 0, innate: true, damage: 8, hits: 1, exhaust: true },
+    upgraded: { cost: 0, innate: true, damage: 12, hits: 1, exhaust: true },
+  },
+  blind: {
+    id: 'blind',
+    name: '致盲',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 88,
+    base: { cost: 0, target: 'enemy', applyEnemyStatuses: { weak: 2 } },
+    upgraded: { cost: 0, target: 'all_enemies', applyEnemyStatuses: { weak: 2 } },
+  },
+  trip: {
+    id: 'trip',
+    name: '绊倒',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 90,
+    base: { cost: 0, target: 'enemy', applyEnemyStatuses: { vulnerable: 2 } },
+    upgraded: { cost: 0, target: 'all_enemies', applyEnemyStatuses: { vulnerable: 2 } },
+  },
+  bandage_up: {
+    id: 'bandage_up',
+    name: '包扎',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 96,
+    base: { cost: 0, healHp: 4, exhaust: true },
+    upgraded: { cost: 0, healHp: 6, exhaust: true },
+  },
+  apotheosis: {
+    id: 'apotheosis',
+    name: '神化',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 168,
+    base: { cost: 2, upgradeAllCombatCards: true, exhaust: true },
+    upgraded: { cost: 1, upgradeAllCombatCards: true, exhaust: true },
+  },
+  hand_of_greed: {
+    id: 'hand_of_greed',
+    name: '贪婪之手',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'attack',
+    rarity: 'rare',
+    target: 'enemy',
+    price: 165,
+    base: { cost: 2, damage: 20, hits: 1, goldOnKill: 20 },
+    upgraded: { cost: 2, damage: 25, hits: 1, goldOnKill: 25 },
+  },
+  master_of_strategy: {
+    id: 'master_of_strategy',
+    name: '战略大师',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 158,
+    base: { cost: 0, draw: 3, exhaust: true },
+    upgraded: { cost: 0, draw: 4, exhaust: true },
+  },
+  sadistic_nature: {
+    id: 'sadistic_nature',
+    name: '残虐本性',
+    character: 'colorless',
+    shopOnly: true,
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 155,
+    base: { cost: 0, applySelfStatuses: { sadisticNature: 5 } },
+    upgraded: { cost: 0, applySelfStatuses: { sadisticNature: 7 } },
+  },
+
   // === Status Cards ===
   slimed: {
     id: 'slimed',
@@ -926,6 +1049,19 @@ export function getRewardCardPools(characterId = 'ironclad') {
   };
 }
 
+export function getColorlessCardPools() {
+  const colorless = Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'colorless');
+  const uncommon = colorless.filter((c) => c.rarity === 'uncommon').map((c) => c.id);
+  const rare = colorless.filter((c) => c.rarity === 'rare').map((c) => c.id);
+  return {
+    uncommon,
+    rare,
+    all: [...uncommon, ...rare],
+  };
+}
+
+export const COLORLESS_CARD_POOLS = deepFreeze(getColorlessCardPools());
+
 export const REWARD_CARD_POOLS = deepFreeze(getRewardCardPools('ironclad'));
 
 export const CURSE_CARD_IDS = deepFreeze(
@@ -992,7 +1128,8 @@ export function getCardStats(cardInstance) {
     costReduced,
     type: def.type,
     rarity: def.rarity,
-    target: def.target,
+    target: rawStats.target || def.target,
+    shopOnly: Boolean(def.shopOnly),
     price: def.price ?? 50,
     isShiv: Boolean(def.isShiv || rawStats.isShiv),
     unplayable: Boolean(def.unplayable || rawStats.unplayable),
@@ -1000,6 +1137,7 @@ export function getCardStats(cardInstance) {
     innate: Boolean(def.innate || rawStats.innate),
     retain: Boolean(def.retain || rawStats.retain),
     ...rawStats,
+    target: rawStats.target || def.target,
   };
 }
 
@@ -1107,6 +1245,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.loseHp) {
     parts.push(`失去 ${stats.loseHp} 点生命。`);
   }
+  if (stats.healHp) {
+    parts.push(`回复 ${stats.healHp} 点生命。`);
+  }
   if (stats.gainEnergy) {
     parts.push(`获得 ${stats.gainEnergy} 点能量。`);
   }
@@ -1126,7 +1267,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.exhaustNonAttacksBlockEach) {
     parts.push(`消耗手牌中所有非攻击牌，每张获得 ${displayBlock} 点格挡。`);
   }
-  if (stats.upgradeAllHand) {
+  if (stats.upgradeAllCombatCards) {
+    parts.push('本场战斗中升级你的所有卡牌（手牌、抽牌堆与弃牌堆）。');
+  } else if (stats.upgradeAllHand) {
     parts.push('本场战斗中升级所有手牌。');
   } else if (stats.upgradeHandRandom) {
     parts.push(`本场战斗中随机升级 ${stats.upgradeHandRandom} 张手牌。`);
@@ -1148,6 +1291,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     } else {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
+  }
+  if (stats.goldOnKill) {
+    parts.push(`若以此牌斩杀敌人，永久获得 ${stats.goldOnKill} 枚金币。`);
   }
   if (stats.bonusHitIfPoisoned) {
     parts.push(`若目标已【中毒】，则再造成 ${displayDamage} 点伤害。`);
@@ -1248,6 +1394,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (stats.applySelfStatuses.flameBarrier) {
       parts.push(`本回合每受一次攻击，反击 ${stats.applySelfStatuses.flameBarrier} 点伤害。`);
+    }
+    if (stats.applySelfStatuses.sadisticNature) {
+      parts.push(`每当你对敌人施加 1 个负面状态时，对其造成 ${stats.applySelfStatuses.sadisticNature} 点伤害。`);
     }
     if (stats.applySelfStatuses.noxiousFumes) {
       parts.push(`每回合开始时，给予所有敌人 ${stats.applySelfStatuses.noxiousFumes} 层中毒。`);

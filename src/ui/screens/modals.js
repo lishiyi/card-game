@@ -8,13 +8,16 @@
 
 import { CARD_LIBRARY, getCardStats } from '../../data/cards.js';
 import { getCharacterDef } from '../../data/characters.js';
-import { RELIC_LIBRARY } from '../../data/relics.js';
+import { TOTAL_FLOORS } from '../../data/events.js';
+import { RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
 } from '../../engine/game.js';
 import {
   ASCENSION_DEFS,
+  getScoreGrade,
   MAX_ASCENSION,
   UNLOCK_TIERS,
 } from '../../engine/meta.js';
@@ -77,6 +80,14 @@ export function renderGlossaryItemsHtml(ui) {
     .join('');
 }
 
+function getRankCssClass(grade) {
+  if (grade === 'S+') return 'rank-sp';
+  if (grade === 'S') return 'rank-s';
+  if (grade === 'A') return 'rank-a';
+  if (grade === 'B') return 'rank-b';
+  return 'rank-c';
+}
+
 function renderMetaModal({ state, meta, ui }) {
   const maxTierXp = UNLOCK_TIERS[UNLOCK_TIERS.length - 1].xpRequired;
   const effectiveTier = meta.unlockAllOverride ? UNLOCK_TIERS.length : meta.unlockedTier ?? 0;
@@ -87,6 +98,23 @@ function renderMetaModal({ state, meta, ui }) {
   const currentSeedCode = state ? formatSeedCode(state.seed) : '';
   const activeCharId = state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId || 'ironclad';
   const activeCharDef = getCharacterDef(activeCharId);
+
+  const dailySpec = getDailyChallengeSpec();
+  const dailyBest = meta.dailyRecords?.[dailySpec.dateKey] || null;
+  const dailyModsHtml = dailySpec.modifiers
+    .map(
+      (mod) => `
+        <span
+          class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
+          tabindex="0"
+          data-tooltip-title="${escapeHtml(mod.name)}"
+          data-tooltip-tag="${escapeHtml(mod.shortTag)}"
+          data-tooltip-desc="${escapeHtml(mod.description)}"
+          data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
+        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+      `
+    )
+    .join('');
 
   const ascensionButtonsHtml = ASCENSION_DEFS.map((def) => {
     const unlocked = def.level <= maxAscAllowed;
@@ -130,7 +158,7 @@ function renderMetaModal({ state, meta, ui }) {
   const historyList = Array.isArray(meta.runHistory) ? meta.runHistory : [];
   const historyHtml =
     historyList.length === 0
-      ? '<p class="stage-subtitle" style="margin:4px 0 0;">尚无已完成战绩记录。完成或折戟任意一局后，战绩与种子将自动保存在此。</p>'
+      ? '<p class="stage-subtitle" style="margin:4px 0 0;">尚无已完成战绩记录。完成或折戟任意一局后，战绩、评分、遗物与完整牌组将自动保存在此供复盘。</p>'
       : `<div class="history-list" id="run-history-list">
           ${historyList
             .map((rec, idx) => {
@@ -139,12 +167,20 @@ function renderMetaModal({ state, meta, ui }) {
               const dateLabel = formatRunDate(rec.timestamp);
               const recCharId = rec.characterId || 'ironclad';
               const recCharName = rec.characterName || getCharacterDef(recCharId).name;
+              const recScore = Number.isFinite(rec.score) ? rec.score : null;
+              const recGrade = rec.grade || (recScore !== null ? getScoreGrade(recScore) : '');
+              const isDaily = Boolean(rec.dailyDateKey);
               return `
                 <div class="history-row ${isWin ? 'win' : 'loss'}" data-history-idx="${idx}">
                   <div class="history-main">
                     <span class="history-badge ${isWin ? 'win' : 'loss'}">${isWin ? '凯旋' : '折戟'}</span>
                     <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
-                    ${rec.isChallenge ? `<span class="history-badge challenge">挑战</span>` : ''}
+                    ${isDaily ? `<span class="history-badge daily">每日 ${escapeHtml(rec.dailyDateKey.slice(5))}</span>` : rec.isChallenge ? `<span class="history-badge challenge">挑战</span>` : ''}
+                    ${
+                      recScore !== null
+                        ? `<span class="history-score-pill ${getRankCssClass(recGrade)}">${escapeHtml(recScore.toLocaleString())}分 · ${escapeHtml(recGrade)}</span>`
+                        : ''
+                    }
                     <span class="history-floor">第 ${escapeHtml(rec.act ?? 1)} 幕 · F${escapeHtml(rec.floor ?? 1)}</span>
                     ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
                     <span class="history-meta">牌组 ${escapeHtml(rec.deckSize ?? 0)} · 遗物 ${escapeHtml(rec.relicCount ?? 0)} · 斩敌 ${escapeHtml(rec.enemiesSlain ?? 0)}</span>
@@ -155,19 +191,27 @@ function renderMetaModal({ state, meta, ui }) {
                     <button
                       type="button"
                       class="btn-stone btn-compact"
+                      data-action="inspect-history-run"
+                      data-history-idx="${idx}"
+                    >复盘</button>
+                    <button
+                      type="button"
+                      class="btn-stone btn-compact"
                       data-action="copy-seed"
                       data-seed-code="${escapeHtml(sCode)}"
                       data-ascension="${escapeHtml(rec.ascension ?? 0)}"
                       data-character-id="${escapeHtml(recCharId)}"
+                      data-daily-date="${escapeHtml(rec.dailyDateKey || '')}"
                     >复制链接</button>
                     <button
                       type="button"
                       class="btn-brass btn-compact"
-                      data-action="replay-history-seed"
+                      data-action="${isDaily ? 'start-daily-challenge' : 'replay-history-seed'}"
+                      data-daily-date="${escapeHtml(rec.dailyDateKey || '')}"
                       data-seed="${escapeHtml(rec.seed)}"
                       data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
                       data-character-id="${escapeHtml(recCharId)}"
-                    >重玩种子</button>
+                    >${isDaily ? '再战每日' : '重玩种子'}</button>
                   </div>
                 </div>
               `;
@@ -180,8 +224,8 @@ function renderMetaModal({ state, meta, ui }) {
       <div class="modal-sheet" id="meta-progression-modal">
         <div class="modal-header">
           <div>
-            <h2 id="modal-title" class="stage-heading">进阶挑战 · 种子开局 · 历史战绩</h2>
-            <p class="stage-subtitle">累计攀登获取历练经验解锁高阶流派核心，输入种子或粘贴挑战链接与好友同图竞速，或回顾过往战绩。</p>
+            <h2 id="modal-title" class="stage-heading">进阶挑战 · 每日挑战 · 历史复盘</h2>
+            <p class="stage-subtitle">每日全网同图冲分、输入种子或粘贴挑战链接与好友同图竞速，点击任意战绩即可查看完整牌组与遗物复盘。</p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
@@ -190,8 +234,35 @@ function renderMetaModal({ state, meta, ui }) {
           <span>总攀登场次：<strong>${escapeHtml(meta.runsPlayed ?? 0)}</strong></span>
           <span>凯旋通关：<strong>${escapeHtml(meta.victories ?? 0)}</strong></span>
           <span>最高推进总层数：<strong>${escapeHtml(meta.bestFloor ?? 0)} 层</strong></span>
+          <span>最高战绩评分：<strong style="color:var(--accent-brass);">${escapeHtml((meta.bestScore ?? 0).toLocaleString())}</strong></span>
           <span>累计击败敌人：<strong>${escapeHtml(meta.totalEnemiesSlain ?? 0)}</strong></span>
           <span>累计历练：<strong style="color:var(--jade-upgrade);">${escapeHtml(meta.xp ?? 0)} XP</strong></span>
+        </div>
+
+        <div class="meta-section">
+          <div class="daily-challenge-banner compact" id="meta-daily-banner">
+            <div class="daily-banner-main">
+              <div class="daily-banner-top">
+                <span class="daily-pill">今日每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
+                <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
+                ${
+                  dailyBest
+                    ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)})</span>`
+                    : `<span class="daily-best-pill fresh">今日尚未挑战</span>`
+                }
+              </div>
+              <div class="daily-mod-row">${dailyModsHtml}</div>
+            </div>
+            <button
+              type="button"
+              id="btn-meta-start-daily"
+              class="btn-brass btn-compact"
+              data-action="start-daily-challenge"
+              data-daily-date="${escapeHtml(dailySpec.dateKey)}"
+            >
+              立即挑战 →
+            </button>
+          </div>
         </div>
 
         <div class="meta-section">
@@ -207,6 +278,7 @@ function renderMetaModal({ state, meta, ui }) {
                     data-seed-code="${escapeHtml(currentSeedCode)}"
                     data-ascension="${escapeHtml(state.ascension ?? 0)}"
                     data-character-id="${escapeHtml(activeCharId)}"
+                    data-daily-date="${escapeHtml(state.dailyChallenge?.dateKey || '')}"
                   >
                     复制挑战链接
                   </button>`
@@ -218,7 +290,7 @@ function renderMetaModal({ state, meta, ui }) {
               type="text"
               id="seed-input-box"
               class="spire-input"
-              placeholder="输入种子代码（如 S-16）或直接粘贴挑战链接（?seed=...&asc=...&char=...）"
+              placeholder="输入种子代码（如 S-16）或粘贴挑战链接（?seed=... / ?daily=YYYY-MM-DD）"
               value="${escapeHtml(ui.seedInput || '')}"
               maxlength="240"
               aria-label="指定种子代码或挑战链接"
@@ -253,9 +325,203 @@ function renderMetaModal({ state, meta, ui }) {
         </div>
 
         <div class="meta-section">
-          <h3>历史战绩编年史（最近 ${escapeHtml(historyList.length)} 场）</h3>
+          <h3>历史战绩编年史（最近 ${escapeHtml(historyList.length)} 场 · 点击“复盘”查看完整构筑）</h3>
           ${historyHtml}
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderHistoryDetailModal({ meta, ui }) {
+  const idx = Number(ui.inspectedHistoryIdx);
+  const rec = Array.isArray(meta.runHistory) ? meta.runHistory[idx] : null;
+  if (!rec) {
+    return renderMetaModal({ state: null, meta, ui });
+  }
+
+  const isWin = rec.outcome === 'victory';
+  const recCharId = rec.characterId || 'ironclad';
+  const recCharName = rec.characterName || getCharacterDef(recCharId).name;
+  const sCode = rec.seedCode || formatSeedCode(rec.seed);
+  const score = Number.isFinite(rec.score) ? rec.score : 0;
+  const grade = rec.grade || getScoreGrade(score);
+  const isDaily = Boolean(rec.dailyDateKey);
+  const dailyMods = isDaily ? getDailyModifierDefs(rec.dailyModifierIds) : [];
+  const maxAscAllowed = meta.unlockAllOverride ? MAX_ASCENSION : meta.maxAscensionUnlocked ?? 0;
+
+  const relicsHtml = (rec.relicIds || [])
+    .map((rid) => {
+      const r = RELIC_LIBRARY[rid];
+      if (!r) return '';
+      const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+      return `<span
+        class="relic-badge tier-${escapeHtml(r.tier)}"
+        tabindex="0"
+        data-tooltip-title="${escapeHtml(r.name)}"
+        data-tooltip-tag="${escapeHtml(tierLabel)}"
+        data-tooltip-desc="${escapeHtml(r.description)}"
+        data-tooltip-tone="relic"
+      >${escapeHtml(r.name)}</span>`;
+    })
+    .join('');
+
+  const breakdownHtml = (rec.scoreBreakdown || [])
+    .map(
+      (item) => `
+        <div class="score-breakdown-item">
+          <span class="score-bd-label">${escapeHtml(item.label)}</span>
+          <span class="score-bd-detail">${escapeHtml(item.detail)}</span>
+          <strong class="score-bd-pts">+${escapeHtml(item.points)}</strong>
+        </div>
+      `
+    )
+    .join('');
+
+  const deckCardsHtml =
+    Array.isArray(rec.deckSummary) && rec.deckSummary.length > 0
+      ? rec.deckSummary
+          .map((item, cIdx) => {
+            if (!CARD_LIBRARY[item.cardId]) return '';
+            return renderCardHtml(
+              {
+                instanceId: `hist_${idx}_${cIdx}`,
+                cardId: item.cardId,
+                upgraded: Boolean(item.upgraded),
+              },
+              {
+                idPrefix: 'history-card',
+                disabled: true,
+                stackCount: item.count,
+              }
+            );
+          })
+          .join('')
+      : '<p class="stage-subtitle">该早期战绩未保存详细牌组快照。</p>';
+
+  const dailyModsHtml = dailyMods
+    .map(
+      (mod) => `
+        <span
+          class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
+          tabindex="0"
+          data-tooltip-title="${escapeHtml(mod.name)}"
+          data-tooltip-tag="${escapeHtml(mod.shortTag)}"
+          data-tooltip-desc="${escapeHtml(mod.description)}"
+          data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
+        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+      `
+    )
+    .join('');
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-sheet" id="history-detail-modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="modal-title" class="stage-heading" style="color:${isWin ? 'var(--jade-upgrade)' : 'var(--rust-warn)'};">
+              战绩复盘 · ${isWin ? '凯旋通关' : '攀登折戟'}（第 ${escapeHtml(rec.act ?? 1)} 幕 F${escapeHtml(rec.floor ?? 1)} / ${escapeHtml(TOTAL_FLOORS)}）
+            </h2>
+            <p class="stage-subtitle">
+              ${escapeHtml(formatRunDate(rec.timestamp))} · ${escapeHtml(recCharName)} · 种子 ${escapeHtml(sCode)}
+              ${!isWin && rec.defeatedBy ? ` · 败于 ${escapeHtml(rec.defeatedBy)}` : ''}
+            </p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="btn-history-back" class="btn-stone btn-compact" data-action="open-modal" data-modal="meta">← 返回列表</button>
+            <button type="button" id="btn-close-modal" class="btn-stone btn-compact" data-action="close-modal">关闭 (Esc)</button>
+          </div>
+        </div>
+
+        <div class="battle-report-card ${isWin ? 'report-win' : 'report-loss'}">
+          <div class="report-hero-row">
+            <div class="report-identity">
+              <div class="report-tags-row">
+                <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
+                ${isDaily ? `<span class="daily-pill">每日挑战 ${escapeHtml(rec.dailyDateKey)}</span>` : ''}
+                ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
+                <code class="seed-code-tag">${escapeHtml(sCode)}</code>
+              </div>
+              ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}
+            </div>
+            <div class="score-rank-badge ${getRankCssClass(grade)}">
+              <span class="score-rank-letter">${escapeHtml(grade)}</span>
+              <div class="score-rank-meta">
+                <span class="score-rank-label">战绩评分</span>
+                <strong class="score-rank-value">${escapeHtml(score.toLocaleString())}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="report-stats-grid">
+            <div class="report-stat-cell">
+              <span class="report-stat-label">获胜战斗</span>
+              <strong class="report-stat-val">${escapeHtml(rec.combatsWon ?? 0)}${(rec.perfectCombats ?? 0) > 0 ? ` <small class="stat-jade">(无伤 ${escapeHtml(rec.perfectCombats)})</small>` : ''}</strong>
+            </div>
+            <div class="report-stat-cell">
+              <span class="report-stat-label">精英 / 强敌</span>
+              <strong class="report-stat-val">${escapeHtml(rec.elitesSlain ?? 0)} / ${escapeHtml(rec.enemiesSlain ?? 0)}</strong>
+            </div>
+            <div class="report-stat-cell">
+              <span class="report-stat-label">总输出伤害</span>
+              <strong class="report-stat-val">${escapeHtml((rec.totalDamageDealt ?? 0).toLocaleString())}</strong>
+            </div>
+            <div class="report-stat-cell">
+              <span class="report-stat-label">最高单次伤害</span>
+              <strong class="report-stat-val">${escapeHtml((rec.highestSingleHit ?? 0).toLocaleString())}</strong>
+            </div>
+            <div class="report-stat-cell">
+              <span class="report-stat-label">累计格挡</span>
+              <strong class="report-stat-val">${escapeHtml((rec.totalBlockGained ?? 0).toLocaleString())}</strong>
+            </div>
+            <div class="report-stat-cell">
+              <span class="report-stat-label">牌组 / 遗物</span>
+              <strong class="report-stat-val">${escapeHtml(rec.deckSize ?? 0)} 张 / ${escapeHtml(rec.relicCount ?? 0)} 件</strong>
+            </div>
+          </div>
+
+          ${
+            breakdownHtml
+              ? `<div class="score-breakdown-wrap">
+                  <div class="report-subhead">评分明细</div>
+                  <div class="score-breakdown-grid">${breakdownHtml}</div>
+                </div>`
+              : ''
+          }
+
+          <div class="report-relics-wrap">
+            <div class="report-subhead">最终遗物（${escapeHtml(rec.relicIds?.length ?? rec.relicCount ?? 0)} 件）</div>
+            <div class="report-relics-strip">${relicsHtml || '<span class="stage-subtitle">未记录遗物详情</span>'}</div>
+          </div>
+        </div>
+
+        <div class="history-detail-actions">
+          <button
+            type="button"
+            id="btn-copy-history-report"
+            class="btn-brass"
+            data-action="copy-history-report"
+            data-history-idx="${idx}"
+          >
+            复制本局战绩卡
+          </button>
+          <button
+            type="button"
+            class="btn-stone"
+            data-action="${isDaily ? 'start-daily-challenge' : 'replay-history-seed'}"
+            data-daily-date="${escapeHtml(rec.dailyDateKey || '')}"
+            data-seed="${escapeHtml(rec.seed)}"
+            data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
+            data-character-id="${escapeHtml(recCharId)}"
+          >
+            ${isDaily ? '再战该日每日挑战 →' : '以此种子再战 →'}
+          </button>
+        </div>
+
+        <h3 style="margin:14px 0 8px;font-size:0.95rem;color:var(--text-sand);">
+          最终牌组快照（共 ${escapeHtml(rec.deckSize ?? 0)} 张 · 相同牌自动合并展示数量）
+        </h3>
+        <div class="card-showcase">${deckCardsHtml}</div>
       </div>
     </div>
   `;
@@ -283,7 +549,7 @@ function renderSettingsModal({ settings }) {
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading">游戏设置</h2>
-            <p class="stage-subtitle">自定义合成音效、音量大小、出牌与受击动画速度及飘字反馈（自动保存在本地）。</p>
+            <p class="stage-subtitle">自定义合成音效、音量大小、出牌与受击动画速度、移动端防误触及飘字反馈（自动保存在本地）。</p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
@@ -354,6 +620,21 @@ function renderSettingsModal({ settings }) {
 
           <div class="settings-row">
             <div>
+              <div class="settings-label">二段点击确认出牌（防误触）</div>
+              <div class="settings-desc">开启后，点击手牌先高亮并预览斩杀/破盾与联动提示，再次点击该牌（或直接上滑拖出）才真正打出；非常适合手机端防误触。</div>
+            </div>
+            <button
+              type="button"
+              id="btn-toggle-mobile-tap-confirm"
+              class="${settings.mobileTapConfirm ? 'btn-brass' : 'btn-stone'}"
+              data-action="toggle-mobile-tap-confirm"
+            >
+              ${settings.mobileTapConfirm ? '二段确认：已开启' : '二段确认：已关闭'}
+            </button>
+          </div>
+
+          <div class="settings-row">
+            <div>
               <div class="settings-label">地图顶部新手提示条</div>
               <div class="settings-desc">恢复第 1 层出发前的新手快捷引导横幅。</div>
             </div>
@@ -391,7 +672,7 @@ function renderHelpModal({ ui }) {
         <strong style="color:var(--accent-brass);">伤害与格挡速算公式（悬停敌人时手牌自动实时预览！）</strong>
         <span>• 攻击最终伤害 = 向下取整( (基础伤害 + 力量) × [自身虚弱 0.75] × [目标易伤 1.5，有纸蛙为 1.75] )</span>
         <span>• 技能最终格挡 = 向下取整( (基础格挡 + 敏捷) × [自身脆弱 0.75] )</span>
-        <span>• 快捷键：战斗中按 <strong>1–9</strong> 出牌、<strong>E</strong> 结束回合、<strong>D</strong> 查看牌组、<strong>Esc</strong> 取消选中或关闭弹窗。手机端轻触遗物/状态/意图即可弹出详情！</span>
+        <span>• 快捷键与触控：战斗中按 <strong>1–9</strong> 出牌、<strong>E</strong> 结束回合、<strong>D</strong> 查看牌组、<strong>Esc</strong> 取消选中；手机端可<strong>左右滑选手牌、上滑直接拖出牌</strong>，或在设置中开启二段点击确认防误触！</span>
       </div>
     `;
   } else {
@@ -420,7 +701,7 @@ function renderHelpModal({ ui }) {
           type="search"
           id="input-glossary-search"
           class="spire-input"
-          placeholder="搜索关键词（例如：力量、易伤、消耗、保留、壁垒...）"
+          placeholder="搜索关键词（例如：力量、易伤、消耗、无色、每日、残虐本性...）"
           value="${escapeHtml(ui.glossaryQuery || '')}"
           aria-label="搜索关键词词典"
         />
@@ -477,6 +758,10 @@ export function renderModal({ state, meta, settings, ui }) {
     return renderMetaModal({ state, meta, ui });
   }
 
+  if (ui.modal === 'history_detail') {
+    return renderHistoryDetailModal({ meta, ui });
+  }
+
   if (ui.modal === 'settings') {
     return renderSettingsModal({ settings });
   }
@@ -494,18 +779,29 @@ export function renderModal({ state, meta, settings, ui }) {
     const curSeed = formatSeedCode(state.seed);
     const curAct = state.act ?? 1;
     const curFloor = Math.max(0, state.floor ?? 0);
-    const ascLabel = `进阶 ${req.ascension ?? 0}`;
-    const reqCharDef = getCharacterDef(req.characterId);
     const curCharName = state.player?.name || getCharacterDef(state.characterId).name;
+
+    let headingText = '收到好友种子挑战邀请！';
+    let descHtml = '';
+    if (req.isDaily && req.dailyDateKey) {
+      const spec = getDailyChallengeSpec(req.dailyDateKey);
+      headingText = `收到每日挑战邀请（${spec.dateKey}）！`;
+      const modText = spec.modifiers.map((m) => `【${m.name}】`).join('、');
+      descHtml = `挑战角色：<strong>${escapeHtml(spec.characterName)}</strong> · 日期种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(spec.seedCode)}</strong> · 规则词条：<strong>${escapeHtml(modText)}</strong>。`;
+    } else {
+      const ascLabel = `进阶 ${req.ascension ?? 0}`;
+      const reqCharDef = getCharacterDef(req.characterId);
+      descHtml = `挑战角色：<strong>${escapeHtml(reqCharDef.name)}</strong> · 目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong> · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度）。`;
+    }
+
     return `
       <div class="modal-backdrop" id="modal-backdrop" data-action="decline-challenge" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="challenge-invite-desc">
         <div class="modal-sheet modal-confirm-sheet" id="challenge-invite-modal">
           <div class="modal-header">
             <div>
-              <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">收到好友种子挑战邀请！</h2>
+              <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">${escapeHtml(headingText)}</h2>
               <p id="challenge-invite-desc" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);line-height:1.55;">
-                挑战角色：<strong>${escapeHtml(reqCharDef.name)}</strong> · 目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong>
-                · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度）。
+                ${descHtml}
               </p>
             </div>
           </div>

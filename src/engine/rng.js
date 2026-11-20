@@ -64,13 +64,30 @@ export function parseChallengeInput(rawInput, maxAscension = 5) {
     } catch {
       params = null;
     }
-  } else if (trimmed.includes('seed=')) {
+  } else if (trimmed.includes('seed=') || trimmed.includes('daily=')) {
     const queryIdx = trimmed.indexOf('?');
     const queryStr = queryIdx >= 0 ? trimmed.slice(queryIdx + 1) : trimmed;
     const hashIdx = queryStr.indexOf('#');
     const cleanQuery = hashIdx >= 0 ? queryStr.slice(0, hashIdx) : queryStr;
     params = new URLSearchParams(cleanQuery);
     isUrlLike = true;
+  }
+
+  if (params && params.has('daily')) {
+    const rawDaily = (params.get('daily') || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDaily)) {
+      const seed = parseSeedInput(`DAILY:${rawDaily}:V1`);
+      return {
+        seed,
+        seedCode: formatSeedCode(seed),
+        ascension: 0,
+        characterId: null,
+        isDaily: true,
+        dailyDateKey: rawDaily,
+        isUrlLike: true,
+      };
+    }
+    return null;
   }
 
   if (params && params.has('seed')) {
@@ -95,6 +112,8 @@ export function parseChallengeInput(rawInput, maxAscension = 5) {
       seedCode: formatSeedCode(seed),
       ascension,
       characterId,
+      isDaily: false,
+      dailyDateKey: null,
       isUrlLike: true,
     };
   }
@@ -110,6 +129,8 @@ export function parseChallengeInput(rawInput, maxAscension = 5) {
     seedCode: formatSeedCode(seed),
     ascension: null,
     characterId: null,
+    isDaily: false,
+    dailyDateKey: null,
     isUrlLike: false,
   };
 }
@@ -141,6 +162,22 @@ export function buildChallengeUrl(
     return url.toString();
   } catch {
     return `?seed=${encodeURIComponent(seedCode)}&asc=${safeAsc}${safeChar ? `&char=${encodeURIComponent(safeChar)}` : ''}`;
+  }
+}
+
+export function buildDailyChallengeUrl(baseHref, dateKey) {
+  const safeDate = typeof dateKey === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateKey.trim())
+    ? dateKey.trim()
+    : '';
+  if (!safeDate) return baseHref || '';
+  try {
+    const url = new URL(baseHref);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('daily', safeDate);
+    return url.toString();
+  } catch {
+    return `?daily=${encodeURIComponent(safeDate)}`;
   }
 }
 

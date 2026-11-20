@@ -2,13 +2,16 @@
  * Non-combat Outpost & Progression screens: Treasure, Boss Relic Altar, Reward, Rest, Shop, and Game Over.
  */
 
+import { CARD_LIBRARY, getCardCharacter } from '../../data/cards.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getDailyModifierDefs, hasDailyModifier } from '../../engine/daily.js';
 import {
   getCurrentBossName,
   getCurrentPurgeCost,
   getUpgradableDeckCards,
 } from '../../engine/game.js';
+import { buildRunReportFromState } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { getLootIconSvg } from '../icons.js';
@@ -377,6 +380,7 @@ export function renderRestScreen({ state }) {
   const upgradable = getUpgradableDeckCards(state);
   const featherHealed = state.restState?.featherHealed ?? 0;
   const hasCoffeeDripper = state.player.relics.includes('coffee_dripper');
+  const hasMidas = hasDailyModifier(state, 'midas');
 
   return `
     <section class="panel-stage" aria-labelledby="rest-heading">
@@ -419,14 +423,18 @@ export function renderRestScreen({ state }) {
           class="choice-btn"
           data-action="open-modal"
           data-modal="smith"
-          ${upgradable.length === 0 ? 'disabled' : ''}
+          ${hasMidas || upgradable.length === 0 ? 'disabled' : ''}
         >
-          <span class="choice-title">铁砧锻造（升级 1 张卡牌）</span>
+          <span class="choice-title">${
+            hasMidas ? '铁砧锻造（已禁用 · 点金之手）' : '铁砧锻造（升级 1 张卡牌）'
+          }</span>
           <span class="choice-detail">
             ${
-              upgradable.length > 0
-                ? `从牌组中的 ${upgradable.length} 张可升级卡牌里选择 1 张永久强化。`
-                : '当前牌组中已没有可升级的卡牌。'
+              hasMidas
+                ? '受每日挑战词条【点金之手】限制，本局无法在篝火锻造升级卡牌（可利用 +65% 赏金在商店强化构筑）。'
+                : upgradable.length > 0
+                  ? `从牌组中的 ${upgradable.length} 张可升级卡牌里选择 1 张永久强化。`
+                  : '当前牌组中已没有可升级的卡牌。'
             }
           </span>
         </button>
@@ -464,6 +472,28 @@ export function renderShopScreen({ state, ui }) {
     })
     .join('');
 
+  const colorlessOffers = Array.isArray(shop.colorlessCards) ? shop.colorlessCards : [];
+  const colorlessHtml = colorlessOffers
+    .map((offer, idx) => {
+      const canAfford = !offer.sold && state.player.gold >= offer.price;
+      return `
+        <div class="shop-card-wrap">
+          ${renderCardHtml(offer.card, {
+            idPrefix: 'shop-colorless-card',
+            action: 'buy-shop-colorless-card',
+            offerIndex: idx,
+            playable: canAfford,
+            dimmed: offer.sold || !canAfford,
+            disabled: offer.sold || !canAfford,
+          })}
+          <span class="price-tag colorless-price">
+            ${offer.sold ? '已售罄' : `${offer.price} 金币`}
+          </span>
+        </div>
+      `;
+    })
+    .join('');
+
   const relicOffer = shop.relicOffer;
   const relicDef = relicOffer ? RELIC_LIBRARY[relicOffer.relicId] : null;
   const potionOffer = shop.potionOffer;
@@ -478,7 +508,7 @@ export function renderShopScreen({ state, ui }) {
       <div class="stage-header">
         <div>
           <h2 id="shop-heading" class="stage-heading">神秘商人</h2>
-          <p class="stage-subtitle">“欢迎来到我的地毯小铺，尖塔行者！看中什么尽管挑，概不赊账。”</p>
+          <p class="stage-subtitle">“欢迎来到我的地毯小铺，尖塔行者！看中什么尽管挑，商店专属无色秘牌也在货架上。”</p>
         </div>
         <button type="button" id="btn-leave-shop" class="btn-brass" data-action="leave-shop">
           离开商店 →
@@ -488,9 +518,21 @@ export function renderShopScreen({ state, ui }) {
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
 
       <div class="shop-section">
-        <h3>精选卡牌</h3>
-        <div class="card-showcase">${cardsHtml}</div>
+        <h3>精选职业卡牌</h3>
+        <div class="card-showcase" id="shop-class-cards">${cardsHtml}</div>
       </div>
+
+      ${
+        colorlessOffers.length > 0
+          ? `<div class="shop-section shop-colorless-section">
+              <div class="shop-section-head">
+                <h3>商店专属 · 无色秘牌</h3>
+                <span class="shop-colorless-note">仅神秘商人出售（固定 1 张罕见 + 1 张稀有）</span>
+              </div>
+              <div class="card-showcase" id="shop-colorless-cards">${colorlessHtml}</div>
+            </div>`
+          : ''
+      }
 
       <div class="shop-section">
         <h3>遗物 · 药水 · 牌组精简服务</h3>
@@ -528,10 +570,21 @@ export function renderShopScreen({ state, ui }) {
   `;
 }
 
+function getRankCssClass(grade) {
+  if (grade === 'S+') return 'rank-sp';
+  if (grade === 'S') return 'rank-s';
+  if (grade === 'A') return 'rank-a';
+  if (grade === 'B') return 'rank-b';
+  return 'rank-c';
+}
+
 export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
   const isWin = state.runOutcome === 'victory';
   const summary = ensureRunRecorded();
+  const report = summary?.historyEntry || buildRunReportFromState(state);
   const seedCode = formatSeedCode(state.seed);
+  const daily = state.dailyChallenge || null;
+  const dailyMods = daily ? getDailyModifierDefs(daily.modifierIds) : [];
 
   const deckHtml = state.player.deck
     .map((c) => renderCardHtml(c, { idPrefix: 'final-card', disabled: true }))
@@ -550,8 +603,60 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
     }
   }
 
+  const deck = state.player.deck || [];
+  const upgradedCount = deck.filter((c) => Boolean(c.upgraded)).length;
+  const colorlessCount = deck.filter(
+    (c) => getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless'
+  ).length;
+  const attackCount = deck.filter((c) => CARD_LIBRARY[c.cardId]?.type === 'attack').length;
+  const skillCount = deck.filter((c) => CARD_LIBRARY[c.cardId]?.type === 'skill').length;
+  const powerCount = deck.filter((c) => CARD_LIBRARY[c.cardId]?.type === 'power').length;
+
+  const breakdownHtml = (report.scoreBreakdown || [])
+    .map(
+      (item) => `
+        <div class="score-breakdown-item">
+          <span class="score-bd-label">${escapeHtml(item.label)}</span>
+          <span class="score-bd-detail">${escapeHtml(item.detail)}</span>
+          <strong class="score-bd-pts">+${escapeHtml(item.points)}</strong>
+        </div>
+      `
+    )
+    .join('');
+
+  const relicsHtml = (state.player.relics || [])
+    .map((id) => {
+      const r = RELIC_LIBRARY[id];
+      if (!r) return '';
+      const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+      return `<span
+        class="relic-badge tier-${escapeHtml(r.tier)}"
+        tabindex="0"
+        data-tooltip-title="${escapeHtml(r.name)}"
+        data-tooltip-tag="${escapeHtml(tierLabel)}"
+        data-tooltip-desc="${escapeHtml(r.description)}"
+        data-tooltip-tone="relic"
+      >${escapeHtml(r.name)}</span>`;
+    })
+    .join('');
+
+  const dailyModsHtml = dailyMods
+    .map(
+      (mod) => `
+        <span
+          class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
+          tabindex="0"
+          data-tooltip-title="${escapeHtml(mod.name)}"
+          data-tooltip-tag="${escapeHtml(mod.shortTag)}"
+          data-tooltip-desc="${escapeHtml(mod.description)}"
+          data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
+        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+      `
+    )
+    .join('');
+
   return `
-    <section class="panel-stage" aria-labelledby="gameover-heading">
+    <section class="panel-stage" id="gameover-screen" aria-labelledby="gameover-heading">
       <div class="stage-header">
         <div>
           <h2 id="gameover-heading" class="stage-heading" style="color: ${isWin ? 'var(--jade-upgrade)' : 'var(--rust-warn)'};">
@@ -560,12 +665,20 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
           <p class="stage-subtitle">
             ${
               isWin
-                ? '青铜核心与暗影枷锁轰然碎裂，你的战绩已镌刻进尖塔编年史。'
-                : '尖塔吞没了无数挑战者，但每一次轮回积累的历练都会为你解锁更强大的卡牌与遗物。'
+                ? '青铜核心与暗影枷锁轰然碎裂，你的战绩卡片与评分已镌刻进尖塔编年史。'
+                : '尖塔吞没了无数挑战者，但每一次复盘与历练积累都会让你下一次走得更远。'
             }
           </p>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div class="gameover-actions-bar">
+          <button
+            type="button"
+            id="btn-copy-battle-report"
+            class="btn-brass"
+            data-action="copy-battle-report"
+          >
+            复制战绩卡
+          </button>
           <button
             type="button"
             id="btn-gameover-copy-seed"
@@ -574,24 +687,26 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
             data-seed-code="${escapeHtml(seedCode)}"
             data-ascension="${escapeHtml(state.ascension ?? 0)}"
             data-character-id="${escapeHtml(state.characterId || 'ironclad')}"
+            data-daily-date="${escapeHtml(daily?.dateKey || '')}"
           >
-            分享挑战链接 (${escapeHtml(seedCode)})
+            ${daily ? `分享今日挑战 (${escapeHtml(daily.dateKey)})` : `分享挑战链接 (${escapeHtml(seedCode)})`}
           </button>
           <button
             type="button"
             id="btn-replay-current-seed"
             class="btn-stone"
-            data-action="replay-history-seed"
+            data-action="${daily ? 'start-daily-challenge' : 'replay-history-seed'}"
+            data-daily-date="${escapeHtml(daily?.dateKey || '')}"
             data-seed="${escapeHtml(state.seed)}"
             data-ascension="${escapeHtml(state.ascension ?? 0)}"
             data-character-id="${escapeHtml(state.characterId || 'ironclad')}"
           >
-            同种子再战
+            ${daily ? '再战今日挑战' : '同种子再战'}
           </button>
           <button type="button" id="btn-gameover-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
             战绩与进阶
           </button>
-          <button type="button" id="btn-restart-gameover" class="btn-brass" data-action="new-run">
+          <button type="button" id="btn-restart-gameover" class="btn-stone" data-action="new-run">
             选择角色再战
           </button>
         </div>
@@ -605,20 +720,81 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
           : ''
       }
 
-      <div class="summary-stats">
-        <span>角色：<strong>${escapeHtml(state.player.name)}</strong></span>
-        <span>本局种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(seedCode)}</strong></span>
-        ${state.isChallengeRun ? `<span>模式：<strong style="color:var(--jade-upgrade);">好友种子挑战</strong></span>` : ''}
-        <span>抵达层数：<strong>${escapeHtml(actLabel)}${escapeHtml(state.floor)} / ${escapeHtml(TOTAL_FLOORS)}</strong></span>
-        ${(state.ascension ?? 0) > 0 ? `<span>挑战难度：<strong>进阶 ${escapeHtml(state.ascension)}</strong></span>` : ''}
-        <span>获胜战斗：<strong>${escapeHtml(state.stats.combatsWon)}</strong></span>
-        <span>击败精英：<strong>${escapeHtml(state.stats.elitesSlain ?? 0)}</strong></span>
-        <span>击败强敌：<strong>${escapeHtml(state.stats.enemiesSlain)}</strong></span>
-        <span>打出卡牌：<strong>${escapeHtml(state.stats.cardsPlayed)}</strong></span>
-        ${summary?.xpGained > 0 ? `<span>本局历练：<strong style="color:var(--jade-upgrade);">+${escapeHtml(summary.xpGained)} XP</strong></span>` : ''}
+      <div class="battle-report-card ${isWin ? 'report-win' : 'report-loss'}" id="battle-report-card">
+        <div class="report-hero-row">
+          <div class="report-identity">
+            <div class="report-tags-row">
+              <span class="character-hud-pill char-${escapeHtml(state.characterId || 'ironclad')}">${escapeHtml(state.player.name)}</span>
+              ${daily ? `<span class="daily-pill">每日挑战 ${escapeHtml(daily.dateKey)}</span>` : ''}
+              ${state.isChallengeRun && !daily ? `<span class="challenge-pill">好友种子挑战</span>` : ''}
+              ${(state.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(state.ascension)}</span>` : ''}
+              <code class="seed-code-tag">${escapeHtml(seedCode)}</code>
+              ${summary?.xpGained > 0 ? `<span class="report-xp-pill">+${escapeHtml(summary.xpGained)} XP</span>` : ''}
+            </div>
+            <div class="report-meta-line">
+              抵达 <strong>${escapeHtml(actLabel)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</strong>
+              ${!isWin && report.defeatedBy ? ` · 败于 <strong style="color:var(--rust-warn);">${escapeHtml(report.defeatedBy)}</strong>` : ''}
+            </div>
+            ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}
+          </div>
+
+          <div class="score-rank-badge ${getRankCssClass(report.grade)}" id="gameover-score-badge">
+            <span class="score-rank-letter">${escapeHtml(report.grade)}</span>
+            <div class="score-rank-meta">
+              <span class="score-rank-label">战绩评分</span>
+              <strong class="score-rank-value" id="gameover-score-value">${escapeHtml((report.score ?? 0).toLocaleString())}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-stats-grid">
+          <div class="report-stat-cell">
+            <span class="report-stat-label">获胜战斗</span>
+            <strong class="report-stat-val">${escapeHtml(report.combatsWon ?? 0)}${(report.perfectCombats ?? 0) > 0 ? ` <small class="stat-jade">(无伤 ${escapeHtml(report.perfectCombats)})</small>` : ''}</strong>
+          </div>
+          <div class="report-stat-cell">
+            <span class="report-stat-label">精英 / 强敌</span>
+            <strong class="report-stat-val">${escapeHtml(report.elitesSlain ?? 0)} / ${escapeHtml(report.enemiesSlain ?? 0)}</strong>
+          </div>
+          <div class="report-stat-cell">
+            <span class="report-stat-label">总输出伤害</span>
+            <strong class="report-stat-val">${escapeHtml((report.totalDamageDealt ?? 0).toLocaleString())}</strong>
+          </div>
+          <div class="report-stat-cell">
+            <span class="report-stat-label">最高单次伤害</span>
+            <strong class="report-stat-val">${escapeHtml((report.highestSingleHit ?? 0).toLocaleString())}</strong>
+          </div>
+          <div class="report-stat-cell">
+            <span class="report-stat-label">累计格挡</span>
+            <strong class="report-stat-val">${escapeHtml((report.totalBlockGained ?? 0).toLocaleString())}</strong>
+          </div>
+          <div class="report-stat-cell">
+            <span class="report-stat-label">累计出牌</span>
+            <strong class="report-stat-val">${escapeHtml((report.cardsPlayed ?? 0).toLocaleString())}</strong>
+          </div>
+        </div>
+
+        ${
+          breakdownHtml
+            ? `<div class="score-breakdown-wrap">
+                <div class="report-subhead">评分明细</div>
+                <div class="score-breakdown-grid">${breakdownHtml}</div>
+              </div>`
+            : ''
+        }
+
+        <div class="report-relics-wrap">
+          <div class="report-subhead">最终遗物（共 ${escapeHtml(state.player.relics.length)} 件）</div>
+          <div class="report-relics-strip">${relicsHtml || '<span class="stage-subtitle">无</span>'}</div>
+        </div>
       </div>
 
-      <h3 style="margin:12px 0 8px;font-size:0.95rem;color:var(--text-sand);">最终牌组（共 ${escapeHtml(state.player.deck.length)} 张）</h3>
+      <div class="deck-composition-header">
+        <h3 style="margin:0;font-size:0.95rem;color:var(--text-sand);">
+          最终牌组（共 ${escapeHtml(deck.length)} 张 · 已升级 ${escapeHtml(upgradedCount)} 张${colorlessCount > 0 ? ` · 无色 ${escapeHtml(colorlessCount)} 张` : ''}）
+        </h3>
+        <span class="deck-composition-pills">攻击 ${escapeHtml(attackCount)} · 技能 ${escapeHtml(skillCount)} · 能力 ${escapeHtml(powerCount)}</span>
+      </div>
       <div class="card-showcase">${deckHtml}</div>
     </section>
   `;

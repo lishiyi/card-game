@@ -124,6 +124,20 @@ const CORE_MECHANIC_ENTRIES = [
     tag: '同图分享',
     description: '点击顶部种子徽章或战绩按钮可一键复制带 ?seed=...&asc=...&char=... 的挑战链接。好友打开后自动临时对齐角色、全图鉴与进阶难度，体验 100% 相同的地图、赐福与掉落。',
   },
+  {
+    id: 'kw_daily',
+    name: '每日挑战与战绩评分',
+    category: 'mechanics',
+    tag: '每日限定',
+    description: '每天自动生成一套全球同图的日期种子、指定角色与 3 条随机规则词条（构筑增益 + 节奏变化 + 高分挑战）。结算出分与评级（C 至 S+），支持复制战绩卡与 ?daily=YYYY-MM-DD 直连分享。',
+  },
+  {
+    id: 'kw_colorless',
+    name: '商店专属无色牌',
+    category: 'mechanics',
+    tag: '神秘商人',
+    description: '共有 10 张跨职业无色牌（6 罕见 + 4 稀有，含神化、贪婪之手、残虐本性、战略大师、寒光一闪等）。仅在神秘商店无色货架出售（每间商店固定刷出 1 罕见 + 1 稀有），不会出现在普通战斗掉落中。',
+  },
 ];
 
 export function getGlossaryEntries() {
