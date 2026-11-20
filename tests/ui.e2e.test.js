@@ -517,6 +517,9 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
       const commonEl = document.getElementById('modal-card-c_common');
       const uncommonEl = document.getElementById('modal-card-c_uncommon');
       const rareEl = document.getElementById('modal-card-c_rare');
+      const starterEl = document.getElementById('modal-card-c_starter');
+      const strikePreviewEl = starterEl.querySelector('.card-upgrade-preview');
+      const srPreviewEl = uncommonEl.querySelector('.card-upgrade-preview');
       return {
         commonBorder: getComputedStyle(commonEl).borderTopColor,
         uncommonBorder: getComputedStyle(uncommonEl).borderTopColor,
@@ -524,10 +527,16 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
         commonBadge: commonEl.querySelector('.rarity-badge')?.textContent?.trim(),
         uncommonBadge: uncommonEl.querySelector('.rarity-badge')?.textContent?.trim(),
         rareBadge: rareEl.querySelector('.rarity-badge')?.textContent?.trim(),
-        seeingRedPreview: uncommonEl.querySelector('.card-upgrade-preview')?.textContent?.trim(),
-        seeingRedPreviewColor: getComputedStyle(uncommonEl.querySelector('.card-upgrade-preview')).color,
+        seeingRedPreview: srPreviewEl?.textContent?.trim(),
+        seeingRedBaseColor: getComputedStyle(srPreviewEl).color,
+        seeingRedCardDescColor: getComputedStyle(uncommonEl.querySelector('.card-desc')).color,
+        seeingRedLabelColor: getComputedStyle(srPreviewEl.querySelector('.upgrade-diff-label')).color,
+        seeingRedHlColor: getComputedStyle(srPreviewEl.querySelector('.upgrade-diff-hl')).color,
+        seeingRedHlTexts: [...srPreviewEl.querySelectorAll('.upgrade-diff-hl')].map((el) => el.textContent.trim()),
         bodySlamPreview: commonEl.querySelector('.card-upgrade-preview')?.textContent?.trim(),
-        strikePreview: document.getElementById('modal-card-c_starter').querySelector('.card-upgrade-preview')?.textContent?.trim(),
+        strikePreview: strikePreviewEl?.textContent?.trim(),
+        strikeLabelText: strikePreviewEl.querySelector('.upgrade-diff-label')?.textContent?.trim(),
+        strikeHlTexts: [...strikePreviewEl.querySelectorAll('.upgrade-diff-hl')].map((el) => el.textContent.trim()),
       };
     })()`);
 
@@ -539,7 +548,7 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     assert.notEqual(smithAudit.uncommonBorder, smithAudit.rareBorder);
     assert.notEqual(smithAudit.commonBorder, smithAudit.rareBorder);
 
-    // Verify Upgrade Cost Reduction Green Text on Seeing Red (盛怒) & Body Slam (全身撞击)
+    // Verify selective green diff highlighting: unchanged text matches normal .card-desc color; only "升级后" and changed spans are green!
     assert.ok(
       smithAudit.seeingRedPreview.includes('费用 1 → 0（减少 1 点）'),
       `Expected cost reduction in Seeing Red preview, got: ${smithAudit.seeingRedPreview}`
@@ -547,6 +556,24 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     assert.ok(smithAudit.seeingRedPreview.includes('获得 2 点能量'));
     assert.ok(smithAudit.bodySlamPreview.includes('费用 1 → 0（减少 1 点）'));
     assert.equal(smithAudit.strikePreview.includes('费用'), false);
+    assert.equal(smithAudit.strikeLabelText, '升级后');
+    assert.deepEqual(smithAudit.strikeHlTexts, ['9']);
+    assert.deepEqual(smithAudit.seeingRedHlTexts, ['费用 1 → 0（减少 1 点）。']);
+    assert.equal(
+      smithAudit.seeingRedBaseColor,
+      smithAudit.seeingRedCardDescColor,
+      'Unchanged upgrade preview text must keep original card description color'
+    );
+    assert.notEqual(
+      smithAudit.seeingRedLabelColor,
+      smithAudit.seeingRedBaseColor,
+      '"升级后" label must use distinct green highlight color'
+    );
+    assert.equal(
+      smithAudit.seeingRedHlColor,
+      smithAudit.seeingRedLabelColor,
+      'Changed diff spans must use the same green highlight color as "升级后"'
+    );
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
       fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });

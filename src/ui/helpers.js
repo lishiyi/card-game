@@ -67,7 +67,14 @@ export function renderCardHtml(cardInstance, options = {}) {
   if (options.showUpgradePreview && canUpgradeCard(cardInstance)) {
     const upgPreview = formatUpgradePreview(cardInstance, combatCtx);
     if (upgPreview) {
-      upgradePreviewNote = `<div class="card-upgrade-preview">升级后：${escapeHtml(upgPreview.text)}</div>`;
+      const diffBodyHtml = (upgPreview.segments || [{ text: upgPreview.text, changed: true }])
+        .map((seg) =>
+          seg.changed
+            ? `<span class="upgrade-diff-hl">${escapeHtml(seg.text)}</span>`
+            : escapeHtml(seg.text)
+        )
+        .join('');
+      upgradePreviewNote = `<div class="card-upgrade-preview"><span class="upgrade-diff-label">升级后</span>：${diffBodyHtml}</div>`;
     }
   }
 

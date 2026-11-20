@@ -1218,9 +1218,15 @@ button:disabled {
   padding-top: 6px;
   border-top: 1px solid hsla(148, 54%, 56%, 0.3);
   font-size: 0.74rem;
-  font-weight: 600;
-  line-height: 1.38;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-sand);
+}
+
+.card-upgrade-preview .upgrade-diff-label,
+.card-upgrade-preview .upgrade-diff-hl {
   color: var(--jade-upgrade);
+  font-weight: 700;
 }
 
 .card-footer {

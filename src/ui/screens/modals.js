@@ -641,7 +641,7 @@ export function renderModal({ state, meta, settings, ui }) {
   } else if (ui.modal === 'smith') {
     cards = getUpgradableDeckCards(state);
     title = `铁砧锻造 · 选择 1 张卡牌永久升级（可选 ${cards.length} 张）`;
-    subtitle = '底部绿色文字显示升级后的效果预览。点击卡牌即可完成锻造。';
+    subtitle = '底部预览中以绿色突出“升级后”及发生变化的数值与效果。点击卡牌即可完成锻造。';
     cardAction = 'confirm-smith';
     playable = true;
     showUpgradePreview = true;

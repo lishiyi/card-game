@@ -1317,6 +1317,93 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   };
 }
 
+function tokenizeUpgradeDiff(text) {
+  return String(text || '').match(/(\d+|【[^】]+】|\s+|.)/g) || [];
+}
+
+function diffUpgradeDescriptionSegments(baseText, nextText) {
+  const a = tokenizeUpgradeDiff(baseText);
+  const b = tokenizeUpgradeDiff(nextText);
+  const n = a.length;
+  const m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+
+  for (let i = n - 1; i >= 0; i -= 1) {
+    for (let j = m - 1; j >= 0; j -= 1) {
+      if (a[i] === b[j]) {
+        dp[i][j] = dp[i + 1][j + 1] + 1;
+      } else {
+        dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
+      }
+    }
+  }
+
+  const raw = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      raw.push({ text: b[j], changed: false });
+      i += 1;
+      j += 1;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i += 1;
+    } else {
+      raw.push({ text: b[j], changed: true });
+      j += 1;
+    }
+  }
+  while (j < m) {
+    raw.push({ text: b[j], changed: true });
+    j += 1;
+  }
+
+  const merged = [];
+  for (const item of raw) {
+    if (merged.length > 0 && merged[merged.length - 1].changed === item.changed) {
+      merged[merged.length - 1].text += item.text;
+    } else {
+      merged.push({ ...item });
+    }
+  }
+
+  // Merge whitespace-only separator sandwiched between two changed segments (e.g. "变为 3")
+  for (let k = 1; k < merged.length - 1; k += 1) {
+    if (
+      !merged[k].changed &&
+      /^\s+$/.test(merged[k].text) &&
+      merged[k - 1].changed &&
+      merged[k + 1].changed
+    ) {
+      merged[k - 1].text += merged[k].text + merged[k + 1].text;
+      merged.splice(k, 2);
+      k -= 1;
+    }
+  }
+
+  // Keep leading/trailing whitespace outside changed spans
+  const clean = [];
+  const pushSeg = (text, changed) => {
+    if (!text) return;
+    if (clean.length > 0 && clean[clean.length - 1].changed === changed) {
+      clean[clean.length - 1].text += text;
+    } else {
+      clean.push({ text, changed });
+    }
+  };
+  for (const seg of merged) {
+    if (!seg.changed) {
+      pushSeg(seg.text, false);
+    } else {
+      const mLead = seg.text.match(/^(\s*)(.*?)(\s*)$/s);
+      pushSeg(mLead[1], false);
+      pushSeg(mLead[2], true);
+      pushSeg(mLead[3], false);
+    }
+  }
+  return clean;
+}
+
 export function formatUpgradePreview(cardInstance, combatContext = null) {
   if (!canUpgradeCard(cardInstance)) return null;
 
@@ -1327,20 +1414,41 @@ export function formatUpgradePreview(cardInstance, combatContext = null) {
   const baseDesc = formatCardDescription(baseCard, combatContext);
   const nextDesc = formatCardDescription(nextCard, combatContext);
 
-  let costPrefix = '';
+  const prefixParts = [];
   if (
     typeof baseStats.cost === 'number' &&
     typeof nextStats.cost === 'number' &&
     nextStats.cost < baseStats.cost
   ) {
     const reducedBy = baseStats.cost - nextStats.cost;
-    costPrefix = `费用 ${baseStats.cost} → ${nextStats.cost}（减少 ${reducedBy} 点）。`;
+    prefixParts.push(`费用 ${baseStats.cost} → ${nextStats.cost}（减少 ${reducedBy} 点）。`);
   } else if (baseDesc.displayCost !== nextDesc.displayCost) {
-    costPrefix = `费用 ${baseDesc.displayCost} → ${nextDesc.displayCost}。`;
+    prefixParts.push(`费用 ${baseDesc.displayCost} → ${nextDesc.displayCost}。`);
+  }
+  if (baseStats.exhaust && !nextStats.exhaust) {
+    prefixParts.push('不再消耗。');
+  }
+  const prefixText = prefixParts.join(' ');
+
+  const descSegments = diffUpgradeDescriptionSegments(baseDesc.text, nextDesc.text);
+  const segments = [];
+  if (prefixText) {
+    segments.push({ text: prefixText, changed: true });
+    if (nextDesc.text) {
+      segments.push({ text: ' ', changed: false });
+    }
+  }
+  for (const seg of descSegments) {
+    if (segments.length > 0 && segments[segments.length - 1].changed === seg.changed) {
+      segments[segments.length - 1].text += seg.text;
+    } else {
+      segments.push(seg);
+    }
   }
 
   return {
-    text: costPrefix ? `${costPrefix} ${nextDesc.text}`.trim() : nextDesc.text,
+    text: prefixText ? `${prefixText} ${nextDesc.text}`.trim() : nextDesc.text,
+    segments,
     costReduced: Boolean(
       typeof baseStats.cost === 'number' &&
         typeof nextStats.cost === 'number' &&

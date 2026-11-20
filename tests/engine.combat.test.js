@@ -447,6 +447,12 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
   assert.match(srPreview.text, /^费用 1 → 0（减少 1 点）。/);
   assert.match(srPreview.text, /获得 2 点能量。/);
 
+  assert.deepEqual(
+    srPreview.segments.filter((s) => s.changed).map((s) => s.text),
+    ['费用 1 → 0（减少 1 点）。'],
+    'Seeing Red should highlight only cost reduction in green'
+  );
+
   const seeingRedPlus = createCardInstance(state, 'seeing_red', true);
   const srPlusStats = getCardStats(seeingRedPlus);
   assert.equal(srPlusStats.cost, 0);
@@ -468,7 +474,29 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
   assert.equal(strikePreview.costReduced, false);
   assert.equal(strikePreview.text.includes('费用'), false);
   assert.match(strikePreview.text, /造成 9 点伤害。/);
+  assert.deepEqual(
+    strikePreview.segments.filter((s) => s.changed).map((s) => s.text),
+    ['9'],
+    'Strike should highlight only the changed damage value 9'
+  );
   assert.equal(getCardStats(createCardInstance(state, 'strike', true)).costReduced, false);
+
+  // 3b. Keyword & clause changes (Bash multi-number, Calculated Gamble exhaust removal, Infinite Blades innate)
+  const bashPreview = formatUpgradePreview(createCardInstance(state, 'bash', false));
+  assert.deepEqual(
+    bashPreview.segments.filter((s) => s.changed).map((s) => s.text),
+    ['10', '3']
+  );
+  const gamblePreview = formatUpgradePreview(createCardInstance(state, 'calculated_gamble', false));
+  assert.deepEqual(
+    gamblePreview.segments.filter((s) => s.changed).map((s) => s.text),
+    ['不再消耗。']
+  );
+  const bladesPreview = formatUpgradePreview(createCardInstance(state, 'infinite_blades', false));
+  assert.deepEqual(
+    bladesPreview.segments.filter((s) => s.changed).map((s) => s.text),
+    ['固有。']
+  );
 
   // 4. Status card Slimed (粘液): cannot upgrade, costReduced false
   const slimed = createCardInstance(state, 'slimed', false);
