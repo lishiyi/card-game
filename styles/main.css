@@ -1517,6 +1517,31 @@ button.loot-reward-card.loot-kind-potion:hover {
   width: min(520px, 100%);
 }
 
+.modal-map-sheet {
+  width: min(920px, 100%);
+}
+
+.modal-map-sheet .modal-header {
+  position: sticky;
+  top: -20px;
+  z-index: 8;
+  background: var(--surface-stone);
+  margin: -20px -22px 12px;
+  padding: 18px 22px 12px;
+}
+
+.map-board.map-readonly .map-node-btn {
+  cursor: default;
+}
+
+.map-board.map-readonly .map-node-btn[data-tooltip-desc] {
+  cursor: help;
+}
+
+.map-board.map-readonly .map-node-btn.available:hover {
+  transform: translate(-50%, -50%);
+}
+
 .confirm-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1548,6 +1573,11 @@ button.loot-reward-card.loot-kind-potion:hover {
   margin-bottom: 16px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border-muted);
+}
+
+.modal-header button {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .summary-stats {
@@ -4556,6 +4586,16 @@ body.spire-dragging {
     padding: 14px 12px max(16px, env(safe-area-inset-bottom));
     max-height: 92vh;
     border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-sm);
+  }
+
+  .modal-map-sheet {
+    padding: 12px 6px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .modal-map-sheet .modal-header {
+    top: -12px;
+    margin: -12px -6px 10px;
+    padding: 12px 10px 10px;
   }
 
   .settings-row {

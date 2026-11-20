@@ -2455,14 +2455,16 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
         mapModCount: document.querySelectorAll('#map-daily-modifiers .daily-mod-chip').length,
         dailyDateKey: st.dailyChallenge?.dateKey || '',
         copySeedDailyAttr: document.getElementById('btn-copy-seed')?.dataset?.dailyDate || '',
+        hasMapBtnOnMapScreen: Boolean(document.getElementById('btn-open-map')),
       };
     })()`);
     assert.equal(dailyStartAudit.hasHudDailyPill, true);
     assert.equal(dailyStartAudit.mapModCount, 3);
     assert.equal(dailyStartAudit.dailyDateKey, charDailyAudit.dailyDate);
     assert.equal(dailyStartAudit.copySeedDailyAttr, charDailyAudit.dailyDate);
+    assert.equal(dailyStartAudit.hasMapBtnOnMapScreen, false, 'HUD Map button should not duplicate on Map screen');
 
-    // 3. Open Shop -> verify dedicated Colorless Shelf (1 Uncommon + 1 Rare), capture desktop screenshot, buy 1 colorless card
+    // 3. Open Shop -> verify dedicated Colorless Shelf (1 Uncommon + 1 Rare), verify In-Room Map Modal & M hotkey, buy 1 colorless card
     const shopSetupAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       const st = app.getState();
@@ -2478,6 +2480,7 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       const colorlessCards = [...document.querySelectorAll('#shop-colorless-cards .game-card')];
       return {
         screen: st.screen,
+        hasMapBtnInShop: Boolean(document.getElementById('btn-open-map')),
         colorlessCount: colorlessCards.length,
         allHaveColorlessClass: colorlessCards.every((el) => el.classList.contains('card-colorless')),
         rarities: colorlessCards.map((el) => el.dataset.rarity),
@@ -2485,10 +2488,60 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       };
     })()`);
     assert.equal(shopSetupAudit.screen, 'shop');
+    assert.equal(shopSetupAudit.hasMapBtnInShop, true, 'HUD Map button must appear inside Shop');
     assert.equal(shopSetupAudit.colorlessCount, 2);
     assert.equal(shopSetupAudit.allHaveColorlessClass, true);
     assert.deepEqual(shopSetupAudit.rarities, ['uncommon', 'rare']);
     assert.deepEqual(shopSetupAudit.badges, ['无色·罕见', '无色·稀有']);
+
+    // Open Map Modal from Shop via HUD button -> verify read-only nodes, current pos, clicking node does NOT leave shop, M hotkey toggles closed/open
+    const shopMapModalAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const nodeBefore = st.currentNodeId;
+      document.getElementById('btn-open-map').click();
+      const modal = document.getElementById('map-inspector-modal');
+      const isReadonly = Boolean(modal?.querySelector('.map-board.map-readonly'));
+      const currentPosNode = modal?.querySelector('#map-modal-node-' + CSS.escape(nodeBefore));
+      const hasCurrentClass = currentPosNode?.classList.contains('current-pos') ?? false;
+      const nextBranchNode = modal?.querySelector('.map-node-btn.available');
+      if (nextBranchNode) nextBranchNode.click();
+      const stillInShopAfterClick = st.screen === 'shop' && st.currentNodeId === nodeBefore;
+      return {
+        hasModal: Boolean(modal),
+        isReadonly,
+        hasCurrentClass,
+        rowCount: modal ? modal.querySelectorAll('.map-row').length : 0,
+        stillInShopAfterClick,
+      };
+    })()`);
+    assert.equal(shopMapModalAudit.hasModal, true);
+    assert.equal(shopMapModalAudit.isReadonly, true);
+    assert.equal(shopMapModalAudit.hasCurrentClass, true);
+    assert.equal(shopMapModalAudit.rowCount, 16);
+    assert.equal(shopMapModalAudit.stillInShopAfterClick, true, 'Clicking a node in read-only map modal must not leave current room');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      await new Promise((r) => setTimeout(r, 220));
+      const shotMapModal = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'in_room_map_modal_desktop.png'),
+        Buffer.from(shotMapModal.data, 'base64')
+      );
+    }
+
+    const mapHotkeyAudit = await cdp.evaluate(`(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+      const closedByM = !document.getElementById('map-inspector-modal');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'M' }));
+      const reopenedByM = Boolean(document.getElementById('map-inspector-modal'));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      const closedByEsc = !document.getElementById('map-inspector-modal');
+      return { closedByM, reopenedByM, closedByEsc, screen: window.__SPIRE_APP__.getState().screen };
+    })()`);
+    assert.equal(mapHotkeyAudit.closedByM, true);
+    assert.equal(mapHotkeyAudit.reopenedByM, true);
+    assert.equal(mapHotkeyAudit.closedByEsc, true);
+    assert.equal(mapHotkeyAudit.screen, 'shop');
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
       const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
@@ -2774,6 +2827,50 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
         Buffer.from(shot.data, 'base64')
       );
     }
+
+    // 7c-2. Open In-Room Map Modal directly from Mobile Combat -> verify zero overflow & zero node overlap -> close back to combat
+    const mobileCombatMapAudit = await cdp.evaluate(`(() => {
+      const btn = document.getElementById('btn-open-map');
+      btn.click();
+      const modal = document.getElementById('map-inspector-modal');
+      const board = modal?.querySelector('.map-board');
+      const boardRect = board?.getBoundingClientRect();
+      let overlapCount = 0;
+      if (board && boardRect) {
+        for (const row of board.querySelectorAll('.map-row')) {
+          const rects = [...row.querySelectorAll('.map-node-btn')]
+            .map((b) => b.getBoundingClientRect())
+            .sort((a, b) => a.left - b.left);
+          for (let i = 1; i < rects.length; i += 1) {
+            if (rects[i - 1].right > rects[i].left + 1.5) overlapCount += 1;
+          }
+        }
+      }
+      return {
+        hasModal: Boolean(modal),
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        overlapCount,
+      };
+    })()`);
+    assert.equal(mobileCombatMapAudit.hasModal, true);
+    assert.ok(
+      mobileCombatMapAudit.docScrollWidth <= mobileCombatMapAudit.innerWidth,
+      `Mobile Map Modal overflowed: ${mobileCombatMapAudit.docScrollWidth} > ${mobileCombatMapAudit.innerWidth}`
+    );
+    assert.equal(mobileCombatMapAudit.overlapCount, 0, 'Mobile Map Modal 4-col nodes must not overlap');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      await new Promise((r) => setTimeout(r, 220));
+      const shotMobMap = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'in_room_map_modal_mobile.png'),
+        Buffer.from(shotMobMap.data, 'base64')
+      );
+    }
+
+    await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
+    assert.equal(await cdp.evaluate(`window.__SPIRE_APP__.getState().screen`), 'combat');
 
     // 7d. Two-tap confirm mode on mobile (via Settings toggle)
     const twoTapAudit = await cdp.evaluate(`(() => {

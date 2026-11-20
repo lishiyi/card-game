@@ -56,7 +56,7 @@ function computeReachableGraph(state) {
   return { reachableNodes, reachableEdges };
 }
 
-export function renderMapScreen({ state, settings, ui }) {
+export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-node' } = {}) {
   const availableIds = new Set(getAvailableNodeIds(state));
   const totalRows = state.map.length;
   const bossName = getCurrentBossName(state);
@@ -153,6 +153,7 @@ export function renderMapScreen({ state, settings, ui }) {
     })
     .join('');
 
+  const pendingNeow = hasPendingNeowBlessing(state);
   const rowsHtml = state.map
     .map((row, rIdx) => {
       const nodesHtml = row
@@ -174,7 +175,6 @@ export function renderMapScreen({ state, settings, ui }) {
             .filter(Boolean)
             .join(' ');
 
-          const pendingNeow = hasPendingNeowBlessing(state);
           const statusNote = isCurrent
             ? '当前位置'
             : node.visited
@@ -182,7 +182,9 @@ export function renderMapScreen({ state, settings, ui }) {
               : node.type === 'boss'
                 ? bossName
                 : isAvailable
-                  ? '点击前往'
+                  ? interactive
+                    ? '点击前往'
+                    : '下层可选'
                   : pendingNeow && node.floor === 1
                     ? '需先选赐福'
                     : `第 ${node.floor} 层`;
@@ -195,14 +197,14 @@ export function renderMapScreen({ state, settings, ui }) {
           return `
             <button
               type="button"
-              id="map-node-${escapeHtml(node.id)}"
+              id="${escapeHtml(idPrefix)}-${escapeHtml(node.id)}"
               class="${cls}"
               style="left: ${coord.xPct}%;"
               data-node-type="${escapeHtml(node.type)}"
-              data-action="select-node"
+              data-action="${interactive ? 'select-node' : 'noop'}"
               data-node-id="${escapeHtml(node.id)}"
               ${bossTooltip}
-              aria-disabled="${isAvailable ? 'false' : 'true'}"
+              aria-disabled="${interactive && isAvailable ? 'false' : 'true'}"
             >
               <span class="node-icon-wrap node-type-${escapeHtml(node.type)}">${getNodeIconSvg(node.type)}</span>
               <span class="node-text">
@@ -224,6 +226,16 @@ export function renderMapScreen({ state, settings, ui }) {
     })
     .join('');
 
+  return `
+    <div class="map-board ${interactive ? '' : 'map-readonly'}">
+      <svg class="map-edges-svg" viewBox="0 0 1000 ${totalHeight}" preserveAspectRatio="none" aria-hidden="true">${edgePathsHtml}</svg>
+      ${rowsHtml}
+    </div>
+  `;
+}
+
+export function renderMapScreen({ state, settings, ui }) {
+  const bossName = getCurrentBossName(state);
   const isAct2 = (state.act ?? 1) >= 2;
   const pendingNeow = hasPendingNeowBlessing(state);
   const showNewbieBanner =
@@ -362,10 +374,7 @@ export function renderMapScreen({ state, settings, ui }) {
         <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
       </div>
 
-      <div class="map-board">
-        <svg class="map-edges-svg" viewBox="0 0 1000 ${totalHeight}" preserveAspectRatio="none" aria-hidden="true">${edgePathsHtml}</svg>
-        ${rowsHtml}
-      </div>
+      ${renderMapBoardHtml(state, { interactive: true, idPrefix: 'map-node' })}
     </section>
   `;
 }

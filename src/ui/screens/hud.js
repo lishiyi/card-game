@@ -164,6 +164,22 @@ export function renderTopHud({ state, ui }) {
         <button type="button" id="btn-open-deck" class="btn-stone" data-action="open-modal" data-modal="deck">
           牌组 (${escapeHtml(state.player.deck.length)})
         </button>
+        ${
+          state.screen !== 'map' && state.screen !== 'game_over'
+            ? `<button
+                type="button"
+                id="btn-open-map"
+                class="btn-stone"
+                data-action="open-modal"
+                data-modal="map"
+                data-tooltip-title="查看尖塔地图 (M)"
+                data-tooltip-tag="路线预览"
+                data-tooltip-desc="随时查看当前幕完整攀登路线、当前所在位置、后续可选分支与关底首领，关闭后直接回到当前房间。"
+              >
+                地图
+              </button>`
+            : ''
+        }
         <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
           进阶/生涯
         </button>

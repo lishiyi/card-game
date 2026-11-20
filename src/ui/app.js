@@ -356,6 +356,7 @@ export function mountSpireApp(rootEl) {
   };
 
   let lastRenderedScreen = null;
+  let lastRenderedModal = null;
 
   function clearCombatSelection() {
     ui.selectedCardId = null;
@@ -382,6 +383,12 @@ export function mountSpireApp(rootEl) {
   }
 
   function sanitizeUiState() {
+    if (
+      ui.modal === 'map' &&
+      (!state || ui.showCharacterSelect || state.screen === 'map' || state.screen === 'game_over')
+    ) {
+      ui.modal = null;
+    }
     if (!state || ui.showCharacterSelect || state.screen !== 'combat' || !state.combat) {
       clearCombatSelection();
       return;
@@ -448,6 +455,8 @@ export function mountSpireApp(rootEl) {
     hideTooltip();
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
+    const prevModal = lastRenderedModal;
+    lastRenderedModal = ui.modal;
 
     if (ui.showCharacterSelect || !state) {
       const prevScreen = lastRenderedScreen;
@@ -521,6 +530,13 @@ export function mountSpireApp(rootEl) {
       </div>
       ${renderModal({ state, meta, settings, ui })}
     `;
+
+    if (ui.modal === 'map' && prevModal !== 'map' && state.currentNodeId) {
+      const modalNodeEl = rootEl.querySelector(`#map-modal-node-${CSS.escape(state.currentNodeId)}`);
+      if (modalNodeEl && typeof modalNodeEl.scrollIntoView === 'function') {
+        modalNodeEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    }
 
     if (state.screen === 'combat') {
       syncCombatTactics();
@@ -1552,7 +1568,7 @@ export function mountSpireApp(rootEl) {
 
     if (!state || ui.showCharacterSelect) return;
 
-    if (state.screen === 'map') {
+    if (state.screen === 'map' || ui.modal === 'map') {
       const mapBtn = targetEl ? targetEl.closest('.map-node-btn[data-node-id]') : null;
       updateHoveredMapEdges(mapBtn ? mapBtn.dataset.nodeId : null);
       return;
@@ -1684,7 +1700,7 @@ export function mountSpireApp(rootEl) {
     }
   });
 
-  // Keyboard shortcuts: 1-9 play/select/discard hand cards, E ends turn, D opens deck, H/? opens help, Escape cancels
+  // Keyboard shortcuts: 1-9 play/select/discard hand cards, E ends turn, D opens deck, M toggles map, H/? opens help, Escape cancels
   window.addEventListener('keydown', (event) => {
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) {
       if (event.key === 'Escape' && ui.modal) {
@@ -1705,6 +1721,25 @@ export function mountSpireApp(rootEl) {
         render();
       }
       return;
+    }
+
+    if (event.key === 'm' || event.key === 'M') {
+      if (ui.modal === 'map') {
+        dismissActiveModal();
+        return;
+      }
+      if (
+        !ui.modal &&
+        state &&
+        !ui.showCharacterSelect &&
+        state.screen !== 'map' &&
+        state.screen !== 'game_over'
+      ) {
+        ui.modal = 'map';
+        soundEngine.play('ui_click');
+        render();
+        return;
+      }
     }
 
     if (ui.modal) return;

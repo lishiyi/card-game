@@ -12,6 +12,7 @@ import { TOTAL_FLOORS } from '../../data/events.js';
 import { RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
+  getCurrentBossName,
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
 } from '../../engine/game.js';
@@ -25,6 +26,7 @@ import { formatSeedCode } from '../../engine/rng.js';
 import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
+import { renderMapBoardHtml } from './map.js';
 
 function formatRunDate(ts) {
   if (!Number.isFinite(ts)) return '';
@@ -672,7 +674,7 @@ function renderHelpModal({ ui }) {
         <strong style="color:var(--accent-brass);">伤害与格挡速算公式（悬停敌人时手牌自动实时预览！）</strong>
         <span>• 攻击最终伤害 = 向下取整( (基础伤害 + 力量) × [自身虚弱 0.75] × [目标易伤 1.5，有纸蛙为 1.75] )</span>
         <span>• 技能最终格挡 = 向下取整( (基础格挡 + 敏捷) × [自身脆弱 0.75] )</span>
-        <span>• 快捷键与触控：战斗中按 <strong>1–9</strong> 出牌、<strong>E</strong> 结束回合、<strong>D</strong> 查看牌组、<strong>Esc</strong> 取消选中；手机端可<strong>左右滑选手牌、上滑直接拖出牌</strong>，或在设置中开启二段点击确认防误触！</span>
+        <span>• 快捷键与触控：战斗中按 <strong>1–9</strong> 出牌、<strong>E</strong> 结束回合、<strong>D</strong> 查看牌组、<strong>M</strong> 查看地图、<strong>Esc</strong> 取消选中；手机端可<strong>左右滑选手牌、上滑直接拖出牌</strong>，或在设置中开启二段点击确认防误触！</span>
       </div>
     `;
   } else {
@@ -751,6 +753,36 @@ function renderHelpModal({ ui }) {
   `;
 }
 
+function renderMapModal({ state }) {
+  const isAct2 = (state.act ?? 1) >= 2;
+  const bossName = getCurrentBossName(state);
+  const floorNum = Math.max(1, state.floor || 1);
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-sheet modal-map-sheet" id="map-inspector-modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="modal-title" class="stage-heading">
+              ${isAct2 ? '第二幕 · 钢铁城邦地图' : '第一幕 · 尖塔攀登地图'}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(TOTAL_FLOORS)} 层）
+            </h2>
+            <p class="stage-subtitle">
+              只读路线预览：随时查看当前所在位置、已攀登足迹与后续分支，第 ${escapeHtml(TOTAL_FLOORS)} 层首领为【${escapeHtml(bossName)}】。关闭后直接返回当前房间。
+            </p>
+          </div>
+          <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc / M)</button>
+        </div>
+        <div class="map-legend-strip" aria-hidden="true">
+          <span class="map-legend-item"><i class="legend-swatch swatch-active"></i>下层可选路线</span>
+          <span class="map-legend-item"><i class="legend-swatch swatch-traveled"></i>已攀登足迹</span>
+          <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
+        </div>
+        ${renderMapBoardHtml(state, { interactive: false, idPrefix: 'map-modal-node' })}
+      </div>
+    </div>
+  `;
+}
+
 export function renderModal({ state, meta, settings, ui }) {
   if (!ui.modal) return '';
 
@@ -818,6 +850,10 @@ export function renderModal({ state, meta, settings, ui }) {
   }
 
   if (!state) return '';
+
+  if (ui.modal === 'map') {
+    return renderMapModal({ state });
+  }
 
   if (ui.modal === 'neow_action') {
     const action = state.neowState?.pendingAction;
