@@ -49,7 +49,10 @@ import {
 import { ASCENSION_DEFS, UNLOCK_TIERS } from '../src/engine/meta.js';
 
 function assertRunInvariants(state, contextMsg = '') {
-  assert.ok(state.act === 1 || state.act === 2, `Invalid act ${state.act}: ${contextMsg}`);
+  assert.ok(
+    state.act === 1 || state.act === 2 || state.act === 3,
+    `Invalid act ${state.act}: ${contextMsg}`
+  );
   assert.ok(state.floor >= 0 && state.floor <= 16, `Invalid floor ${state.floor}: ${contextMsg}`);
   assert.ok(Number.isFinite(state.player.hp), `Player HP NaN: ${contextMsg}`);
   assert.ok(state.player.hp >= 0 && state.player.hp <= state.player.maxHp, `Player HP out of bounds: ${state.player.hp} (${contextMsg})`);
@@ -216,13 +219,13 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad & Silent, Act 1 & Act 2, Ascension 0-5, Treasure, Boss Relics, and all 10 Events maintains all invariants', () => {
+test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad & Silent, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
   let victories = 0;
   let defeats = 0;
   let act2Entries = 0;
 
   for (let seed = 1000; seed < 1150; seed += 1) {
-    const ascension = seed % 2 === 0 ? 0 : seed % 6;
+    const ascension = seed % 2 === 0 ? 0 : (seed % 10) + 1;
     const characterId = seed % 2 === 0 ? 'silent' : 'ironclad';
     const state = createNewRun({ seed, characterId, ascension, unlockAllOverride: true });
     assertRunInvariants(state, `init ${characterId} seed ${seed}`);
@@ -366,8 +369,8 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
         if (state.bossReward.relicChoices.length > 0) {
           assert.equal(claimBossRelic(state, state.bossReward.relicChoices[0]).ok, true);
         }
-        if (seed % 3 === 0) {
-          act2Entries += 1;
+        if (seed % 3 === 0 || ((state.ascension ?? 0) >= 10 && (state.act ?? 1) < 3)) {
+          if ((state.act ?? 1) === 1) act2Entries += 1;
           assert.equal(proceedToNextAct(state).ok, true);
         } else {
           assert.equal(settleAct1Victory(state).ok, true);
@@ -397,8 +400,9 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
         if (eventId === 'shining_light') {
           assert.equal(chooseEventOption(state, state.player.hp > 20 ? 'enter_light' : 'leave').ok, true);
         } else if (eventId === 'ancient_forge') {
+          const forgeCost = (state.ascension ?? 0) >= 8 ? 40 : 30;
           const choice =
-            state.player.hp > 20 && state.player.gold >= 30 ? 'overclock_forge' : 'temper_blade';
+            state.player.hp > 20 && state.player.gold >= forgeCost ? 'overclock_forge' : 'temper_blade';
           assert.equal(chooseEventOption(state, choice).ok, true);
         } else if (eventId === 'ancient_shrine') {
           if (state.player.deck.length > 3) {
@@ -437,7 +441,8 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
                 : 'close_tome';
           assert.equal(chooseEventOption(state, choice).ok, true);
         } else if (eventId === 'potion_alchemist') {
-          const canBuy = state.player.gold >= 35 && state.player.potions.includes(null);
+          const buyGoldCost = (state.ascension ?? 0) >= 8 ? 45 : 35;
+          const canBuy = state.player.gold >= buyGoldCost && state.player.potions.includes(null);
           const choice = canBuy ? 'buy_potions' : seed % 2 === 0 ? 'drink_mutagen' : 'rob_alchemist';
           assert.equal(chooseEventOption(state, choice).ok, true);
         } else if (eventId === 'mushroom_grotto') {
@@ -458,10 +463,23 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
           } else {
             assert.equal(chooseEventOption(state, 'nap_in_library').ok, true);
           }
+        } else if (eventId === 'masked_bandits') {
+          const choice = state.player.hp > 26 ? 'fight_bandits' : 'pay_gold';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'mind_bloom') {
+          const choice =
+            state.player.maxHp >= 45
+              ? 'awake_memory'
+              : state.player.hp > 40
+                ? 'war_memory'
+                : 'rich_memory';
+          assert.equal(chooseEventOption(state, choice).ok, true);
         } else {
           assert.fail(`Unhandled event in fuzz test: ${eventId}`);
         }
-        assert.equal(continueFromEvent(state).ok, true);
+        if (state.screen === 'event') {
+          assert.equal(continueFromEvent(state).ok, true);
+        }
       }
 
       assertRunInvariants(state, `loop step ${safetySteps} seed ${seed}`);
@@ -472,7 +490,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
     else defeats += 1;
   }
 
-  // Greedy bot should win some runs, lose some runs, and enter Act 2 when reaching Boss on divisible-by-3 seeds
+  // Greedy bot should win some runs, lose some runs, and enter Act 2/Act 3 when reaching Boss on divisible-by-3 seeds
   assert.ok(victories > 0, 'Expected at least 1 victory across 150 simulated runs');
   assert.ok(defeats > 0, 'Expected at least 1 defeat across 150 simulated runs');
   assert.ok(act2Entries >= 0);

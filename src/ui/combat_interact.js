@@ -96,10 +96,13 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
   const pills = [];
   if (preview.isLethal) {
     unitEl.classList.add('preview-lethal');
-    const goldNote = preview.goldOnKill > 0 ? ` +${preview.goldOnKill}金` : '';
+    const bonusParts = [];
+    if (preview.goldOnKill > 0) bonusParts.push(`+${preview.goldOnKill}金`);
+    if (preview.maxHpOnKill > 0) bonusParts.push(`+${preview.maxHpOnKill}上限`);
+    const bonusNote = bonusParts.length > 0 ? ` ${bonusParts.join(' ')}` : '';
     const label = preview.isShieldBreak
-      ? `破盾斩杀 (-${preview.totalDamage}${goldNote})`
-      : `斩杀 (-${preview.totalDamage}${goldNote})`;
+      ? `破盾斩杀 (-${preview.totalDamage}${bonusNote})`
+      : `斩杀 (-${preview.totalDamage}${bonusNote})`;
     pills.push(`<span class="preview-pill lethal" data-preview-kind="lethal">☠ ${escapeHtml(label)}</span>`);
   } else if (preview.isPoisonLethal) {
     unitEl.classList.add('preview-poison-lethal');

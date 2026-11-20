@@ -9,7 +9,14 @@ import {
 } from '../data/cards.js';
 import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../data/enemies.js';
-import { EVENT_IDS, EVENT_LIBRARY, generateSpireMap, TOTAL_FLOORS } from '../data/events.js';
+import {
+  EVENT_IDS,
+  EVENT_LIBRARY,
+  generateSpireMap,
+  getEventIdsForAct,
+  getEventTuning,
+  TOTAL_FLOORS,
+} from '../data/events.js';
 import {
   getAvailablePotionIds,
   getRelicPoolsForCharacter,
@@ -31,6 +38,10 @@ import { nextRandom, normalizeSeed, pickDistinct, pickRandom, randomInt } from '
 
 export const STARTER_POTION_SLOTS = 3;
 
+export function getStarterPotionSlotCount(ascension = 0) {
+  return (ascension ?? 0) >= 6 ? 2 : STARTER_POTION_SLOTS;
+}
+
 let nextRunNonce = 1;
 
 function addPlayerGold(state, amount) {
@@ -47,11 +58,13 @@ export function getCurrentPurgeCost(state) {
   const base = 75 + (state?.purgeCount ?? 0) * 25;
   const ascMult = (state?.ascension ?? 0) >= 5 ? 1.15 : 1;
   const dailyMult = hasDailyModifier(state, 'hoarder_gold') ? 1.15 : 1;
-  return Math.round(base * ascMult * dailyMult);
+  const memberMult = hasRelic(state, 'membership_card') ? 0.5 : 1;
+  return Math.max(1, Math.round(base * ascMult * dailyMult * memberMult));
 }
 
 export function getCurrentBossEncounter(state) {
-  const pool = (state?.act ?? 1) >= 2 ? ENCOUNTERS.act2Boss : ENCOUNTERS.boss;
+  const act = state?.act ?? 1;
+  const pool = act >= 3 ? ENCOUNTERS.act3Boss : act >= 2 ? ENCOUNTERS.act2Boss : ENCOUNTERS.boss;
   const found = pool.find((e) => e.id === state?.bossEncounterId);
   return found || pool[0];
 }
@@ -79,6 +92,13 @@ export function grantRelicToPlayer(state, relicId) {
     state.player.maxEnergy += def.energyBonus;
     state.player.energy = state.player.maxEnergy;
   }
+  if (def.maxHpBonus) {
+    state.player.maxHp += def.maxHpBonus;
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + def.maxHpBonus);
+  }
+  if (def.healFullOnPickup) {
+    state.player.hp = state.player.maxHp;
+  }
   return true;
 }
 
@@ -97,7 +117,12 @@ export function createNewRun(options = {}) {
     : Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
   const unlockedTier = dailySpec ? 3 : options.unlockedTier ?? 3;
   const unlockAllOverride = dailySpec ? true : Boolean(options.unlockAllOverride);
-  const startingHp = ascension >= 4 ? charDef.asc4MaxHp : charDef.maxHp;
+  const startingMaxHp = ascension >= 4 ? charDef.asc4MaxHp : charDef.maxHp;
+  const startingHp =
+    ascension >= 6
+      ? Math.max(1, startingMaxHp - Math.floor(startingMaxHp * 0.1))
+      : startingMaxHp;
+  const potionSlotCount = getStarterPotionSlotCount(ascension);
 
   nextRunNonce += 1;
   const runId = `run_${Date.now().toString(36)}_${nextRunNonce}_${(seed >>> 0).toString(36)}`;
@@ -124,6 +149,8 @@ export function createNewRun(options = {}) {
     purgeCount: 0,
     rarePityBonus: 0,
     bossEncounterId: null,
+    act3BossRushStage: 1,
+    act3FirstBossId: null,
     screen: 'map',
     runOutcome: null,
     floor: 0,
@@ -133,17 +160,22 @@ export function createNewRun(options = {}) {
     lastEliteId: null,
     visitedEventIds: [],
     neowState: null,
+    relicCounters: { happy_flower: 0, incense_burner: 0 },
+    eventCombatReward: null,
     player: {
       name: charDef.name,
       artKey: charDef.artKey,
       hp: startingHp,
-      maxHp: startingHp,
+      maxHp: startingMaxHp,
       gold: charDef.startingGold ?? 99,
       maxEnergy: charDef.maxEnergy ?? 3,
       energy: charDef.maxEnergy ?? 3,
       block: 0,
       relics: [charDef.starterRelic],
-      potions: [charDef.starterPotion, null, null],
+      potions: [
+        charDef.starterPotion,
+        ...Array(Math.max(0, potionSlotCount - 1)).fill(null),
+      ],
       deck: [],
       statuses: {},
       skipStatusTick: {},
@@ -285,36 +317,104 @@ function getUnlockedPools(state) {
       common: filterRelics(charRelics.common),
       uncommon: filterRelics(charRelics.uncommon),
       rare: filterRelics(charRelics.rare),
+      shop: filterRelics(charRelics.shop || []),
+      event: filterRelics(charRelics.event || []),
       boss: charRelics.boss,
+      allStandard: (charRelics.allStandard || charRelics.allNonBoss).filter(
+        (id) => !lockedRelicIds.has(id)
+      ),
       allNonBoss: charRelics.allNonBoss.filter((id) => !lockedRelicIds.has(id)),
     },
     potions: getAvailablePotionIds(characterId),
   };
 }
 
-function rollUnownedRelicId(state, source = 'elite') {
-  const { relics } = getUnlockedPools(state);
-  const unowned = (pool) => pool.filter((id) => !hasRelic(state, id));
-  const fallback = unowned(relics.allNonBoss);
-  if (fallback.length === 0) return null;
+function getEliteTierOddsForAct(act = 1) {
+  if (act >= 3) {
+    return { rare: 0.3, uncommon: 0.45, common: 0.25 };
+  }
+  if (act >= 2) {
+    return { rare: 0.22, uncommon: 0.4, common: 0.38 };
+  }
+  return { rare: 0.17, uncommon: 0.33, common: 0.5 };
+}
 
+function rollChestProfile(state) {
   const r = nextRandom(state);
-  let tierPool;
-  if (source === 'elite') {
-    if (r < 0.2) tierPool = unowned(relics.rare);
-    else if (r < 0.58) tierPool = unowned(relics.uncommon);
-    else tierPool = unowned(relics.common);
-  } else if (source === 'treasure' || source === 'shop') {
-    if (r < 0.16) tierPool = unowned(relics.rare);
-    else if (r < 0.52) tierPool = unowned(relics.uncommon);
-    else tierPool = unowned(relics.common);
-  } else {
-    if (r < 0.12) tierPool = unowned(relics.rare);
-    else if (r < 0.46) tierPool = unowned(relics.uncommon);
-    else tierPool = unowned(relics.common);
+  if (r < 0.5) {
+    return {
+      tier: 'small',
+      label: '小宝箱',
+      odds: { rare: 0, uncommon: 0.25, common: 0.75 },
+      goldRange: [24, 38],
+      goldChance: 0.5,
+    };
+  }
+  if (r < 0.83) {
+    return {
+      tier: 'medium',
+      label: '中宝箱',
+      odds: { rare: 0.15, uncommon: 0.5, common: 0.35 },
+      goldRange: [40, 65],
+      goldChance: 0.65,
+    };
+  }
+  return {
+    tier: 'large',
+    label: '大宝箱',
+    odds: { rare: 0.25, uncommon: 0.75, common: 0 },
+    goldRange: [68, 95],
+    goldChance: 0.85,
+  };
+}
+
+function rollUnownedRelicId(state, source = 'elite', tierOddsOverride = null) {
+  const { relics } = getUnlockedPools(state);
+  const unowned = (pool) => (Array.isArray(pool) ? pool.filter((id) => !hasRelic(state, id)) : []);
+
+  if (source === 'shop_exclusive') {
+    const shopPool = unowned(relics.shop);
+    return shopPool.length > 0 ? pickRandom(state, shopPool) : null;
   }
 
-  return pickRandom(state, tierPool.length > 0 ? tierPool : fallback);
+  const standardFallback = unowned(relics.allStandard);
+  if (standardFallback.length === 0) return null;
+
+  let odds = tierOddsOverride;
+  if (!odds) {
+    if (source === 'elite') {
+      odds = getEliteTierOddsForAct(state?.act ?? 1);
+    } else if (source === 'treasure' || source === 'shop') {
+      odds = { rare: 0.16, uncommon: 0.36, common: 0.48 };
+    } else {
+      odds = { rare: 0.12, uncommon: 0.34, common: 0.54 };
+    }
+  }
+
+  const r = nextRandom(state);
+  const rareCut = odds.rare ?? 0;
+  const uncommonCut = rareCut + (odds.uncommon ?? 0);
+  let tierPool;
+  if (r < rareCut) tierPool = unowned(relics.rare);
+  else if (r < uncommonCut) tierPool = unowned(relics.uncommon);
+  else tierPool = unowned(relics.common);
+
+  if (tierPool.length === 0) {
+    const orderedFallbacks =
+      r < rareCut
+        ? [unowned(relics.uncommon), unowned(relics.common)]
+        : r < uncommonCut
+          ? [unowned(relics.common), unowned(relics.rare)]
+          : [unowned(relics.uncommon), unowned(relics.rare)];
+    for (const candidatePool of orderedFallbacks) {
+      if (candidatePool.length > 0) {
+        tierPool = candidatePool;
+        break;
+      }
+    }
+  }
+
+  return pickRandom(state, tierPool.length > 0 ? tierPool : standardFallback);
 }
 
 export function rollRewardCards(state, count = 3, role = 'normal', options = {}) {
@@ -358,14 +458,18 @@ export function rollRewardCards(state, count = 3, role = 'normal', options = {})
     }
   }
 
+  const baseUpgradeChance =
+    (state.act ?? 1) >= 3
+      ? 0.5
+      : (state.act ?? 1) >= 2
+        ? 0.35
+        : state.floor >= 11
+          ? 0.22
+          : state.floor >= 5
+            ? 0.12
+            : 0;
   const upgradeChance =
-    (state.act ?? 1) >= 2
-      ? 0.35
-      : state.floor >= 11
-        ? 0.22
-        : state.floor >= 5
-          ? 0.12
-          : 0;
+    (state.ascension ?? 0) >= 7 ? baseUpgradeChance * 0.5 : baseUpgradeChance;
 
   return chosenCardIds.map((cardId) => {
     const upgraded = upgradeChance > 0 && nextRandom(state) < upgradeChance;
@@ -373,11 +477,45 @@ export function rollRewardCards(state, count = 3, role = 'normal', options = {})
   });
 }
 
+function getShopDiscountMult(state) {
+  return hasRelic(state, 'membership_card') ? 0.5 : 1;
+}
+
+export function applyShopMembershipDiscount(state) {
+  const shop = state?.shop;
+  if (!shop) return;
+  const discount = getShopDiscountMult(state);
+  for (const offer of [...(shop.cards || []), ...(shop.colorlessCards || [])]) {
+    if (offer && !offer.sold) {
+      const rawBase = offer.basePrice ?? offer.price;
+      offer.basePrice = rawBase;
+      const salePrice = offer.onSale ? Math.floor(rawBase * 0.65) : rawBase;
+      offer.price = Math.max(1, Math.round(salePrice * discount));
+    }
+  }
+  for (const ro of [shop.relicOffer, shop.shopRelicOffer]) {
+    if (ro && !ro.sold) {
+      const rawBase = ro.basePrice ?? ro.price;
+      ro.basePrice = rawBase;
+      ro.price = Math.max(1, Math.round(rawBase * discount));
+    }
+  }
+  if (shop.potionOffer && !shop.potionOffer.sold) {
+    const rawBase = shop.potionOffer.basePrice ?? shop.potionOffer.price;
+    shop.potionOffer.basePrice = rawBase;
+    shop.potionOffer.price = Math.max(1, Math.round(rawBase * discount));
+  }
+  if (!shop.purgeUsed) {
+    shop.purgeCost = getCurrentPurgeCost(state);
+  }
+}
+
 function buildShopState(state) {
   const { cards: unlockedCards, potions } = getUnlockedPools(state);
   const priceMult =
     ((state.ascension ?? 0) >= 5 ? 1.15 : 1) *
     (hasDailyModifier(state, 'hoarder_gold') ? 1.15 : 1);
+  const discount = getShopDiscountMult(state);
 
   const commonOffers = pickDistinct(state, unlockedCards.common, 3);
   const uncommonOffer = pickDistinct(state, unlockedCards.uncommon, 1);
@@ -391,28 +529,49 @@ function buildShopState(state) {
     const jitter = randomInt(state, -4, 6);
     const basePrice = Math.round(Math.max(30, stats.price + jitter) * priceMult);
     const onSale = idx === saleIndex;
+    const preDiscount = onSale ? Math.floor(basePrice * 0.65) : basePrice;
     return {
       card: instance,
-      price: onSale ? Math.floor(basePrice * 0.65) : basePrice,
+      basePrice,
+      price: Math.max(1, Math.round(preDiscount * discount)),
       onSale,
       sold: false,
     };
   });
 
   const relicId = rollUnownedRelicId(state, 'shop');
+  const relicOfferBase = relicId
+    ? Math.round((RELIC_LIBRARY[relicId].price + randomInt(state, -8, 8)) * priceMult)
+    : 0;
   const relicOffer = relicId
     ? {
         relicId,
-        price: Math.round((RELIC_LIBRARY[relicId].price + randomInt(state, -8, 8)) * priceMult),
+        basePrice: relicOfferBase,
+        price: Math.max(1, Math.round(relicOfferBase * discount)),
+        sold: false,
+      }
+    : null;
+
+  const shopRelicId = rollUnownedRelicId(state, 'shop_exclusive');
+  const shopRelicBase = shopRelicId
+    ? Math.round((RELIC_LIBRARY[shopRelicId].price + randomInt(state, -6, 6)) * priceMult)
+    : 0;
+  const shopRelicOffer = shopRelicId
+    ? {
+        relicId: shopRelicId,
+        basePrice: shopRelicBase,
+        price: Math.max(1, Math.round(shopRelicBase * discount)),
         sold: false,
       }
     : null;
 
   const potionId = pickRandom(state, potions);
+  const potionBase = potionId ? Math.round(POTION_LIBRARY[potionId].price * priceMult) : 0;
   const potionOffer = potionId
     ? {
         potionId,
-        price: Math.round(POTION_LIBRARY[potionId].price * priceMult),
+        basePrice: potionBase,
+        price: Math.max(1, Math.round(potionBase * discount)),
         sold: false,
       }
     : null;
@@ -426,10 +585,11 @@ function buildShopState(state) {
     const instance = createCardInstance(state, cardId, false);
     const stats = getCardStats(instance);
     const jitter = randomInt(state, -6, 8);
-    const price = Math.round(Math.max(60, stats.price + jitter) * priceMult);
+    const basePrice = Math.round(Math.max(60, stats.price + jitter) * priceMult);
     return {
       card: instance,
-      price,
+      basePrice,
+      price: Math.max(1, Math.round(basePrice * discount)),
       onSale: false,
       sold: false,
     };
@@ -439,6 +599,7 @@ function buildShopState(state) {
     cards,
     colorlessCards,
     relicOffer,
+    shopRelicOffer,
     potionOffer,
     purgeCost: getCurrentPurgeCost(state),
     purgeUsed: false,
@@ -447,17 +608,51 @@ function buildShopState(state) {
 
 export function transitionCombatVictory(state) {
   const role = state.combat?.role ?? 'normal';
+  const asc = state.ascension ?? 0;
   const { relics, potions } = getUnlockedPools(state);
-  const goldMult = hasDailyModifier(state, 'midas') ? 1.65 : 1;
+  const goldMult =
+    (hasDailyModifier(state, 'midas') ? 1.65 : 1) *
+    (hasRelic(state, 'golden_idol_relic') ? 1.25 : 1);
 
   if (role === 'boss') {
-    if ((state.act ?? 1) >= 2) {
+    if ((state.act ?? 1) >= 3) {
+      if (asc >= 10 && (state.act3BossRushStage ?? 1) < 2) {
+        state.act3FirstBossId = state.bossEncounterId;
+        state.act3BossRushStage = 2;
+        const remainingAct3Bosses = ENCOUNTERS.act3Boss.filter(
+          (e) => e.id !== state.bossEncounterId
+        );
+        const secondBoss = pickRandom(
+          state,
+          remainingAct3Bosses.length > 0 ? remainingAct3Bosses : ENCOUNTERS.act3Boss
+        );
+        state.bossEncounterId = secondBoss.id;
+        state.lastEncounterId = secondBoss.id;
+        const cleanSecondName = secondBoss.name.replace(/^第三幕首领：/, '');
+        const secondEncounter = {
+          ...secondBoss,
+          name: `${secondBoss.name}（终末双王 · 第 2/2 战）`,
+        };
+        startCombat(state, secondEncounter, 'boss', transitionCombatVictory);
+        if (state.combat?.logs) {
+          state.combat.logs.push({
+            turn: 1,
+            type: 'warning',
+            message: `【进阶 10 · 终末双王】首位首领已陨落！第 2 位第 3 幕首领【${cleanSecondName}】无休整降临！`,
+          });
+        }
+        return;
+      }
       state.screen = 'game_over';
       state.runOutcome = 'victory';
       return;
     }
 
-    const bossGold = Math.round(randomInt(state, 92, 115) * goldMult);
+    const actCleared = state.act ?? 1;
+    const bossGoldMult = goldMult * (asc >= 7 ? 0.75 : 1);
+    const bossGold = Math.round(
+      (actCleared >= 2 ? randomInt(state, 125, 150) : randomInt(state, 92, 115)) * bossGoldMult
+    );
     addPlayerGold(state, bossGold);
     const cardChoices = rollDistinctRareCards(state, 3);
     state.rarePityBonus = 0;
@@ -469,6 +664,7 @@ export function transitionCombatVictory(state) {
     });
     const relicChoices = pickDistinct(state, unownedBossRelics, 3);
     state.bossReward = {
+      actCleared,
       bossGold,
       cardChoices,
       cardClaimed: false,
@@ -480,14 +676,28 @@ export function transitionCombatVictory(state) {
     return;
   }
 
+  const eventRewardSpec = state.eventCombatReward || null;
+  state.eventCombatReward = null;
+
   const isElite = role === 'elite';
   const effectiveFloor = ((state.act ?? 1) - 1) * TOTAL_FLOORS + Math.max(1, state.floor || 1);
-  const baseGold = isElite
-    ? randomInt(state, 38, 50) + Math.floor(effectiveFloor * 2.2) + (hasDailyModifier(state, 'big_game_hunter') ? 35 : 0)
-    : randomInt(state, 18, 26) + Math.floor(effectiveFloor * 1.5);
-  const gold = Math.round(baseGold * goldMult);
+  const baseGold = eventRewardSpec?.gold
+    ? eventRewardSpec.gold
+    : isElite
+      ? randomInt(state, 38, 50) + Math.floor(effectiveFloor * 2.2) + (hasDailyModifier(state, 'big_game_hunter') ? 35 : 0)
+      : randomInt(state, 18, 26) + Math.floor(effectiveFloor * 1.5);
+  const combatGoldMult = goldMult * (!eventRewardSpec?.gold && asc >= 7 ? 0.85 : 1);
+  const gold = Math.round(baseGold * combatGoldMult);
 
-  const relicId = isElite ? rollUnownedRelicId(state, 'elite') : null;
+  let relicId = null;
+  if (eventRewardSpec?.relicId) {
+    relicId = !hasRelic(state, eventRewardSpec.relicId) ? eventRewardSpec.relicId : null;
+  } else if (eventRewardSpec?.relicTier === 'rare') {
+    relicId = rollUnownedRelicId(state, 'event_reward', { rare: 1, uncommon: 0, common: 0 });
+  } else if (isElite) {
+    relicId = rollUnownedRelicId(state, 'elite');
+  }
+
   const dropPotion = nextRandom(state) < (isElite ? 0.65 : 0.42);
   const potionId = dropPotion ? pickRandom(state, potions) : null;
   const cardChoices = rollRewardCards(state, 3, role);
@@ -537,19 +747,24 @@ export function selectMapNode(state, nodeId) {
   state.floor = node.floor;
   state.stats.floorsCleared = (state.stats.floorsCleared ?? 0) + 1;
 
-  const isAct2 = (state.act ?? 1) >= 2;
+  const act = state.act ?? 1;
 
   switch (node.type) {
     case 'combat': {
-      const pool = isAct2
-        ? node.floor <= 5
-          ? ENCOUNTERS.act2Early
-          : ENCOUNTERS.act2Hard
-        : node.floor <= 2
-          ? ENCOUNTERS.floor1
-          : node.floor <= 8
-            ? ENCOUNTERS.normal
-            : ENCOUNTERS.hardNormal;
+      const pool =
+        act >= 3
+          ? node.floor <= 5
+            ? ENCOUNTERS.act3Early
+            : ENCOUNTERS.act3Hard
+          : act >= 2
+            ? node.floor <= 5
+              ? ENCOUNTERS.act2Early
+              : ENCOUNTERS.act2Hard
+            : node.floor <= 2
+              ? ENCOUNTERS.floor1
+              : node.floor <= 6
+                ? ENCOUNTERS.normal
+                : ENCOUNTERS.hardNormal;
       const nonRepeat = pool.filter((e) => e.id !== state.lastEncounterId);
       const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : pool);
       state.lastEncounterId = encounter.id;
@@ -557,7 +772,8 @@ export function selectMapNode(state, nodeId) {
       return { ok: true, screen: state.screen };
     }
     case 'elite': {
-      const elitePool = isAct2 ? ENCOUNTERS.act2Elite : ENCOUNTERS.elite;
+      const elitePool =
+        act >= 3 ? ENCOUNTERS.act3Elite : act >= 2 ? ENCOUNTERS.act2Elite : ENCOUNTERS.elite;
       const nonRepeat = elitePool.filter((e) => e.id !== state.lastEliteId);
       const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : elitePool);
       state.lastEliteId = encounter.id;
@@ -566,14 +782,28 @@ export function selectMapNode(state, nodeId) {
       return { ok: true, screen: state.screen };
     }
     case 'boss': {
-      const encounter = getCurrentBossEncounter(state);
+      const baseEncounter = getCurrentBossEncounter(state);
+      const isA10Act3Twin = (state.act ?? 1) >= 3 && (state.ascension ?? 0) >= 10;
+      if (isA10Act3Twin) {
+        state.act3BossRushStage = 1;
+        state.act3FirstBossId = null;
+      }
+      const encounter = isA10Act3Twin
+        ? { ...baseEncounter, name: `${baseEncounter.name}（终末双王 · 第 1/2 战）` }
+        : baseEncounter;
       state.lastEncounterId = encounter.id;
       startCombat(state, encounter, 'boss', transitionCombatVictory);
       return { ok: true, screen: state.screen };
     }
     case 'treasure': {
+      const chestProfile = rollChestProfile(state);
       state.treasureState = {
         opened: false,
+        chestTier: chestProfile.tier,
+        chestLabel: chestProfile.label,
+        chestOdds: chestProfile.odds,
+        chestGoldRange: chestProfile.goldRange,
+        chestGoldChance: chestProfile.goldChance,
         relicId: null,
         gold: 0,
         curseCardId: null,
@@ -602,8 +832,9 @@ export function selectMapNode(state, nodeId) {
       return { ok: true, screen: state.screen };
     }
     case 'event': {
-      const unseen = EVENT_IDS.filter((id) => !state.visitedEventIds.includes(id));
-      const eventId = pickRandom(state, unseen.length > 0 ? unseen : EVENT_IDS);
+      const eligibleEvents = getEventIdsForAct(act);
+      const unseen = eligibleEvents.filter((id) => !state.visitedEventIds.includes(id));
+      const eventId = pickRandom(state, unseen.length > 0 ? unseen : eligibleEvents);
       state.visitedEventIds.push(eventId);
       state.eventState = {
         eventId,
@@ -666,8 +897,20 @@ export function openTreasureChest(state) {
   if (state.screen !== 'treasure' || !state.treasureState || state.treasureState.opened) {
     return { ok: false, reason: '当前宝箱已开启或不在宝箱界面' };
   }
-  const relicId = rollUnownedRelicId(state, 'treasure');
-  const gold = relicId ? (nextRandom(state) < 0.55 ? randomInt(state, 24, 48) : 0) : 85;
+  const ts = state.treasureState;
+  const fallbackProfile = ts.chestOdds ? null : rollChestProfile(state);
+  const chestTier = ts.chestTier || fallbackProfile.tier;
+  const chestLabel = ts.chestLabel || fallbackProfile.label;
+  const odds = ts.chestOdds || fallbackProfile.odds;
+  const goldRange = ts.chestGoldRange || fallbackProfile.goldRange;
+  const goldChance = ts.chestGoldChance ?? fallbackProfile.goldChance;
+
+  const relicId = rollUnownedRelicId(state, 'treasure', odds);
+  const gold = relicId
+    ? nextRandom(state) < goldChance
+      ? randomInt(state, goldRange[0], goldRange[1])
+      : 0
+    : 85;
 
   if (relicId) {
     grantRelicToPlayer(state, relicId);
@@ -690,13 +933,15 @@ export function openTreasureChest(state) {
     parts.push(`受【诅咒钥匙】影响，牌组加入了诅咒【${getCardStats(curseCard).name}】`);
   }
 
-  state.treasureState.opened = true;
-  state.treasureState.relicId = relicId;
-  state.treasureState.gold = gold;
-  state.treasureState.curseCardId = curseCard?.instanceId ?? null;
-  state.treasureState.outcomeText = `${parts.join('，')}！`;
+  ts.opened = true;
+  ts.chestTier = chestTier;
+  ts.chestLabel = chestLabel;
+  ts.relicId = relicId;
+  ts.gold = gold;
+  ts.curseCardId = curseCard?.instanceId ?? null;
+  ts.outcomeText = `${chestLabel}开启：${parts.join('，')}！`;
 
-  return { ok: true, relicId, gold, curseCard };
+  return { ok: true, chestTier, chestLabel, relicId, gold, curseCard };
 }
 
 export function leaveTreasureRoom(state) {
@@ -708,7 +953,7 @@ export function leaveTreasureRoom(state) {
   return { ok: true };
 }
 
-// === Boss Relic Altar & Act 2 Progression ===
+// === Boss Relic Altar & Act Progression ===
 
 export function claimBossRelic(state, relicId) {
   if (state.screen !== 'boss_reward' || !state.bossReward) {
@@ -748,11 +993,12 @@ export function proceedToNextAct(state) {
   if (state.screen !== 'boss_reward' || !state.bossReward) {
     return { ok: false, reason: '当前不在首领遗物祭坛界面' };
   }
+  const nextAct = Math.min(3, (state.act ?? 1) + 1);
   const missingHp = Math.max(0, state.player.maxHp - state.player.hp);
-  const healRatio = (state.ascension ?? 0) >= 4 ? 0.6 : 0.75;
+  const healRatio = (state.ascension ?? 0) >= 4 ? 0.65 : 0.75;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.round(missingHp * healRatio));
 
-  state.act = 2;
+  state.act = nextAct;
   state.floor = 0;
   state.currentNodeId = null;
   state.visitedEdges = [];
@@ -761,14 +1007,20 @@ export function proceedToNextAct(state) {
   state.bossReward = null;
   state.combat = null;
   state.map = generateSpireMap(state);
-  state.bossEncounterId = pickRandom(state, ENCOUNTERS.act2Boss).id;
+  const bossPool = nextAct >= 3 ? ENCOUNTERS.act3Boss : ENCOUNTERS.act2Boss;
+  state.bossEncounterId = pickRandom(state, bossPool).id;
+  state.act3BossRushStage = 1;
+  state.act3FirstBossId = null;
   state.screen = 'map';
-  return { ok: true };
+  return { ok: true, act: nextAct };
 }
 
-export function settleAct1Victory(state) {
+export function settleVictory(state) {
   if (state.screen !== 'boss_reward' || !state.bossReward) {
     return { ok: false, reason: '当前不在首领遗物祭坛界面' };
+  }
+  if ((state.ascension ?? 0) >= 10 && (state.act ?? 1) < 3) {
+    return { ok: false, reason: '进阶 10【终末双王】须通关第 3 幕并击败双首领方可凯旋！' };
   }
   state.bossReward = null;
   state.combat = null;
@@ -776,6 +1028,8 @@ export function settleAct1Victory(state) {
   state.runOutcome = 'victory';
   return { ok: true };
 }
+
+export const settleAct1Victory = settleVictory;
 
 // === Reward Actions ===
 
@@ -900,7 +1154,7 @@ export function restHeal(state) {
   if (hasRelic(state, 'coffee_dripper')) {
     return { ok: false, reason: '持有遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命' };
   }
-  const healPct = (state.ascension ?? 0) >= 4 ? 0.25 : 0.3;
+  const healPct = 0.3;
   const healAmount = Math.max(1, Math.floor(state.player.maxHp * healPct));
   const before = state.player.hp;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + healAmount);
@@ -991,7 +1245,30 @@ export function buyShopRelic(state) {
   state.player.gold -= offer.price;
   offer.sold = true;
   grantRelicToPlayer(state, offer.relicId);
-  return { ok: true };
+  if (offer.relicId === 'membership_card') {
+    applyShopMembershipDiscount(state);
+  }
+  return { ok: true, relicId: offer.relicId };
+}
+
+export function buyShopExclusiveRelic(state) {
+  if (state.screen !== 'shop' || !state.shop?.shopRelicOffer) {
+    return { ok: false, reason: '没有可购买的商店专属遗物' };
+  }
+  const offer = state.shop.shopRelicOffer;
+  if (offer.sold) {
+    return { ok: false, reason: '该商店专属遗物已售出' };
+  }
+  if (state.player.gold < offer.price) {
+    return { ok: false, reason: '金币不足' };
+  }
+  state.player.gold -= offer.price;
+  offer.sold = true;
+  grantRelicToPlayer(state, offer.relicId);
+  if (offer.relicId === 'membership_card') {
+    applyShopMembershipDiscount(state);
+  }
+  return { ok: true, relicId: offer.relicId };
 }
 
 export function buyShopPotion(state) {
@@ -1072,20 +1349,21 @@ export function chooseEventOption(state, choiceId) {
 
   state.eventState.upgradedCardIds = [];
   state.eventState.addedCardIds = [];
+  const tune = getEventTuning(state.ascension ?? 0);
 
   switch (eventDef.id) {
     case 'shining_light': {
       if (choiceId === 'enter_light') {
-        if (state.player.hp <= 12) {
-          return { ok: false, reason: '当前生命值不足（需大于 12 点）' };
+        if (state.player.hp <= tune.shiningLightHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.shiningLightHpLoss} 点）` };
         }
-        state.player.hp -= 12;
+        state.player.hp -= tune.shiningLightHpLoss;
         const { chosen, names } = upgradeRandomCardsInEvent(state, 2);
         state.eventState.resolved = true;
         state.eventState.outcomeText =
           chosen.length > 0
-            ? `失去 12 点生命，成功升级了 ${chosen.length} 张卡牌：${names}！`
-            : '失去 12 点生命，但当前牌组中已没有可升级的卡牌。';
+            ? `失去 ${tune.shiningLightHpLoss} 点生命，成功升级了 ${chosen.length} 张卡牌：${names}！`
+            : `失去 ${tune.shiningLightHpLoss} 点生命，但当前牌组中已没有可升级的卡牌。`;
         return { ok: true };
       }
       if (choiceId === 'leave') {
@@ -1107,26 +1385,26 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'overclock_forge') {
-        if (state.player.hp <= 6) {
-          return { ok: false, reason: '当前生命值不足（需大于 6 点）' };
+        if (state.player.hp <= tune.forgeOverclockHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.forgeOverclockHpLoss} 点）` };
         }
-        if (state.player.gold < 30) {
-          return { ok: false, reason: '金币不足（需至少 30 金币）' };
+        if (state.player.gold < tune.forgeOverclockGold) {
+          return { ok: false, reason: `金币不足（需至少 ${tune.forgeOverclockGold} 金币）` };
         }
-        state.player.hp -= 6;
-        state.player.gold -= 30;
+        state.player.hp -= tune.forgeOverclockHpLoss;
+        state.player.gold -= tune.forgeOverclockGold;
         const { chosen, names } = upgradeRandomCardsInEvent(state, 2);
         state.eventState.resolved = true;
         state.eventState.outcomeText =
           chosen.length > 0
-            ? `失去 6 点生命并花费 30 金币，成功升级了 ${chosen.length} 张卡牌：${names}！`
-            : '失去 6 点生命并花费 30 金币，但当前牌组中已没有可升级的卡牌。';
+            ? `失去 ${tune.forgeOverclockHpLoss} 点生命并花费 ${tune.forgeOverclockGold} 金币，成功升级了 ${chosen.length} 张卡牌：${names}！`
+            : `失去 ${tune.forgeOverclockHpLoss} 点生命并花费 ${tune.forgeOverclockGold} 金币，但当前牌组中已没有可升级的卡牌。`;
         return { ok: true };
       }
       if (choiceId === 'scavenge_slag') {
-        state.player.gold += 40;
+        state.player.gold += tune.forgeScavengeGold;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你拾取了锻台旁的精铁锭，获得 40 金币。';
+        state.eventState.outcomeText = `你拾取了锻台旁的精铁锭，获得 ${tune.forgeScavengeGold} 金币。`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -1141,7 +1419,7 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true, pendingPurge: true };
       }
       if (choiceId === 'drink_spring') {
-        const heal = Math.max(1, Math.floor(state.player.maxHp * 0.25));
+        const heal = Math.max(1, Math.floor(state.player.maxHp * (tune.shrineSpringHealPct / 100)));
         const before = state.player.hp;
         state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
         state.eventState.resolved = true;
@@ -1149,9 +1427,9 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'gather_gold') {
-        state.player.gold += 65;
+        state.player.gold += tune.shrineGatherGold;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你将石盘中的金砂收入囊中，获得 65 金币。';
+        state.eventState.outcomeText = `你将石盘中的金砂收入囊中，获得 ${tune.shrineGatherGold} 金币。`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -1159,25 +1437,25 @@ export function chooseEventOption(state, choiceId) {
 
     case 'thorn_reliquary': {
       if (choiceId === 'open_reliquary') {
-        if (state.player.hp <= 8) {
-          return { ok: false, reason: '当前生命值不足（需大于 8 点）' };
+        if (state.player.hp <= tune.thornOpenHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.thornOpenHpLoss} 点）` };
         }
-        state.player.hp -= 8;
+        state.player.hp -= tune.thornOpenHpLoss;
         const relicId = rollUnownedRelicId(state, 'event');
         if (relicId) {
           grantRelicToPlayer(state, relicId);
-          state.eventState.outcomeText = `你忍痛扯断铁刺（-8 生命），获得了遗物【${RELIC_LIBRARY[relicId].name}】！`;
+          state.eventState.outcomeText = `你忍痛扯断铁刺（-${tune.thornOpenHpLoss} 生命），获得了遗物【${RELIC_LIBRARY[relicId].name}】！`;
         } else {
           state.player.gold += 80;
-          state.eventState.outcomeText = '秘匣中已无新遗物，你取出了底层封存的 80 金币（-8 生命）。';
+          state.eventState.outcomeText = `秘匣中已无新遗物，你取出了底层封存的 80 金币（-${tune.thornOpenHpLoss} 生命）。`;
         }
         state.eventState.resolved = true;
         return { ok: true };
       }
       if (choiceId === 'take_coins') {
-        state.player.gold += 45;
+        state.player.gold += tune.thornCoinsGold;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你拾取了石台周围散落的古币，获得 45 金币。';
+        state.eventState.outcomeText = `你拾取了石台周围散落的古币，获得 ${tune.thornCoinsGold} 金币。`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -1185,22 +1463,25 @@ export function chooseEventOption(state, choiceId) {
 
     case 'golden_idol': {
       if (choiceId === 'smash_trap') {
-        if (state.player.hp <= 14) {
-          return { ok: false, reason: '当前生命值不足（需大于 14 点）' };
+        if (state.player.hp <= tune.idolSmashHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.idolSmashHpLoss} 点）` };
         }
-        state.player.hp -= 14;
-        state.player.gold += 135;
+        state.player.hp -= tune.idolSmashHpLoss;
+        state.player.gold += tune.idolSmashGold;
+        const gotIdol = grantRelicToPlayer(state, 'golden_idol_relic');
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你夺下纯金神像冲出滚石通道（-14 生命），获得 135 金币！';
+        state.eventState.outcomeText = gotIdol
+          ? `你夺下纯金神像冲出滚石通道（-${tune.idolSmashHpLoss} 生命），获得 ${tune.idolSmashGold} 金币与事件遗物【黄金神像】！`
+          : `你夺下纯金神像冲出滚石通道（-${tune.idolSmashHpLoss} 生命），获得 ${tune.idolSmashGold} 金币！`;
         return { ok: true };
       }
       if (choiceId === 'accept_curse_gold') {
-        state.player.gold += 175;
+        state.player.gold += tune.idolCurseGold;
         const curse = createCardInstance(state, 'regret', false);
         state.player.deck.push(curse);
         state.eventState.addedCardIds = [curse.instanceId];
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你收下神像与厚重金币（+175 金币），但暗影诅咒【悔恨】缠上了你的牌组！';
+        state.eventState.outcomeText = `你收下神像与厚重金币（+${tune.idolCurseGold} 金币），但暗影诅咒【悔恨】缠上了你的牌组！`;
         return { ok: true };
       }
       if (choiceId === 'leave_idol') {
@@ -1236,29 +1517,32 @@ export function chooseEventOption(state, choiceId) {
     case 'cursed_tome': {
       const { cards } = getUnlockedPools(state);
       if (choiceId === 'read_final_chapter') {
-        if (state.player.hp <= 14) {
-          return { ok: false, reason: '当前生命值不足（需大于 14 点）' };
+        if (state.player.hp <= tune.tomeFinalHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.tomeFinalHpLoss} 点）` };
         }
-        state.player.hp -= 14;
+        state.player.hp -= tune.tomeFinalHpLoss;
         const cardId = pickRandom(state, cards.rare);
         const created = createCardInstance(state, cardId, false);
         state.player.deck.push(created);
         state.eventState.addedCardIds = [created.instanceId];
+        const gotEnchiridion = grantRelicToPlayer(state, 'enchiridion');
         state.eventState.resolved = true;
-        state.eventState.outcomeText = `鲜血浸透书页（-14 生命），你领悟了稀有战技【${getCardStats(created).name}】！`;
+        state.eventState.outcomeText = gotEnchiridion
+          ? `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你领悟了稀有战技【${getCardStats(created).name}】并收获事件遗物【${RELIC_LIBRARY.enchiridion.name}】！`
+          : `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你领悟了稀有战技【${getCardStats(created).name}】！`;
         return { ok: true };
       }
       if (choiceId === 'skim_preface') {
-        if (state.player.hp <= 5) {
-          return { ok: false, reason: '当前生命值不足（需大于 5 点）' };
+        if (state.player.hp <= tune.tomeSkimHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.tomeSkimHpLoss} 点）` };
         }
-        state.player.hp -= 5;
+        state.player.hp -= tune.tomeSkimHpLoss;
         const cardId = pickRandom(state, cards.uncommon);
         const created = createCardInstance(state, cardId, false);
         state.player.deck.push(created);
         state.eventState.addedCardIds = [created.instanceId];
         state.eventState.resolved = true;
-        state.eventState.outcomeText = `你强忍魔典反噬（-5 生命），习得了罕见卡牌【${getCardStats(created).name}】！`;
+        state.eventState.outcomeText = `你强忍魔典反噬（-${tune.tomeSkimHpLoss} 生命），习得了罕见卡牌【${getCardStats(created).name}】！`;
         return { ok: true };
       }
       if (choiceId === 'close_tome') {
@@ -1271,13 +1555,13 @@ export function chooseEventOption(state, choiceId) {
 
     case 'potion_alchemist': {
       if (choiceId === 'buy_potions') {
-        if (state.player.gold < 35) {
-          return { ok: false, reason: '金币不足（需至少 35 金币）' };
+        if (state.player.gold < tune.alchemistBuyGold) {
+          return { ok: false, reason: `金币不足（需至少 ${tune.alchemistBuyGold} 金币）` };
         }
         if (findEmptyPotionSlot(state) === -1) {
           return { ok: false, reason: '药水栏已满，无法购买' };
         }
-        state.player.gold -= 35;
+        state.player.gold -= tune.alchemistBuyGold;
         const { potions } = getUnlockedPools(state);
         const gainedNames = [];
         for (let i = 0; i < state.player.potions.length; i += 1) {
@@ -1288,23 +1572,23 @@ export function chooseEventOption(state, choiceId) {
           }
         }
         state.eventState.resolved = true;
-        state.eventState.outcomeText = `花费 35 金币，获得了 ${gainedNames.join('、')}！`;
+        state.eventState.outcomeText = `花费 ${tune.alchemistBuyGold} 金币，获得了 ${gainedNames.join('、')}！`;
         return { ok: true };
       }
       if (choiceId === 'drink_mutagen') {
-        state.player.maxHp += 6;
-        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 6);
+        state.player.maxHp += tune.alchemistMutagenMaxHp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + tune.alchemistMutagenMaxHp);
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '狂野热流涌遍全身，最大生命值永久 +6 并回复了 6 点生命！';
+        state.eventState.outcomeText = `狂野热流涌遍全身，最大生命值永久 +${tune.alchemistMutagenMaxHp} 并回复了 ${tune.alchemistMutagenMaxHp} 点生命！`;
         return { ok: true };
       }
       if (choiceId === 'rob_alchemist') {
-        state.player.gold += 60;
+        state.player.gold += tune.alchemistRobGold;
         const curse = createCardInstance(state, 'doubt', false);
         state.player.deck.push(curse);
         state.eventState.addedCardIds = [curse.instanceId];
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '你席卷了 60 金币，但炼金师的怨毒咒言化作【疑虑】混入了你的牌组！';
+        state.eventState.outcomeText = `你席卷了 ${tune.alchemistRobGold} 金币，但炼金师的怨毒咒言化作【疑虑】混入了你的牌组！`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -1312,7 +1596,7 @@ export function chooseEventOption(state, choiceId) {
 
     case 'mushroom_grotto': {
       if (choiceId === 'eat_blue_cap') {
-        const heal = Math.max(1, Math.floor(state.player.maxHp * 0.35));
+        const heal = Math.max(1, Math.floor(state.player.maxHp * (tune.grottoBlueHealPct / 100)));
         const before = state.player.hp;
         state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
         const curse = createCardInstance(state, 'clumsy', false);
@@ -1323,13 +1607,13 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'refine_red_spore') {
-        if (state.player.hp <= 7) {
-          return { ok: false, reason: '当前生命值不足（需大于 7 点）' };
+        if (state.player.hp <= tune.grottoRedHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.grottoRedHpLoss} 点）` };
         }
-        state.player.hp -= 7;
-        state.player.maxHp += 5;
+        state.player.hp -= tune.grottoRedHpLoss;
+        state.player.maxHp += tune.grottoRedMaxHp;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '灼热菌核锤炼了体魄（-7 当前生命），你的最大生命值永久 +5！';
+        state.eventState.outcomeText = `灼热菌核锤炼了体魄（-${tune.grottoRedHpLoss} 当前生命），你的最大生命值永久 +${tune.grottoRedMaxHp}！`;
         return { ok: true };
       }
       if (choiceId === 'bypass_grotto') {
@@ -1349,9 +1633,89 @@ export function chooseEventOption(state, choiceId) {
       }
       if (choiceId === 'nap_in_library') {
         const before = state.player.hp;
-        state.player.hp = Math.min(state.player.maxHp, state.player.hp + 20);
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + tune.libraryNapHeal);
         state.eventState.resolved = true;
         state.eventState.outcomeText = `你在静谧书阁中沉沉睡去，醒来回复了 ${state.player.hp - before} 点生命。`;
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'masked_bandits': {
+      if (choiceId === 'pay_gold') {
+        const lostGold = state.player.gold;
+        state.player.gold = 0;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你交出了全部 ${lostGold} 枚金币买下通行权，平安甩开了蒙面强盗。`;
+        return { ok: true };
+      }
+      if (choiceId === 'fight_bandits') {
+        state.eventCombatReward = { gold: tune.banditsFightGold, relicId: 'red_mask' };
+        state.eventState = null;
+        const banditsEncounter = {
+          id: 'masked_bandits_event',
+          name: '蒙面强盗团',
+          enemies: [
+            { templateId: 'looter', customName: '赤面盗匪·尖刺' },
+            { templateId: 'slaver_blue', customName: '赤面盗匪·罗密欧' },
+          ],
+        };
+        state.lastEncounterId = banditsEncounter.id;
+        startCombat(state, banditsEncounter, 'normal', transitionCombatVictory);
+        return { ok: true, screen: state.screen, startedCombat: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'mind_bloom': {
+      if (choiceId === 'war_memory') {
+        const bossTemplateEnc = pickRandom(state, ENCOUNTERS.boss);
+        const cloneEnc = {
+          id: `mind_bloom_${bossTemplateEnc.id}`,
+          name: `心花幻影：${bossTemplateEnc.name.replace(/^终幕首领：/, '')}`,
+          enemies: bossTemplateEnc.enemies.map((e) => ({ ...e, customRole: 'normal' })),
+        };
+        state.eventCombatReward = { gold: tune.mindBloomWarGold, relicTier: 'rare' };
+        state.eventState = null;
+        state.lastEncounterId = cloneEnc.id;
+        startCombat(state, cloneEnc, 'normal', transitionCombatVictory);
+        return { ok: true, screen: state.screen, startedCombat: true };
+      }
+      if (choiceId === 'awake_memory') {
+        const lostMaxHp = Math.max(
+          1,
+          Math.floor(state.player.maxHp * (tune.mindBloomAwakeMaxHpPct / 100))
+        );
+        const nextMaxHp = Math.max(25, state.player.maxHp - lostMaxHp);
+        const actualMaxLoss = Math.max(0, state.player.maxHp - nextMaxHp);
+        state.player.maxHp = nextMaxHp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp);
+        const upgraded = [];
+        for (const c of state.player.deck) {
+          if (canUpgradeCard(c)) {
+            c.upgraded = true;
+            upgraded.push(c.instanceId);
+          }
+        }
+        state.eventState.upgradedCardIds = upgraded;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText =
+          upgraded.length > 0
+            ? `幻象灼烧灵魂（最大生命 -${actualMaxLoss}，上限 ${state.player.maxHp}），牌组中全部 ${upgraded.length} 张可升级卡牌均已飞升！`
+            : `幻象灼烧灵魂（最大生命 -${actualMaxLoss}），你的牌组本就全部达到满级。`;
+        return { ok: true };
+      }
+      if (choiceId === 'rich_memory') {
+        addPlayerGold(state, tune.mindBloomRichGold);
+        const addedIds = [];
+        for (let i = 0; i < 2; i += 1) {
+          const c = createCardInstance(state, 'doubt', false);
+          state.player.deck.push(c);
+          addedIds.push(c.instanceId);
+        }
+        state.eventState.addedCardIds = addedIds;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `黄金涌入行囊（+${tune.mindBloomRichGold} 金币），但贪婪幻念凝成 2 张【疑虑】沉入你的牌组！`;
         return { ok: true };
       }
       return { ok: false, reason: '无效的事件选项' };
@@ -1536,7 +1900,7 @@ const NEOW_MEDIUM_POOL = Object.freeze([
     tier: 'medium',
     badge: '实用增益',
     title: '填满药水腰带',
-    detail: '将所有空药水栏位装满随机药水（共 3 栏），前期迎战强敌底气更足。',
+    detail: '将当前所有空药水栏位装满随机药水，前期迎战强敌底气更足。',
   }),
 ]);
 

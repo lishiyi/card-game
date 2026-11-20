@@ -7,6 +7,7 @@ import {
   createCardInstance,
   formatCardDescription,
   formatUpgradePreview,
+  getCardCharacter,
   getCardStats,
   getEffectiveCardCost,
 } from '../src/data/cards.js';
@@ -267,7 +268,7 @@ test('Gremlin Nob Enrage reacts to Skills and Boss Guardian Mode Shift cycles Of
   bossState.combat.hand = [bludgeon, strike];
 
   playCard(bossState, bludgeon.instanceId, guardian.id);
-  assert.equal(guardian.hp, 123);
+  assert.equal(guardian.hp, 103);
   assert.equal(guardian.mode, 'defensive');
   assert.equal(guardian.block, 16);
   assert.equal(guardian.statuses.sharpHide, 3);
@@ -319,32 +320,63 @@ test('New monsters: Fungi Beast Spore Cloud, Mad Gremlin Angry, and Elite Lagavu
   assert.equal(grem.hp, 12);
   assert.equal(grem.statuses.strength, 2);
 
-  // 3. Elite Lagavulin starts with Metallicize 5 & 5 Block, gains block on Turn 1, and Siphon Soul drains -1 Str / -1 Dex on Turn 4
-  const lagaState = setupCustomCombat(838, {
+  // 3. Elite Lagavulin starts asleep (asleep: 3) with Metallicize 5 & 5 Block; natural wake after 3 turns or early wake-stun on HP loss
+  const lagaNaturalState = setupCustomCombat(838, {
     id: 'laga_test',
     name: '乐加维林测试',
     enemies: [{ templateId: 'lagavulin' }],
   });
-  const laga = lagaState.combat.enemies[0];
-  assert.equal(laga.statuses.metallicize, 5);
-  assert.equal(laga.block, 5);
-  assert.equal(laga.intent.id, 'shell_awaken');
+  const lagaNatural = lagaNaturalState.combat.enemies[0];
+  assert.equal(lagaNatural.statuses.metallicize, 5);
+  assert.equal(lagaNatural.statuses.asleep, 3);
+  assert.equal(lagaNatural.block, 5);
+  assert.equal(lagaNatural.intent.id, 'asleep_idle');
 
-  endPlayerTurn(lagaState); // Turn 1: shell_awaken (8) + metallicize (5) = 13 block; next intent claw_crush
-  assert.equal(laga.block, 13);
-  assert.equal(laga.intent.id, 'claw_crush');
+  endPlayerTurn(lagaNaturalState); // Turn 1 sleep (metallicize +5 -> 5 block; asleep 3->2)
+  assert.equal(lagaNatural.block, 5);
+  assert.equal(lagaNatural.statuses.asleep, 2);
+  assert.equal(lagaNatural.intent.id, 'asleep_idle');
 
-  lagaState.player.block = 40;
-  endPlayerTurn(lagaState); // Turn 2: claw_crush -> next intent claw_crush
-  assert.equal(laga.intent.id, 'claw_crush');
+  endPlayerTurn(lagaNaturalState); // Turn 2 sleep (asleep 2->1)
+  assert.equal(lagaNatural.statuses.asleep, 1);
+  assert.equal(lagaNatural.intent.id, 'asleep_idle');
 
-  lagaState.player.block = 40;
-  endPlayerTurn(lagaState); // Turn 3: claw_crush -> next intent siphon_soul
-  assert.equal(laga.intent.id, 'siphon_soul');
+  endPlayerTurn(lagaNaturalState); // Turn 3 sleep ends -> wakes naturally unstunned on Turn 4!
+  assert.equal(lagaNatural.statuses.asleep, undefined);
+  assert.equal(lagaNatural.statuses.metallicize, undefined);
+  assert.equal(lagaNatural.intent.id, 'claw_crush');
 
-  endPlayerTurn(lagaState); // Turn 4: siphon_soul applies -1 Strength & -1 Dexterity
-  assert.equal(lagaState.player.statuses.strength, -1);
-  assert.equal(lagaState.player.statuses.dexterity, -1);
+  lagaNaturalState.player.block = 40;
+  endPlayerTurn(lagaNaturalState); // Turn 4 claw_crush -> Turn 5 claw_crush
+  assert.equal(lagaNatural.intent.id, 'claw_crush');
+
+  lagaNaturalState.player.block = 40;
+  endPlayerTurn(lagaNaturalState); // Turn 5 claw_crush -> Turn 6 siphon_soul
+  assert.equal(lagaNatural.intent.id, 'siphon_soul');
+
+  endPlayerTurn(lagaNaturalState); // Turn 6 siphon_soul applies -1 Strength & -1 Dexterity
+  assert.equal(lagaNaturalState.player.statuses.strength, -1);
+  assert.equal(lagaNaturalState.player.statuses.dexterity, -1);
+
+  // Early wake-up by penetrating damage stuns Lagavulin for that turn!
+  const lagaWakeState = setupCustomCombat(839, {
+    id: 'laga_wake_test',
+    name: '乐加维林惊醒测试',
+    enemies: [{ templateId: 'lagavulin' }],
+  });
+  const lagaWake = lagaWakeState.combat.enemies[0];
+  const heavyStrike = createCardInstance(lagaWakeState, 'bash', false); // 8 dmg breaks 5 block -> 3 HP loss!
+  lagaWakeState.combat.hand = [heavyStrike];
+  assert.equal(playCard(lagaWakeState, heavyStrike.instanceId, lagaWake.id).ok, true);
+  assert.equal(lagaWake.statuses.asleep, undefined);
+  assert.equal(lagaWake.statuses.metallicize, undefined);
+  assert.equal(lagaWake.statuses.stunned, 1);
+  assert.equal(lagaWake.intent.id, 'stunned');
+
+  endPlayerTurn(lagaWakeState); // Stunned skips action cleanly and readies Turn 2 claw_crush
+  assert.equal(lagaWake.statuses.stunned, undefined);
+  assert.equal(lagaWakeState.player.hp, 80);
+  assert.equal(lagaWake.intent.id, 'claw_crush');
 });
 
 test('Body Slam description and execution dynamically reflect live Block + Modifiers, and Potions work accurately', () => {
@@ -512,16 +544,35 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 35);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 54);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 2);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 12);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 11);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 11);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 5);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 3);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
     10
   );
   assert.equal(Object.keys(POTION_LIBRARY).length, 12);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 92);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 129);
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
+    55
+  );
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'silent').length,
+    55
+  );
+  assert.equal(ENCOUNTERS.act2Boss.length, 3);
+  assert.equal(ENCOUNTERS.act3Boss.length, 3);
+  assert.ok(CARD_LIBRARY.wound, 'CARD_LIBRARY must include Wound status card');
   assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
   assert.ok(STATUS_METADATA.poison, 'STATUS_METADATA must include poison for The Silent');
   assert.ok(STATUS_METADATA.intangible, 'STATUS_METADATA must include intangible for Wraith Form');
+  assert.ok(STATUS_METADATA.vigor && STATUS_METADATA.buffer && STATUS_METADATA.slow);
+  assert.ok(STATUS_METADATA.timeWarp && STATUS_METADATA.curiosity && STATUS_METADATA.regenerating);
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -1379,6 +1430,618 @@ test('Shop-exclusive Colorless Cards (10): Flash of Steel, Finesse, Dramatic Ent
   assert.equal(playCard(state, finisherStrike.instanceId, e1.id).ok, true);
   assert.equal(state.stats.perfectCombats, 1);
   assert.ok(state.stats.highestSingleHit >= 20);
+});
+
+test('Priority 1 Enemies: Wound, Book of Stabbing Painful Stabs, Taskmaster, Hexaghost Divider, and The Champ Phase 1 & 2', () => {
+  // 1. Book of Stabbing starts with painfulStabs 1; unblocked hits add Wound, blocked hits do NOT; Multi-Stab scales 2 -> 3
+  const bookState = setupCustomCombat(1801, {
+    id: 'book_test',
+    name: '刺击魔典测试',
+    enemies: [{ templateId: 'book_of_stabbing' }],
+  });
+  const book = bookState.combat.enemies[0];
+  assert.equal(book.statuses.painfulStabs, 1);
+  assert.equal(book.intent.id, 'multi_stab');
+  assert.equal(book.intent.hits, 2);
+
+  bookState.player.block = 20; // fully blocks 6x2 = 12 -> 0 Wounds added!
+  endPlayerTurn(bookState);
+  assert.equal(
+    bookState.combat.discardPile.filter((c) => c.cardId === 'wound').length,
+    0,
+    'Blocked hits from Book of Stabbing must NOT add Wound cards'
+  );
+  assert.equal(book.intent.id, 'multi_stab');
+  assert.equal(book.intent.hits, 3, 'Book of Stabbing Multi-Stab must scale from 2 to 3 hits');
+
+  bookState.player.block = 8; // 6x3=18 splits: Hit1=0 lost, Hit2=4 lost (+1 Wound), Hit3=6 lost (+1 Wound) => 2 Wounds!
+  endPlayerTurn(bookState);
+  const allBookCombatCards = [
+    ...bookState.combat.hand,
+    ...bookState.combat.drawPile,
+    ...bookState.combat.discardPile,
+  ];
+  assert.equal(
+    allBookCombatCards.filter((c) => c.cardId === 'wound').length,
+    2,
+    'Each unblocked hit from Painful Stabs must add 1 Wound to player piles'
+  );
+  assert.equal(book.intent.id, 'big_stab');
+  assert.equal(book.intent.damage, 21);
+
+  // 2. Slaver Taskmaster adds Wound on Scouring Whip
+  const tmState = setupCustomCombat(1802, {
+    id: 'tm_test',
+    name: '奴隶贩子测试',
+    enemies: [{ templateId: 'slaver_taskmaster' }],
+  });
+  tmState.player.block = 20;
+  endPlayerTurn(tmState);
+  assert.equal(tmState.combat.discardPile.some((c) => c.cardId === 'wound'), true);
+
+  // 3. Hexaghost Turn 2 Divider scales dynamically with live player HP max(2, floor(hp/14)+1)
+  const hexState = setupCustomCombat(1803, {
+    id: 'hex_test',
+    name: '六火亡魂测试',
+    enemies: [{ templateId: 'hexaghost' }],
+  });
+  hexState.player.hp = 60; // Turn 2 Divider becomes max(2, floor(60/14)+1) = 5x6
+  endPlayerTurn(hexState);
+  assert.equal(hexState.combat.enemies[0].intent.id, 'divider');
+  assert.equal(hexState.combat.enemies[0].intent.damage, 5);
+  assert.equal(hexState.combat.enemies[0].intent.hits, 6);
+
+  // 4. Act 2 Boss The Champ (240 HP): in ENCOUNTERS.act2Boss, Defensive Stance caps at 2, Phase 2 Anger purges debuffs & gains +6 Str, followed immediately by Execute
+  assert.equal(ENCOUNTERS.act2Boss.some((b) => b.id === 'champ_boss'), true);
+  const champState = setupCustomCombat(1804, {
+    id: 'champ_test',
+    name: '钢铁勇士测试',
+    enemies: [{ templateId: 'the_champ' }],
+  });
+  const champ = champState.combat.enemies[0];
+  assert.equal(champ.hp, 240);
+  assert.equal(champ.champPhase, 1);
+
+  // Apply debuffs & negative strength then drop Champ <= 50% HP (120)
+  applyStatus(champ, 'vulnerable', 3);
+  applyStatus(champ, 'weak', 2);
+  applyStatus(champ, 'poison', 5);
+  applyStatus(champ, 'strength', -2);
+  champ.hp = 115;
+
+  endPlayerTurn(champState); // End of Turn 1 triggers Phase 2 transition -> Turn 2 rolls champ_anger
+  assert.equal(champ.champPhase, 2);
+  assert.equal(champ.intent.id, 'champ_anger');
+
+  endPlayerTurn(champState); // Turn 2 executes champ_anger -> purges debuffs & neg Strength, grants +6 Str, rolls champ_execute!
+  assert.equal(champ.statuses.vulnerable, undefined);
+  assert.equal(champ.statuses.weak, undefined);
+  assert.equal(champ.statuses.poison, undefined);
+  assert.equal(champ.statuses.strength, 6);
+  assert.equal(champ.intent.id, 'champ_execute');
+  assert.equal(champ.intent.damage, 7);
+  assert.equal(champ.intent.hits, 2);
+
+  champState.player.block = 50;
+  const beforeExecHp = champState.player.hp;
+  endPlayerTurn(champState); // Execute deals (7+6)*2 = 26 -> 50 block absorbs all, next turn is NOT immediate Execute (step advances)
+  assert.equal(champState.player.hp, beforeExecHp);
+  assert.notEqual(champ.intent.id, 'champ_execute');
+});
+
+test('Priority 1 Cards: New Ironclad & Silent card mechanics and Tactics previews execute accurately', () => {
+  // === IRONCLAD ===
+  // 1. Evolve + Fire Breathing + Wild Strike + Power Through + Wound
+  const s1 = setupCustomCombat(1901, ENCOUNTERS.floor1[0]);
+  const e1 = s1.combat.enemies[0];
+  e1.hp = 80;
+  e1.block = 0;
+  s1.player.energy = 10;
+  s1.combat.drawPile = [
+    createCardInstance(s1, 'strike', false),
+    createCardInstance(s1, 'defend', false),
+  ];
+  const evolve = createCardInstance(s1, 'evolve', false);
+  const fireBr = createCardInstance(s1, 'fire_breathing', false);
+  const pwrThrough = createCardInstance(s1, 'power_through', false);
+  const wildStrike = createCardInstance(s1, 'wild_strike', false);
+  s1.combat.hand = [evolve, fireBr, pwrThrough, wildStrike];
+
+  assert.equal(playCard(s1, evolve.instanceId).ok, true);
+  assert.equal(playCard(s1, fireBr.instanceId).ok, true);
+  assert.equal(playCard(s1, pwrThrough.instanceId).ok, true);
+  assert.equal(s1.player.block, 15);
+  assert.equal(s1.combat.hand.filter((c) => c.cardId === 'wound').length, 2);
+  // Put only a Wound on top of drawPile, followed by Strike & Burn to verify Evolve+Fire Breathing trigger!
+  s1.combat.drawPile = [
+    createCardInstance(s1, 'wound', false),
+    createCardInstance(s1, 'strike', false),
+    createCardInstance(s1, 'defend', false),
+  ];
+  const pommel = createCardInstance(s1, 'pommel_strike', false);
+  s1.combat.hand = [pommel];
+  const hpBeforeFb = e1.hp;
+  assert.equal(playCard(s1, pommel.instanceId, e1.id).ok, true); // 9 dmg + draws Wound -> Fire Breathing (6 dmg) + Evolve (draws Strike)
+  assert.equal(e1.hp, hpBeforeFb - 9 - 6);
+  assert.equal(s1.combat.hand.some((c) => c.cardId === 'strike'), true);
+
+  // Wild Strike shuffles a Wound into drawPile & cannot play Wound
+  const e1BeforeWild = e1.hp;
+  s1.combat.drawPile = [];
+  s1.combat.hand = [wildStrike];
+  assert.equal(playCard(s1, wildStrike.instanceId, e1.id).ok, true);
+  assert.equal(e1.hp, e1BeforeWild - 12);
+  assert.equal(s1.combat.drawPile.some((c) => c.cardId === 'wound'), true);
+  const woundCard = createCardInstance(s1, 'wound', false);
+  s1.combat.hand = [woundCard];
+  assert.equal(playCard(s1, woundCard.instanceId).ok, false);
+
+  // 2. Clash, Perfected Strike (self + other strikes parity), Sword Boomerang, Hemokinesis+Rupture, Dropkick, Spot Weakness, Disarm+Sadistic, Limit Break, Feed, Immolate, Juggernaut
+  const s2 = setupCustomCombat(1902, ENCOUNTERS.hardNormal[0]); // keep multi-target or single strong enemy
+  const target = s2.combat.enemies[0];
+  target.hp = 120;
+  target.maxHp = 120;
+  target.block = 0;
+  target.intent = { id: 'hit', name: '重击', type: 'attack', damage: 10, hits: 1 };
+  s2.player.energy = 20;
+
+  const clash = createCardInstance(s2, 'clash', false);
+  const blockCard = createCardInstance(s2, 'defend', false);
+  s2.combat.hand = [clash, blockCard];
+  assert.equal(playCard(s2, clash.instanceId, target.id).ok, false, 'Clash cannot play with non-attack in hand');
+  s2.combat.hand = [clash];
+  assert.equal(playCard(s2, clash.instanceId, target.id).ok, true);
+  assert.equal(target.hp, 120 - 14);
+
+  // Perfected Strike: 2 strikes in hand/piles + perfected_strike itself => 3 strikes -> 6 + 2*3 = 12 dmg (matches tactics preview!)
+  target.block = 0; // clear Curl Up block triggered by Clash
+  const pStrike = createCardInstance(s2, 'perfected_strike', false);
+  s2.combat.hand = [pStrike, createCardInstance(s2, 'strike', false)];
+  s2.combat.drawPile = [createCardInstance(s2, 'pommel_strike', false)];
+  s2.combat.discardPile = [];
+  const psPreview = previewCardDamageOnEnemy(s2, pStrike, target);
+  assert.equal(psPreview.totalDamage, 12);
+  const hpBeforePs = target.hp;
+  assert.equal(playCard(s2, pStrike.instanceId, target.id).ok, true);
+  assert.equal(hpBeforePs - target.hp, psPreview.totalDamage);
+
+  // Rupture + Hemokinesis -> +1 Str from card HP loss, then Spot Weakness (+3 Str on attack intent), then Limit Break (doubles 4 -> 8 Str!)
+  const rupture = createCardInstance(s2, 'rupture', false);
+  const hemo = createCardInstance(s2, 'hemokinesis', false);
+  const spot = createCardInstance(s2, 'spot_weakness', false);
+  const limitBr = createCardInstance(s2, 'limit_break', false);
+  s2.combat.hand = [rupture, hemo, spot, limitBr];
+  const hpBeforeHemo = s2.player.hp;
+  assert.equal(playCard(s2, rupture.instanceId).ok, true);
+  assert.equal(playCard(s2, hemo.instanceId, target.id).ok, true);
+  assert.equal(s2.player.hp, hpBeforeHemo - 2);
+  assert.equal(s2.player.statuses.strength, 1);
+  assert.equal(playCard(s2, spot.instanceId, target.id).ok, true);
+  assert.equal(s2.player.statuses.strength, 4);
+  assert.equal(playCard(s2, limitBr.instanceId).ok, true);
+  assert.equal(s2.player.statuses.strength, 8);
+  assert.equal(s2.combat.exhaustPile.some((c) => c.cardId === 'limit_break'), true);
+
+  // Limit Break+ does NOT exhaust
+  const limitBrPlus = createCardInstance(s2, 'limit_break', true);
+  s2.combat.hand = [limitBrPlus];
+  assert.equal(playCard(s2, limitBrPlus.instanceId).ok, true);
+  assert.equal(s2.player.statuses.strength, 16);
+  assert.equal(s2.combat.discardPile.some((c) => c.instanceId === limitBrPlus.instanceId), true);
+
+  // Dropkick on Vulnerable enemy refunds 1 Energy + draws 1 even if Dropkick kills! + Sadistic Nature + Disarm + Immolate + Sword Boomerang + Juggernaut + Feed
+  const s3 = setupCustomCombat(1903, {
+    id: 'ironclad_combo_test',
+    name: '力量收割测试',
+    enemies: [{ templateId: 'jaw_worm' }],
+  });
+  const e3 = s3.combat.enemies[0];
+  e3.hp = 60;
+  e3.maxHp = 60;
+  e3.block = 0;
+  s3.player.energy = 10;
+  const sad = createCardInstance(s3, 'sadistic_nature', false); // 5 dmg per debuff
+  const disarm = createCardInstance(s3, 'disarm', false); // -2 Str + triggers Sadistic Nature!
+  const jugg = createCardInstance(s3, 'juggernaut', false); // 5 dmg on block
+  const defend = createCardInstance(s3, 'defend', false);
+  const boom = createCardInstance(s3, 'sword_boomerang', false); // 3x3 = 9
+  const immo = createCardInstance(s3, 'immolate', false); // 21 AoE + Burn into discardPile
+  s3.combat.hand = [sad, disarm, jugg, defend, boom, immo];
+  assert.equal(playCard(s3, sad.instanceId).ok, true);
+  assert.equal(playCard(s3, disarm.instanceId, e3.id).ok, true);
+  assert.equal(e3.statuses.strength, -2);
+  assert.equal(e3.hp, 55, 'Disarm negative strength must trigger Sadistic Nature for 5 damage');
+  assert.equal(playCard(s3, jugg.instanceId).ok, true);
+  assert.equal(playCard(s3, defend.instanceId).ok, true);
+  assert.equal(e3.hp, 50, 'Juggernaut must deal 5 damage when Defend grants block');
+  assert.equal(playCard(s3, boom.instanceId).ok, true);
+  assert.equal(e3.hp, 41);
+  assert.equal(playCard(s3, immo.instanceId).ok, true);
+  assert.equal(e3.hp, 20);
+  assert.equal(s3.combat.discardPile.some((c) => c.cardId === 'burn'), true);
+
+  // Test Feed lethal preview & +3 MaxHP gain + Dropkick energy/draw refund
+  applyStatus(e3, 'vulnerable', 1); // Dropkick 5*1.5=7, Feed 10*1.5=15 -> drops 20 HP enemy to 13 then killed by Feed!
+  s3.combat.drawPile = [createCardInstance(s3, 'strike', false)];
+  const dropkick = createCardInstance(s3, 'dropkick', false);
+  const feed = createCardInstance(s3, 'feed', true); // +4 MaxHP on kill, 12*1.5 = 18
+  s3.combat.hand = [dropkick, feed];
+  const energyBeforeDrop = s3.player.energy;
+  assert.equal(playCard(s3, dropkick.instanceId, e3.id).ok, true);
+  assert.equal(s3.player.energy, energyBeforeDrop, 'Dropkick (cost 1) on Vulnerable refunds 1 net energy');
+  assert.equal(s3.combat.hand.some((c) => c.cardId === 'strike'), true, 'Dropkick on Vulnerable draws 1 card');
+  e3.hp = 15; // Feed+ (12 * 1.5 = 18) is lethal!
+  const feedPreview = previewCardDamageOnEnemy(s3, feed, e3);
+  assert.equal(feedPreview.isLethal, true);
+  assert.equal(feedPreview.maxHpOnKill, 4);
+  const maxHpBefore = s3.player.maxHp;
+  const hpBeforeFeed = s3.player.hp;
+  assert.equal(playCard(s3, feed.instanceId, e3.id).ok, true);
+  assert.equal(s3.player.maxHp, maxHpBefore + 4);
+  assert.equal(s3.player.hp, Math.min(s3.player.maxHp, hpBeforeFeed + 4));
+
+  // === SILENT ===
+  // 3. Flying Knee, Dodge and Roll, Blur, Escape Plan, Piercing Wail, Terror, Caltrops, Glass Knife, Burst + Catalyst, Malaise, Alchemize
+  const silState = setupCustomCombat(1904, {
+    id: 'silent_p1_test',
+    name: '猎手进阶测试',
+    enemies: [{ templateId: 'jaw_worm' }],
+  });
+  const se = silState.combat.enemies[0];
+  se.hp = 120;
+  se.maxHp = 120;
+  se.block = 0;
+  silState.player.energy = 15;
+  silState.player.potions = [null, null, null];
+
+  // Glass Knife decays 12->10 after play without touching master deck
+  const gk = createCardInstance(silState, 'glass_knife', false); // 8x2 = 16
+  silState.combat.hand = [gk];
+  assert.equal(playCard(silState, gk.instanceId, se.id).ok, true);
+  assert.equal(se.hp, 120 - 16);
+  assert.equal(getCardStats(gk).damage, 6, 'Glass Knife must lose 2 base damage per play');
+
+  // Escape Plan draws a Skill -> gains 3 Block; drawing Attack -> gains 0 Block
+  silState.combat.drawPile = [createCardInstance(silState, 'defend', false)];
+  const ep1 = createCardInstance(silState, 'escape_plan', false);
+  silState.combat.hand = [ep1];
+  assert.equal(playCard(silState, ep1.instanceId).ok, true);
+  assert.equal(silState.player.block, 3);
+
+  // Flying Knee (+1 energy next turn) + Dodge and Roll (next turn block) + Blur (keeps block) + Piercing Wail (-6 Str temp) + Caltrops (Thorns)
+  const knee = createCardInstance(silState, 'flying_knee', false);
+  const dodge = createCardInstance(silState, 'dodge_and_roll', false);
+  const blur = createCardInstance(silState, 'blur', false);
+  const wail = createCardInstance(silState, 'piercing_wail', false);
+  const caltrops = createCardInstance(silState, 'caltrops', false);
+  const alchemize = createCardInstance(silState, 'alchemize', false);
+  silState.combat.hand = [knee, dodge, blur, wail, caltrops, alchemize];
+  assert.equal(playCard(silState, knee.instanceId, se.id).ok, true);
+  assert.equal(playCard(silState, dodge.instanceId).ok, true);
+  assert.equal(playCard(silState, blur.instanceId).ok, true);
+  assert.equal(playCard(silState, wail.instanceId).ok, true);
+  assert.equal(se.statuses.strength, -6);
+  assert.equal(playCard(silState, caltrops.instanceId).ok, true);
+  assert.equal(silState.player.statuses.thorns, 3);
+  assert.equal(playCard(silState, alchemize.instanceId).ok, true);
+  assert.ok(silState.player.potions[0], 'Alchemize must brew a potion into empty slot');
+
+  const carriedBlock = silState.player.block; // 3 (Escape Plan) + 4 (Dodge) + 5 (Blur) = 12
+  se.intent = { id: 'bite', name: '啮咬', type: 'attack', damage: 8, hits: 1 };
+  const seHpBeforeAttack = se.hp;
+  endPlayerTurn(silState);
+  // Enemy dealt max(0, 8-6)=2 -> fully blocked by 12 -> 10 remaining carried by Blur + 4 from nextTurnBlock = 14!
+  assert.equal(silState.player.block, carriedBlock - 2 + 4, 'Blur must preserve remaining block + Dodge adds nextTurnBlock');
+  assert.equal(silState.player.energy, silState.player.maxEnergy + 1, 'Flying Knee energized must add +1 energy');
+  assert.equal(se.statuses.strength, undefined, 'Piercing Wail temp Strength loss must restore at end of enemy turn');
+  assert.equal(se.hp, seHpBeforeAttack - 3, 'Caltrops Thorns must retaliate when enemy attacks');
+
+  // Burst + Catalyst doubles Poison TWICE & tactics preview matches! + Malaise permanent -Str & Weak
+  const burst = createCardInstance(silState, 'burst', false);
+  const cat = createCardInstance(silState, 'catalyst', false);
+  applyStatus(se, 'poison', 3);
+  silState.combat.hand = [burst, cat];
+  assert.equal(playCard(silState, burst.instanceId).ok, true);
+  assert.equal(silState.player.statuses.burst, 1);
+  const burstCatPreview = previewCardDamageOnEnemy(silState, cat, se);
+  assert.equal(burstCatPreview.projectedPoison, 12, 'Burst + Catalyst must preview 3 -> 6 -> 12 Poison');
+  assert.equal(playCard(silState, cat.instanceId, se.id).ok, true);
+  assert.equal(se.statuses.poison, 12);
+
+  // Malaise X-cost + Terror + Concentrate discard
+  const malaise = createCardInstance(silState, 'malaise', true); // X+1 permanent -Str & Weak
+  silState.player.energy = 2;
+  silState.combat.hand = [malaise];
+  assert.equal(playCard(silState, malaise.instanceId, se.id).ok, true);
+  assert.equal(se.statuses.strength, -3);
+  assert.equal(se.statuses.weak, 3);
+  assert.equal(silState.player.energy, 0);
+
+  const terror = createCardInstance(silState, 'terror', false);
+  const conc = createCardInstance(silState, 'concentrate', false);
+  silState.combat.hand = [
+    terror,
+    conc,
+    createCardInstance(silState, 'defend', false),
+    createCardInstance(silState, 'strike', false),
+    createCardInstance(silState, 'survivor', false),
+    createCardInstance(silState, 'deflect', false),
+  ];
+  assert.equal(playCard(silState, terror.instanceId, se.id).ok, false, 'Unupgraded Terror costs 1 energy');
+  silState.player.energy = 1;
+  assert.equal(playCard(silState, terror.instanceId, se.id).ok, true);
+  assert.equal(se.statuses.vulnerable, 99);
+  assert.equal(playCard(silState, conc.instanceId).ok, true);
+  assert.equal(silState.player.energy, 2);
+  assert.equal(silState.combat.pendingDiscard.remaining, 3);
+});
+
+test('19 New Tiered Relics: MaxHP/Waffle, Akabeko, Happy Flower, Incense Burner, Fan, Red Skull, Mummified Hand, Helix, Calipers, Chemical X, Medical Kit, Orange Pellets, Red Mask, and Enchiridion', () => {
+  // 1. MaxHP relics + Lee's Waffle full heal
+  const hpState = createNewRun({ seed: 7101, skipNeow: true });
+  hpState.player.hp = 40;
+  assert.equal(grantRelicToPlayer(hpState, 'strawberry'), true); // +7 maxHp & +7 hp
+  assert.equal(grantRelicToPlayer(hpState, 'pear'), true); // +10 maxHp & +10 hp
+  assert.equal(grantRelicToPlayer(hpState, 'mango'), true); // +14 maxHp & +14 hp
+  assert.equal(hpState.player.maxHp, 80 + 7 + 10 + 14);
+  assert.equal(hpState.player.hp, 40 + 7 + 10 + 14);
+  assert.equal(grantRelicToPlayer(hpState, 'lees_waffle'), true); // +7 maxHp & full heal
+  assert.equal(hpState.player.maxHp, 80 + 7 + 10 + 14 + 7);
+  assert.equal(hpState.player.hp, hpState.player.maxHp);
+
+  // 2. Akabeko (Vigor 8) + Fossilized Helix (Buffer 1) + Red Mask (all Weak 1) + Red Skull (+3 Str <=50% HP) + Medical Kit + Calipers + Mummified Hand + Orange Pellets + Enchiridion
+  const relState = createNewRun({ seed: 7102, skipNeow: true });
+  relState.player.hp = 35; // <= 50% of 80 -> activates Red Skull (+3 Str)
+  for (const rId of [
+    'akabeko',
+    'fossilized_helix',
+    'red_mask',
+    'red_skull',
+    'medical_kit',
+    'calipers',
+    'mummified_hand',
+    'orange_pellets',
+    'enchiridion',
+    'ornamental_fan',
+    'happy_flower',
+    'incense_burner',
+    'chemical_x',
+  ]) {
+    grantRelicToPlayer(relState, rId);
+  }
+  startCombat(
+    relState,
+    {
+      id: 'new_relic_arena',
+      name: '新遗物综合演武',
+      enemies: [{ templateId: 'jaw_worm' }],
+    },
+    'normal'
+  );
+  const foe = relState.combat.enemies[0];
+  foe.hp = 200;
+  foe.maxHp = 200;
+  foe.block = 0;
+
+  assert.equal(relState.player.statuses.vigor, 8, 'Akabeko starts combat with 8 Vigor');
+  assert.equal(relState.player.statuses.buffer, 1, 'Fossilized Helix starts combat with 1 Buffer');
+  assert.equal(relState.player.statuses.strength, 3, 'Red Skull activates +3 Strength at <=50% HP');
+  assert.equal(foe.statuses.weak, 1, 'Red Mask applies 1 Weak to all enemies on combat start');
+  assert.equal(
+    relState.combat.hand.some((c) => getCardStats(c).type === 'power' && getEffectiveCardCost(getCardStats(c), relState.player, relState.combat) === 0),
+    true,
+    'Enchiridion adds a 0-cost Power card on Turn 1'
+  );
+
+  // First Attack uses Vigor 8 + Red Skull 3 (+11 total) -> Strike = 17, then Vigor is consumed
+  const strike1 = createCardInstance(relState, 'strike', false);
+  const strike2 = createCardInstance(relState, 'strike', false);
+  const strike3 = createCardInstance(relState, 'strike', false);
+  const defend1 = createCardInstance(relState, 'defend', false);
+  const power1 = createCardInstance(relState, 'inflame', false);
+  const wound1 = createCardInstance(relState, 'wound', false);
+  const cleave1 = createCardInstance(relState, 'cleave', false);
+  relState.player.energy = 10;
+  relState.combat.hand = [strike1, strike2, strike3, defend1, power1, wound1, cleave1];
+
+  // Medical Kit lets Wound play at 0 cost & exhaust!
+  const woundEffCost = getEffectiveCardCost(getCardStats(wound1), relState.player, relState.combat);
+  assert.equal(woundEffCost, 0, 'Medical Kit makes Wound 0 cost');
+  assert.equal(playCard(relState, wound1.instanceId).ok, true);
+  assert.equal(relState.combat.exhaustPile.some((c) => c.instanceId === wound1.instanceId), true);
+
+  // Chemical X preview + execution on Whirlwind (+2 hits)
+  const whirl = createCardInstance(relState, 'whirlwind', false); // 5 base dmg X times (+2 from Chemical X)
+  relState.combat.hand.push(whirl);
+  const whirlSyn = computeCardSynergies(relState, whirl, foe.id);
+  assert.ok(whirlSyn.callouts.some((c) => c.text.includes('化学物X')));
+  const whirlPreview = previewCardDamageOnEnemy(relState, whirl, foe);
+  assert.equal(whirlPreview.hits, relState.player.energy + 2);
+
+  // Play Attack -> consumes Vigor 8!
+  const hpBeforeStrike = foe.hp;
+  assert.equal(playCard(relState, strike1.instanceId, foe.id).ok, true);
+  assert.equal(foe.hp, hpBeforeStrike - 17, 'Akabeko (+8) + Red Skull (+3) + Strike (6) = 17 dmg');
+  assert.equal(relState.player.statuses.vigor, undefined, 'Vigor must clear after first Attack');
+
+  // Play 2 more Attacks -> Ornamental Fan triggers (+4 Block on 3rd Attack)
+  const blockBefore3rdAtk = relState.player.block;
+  assert.equal(playCard(relState, strike2.instanceId, foe.id).ok, true);
+  assert.equal(playCard(relState, strike3.instanceId, foe.id).ok, true);
+  assert.equal(relState.player.block, blockBefore3rdAtk + 4, 'Ornamental Fan grants +4 Block per 3 Attacks');
+
+  // Mummified Hand turns nonzero hand card to 0 cost THIS turn when Power is played + Orange Pellets clears debuffs on Attack+Skill+Power
+  applyStatus(relState.player, 'vulnerable', 2);
+  applyStatus(relState.player, 'confused', 1);
+  assert.equal(playCard(relState, defend1.instanceId).ok, true); // Skill played
+  // Put only one nonzero-cost card (cleave1) in hand alongside Inflame
+  const bashTemp = createCardInstance(relState, 'bash', false);
+  relState.combat.hand = [power1, bashTemp];
+  assert.equal(playCard(relState, power1.instanceId).ok, true); // Power played -> Mummified Hand + Orange Pellets!
+  assert.equal(relState.player.statuses.vulnerable, undefined, 'Orange Pellets clears debuffs');
+  assert.equal(relState.player.statuses.confused, undefined, 'Orange Pellets clears Confused');
+  assert.equal(
+    getEffectiveCardCost(getCardStats(bashTemp), relState.player, relState.combat),
+    0,
+    'Mummified Hand makes random hand card cost 0 this turn'
+  );
+
+  // Buffer absorbs lethal 25 dmg hit -> 0 HP lost, Calipers retains (block - 15) at next turn start
+  relState.player.block = 25;
+  foe.intent = { id: 'big_hit', name: '重砸', type: 'attack', damage: 0, hits: 1 };
+  const hpBeforeTurn = relState.player.hp;
+  assert.equal(endPlayerTurn(relState).ok, true); // Turn 2 starts: Calipers loses 15 (25 -> 10 kept) & Bash temp zero-cost cleared in discard
+  assert.equal(relState.player.block, 10, 'Calipers must retain (25 - 15) = 10 Block');
+  assert.equal(bashTemp.combatCost, undefined, 'Mummified Hand 0-cost must revert after turn ends');
+  assert.equal(relState.player.hp, hpBeforeTurn);
+
+  // Turn 3 -> Happy Flower counter reaches 3 (next = 0) -> +1 Energy!
+  foe.intent = { id: 'idle_hit', name: '攻击', type: 'attack', damage: 18, hits: 1 };
+  relState.player.block = 0; // Unblocked 18 dmg triggers Fossilized Helix Buffer!
+  assert.equal(endPlayerTurn(relState).ok, true); // Turn 3 starts!
+  assert.equal(relState.player.hp, hpBeforeTurn, 'Buffer must completely negate 18 unblocked damage');
+  assert.equal(relState.player.statuses.buffer, undefined, 'Buffer consumes 1 stack on absorption');
+  assert.equal(relState.player.energy, relState.player.maxEnergy + 1, 'Happy Flower grants +1 Energy on Turn 3');
+
+  // Red Skull deactivates when HP heals above 50%
+  relState.player.hp = 70;
+  relState.player.potions[0] = 'regen_potion'; // healPct -> triggers syncRedSkullStatus
+  assert.equal(usePotion(relState, 0).ok, true);
+  assert.equal(relState.player.statuses.strength, 2, 'Red Skull -3 removes its +3 (only Inflame +2 remains)');
+
+  // Incense Burner triggers on Turn 6 (turns 4, 5, 6) -> +1 Intangible
+  for (let t = 0; t < 3; t += 1) {
+    foe.intent = { id: 'poke', name: '轻击', type: 'attack', damage: 1, hits: 1 };
+    endPlayerTurn(relState);
+  }
+  assert.equal(relState.player.statuses.intangible, 1, 'Incense Burner must grant 1 Intangible every 6 turns');
+});
+
+test('Act 3 Enemies, Elites, and Bosses: Spiker Thorns, Exploder, Repulsor, Giant Head Slow, Nemesis Intangible, Reptomancer, Time Eater, Awakened One Rebirth, and Donu/Deca', () => {
+  // 1. Spiker Thorns + Exploder countdown/selfDestruct + Repulsor draw-pile Dazed
+  const normalAct3 = createNewRun({ seed: 7201, skipNeow: true });
+  startCombat(normalAct3, ENCOUNTERS.act3Hard[0], 'normal'); // spiker, exploder, repulsor
+  const spiker = normalAct3.combat.enemies.find((e) => e.templateId === 'spiker');
+  const exploder = normalAct3.combat.enemies.find((e) => e.templateId === 'exploder');
+  const repulsor = normalAct3.combat.enemies.find((e) => e.templateId === 'repulsor');
+  assert.ok(spiker && exploder && repulsor);
+  assert.ok((spiker.statuses.thorns ?? 0) >= 3);
+  const strike = createCardInstance(normalAct3, 'strike', false);
+  normalAct3.combat.hand = [strike];
+  normalAct3.player.block = 0;
+  const hpBeforeSpikerHit = normalAct3.player.hp;
+  assert.equal(playCard(normalAct3, strike.instanceId, spiker.id).ok, true);
+  assert.equal(normalAct3.player.hp, hpBeforeSpikerHit - spiker.statuses.thorns, 'Spiker Thorns must damage attacker');
+
+  // Force Exploder selfDestruct & Repulsor addDrawCards
+  exploder.intent = { id: 'explode', name: '引爆', type: 'attack', damage: 15, hits: 1, selfDestruct: true };
+  repulsor.intent = { id: 'repulse', name: '斥力', type: 'debuff', addDrawCards: [{ cardId: 'dazed', count: 2 }] };
+  spiker.intent = { id: 'spike_wait', name: '蓄力', type: 'buff', applySelfStatuses: { thorns: 2 } };
+  normalAct3.player.block = 20;
+  normalAct3.combat.drawPile = [];
+  endPlayerTurn(normalAct3);
+  assert.equal(exploder.hp, 0, 'Exploder must die after selfDestruct');
+  assert.ok(
+    normalAct3.combat.hand.filter((c) => c.cardId === 'dazed').length +
+      normalAct3.combat.drawPile.filter((c) => c.cardId === 'dazed').length >=
+      2,
+    'Repulsor addDrawCards must shuffle Dazed into draw pile'
+  );
+
+  // 2. Giant Head Slow + Nemesis alternating Intangible + Reptomancer Dagger cap
+  const eliteAct3 = createNewRun({ seed: 7202, skipNeow: true });
+  startCombat(eliteAct3, { id: 'a3_elites', name: 'Act3精英合测', enemies: [{ templateId: 'giant_head' }, { templateId: 'nemesis' }, { templateId: 'reptomancer' }] }, 'elite');
+  const gh = eliteAct3.combat.enemies.find((e) => e.templateId === 'giant_head');
+  const nem = eliteAct3.combat.enemies.find((e) => e.templateId === 'nemesis');
+  const repto = eliteAct3.combat.enemies.find((e) => e.templateId === 'reptomancer');
+  assert.equal(gh.statuses.slow, 1);
+  assert.equal(gh.slowStacks, 0);
+  assert.equal(nem.statuses.intangible ?? 0, 0, 'Nemesis is not Intangible on Turn 1');
+
+  // Play 2 zero-cost skills -> Giant Head slowStacks increments to 2 (+20% attack dmg) -> 10 dmg becomes 12
+  const sA = createCardInstance(eliteAct3, 'deflect', false);
+  const sB = createCardInstance(eliteAct3, 'deflect', false);
+  const cleaveTest = createCardInstance(eliteAct3, 'strike', true); // 9 dmg -> *1.2 = 10 dmg
+  eliteAct3.combat.hand = [sA, sB, cleaveTest];
+  eliteAct3.player.energy = 5;
+  playCard(eliteAct3, sA.instanceId);
+  playCard(eliteAct3, sB.instanceId);
+  assert.equal(gh.slowStacks, 2);
+  assert.equal(calculateAttackDamage(10, eliteAct3.player, gh), 12);
+
+  // Reptomancer Turn 0 summons 2 daggers; cap at 4 alive even if summoned multiple times
+  repto.intent = { id: 'repto_summon', name: '召唤', type: 'buff', summonMinions: 'dagger', summonCount: 2 };
+  endPlayerTurn(eliteAct3);
+  assert.equal(eliteAct3.combat.enemies.filter((e) => e.templateId === 'dagger' && e.hp > 0).length, 2);
+  assert.equal(nem.statuses.intangible, 1, 'Nemesis gains 1 Intangible entering Turn 2');
+  assert.equal(gh.slowStacks, 0, 'Giant Head slowStacks resets at turn start');
+  // Intangible reduces 100 damage against Nemesis to 1
+  const bludgeon = createCardInstance(eliteAct3, 'bludgeon', false);
+  eliteAct3.combat.hand = [bludgeon];
+  eliteAct3.player.energy = 5;
+  const nemHpT2 = nem.hp;
+  playCard(eliteAct3, bludgeon.instanceId, nem.id);
+  assert.equal(nem.hp, nemHpT2 - 1, 'Nemesis Intangible must reduce massive hit to 1');
+
+  // 3. Time Eater Time Warp (12 cards -> force end turn +2 Str) & Time Haste heal-to-50%
+  const teState = createNewRun({ seed: 7203, skipNeow: true });
+  startCombat(teState, ENCOUNTERS.act3Boss[0], 'boss'); // Time Eater
+  const te = teState.combat.enemies[0];
+  assert.equal(te.statuses.timeWarp, 12);
+  te.hp = Math.floor(te.maxHp / 2) - 10; // below 50% -> triggers pendingHaste after round
+  const cards12 = Array.from({ length: 12 }, () => createCardInstance(teState, 'deflect', false));
+  teState.combat.hand = [...cards12];
+  teState.player.energy = 3;
+  // Play 11 -> Turn stays on player
+  for (let i = 0; i < 11; i += 1) {
+    assert.equal(playCard(teState, cards12[i].instanceId).ok, true);
+  }
+  assert.equal(te.statuses.timeWarp, 1);
+  assert.equal(teState.combat.turn, 1);
+  // Play 12th card -> Time Warp triggers, +2 Str, resets to 12, forces endPlayerTurn (Turn advances to 2!)
+  assert.equal(playCard(teState, cards12[11].instanceId).ok, true);
+  assert.equal(te.statuses.timeWarp, 12);
+  assert.equal(te.statuses.strength, 2);
+  assert.equal(teState.combat.turn, 2, '12th card must force-end player turn to Turn 2');
+  assert.equal(te.intent.id, 'time_haste', 'Half HP Time Eater queues time_haste');
+  endPlayerTurn(teState);
+  assert.equal(te.hp, Math.floor(te.maxHp / 2), 'Time Haste must heal Time Eater to 50% Max HP');
+
+  // 4. Awakened One Curiosity + Phase 1 -> 2 Rebirth + Regenerating
+  const awState = createNewRun({ seed: 7204, skipNeow: true });
+  startCombat(awState, ENCOUNTERS.act3Boss[1], 'boss'); // Awakened One
+  const aw = awState.combat.enemies[0];
+  const infl = createCardInstance(awState, 'inflame', false);
+  awState.combat.hand = [infl];
+  awState.player.energy = 3;
+  playCard(awState, infl.instanceId);
+  assert.equal(aw.statuses.strength, aw.statuses.curiosity, 'Awakened One Curiosity grants Strength on Power play');
+  aw.hp = 5;
+  aw.block = 0;
+  awState.combat.hand = [createCardInstance(awState, 'strike', false)];
+  playCard(awState, awState.combat.hand[0].instanceId, aw.id);
+  assert.equal(aw.unawakened, false, 'Phase 1 kill must trigger Rebirth into Phase 2');
+  assert.equal(aw.hp, aw.maxHp);
+  assert.equal(awState.combat.status, 'ongoing', 'Combat continues into Phase 2 after Rebirth');
+  assert.equal(aw.statuses.curiosity, undefined, 'Curiosity is removed in Phase 2');
+  assert.ok((aw.statuses.regenerating ?? 0) > 0, 'Phase 2 gains Regenerating');
+  aw.hp = 100;
+  endPlayerTurn(awState);
+  assert.ok(aw.hp > 100, 'Regenerating heals Awakened One at end of enemy turn');
+
+  // 5. Donu & Deca dual boss team buff & team block
+  const ddState = createNewRun({ seed: 7205, skipNeow: true });
+  startCombat(ddState, ENCOUNTERS.act3Boss[2], 'boss');
+  const donu = ddState.combat.enemies.find((e) => e.templateId === 'donu');
+  const deca = ddState.combat.enemies.find((e) => e.templateId === 'deca');
+  assert.ok(donu && deca);
+  donu.intent = { id: 'circle_of_power', name: '力量法阵', type: 'buff', applyAllEnemiesStatuses: { strength: 3 } };
+  deca.intent = { id: 'square_of_protection', name: '守护方阵', type: 'defend', allEnemiesBlock: 14, block: 14 };
+  endPlayerTurn(ddState);
+  assert.equal(donu.statuses.strength, 3);
+  assert.equal(deca.statuses.strength, 3);
+  assert.equal(donu.block, 14);
+  assert.equal(deca.block, 14, 'Deca must not double-count allEnemiesBlock + block');
 });
 
 

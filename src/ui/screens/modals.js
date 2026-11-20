@@ -311,6 +311,11 @@ function renderMetaModal({ state, meta, ui }) {
             </button>
           </div>
           <div class="ascension-grid">${ascensionButtonsHtml}</div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+            <button type="button" id="btn-start-ascension-run-bottom" class="btn-brass" data-action="start-ascension-run">
+              以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
+            </button>
+          </div>
         </div>
 
         <div class="meta-section">
@@ -754,7 +759,9 @@ function renderHelpModal({ ui }) {
 }
 
 function renderMapModal({ state }) {
-  const isAct2 = (state.act ?? 1) >= 2;
+  const act = state.act ?? 1;
+  const actLabel =
+    act >= 3 ? '第三幕 · 深渊圣殿地图' : act >= 2 ? '第二幕 · 钢铁城邦地图' : '第一幕 · 尖塔攀登地图';
   const bossName = getCurrentBossName(state);
   const floorNum = Math.max(1, state.floor || 1);
 
@@ -764,7 +771,7 @@ function renderMapModal({ state }) {
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading">
-              ${isAct2 ? '第二幕 · 钢铁城邦地图' : '第一幕 · 尖塔攀登地图'}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(TOTAL_FLOORS)} 层）
+              ${actLabel}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(TOTAL_FLOORS)} 层）
             </h2>
             <p class="stage-subtitle">
               只读路线预览：随时查看当前所在位置、已攀登足迹与后续分支，第 ${escapeHtml(TOTAL_FLOORS)} 层首领为【${escapeHtml(bossName)}】。关闭后直接返回当前房间。
@@ -850,6 +857,35 @@ export function renderModal({ state, meta, settings, ui }) {
   }
 
   if (!state) return '';
+
+  if (ui.modal === 'confirm_new_run') {
+    const curAct = state.act ?? 1;
+    const curFloor = Math.max(0, state.floor ?? 0);
+    const curCharName = state.player?.name || getCharacterDef(state.characterId).name;
+    const relicCount = state.player?.relics?.length ?? 0;
+    const deckCount = state.player?.deck?.length ?? 0;
+    return `
+      <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="new-run-confirm-desc">
+        <div class="modal-sheet modal-confirm-sheet" id="confirm-new-run-modal">
+          <div class="modal-header">
+            <div>
+              <h2 id="modal-title" class="stage-heading" style="color: var(--accent-brass);">离开当前对局？</h2>
+              <p id="new-run-confirm-desc" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);line-height:1.55;">
+                你正处于一局进行中的冒险，前往角色选择界面后，仍可点击顶部「继续当前对局」随时回来。确认暂离并前往选角 / 开新局吗？
+              </p>
+            </div>
+          </div>
+          <div class="challenge-current-save-note">
+            当前对局：<strong>${escapeHtml(curCharName)}</strong> · 第 ${escapeHtml(curAct)} 幕 F${escapeHtml(curFloor)} · 生命 <strong>${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}</strong> · 金币 ${escapeHtml(state.player.gold)} · 遗物 ${escapeHtml(relicCount)} 件 · 牌组 ${escapeHtml(deckCount)} 张
+          </div>
+          <div class="confirm-actions">
+            <button type="button" id="btn-cancel-new-run" class="btn-stone" data-action="close-modal">继续当前对局 (Esc)</button>
+            <button type="button" id="btn-confirm-new-run" class="btn-brass" data-action="confirm-new-run">前往选择角色 / 开启新局 →</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   if (ui.modal === 'map') {
     return renderMapModal({ state });

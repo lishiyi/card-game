@@ -2144,16 +2144,23 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     assert.equal(silentHudAudit.potionTitle, '剧毒药水');
     assert.ok(silentHudAudit.neowBossSwap.includes('蛇之戒指'), `Expected Silent Boss Swap text, got: ${silentHudAudit.neowBossSwap}`);
 
-    // Click HUD "切换角色 / 新开局" -> verifies active run is preserved behind "← 返回当前对局"
+    // Click HUD "新的一局" -> opens confirmation modal -> Cancel keeps active run -> Confirm opens Character Select with "继续当前对局"
     const resumeAudit = await cdp.evaluate(`(() => {
       document.getElementById('btn-new-run').click();
+      const hasConfirmModal = Boolean(document.getElementById('confirm-new-run-modal'));
+      document.getElementById('btn-cancel-new-run').click();
+      const stayedOnMapAfterCancel = Boolean(document.getElementById('map-node-f1_c0')) && !document.getElementById('confirm-new-run-modal');
+      document.getElementById('btn-new-run').click();
+      document.getElementById('btn-confirm-new-run').click();
       const onCharSelect = Boolean(document.getElementById('character-select-screen'));
       const hasResumeBtn = Boolean(document.getElementById('btn-resume-active-run'));
       document.getElementById('btn-resume-active-run').click();
       const resumedMap = Boolean(document.getElementById('map-node-f1_c0'));
       const stillSilent = window.__SPIRE_APP__.getState().characterId === 'silent';
-      return { onCharSelect, hasResumeBtn, resumedMap, stillSilent };
+      return { hasConfirmModal, stayedOnMapAfterCancel, onCharSelect, hasResumeBtn, resumedMap, stillSilent };
     })()`);
+    assert.equal(resumeAudit.hasConfirmModal, true);
+    assert.equal(resumeAudit.stayedOnMapAfterCancel, true);
     assert.equal(resumeAudit.onCharSelect, true);
     assert.equal(resumeAudit.hasResumeBtn, true);
     assert.equal(resumeAudit.resumedMap, true);
@@ -2795,6 +2802,14 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
 
       const hudRect = document.querySelector('.top-hud')?.getBoundingClientRect();
       const gearScroll = document.querySelector('.hud-gear-scroll');
+      const potionStrip = document.querySelector('.potion-strip');
+      const potionSlots = [...document.querySelectorAll('.potion-strip .potion-slot')];
+      const allPotionsVisibleInViewport =
+        potionSlots.length >= 2 &&
+        potionSlots.every((btn) => {
+          const r = btn.getBoundingClientRect();
+          return r.width > 0 && r.left >= 0 && r.right <= window.innerWidth;
+        });
       const mobileBar = document.getElementById('mobile-hand-bar');
 
       return {
@@ -2802,6 +2817,10 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
         innerWidth: window.innerWidth,
         hudHeight: Math.round(hudRect?.height ?? 999),
         gearOverflowX: gearScroll ? getComputedStyle(gearScroll).overflowX : '',
+        gearScrollLeft: gearScroll ? gearScroll.scrollLeft : -1,
+        potionsInsideGearScroll: gearScroll ? Boolean(gearScroll.querySelector('.potion-strip')) : true,
+        allPotionsVisibleInViewport,
+        potionStripPresent: Boolean(potionStrip),
         mobileBarVisible: mobileBar ? getComputedStyle(mobileBar).display !== 'none' : false,
         logDisplayBefore,
         logDisplayAfter,
@@ -2816,6 +2835,14 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       `Compact mobile HUD with 6 relics should stay compact (<=170px), got ${mobileCombatBaseAudit.hudHeight}px`
     );
     assert.equal(mobileCombatBaseAudit.gearOverflowX, 'auto');
+    assert.equal(mobileCombatBaseAudit.potionsInsideGearScroll, false, 'Potions must NOT share horizontal scroll container with relics');
+    assert.equal(mobileCombatBaseAudit.potionStripPresent, true);
+    assert.equal(mobileCombatBaseAudit.gearScrollLeft, 0);
+    assert.equal(
+      mobileCombatBaseAudit.allPotionsVisibleInViewport,
+      true,
+      'All potion slots must be immediately visible in 390px mobile viewport without scrolling relics'
+    );
     assert.equal(mobileCombatBaseAudit.mobileBarVisible, true);
     assert.equal(mobileCombatBaseAudit.logDisplayBefore, 'none');
     assert.notEqual(mobileCombatBaseAudit.logDisplayAfter, 'none');
@@ -2978,6 +3005,429 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
         Buffer.from(shot.data, 'base64')
       );
     }
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('Real Chromium E2E: New-Run Confirmation, Tiered Chests, Dual Shop Relics + Membership Card Live Discount, Act 2->3 Altar & Act 3 Boss UI (Desktop + Mobile)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    // 1. Resolve Neow Blessing, enter F9 Treasure Chest via DOM click, and enter Shop -> verify dual relic slots & Membership Card 50% live discount
+    const shopTreasureAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      document.getElementById('neow-choice-0').click();
+      if (document.getElementById('neow-action-modal')) {
+        const pick = document.querySelector('#neow-action-modal [data-action="complete-neow-action"]');
+        if (pick) pick.click();
+      }
+      const st = app.getState();
+      st.player.gold = 600;
+
+      // Enter F9 Treasure Chest -> check chest tier badge
+      const f9 = st.map[8][0];
+      st.currentNodeId = st.map[7].find((n) => n.nextIds.includes(f9.id)).id;
+      app.render();
+      document.getElementById('map-node-' + f9.id).click();
+      const chestBadgeText = document.querySelector('#treasure-heading .chest-tier-badge')?.textContent?.trim() || '';
+
+      // Enter a Shop node via real DOM click -> verify both #btn-buy-relic and #btn-buy-shop-relic and live 50% discount!
+      const shopNode = st.map.flat().find((n) => n.type === 'shop');
+      st.screen = 'map';
+      st.currentNodeId =
+        shopNode.floor === 1
+          ? null
+          : st.map[shopNode.floor - 2].find((n) => n.nextIds.includes(shopNode.id)).id;
+      app.render();
+      document.getElementById('map-node-' + shopNode.id).click();
+
+      st.shop.shopRelicOffer = { relicId: 'membership_card', basePrice: 150, price: 150, sold: false };
+      app.render();
+      const hasGeneralRelicBtn = Boolean(document.getElementById('btn-buy-relic'));
+      const hasShopRelicBtn = Boolean(document.getElementById('btn-buy-shop-relic'));
+      const shopRelicText = document.getElementById('btn-buy-shop-relic')?.textContent || '';
+      const genPriceBefore = st.shop.relicOffer.price;
+      const purgePriceBefore = st.shop.purgeCost;
+      document.getElementById('btn-buy-shop-relic').click();
+      const hasMemberBadge = Boolean(document.querySelector('.shop-member-badge'));
+      const genPriceAfter = st.shop.relicOffer.price;
+      const purgePriceAfter = st.shop.purgeCost;
+      return {
+        chestBadgeText,
+        hasGeneralRelicBtn,
+        hasShopRelicBtn,
+        shopRelicHasLabel: shopRelicText.includes('[商店专属]'),
+        hasMemberBadge,
+        genPriceHalved: genPriceAfter <= Math.ceil(genPriceBefore * 0.5) + 1,
+        purgePriceHalved: purgePriceAfter <= Math.ceil(purgePriceBefore * 0.5) + 1,
+      };
+    })()`);
+    assert.ok(['小宝箱', '中宝箱', '大宝箱'].includes(shopTreasureAudit.chestBadgeText));
+    assert.equal(shopTreasureAudit.hasGeneralRelicBtn, true);
+    assert.equal(shopTreasureAudit.hasShopRelicBtn, true);
+    assert.equal(shopTreasureAudit.shopRelicHasLabel, true);
+    assert.equal(shopTreasureAudit.hasMemberBadge, true);
+    assert.equal(shopTreasureAudit.genPriceHalved, true);
+    assert.equal(shopTreasureAudit.purgePriceHalved, true);
+
+    // 2. Act 2 Boss Altar -> proceed to Act 3 -> Act 3 Map, Medical Kit playable Wound, Time Eater SVG, Happy Flower counter HUD, Game Over skips confirmation
+    const act3UiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.act = 2;
+      st.bossReward = {
+        actCleared: 2,
+        bossGold: 135,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+        relicChoices: ['sozu', 'velvet_choker', 'astrolabe'],
+        pickedRelicId: null,
+      };
+      st.screen = 'boss_reward';
+      app.render();
+      const hasAct3Btn = Boolean(document.getElementById('btn-proceed-act3'));
+      const hasSettleAct2Btn = Boolean(document.getElementById('btn-settle-act2'));
+      document.getElementById('btn-proceed-act3').click();
+
+      const afterProceedAct = app.getState().act;
+      const act3MapTitle = document.getElementById('map-heading')?.textContent?.trim() || '';
+
+      // Equip Medical Kit, Happy Flower, Red Mask, then enter Act 3 Boss via DOM click
+      const s2 = app.getState();
+      s2.player.relics.push('medical_kit', 'happy_flower', 'red_mask');
+      s2.bossEncounterId = 'time_eater_boss';
+      const bossNode = s2.map[15][0];
+      s2.currentNodeId = s2.map[14].find((n) => n.nextIds.includes(bossNode.id)).id;
+      app.render();
+      document.getElementById('map-node-' + bossNode.id).click();
+
+      const cState = app.getState();
+      cState.nextUid = (cState.nextUid ?? 100) + 1;
+      const wId = 'e2e_wound_' + cState.nextUid;
+      cState.combat.hand.push({ instanceId: wId, cardId: 'wound', upgraded: false });
+      app.render();
+
+      const woundEl = document.getElementById('hand-card-' + wId);
+      const woundPlayable = Boolean(woundEl && !woundEl.disabled && woundEl.textContent.includes('医疗箱'));
+      const hasHappyCounter = Boolean(document.querySelector('[data-relic-id="happy_flower"] .relic-counter-pill'));
+      const hasShopTierClass = Boolean(document.querySelector('.relic-badge.tier-shop'));
+      const hasEventTierClass = Boolean(document.querySelector('.relic-badge.tier-event'));
+      const hasBossSvg = Boolean(document.querySelector('.enemy-side .unit-figure svg'));
+
+      // Check map modal heading displays Act 3
+      document.getElementById('btn-open-map').click();
+      const mapModalTitle = document.getElementById('modal-title')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal').click();
+
+      // Game Over #btn-restart-gameover goes straight to character select WITHOUT confirm modal
+      cState.runOutcome = 'victory';
+      cState.screen = 'game_over';
+      app.render();
+      const goTitle = document.getElementById('gameover-heading')?.textContent?.trim() || '';
+      document.getElementById('btn-restart-gameover').click();
+      const bypassedConfirmOnGameOver = Boolean(document.getElementById('character-select-screen')) && !document.getElementById('confirm-new-run-modal');
+
+      return {
+        hasAct3Btn,
+        hasSettleAct2Btn,
+        afterProceedAct,
+        act3MapTitle,
+        woundPlayable,
+        hasHappyCounter,
+        hasShopTierClass,
+        hasEventTierClass,
+        hasBossSvg,
+        mapModalTitle,
+        goTitle,
+        bypassedConfirmOnGameOver,
+      };
+    })()`);
+
+    assert.equal(act3UiAudit.hasAct3Btn, true);
+    assert.equal(act3UiAudit.hasSettleAct2Btn, true);
+    assert.equal(act3UiAudit.afterProceedAct, 3);
+    assert.ok(act3UiAudit.act3MapTitle.includes('第三幕 · 深渊圣殿'));
+    assert.equal(act3UiAudit.woundPlayable, true, 'Medical Kit must render Wound as playable in hand');
+    assert.equal(act3UiAudit.hasHappyCounter, true, 'Happy Flower must show counter pill in HUD');
+    assert.equal(act3UiAudit.hasShopTierClass, true, 'Shop relics must use .tier-shop badge');
+    assert.equal(act3UiAudit.hasEventTierClass, true, 'Event relics must use .tier-event badge');
+    assert.equal(act3UiAudit.hasBossSvg, true);
+    assert.ok(act3UiAudit.mapModalTitle.includes('第三幕 · 深渊圣殿'));
+    assert.ok(act3UiAudit.goTitle.includes('三幕终极登顶'));
+    assert.equal(act3UiAudit.bypassedConfirmOnGameOver, true);
+
+    // 3. Mobile 390x844 check for Confirm New Run modal (after starting a fresh run from Character Select)
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-new-run').click();
+      const modalOk = Boolean(document.getElementById('confirm-new-run-modal'));
+      const rect = document.getElementById('confirm-new-run-modal').getBoundingClientRect();
+      return {
+        modalOk,
+        fitsViewport: rect.width <= 390 && document.documentElement.scrollWidth <= window.innerWidth,
+      };
+    })()`);
+    assert.equal(mobileAudit.modalOk, true);
+    assert.equal(mobileAudit.fitsViewport, true);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged start & 2 potion slots, A8 dynamic events, and A10 Act 3 Twin Boss UI)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Unlock all via Meta modal and inspect Character Select A6 & A10 vitals + mobile fit
+    await cdp.evaluate(`document.getElementById('btn-open-meta').click()`);
+    await cdp.evaluate(`document.getElementById('btn-unlock-all-meta').click()`);
+    const metaAudit = await cdp.evaluate(`({
+      btnCount: document.querySelectorAll('.ascension-btn').length,
+      hasA6: Boolean(document.getElementById('btn-select-ascension-6')),
+      hasA10: Boolean(document.getElementById('btn-select-ascension-10')),
+      a10Disabled: document.getElementById('btn-select-ascension-10')?.disabled ?? true,
+    })`);
+    assert.equal(metaAudit.btnCount, 11);
+    assert.equal(metaAudit.hasA6, true);
+    assert.equal(metaAudit.hasA10, true);
+    assert.equal(metaAudit.a10Disabled, false);
+    await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
+
+    await cdp.evaluate(`document.getElementById('btn-char-asc-6').click()`);
+    const charA6Audit = await cdp.evaluate(`({
+      pillCount: document.querySelectorAll('.char-asc-pill').length,
+      ironHpText: document.querySelector('#char-card-ironclad .vital-hp')?.textContent?.trim() || '',
+      silentHpText: document.querySelector('#char-card-silent .vital-hp')?.textContent?.trim() || '',
+      ironLabelText: document.querySelector('#char-card-ironclad .char-stat-label')?.textContent?.trim() || '',
+    })`);
+    assert.equal(charA6Audit.pillCount, 11);
+    assert.equal(charA6Audit.ironLabelText, '起始/最大生命');
+    assert.equal(charA6Audit.ironHpText, '68/75');
+    assert.equal(charA6Audit.silentHpText, '59/65');
+
+    // Mobile 390x844 check on Character Select with 11 ascension pills
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileCharAudit = await cdp.evaluate(`({
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+      dockFit: document.querySelector('.character-launch-dock').getBoundingClientRect().width <= 390,
+    })`);
+    assert.ok(mobileCharAudit.scrollW <= mobileCharAudit.innerW, `Overflow on mobile char select: ${mobileCharAudit.scrollW} > ${mobileCharAudit.innerW}`);
+    assert.equal(mobileCharAudit.dockFit, true);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    // 2. Select A10 -> Start Ironclad run -> Verify A6 damaged HP (68/75), 2 potion slots, and A5 Clumsy
+    await cdp.evaluate(`document.getElementById('btn-char-asc-10').click()`);
+    await cdp.evaluate(`document.getElementById('btn-start-character-run').click()`);
+    const a10StartAudit = await cdp.evaluate(`({
+      asc: window.__SPIRE_APP__.getState().ascension,
+      hp: window.__SPIRE_APP__.getState().player.hp,
+      maxHp: window.__SPIRE_APP__.getState().player.maxHp,
+      potionSlots: document.querySelectorAll('.potion-slot').length,
+      ascPill: document.getElementById('hud-ascension-pill')?.textContent?.trim() || '',
+      hasClumsy: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'clumsy'),
+    })`);
+    assert.equal(a10StartAudit.asc, 10);
+    assert.equal(a10StartAudit.hp, 68);
+    assert.equal(a10StartAudit.maxHp, 75);
+    assert.equal(a10StartAudit.potionSlots, 2);
+    assert.equal(a10StartAudit.ascPill, '进阶 10');
+    assert.equal(a10StartAudit.hasClumsy, true);
+
+    // 3. Verify A8 Event screen shows scaled 16 HP penalty & enforces it in UI
+    const a8EventAudit = await cdp.evaluate(`(() => {
+      const s = window.__SPIRE_APP__.getState();
+      s.neowState = null;
+      s.screen = 'event';
+      s.eventState = {
+        eventId: 'shining_light',
+        resolved: false,
+        pendingPurge: false,
+        pendingCardAction: null,
+        libraryChoices: null,
+        outcomeText: '',
+        upgradedCardIds: [],
+        addedCardIds: [],
+      };
+      window.__SPIRE_APP__.render();
+      const detail = document.querySelector('#event-choice-enter_light .choice-detail')?.textContent?.trim() || '';
+      document.getElementById('event-choice-enter_light').click();
+      return {
+        detail,
+        hpAfter: window.__SPIRE_APP__.getState().player.hp,
+        outcome: window.__SPIRE_APP__.getState().eventState.outcomeText,
+      };
+    })()`);
+    assert.ok(a8EventAudit.detail.includes('失去 16 点生命'), `Expected A8 detail, got ${a8EventAudit.detail}`);
+    assert.equal(a8EventAudit.hpAfter, 52);
+    assert.ok(a8EventAudit.outcome.includes('失去 16 点生命'));
+
+    // 4. Verify A10 disables Act 2 early settle and transitions live from Act 3 Boss 1/2 to Boss 2/2 -> Victory
+    const a10BossAudit = await cdp.evaluate(`(() => {
+      const s = window.__SPIRE_APP__.getState();
+      s.act = 2;
+      s.floor = 16;
+      s.bossEncounterId = 'automaton_boss';
+      s.screen = 'boss_reward';
+      s.bossReward = {
+        actCleared: 2,
+        bossGold: 100,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+        relicChoices: ['sozu'],
+        pickedRelicId: null,
+      };
+      window.__SPIRE_APP__.render();
+      const settleDisabled = document.getElementById('btn-settle-act2')?.disabled ?? false;
+      document.getElementById('btn-proceed-act3').click();
+
+      const sAct3 = window.__SPIRE_APP__.getState();
+      sAct3.bossEncounterId = 'time_eater_boss';
+      const bossNode = sAct3.map[15][0];
+      sAct3.floor = 15;
+      sAct3.currentNodeId = sAct3.map[14][0].id;
+      window.__SPIRE_APP__.render();
+      document.getElementById('map-node-' + bossNode.id).click();
+
+      const boss1Banner = document.getElementById('combat-banner')?.textContent?.trim() || '';
+      const boss1Id = window.__SPIRE_APP__.getState().bossEncounterId;
+      // Put a Strike+ in hand and defeat Boss 1 via card play
+      const st = window.__SPIRE_APP__.getState();
+      st.combat.enemies.forEach((e) => {
+        e.hp = 1;
+        e.block = 0;
+      });
+      st.combat.hand = [{ instanceId: 'e2e_strike_1', cardId: 'strike', upgraded: true }];
+      st.player.energy = 3;
+      window.__SPIRE_APP__.render();
+      document.getElementById('hand-card-e2e_strike_1').click();
+
+      const afterBoss1State = window.__SPIRE_APP__.getState();
+      const boss2Banner = document.getElementById('combat-banner')?.textContent?.trim() || '';
+      const boss2Id = afterBoss1State.bossEncounterId;
+      const rushStageAfter1 = afterBoss1State.act3BossRushStage;
+
+      // Defeat Boss 2 cleanly via AoE Cleave+ card play (handles both Donu/Deca & Awakened One rebirth)
+      afterBoss1State.combat.enemies.forEach((e) => {
+        e.hp = 1;
+        e.block = 0;
+        e.unawakened = false;
+      });
+      afterBoss1State.combat.hand = [{ instanceId: 'e2e_cleave_2', cardId: 'cleave', upgraded: true }];
+      afterBoss1State.player.energy = 3;
+      window.__SPIRE_APP__.render();
+      document.getElementById('hand-card-e2e_cleave_2').click();
+
+      return {
+        settleDisabled,
+        boss1Banner,
+        boss1Id,
+        rushStageAfter1,
+        boss2Banner,
+        boss2Id,
+        finalScreen: window.__SPIRE_APP__.getState().screen,
+        finalOutcome: window.__SPIRE_APP__.getState().runOutcome,
+        bossesSlain: window.__SPIRE_APP__.getState().stats.bossesSlain,
+      };
+    })()`);
+
+    assert.equal(a10BossAudit.settleDisabled, true);
+    assert.ok(a10BossAudit.boss1Banner.includes('终末双王 · 第 1/2 战'), `Got banner: ${a10BossAudit.boss1Banner}`);
+    assert.equal(a10BossAudit.rushStageAfter1, 2);
+    assert.notEqual(a10BossAudit.boss2Id, a10BossAudit.boss1Id);
+    assert.ok(a10BossAudit.boss2Banner.includes('终末双王 · 第 2/2 战'), `Got boss2 banner: ${a10BossAudit.boss2Banner}`);
+    assert.equal(a10BossAudit.finalScreen, 'game_over');
+    assert.equal(a10BossAudit.finalOutcome, 'victory');
+    assert.equal(a10BossAudit.bossesSlain, 2);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

@@ -106,7 +106,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'smash_trap',
         label: '硬抗机关夺宝',
-        detail: '获得 135 金币，但被滚石擦伤失去 14 点生命。',
+        detail: '获得 135 金币与事件遗物【黄金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 14 点生命。',
       },
       {
         id: 'accept_curse_gold',
@@ -230,9 +230,153 @@ export const EVENT_LIBRARY = deepFreeze({
       },
     ],
   },
+  masked_bandits: {
+    id: 'masked_bandits',
+    title: '蒙面强盗团',
+    minAct: 2,
+    description:
+      '几名戴着猩红面罩的盗匪从阴影中蜂拥而出，堵住了去路：“把钱袋交出来，或者尝尝我们的刀刃！”',
+    options: [
+      {
+        id: 'pay_gold',
+        label: '交出全部金币买路',
+        detail: '失去当前全部金币，安全离开。',
+      },
+      {
+        id: 'fight_bandits',
+        label: '迎战蒙面强盗团',
+        detail: '击败强盗团后固定获得 75 金币与事件遗物【红面具】（战斗开场使全体敌人获得 1 层虚弱）。',
+      },
+    ],
+  },
+  mind_bloom: {
+    id: 'mind_bloom',
+    title: '心花怒放',
+    minAct: 3,
+    description:
+      '深渊圣殿的腐朽壁画前，一朵洁白却令人不安的幻象之花悄然绽放，向你低语三种扭曲的愿景。',
+    options: [
+      {
+        id: 'war_memory',
+        label: '「我即战争」：迎战第 1 幕首领幻影',
+        detail: '立即与一位第 1 幕首领展开死斗，获胜固定奖励 100 金币与 1 件稀有遗物。',
+      },
+      {
+        id: 'awake_memory',
+        label: '「我即清醒」：灵魂升华',
+        detail: '升级牌组中全部可升级的卡牌，但永久失去 15% 最大生命（最低保留 25 点）。',
+      },
+      {
+        id: 'rich_memory',
+        label: '「我即富足」：索取贪婪宝库',
+        detail: '获得 450 金币，但将 2 张【疑虑】诅咒加入你的牌组。',
+      },
+    ],
+  },
 });
 
 export const EVENT_IDS = Object.freeze(Object.keys(EVENT_LIBRARY));
+
+export function getEventIdsForAct(act = 1) {
+  const safeAct = Math.max(1, Number(act) || 1);
+  return EVENT_IDS.filter((id) => (EVENT_LIBRARY[id]?.minAct ?? 1) <= safeAct);
+}
+
+export function getEventTuning(ascension = 0) {
+  const isA8 = (ascension ?? 0) >= 8;
+  return {
+    isA8,
+    shiningLightHpLoss: isA8 ? 16 : 12,
+    forgeOverclockHpLoss: isA8 ? 9 : 6,
+    forgeOverclockGold: isA8 ? 40 : 30,
+    forgeScavengeGold: isA8 ? 35 : 40,
+    shrineSpringHealPct: isA8 ? 20 : 25,
+    shrineGatherGold: isA8 ? 50 : 65,
+    thornOpenHpLoss: isA8 ? 11 : 8,
+    thornCoinsGold: isA8 ? 35 : 45,
+    idolSmashHpLoss: isA8 ? 18 : 14,
+    idolSmashGold: isA8 ? 120 : 135,
+    idolCurseGold: isA8 ? 150 : 175,
+    tomeFinalHpLoss: isA8 ? 18 : 14,
+    tomeSkimHpLoss: isA8 ? 8 : 5,
+    alchemistBuyGold: isA8 ? 45 : 35,
+    alchemistMutagenMaxHp: isA8 ? 4 : 6,
+    alchemistRobGold: isA8 ? 50 : 60,
+    grottoBlueHealPct: isA8 ? 25 : 35,
+    grottoRedHpLoss: isA8 ? 10 : 7,
+    grottoRedMaxHp: isA8 ? 4 : 5,
+    libraryNapHeal: isA8 ? 15 : 20,
+    banditsFightGold: isA8 ? 60 : 75,
+    mindBloomWarGold: isA8 ? 80 : 100,
+    mindBloomAwakeMaxHpPct: isA8 ? 22 : 15,
+    mindBloomRichGold: isA8 ? 360 : 450,
+  };
+}
+
+export function getEventChoicesForAscension(eventId, ascension = 0) {
+  const evDef = EVENT_LIBRARY[eventId];
+  if (!evDef) return [];
+  const rawList = Array.isArray(evDef.choices)
+    ? evDef.choices
+    : Array.isArray(evDef.options)
+      ? evDef.options
+      : [];
+  const t = getEventTuning(ascension);
+  if (!t.isA8) {
+    return rawList.map((ch) => ({ ...ch }));
+  }
+
+  const detailOverrides = {
+    shining_light: {
+      enter_light: `失去 ${t.shiningLightHpLoss} 点生命，随机升级牌组中的 2 张卡牌。`,
+    },
+    ancient_forge: {
+      overclock_forge: `失去 ${t.forgeOverclockHpLoss} 点生命并花费 ${t.forgeOverclockGold} 金币，随机升级牌组中的 2 张卡牌。`,
+      scavenge_slag: `安全拾取锻台旁的精铁锭，获得 ${t.forgeScavengeGold} 金币。`,
+    },
+    ancient_shrine: {
+      drink_spring: `回复 ${t.shrineSpringHealPct}% 最大生命值。`,
+      gather_gold: `获得 ${t.shrineGatherGold} 金币。`,
+    },
+    thorn_reliquary: {
+      open_reliquary: `失去 ${t.thornOpenHpLoss} 点生命，获得 1 件随机遗物。`,
+      take_coins: `安全获得 ${t.thornCoinsGold} 金币。`,
+    },
+    golden_idol: {
+      smash_trap: `获得 ${t.idolSmashGold} 金币与事件遗物【黄金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 ${t.idolSmashHpLoss} 点生命。`,
+      accept_curse_gold: `获得 ${t.idolCurseGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
+    },
+    cursed_tome: {
+      read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，随机获得 1 张【稀有】卡牌加入牌组！`,
+      skim_preface: `失去 ${t.tomeSkimHpLoss} 点生命，随机获得 1 张【罕见】卡牌加入牌组。`,
+    },
+    potion_alchemist: {
+      buy_potions: `花费 ${t.alchemistBuyGold} 金币，随机获得药水直至填满空药水栏。`,
+      drink_mutagen: `永久提升 ${t.alchemistMutagenMaxHp} 点最大生命值，并立即回复 ${t.alchemistMutagenMaxHp} 点生命。`,
+      rob_alchemist: `强夺 ${t.alchemistRobGold} 金币，但沾染怨念将 1 张诅咒【疑虑】加入牌组。`,
+    },
+    mushroom_grotto: {
+      eat_blue_cap: `回复 ${t.grottoBlueHealPct}% 最大生命值，但将 1 张虚无诅咒【笨拙】加入牌组。`,
+      refine_red_spore: `失去 ${t.grottoRedHpLoss} 点当前生命，永久增加 ${t.grottoRedMaxHp} 点最大生命值。`,
+    },
+    library_sanctum: {
+      nap_in_library: `放松紧绷的神经，回复 ${t.libraryNapHeal} 点生命。`,
+    },
+    masked_bandits: {
+      fight_bandits: `击败强盗团后固定获得 ${t.banditsFightGold} 金币与事件遗物【红面具】（战斗开场使全体敌人获得 1 层虚弱）。`,
+    },
+    mind_bloom: {
+      war_memory: `立即与一位第 1 幕首领展开死斗，获胜固定奖励 ${t.mindBloomWarGold} 金币与 1 件稀有遗物。`,
+      awake_memory: `升级牌组中全部可升级的卡牌，但永久失去 ${t.mindBloomAwakeMaxHpPct}% 最大生命（最低保留 25 点）。`,
+      rich_memory: `获得 ${t.mindBloomRichGold} 金币，但将 2 张【疑虑】诅咒加入你的牌组。`,
+    },
+  }[eventId];
+
+  return rawList.map((ch) => ({
+    ...ch,
+    detail: detailOverrides?.[ch.id] ?? ch.detail,
+  }));
+}
 
 export const NODE_TYPE_META = deepFreeze({
   combat: { type: 'combat', label: '普通战斗', shortLabel: '战斗' },
@@ -407,6 +551,21 @@ export function generateSpireMap(state) {
   }
 
   // 2. Assign node types respecting Spire pacing & parent rules
+  const wouldTrapAnyParentInElite = (node) => {
+    if (node.floor < 6 || node.floor > 14) return false;
+    const parents = parentsById.get(node.id) || [];
+    for (const p of parents) {
+      const siblingIds = p.nextIds;
+      const hasOtherNonElite = siblingIds.some((cid) => {
+        if (cid === node.id) return false;
+        const child = rows[node.row]?.find((x) => x.id === cid);
+        return child && child.type !== 'elite';
+      });
+      if (!hasOtherNonElite) return true;
+    }
+    return false;
+  };
+
   for (let r = 0; r < rows.length; r += 1) {
     const floor = r + 1;
     const row = rows[r];
@@ -437,18 +596,19 @@ export function generateSpireMap(state) {
       const parentTypes = new Set(parents.map((p) => p.type));
 
       const bigGame = hasDailyModifier(state, 'big_game_hunter');
+      const allowElite = floor >= 6 && floor <= 14 && !wouldTrapAnyParentInElite(node);
       const weights = {
-        combat: floor <= 2 ? 55 : 42,
+        combat: floor <= 2 ? 55 : 44,
         event: floor <= 2 ? 45 : 24,
         shop: floor >= 3 && !parentTypes.has('shop') ? 9 : 0,
         rest: floor >= 4 && floor <= 13 && !parentTypes.has('rest') ? 14 : 0,
         elite:
-          floor >= 6 && floor <= 14 && !parentTypes.has('elite')
+          allowElite && !parentTypes.has('elite')
             ? bigGame
-              ? 32
+              ? 30
               : asc >= 1
-                ? 25
-                : 17
+                ? 19
+                : 13
             : 0,
       };
 
@@ -460,7 +620,12 @@ export function generateSpireMap(state) {
       const pivot = row[Math.floor(nextRandom(state) * row.length)];
       const parents = parentsById.get(pivot.id) || [];
       const parentTypes = new Set(parents.map((p) => p.type));
-      if (floor >= 6 && pivot.type !== 'elite' && !parentTypes.has('elite')) {
+      if (
+        floor >= 6 &&
+        pivot.type !== 'elite' &&
+        !parentTypes.has('elite') &&
+        !wouldTrapAnyParentInElite(pivot)
+      ) {
         pivot.type = 'elite';
       } else if (floor >= 4 && floor <= 13 && pivot.type !== 'rest' && !parentTypes.has('rest')) {
         pivot.type = 'rest';
@@ -471,7 +636,7 @@ export function generateSpireMap(state) {
   }
 
   // 3. Enforce minimum Act quotas so every seed has rich shops, campfires, and F6+ elites
-  const canAssignType = (node, targetType) => {
+  const canAssignType = (node, targetType, enforceNoTrap = true) => {
     const parents = parentsById.get(node.id) || [];
     const children = node.nextIds
       .map((cid) => rows[node.row + 1]?.find((x) => x.id === cid))
@@ -479,6 +644,9 @@ export function generateSpireMap(state) {
     if (['elite', 'rest', 'shop'].includes(targetType)) {
       if (parents.some((p) => p.type === targetType)) return false;
       if (children.some((c) => c.type === targetType)) return false;
+    }
+    if (targetType === 'elite' && enforceNoTrap && wouldTrapAnyParentInElite(node)) {
+      return false;
     }
     return true;
   };
@@ -489,18 +657,49 @@ export function generateSpireMap(state) {
       .flat()
       .filter((n) => n.type === t).length;
 
-  const ensureMinimum = (targetType, minCount, candidateFloors) => {
+  const ensureMinimum = (targetType, minCount, candidateFloors, preserveOrder = false) => {
     let current = countType(targetType, Math.min(...candidateFloors), Math.max(...candidateFloors));
     if (current >= minCount) return;
     const candidates = candidateFloors
       .flatMap((fl) => rows[fl - 1])
       .filter((n) => n.type === 'combat' || n.type === 'event');
-    const ordered = pickDistinct(state, candidates, candidates.length);
+    const ordered = preserveOrder
+      ? candidateFloors.flatMap((fl) => {
+          const rowCands = rows[fl - 1].filter((n) => n.type === 'combat' || n.type === 'event');
+          return pickDistinct(state, rowCands, rowCands.length);
+        })
+      : pickDistinct(state, candidates, candidates.length);
     for (const node of ordered) {
       if (current >= minCount) break;
-      if (canAssignType(node, targetType)) {
+      if (node.type === targetType) continue;
+      if (canAssignType(node, targetType, true)) {
         node.type = targetType;
         current += 1;
+      }
+    }
+    if (current < minCount && targetType === 'elite') {
+      for (const node of ordered) {
+        if (current >= minCount) break;
+        if (node.type === targetType) continue;
+        if (canAssignType(node, targetType, false)) {
+          node.type = targetType;
+          current += 1;
+        }
+      }
+    }
+    if (current < minCount && targetType === 'elite') {
+      const nodeById = new Map(rows.flat().map((n) => [n.id, n]));
+      for (const node of ordered) {
+        if (current >= minCount) break;
+        if (node.type === targetType) continue;
+        if (node.floor < 6 || node.floor === 9 || node.floor > 14) continue;
+        const parentRow = rows[node.floor - 2] || [];
+        const hasEliteParent = parentRow.some((p) => p.nextIds?.includes(node.id) && p.type === 'elite');
+        const hasEliteChild = (node.nextIds || []).some((cid) => nodeById.get(cid)?.type === 'elite');
+        if (!hasEliteParent && !hasEliteChild) {
+          node.type = targetType;
+          current += 1;
+        }
       }
     }
   };
@@ -508,7 +707,7 @@ export function generateSpireMap(state) {
   const bigGameHunter = hasDailyModifier(state, 'big_game_hunter');
   ensureMinimum('shop', 2, [3, 4, 5, 7, 11, 13, 14]);
   ensureMinimum('rest', 3, [4, 5, 7, 8, 10, 12, 13]);
-  ensureMinimum('elite', bigGameHunter ? 6 : asc >= 1 ? 5 : 3, [6, 7, 8, 10, 11, 12, 13, 14]);
+  ensureMinimum('elite', bigGameHunter ? 6 : asc >= 1 ? 5 : 3, [7, 8, 10, 11, 12, 13, 14, 6], true);
 
   return rows;
 }

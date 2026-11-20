@@ -39,7 +39,7 @@ export function parseSeedInput(rawInput) {
   return h || 0x9e3779b9;
 }
 
-export function parseChallengeInput(rawInput, maxAscension = 5) {
+export function parseChallengeInput(rawInput, maxAscension = 10) {
   if (typeof rawInput === 'number' && Number.isFinite(rawInput)) {
     const seed = parseSeedInput(rawInput);
     return seed === null
@@ -139,7 +139,7 @@ export function buildChallengeUrl(
   baseHref,
   seed,
   ascension = 0,
-  maxAscension = 5,
+  maxAscension = 10,
   characterId = null
 ) {
   const seedCode = formatSeedCode(seed);

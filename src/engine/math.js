@@ -24,6 +24,14 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     raw *= hasPaperPhrog ? 1.75 : 1.5;
   }
 
+  if (defender && (defender?.statuses?.slow ?? 0) > 0 && (defender?.slowStacks ?? 0) > 0) {
+    raw *= 1 + 0.1 * defender.slowStacks;
+  }
+
+  if ((attacker?.statuses?.doubleDamage ?? 0) > 0) {
+    raw *= 2;
+  }
+
   return Math.max(0, Math.floor(raw));
 }
 
@@ -155,6 +163,17 @@ export function getEnemyIntentPreview(enemy, player) {
         block: 0,
         label: '干扰',
         detail: intent.summary || '意图：施加减益或塞入状态牌',
+      };
+    case 'sleep':
+      return {
+        type: intent.type,
+        isAttack: false,
+        hits: 0,
+        perHitDamage: 0,
+        totalDamage: 0,
+        block: 0,
+        label: intent.id === 'stunned' ? '眩晕' : '沉睡',
+        detail: intent.summary || '意图：沉睡或眩晕中，本回合不会攻击',
       };
     default:
       return {

@@ -91,7 +91,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '狂怒地精',
     role: 'normal',
     artKey: 'mad_gremlin',
-    hpRange: [19, 23],
+    hpRange: [16, 19],
     initialStatuses: { angry: 1 },
   },
 
@@ -118,7 +118,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'elite',
     artKey: 'lagavulin',
     hpRange: [84, 88],
-    initialStatuses: { metallicize: 5 },
+    initialStatuses: { metallicize: 5, asleep: 3 },
   },
 
   // === Act 1 Bosses (3 Random Bosses) ===
@@ -127,7 +127,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '尖塔守护者',
     role: 'boss',
     artKey: 'the_guardian',
-    hpRange: [155, 155],
+    hpRange: [135, 135],
     initialStatuses: { modeShift: 25 },
   },
   hexaghost: {
@@ -135,7 +135,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '六火亡魂',
     role: 'boss',
     artKey: 'hexaghost',
-    hpRange: [160, 160],
+    hpRange: [144, 144],
     initialStatuses: {},
   },
   slime_boss: {
@@ -153,7 +153,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '城邦百夫长',
     role: 'normal',
     artKey: 'centurion',
-    hpRange: [64, 70],
+    hpRange: [58, 64],
     initialStatuses: {},
   },
   mystic: {
@@ -161,7 +161,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '秘术祭司',
     role: 'normal',
     artKey: 'mystic',
-    hpRange: [44, 50],
+    hpRange: [40, 46],
     initialStatuses: {},
   },
   book_of_stabbing: {
@@ -170,7 +170,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'elite',
     artKey: 'book_of_stabbing',
     hpRange: [112, 118],
-    initialStatuses: {},
+    initialStatuses: { painfulStabs: 1 },
   },
   slaver_taskmaster: {
     id: 'slaver_taskmaster',
@@ -185,7 +185,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '青铜自动机',
     role: 'boss',
     artKey: 'bronze_automaton',
-    hpRange: [215, 215],
+    hpRange: [195, 195],
     initialStatuses: { metallicize: 4 },
   },
   the_collector: {
@@ -193,7 +193,122 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '暗影收藏家',
     role: 'boss',
     artKey: 'the_collector',
-    hpRange: [205, 205],
+    hpRange: [185, 185],
+    initialStatuses: {},
+  },
+  the_champ: {
+    id: 'the_champ',
+    name: '钢铁勇士',
+    role: 'boss',
+    artKey: 'the_champ',
+    hpRange: [240, 240],
+    initialStatuses: {},
+  },
+
+  // === Act 3 Normal Enemies, Elites & Bosses ===
+  orb_walker: {
+    id: 'orb_walker',
+    name: '圆球行者',
+    role: 'normal',
+    artKey: 'orb_walker',
+    hpRange: [78, 84],
+    initialStatuses: { ritual: 2 },
+  },
+  spiker: {
+    id: 'spiker',
+    name: '荆棘构装体',
+    role: 'normal',
+    artKey: 'spiker',
+    hpRange: [44, 50],
+    initialStatuses: { thorns: 3 },
+  },
+  exploder: {
+    id: 'exploder',
+    name: '自爆构装体',
+    role: 'normal',
+    artKey: 'exploder',
+    hpRange: [34, 38],
+    initialStatuses: { explosive: 3 },
+  },
+  repulsor: {
+    id: 'repulsor',
+    name: '斥力构装体',
+    role: 'normal',
+    artKey: 'repulsor',
+    hpRange: [32, 36],
+    initialStatuses: {},
+  },
+  maw: {
+    id: 'maw',
+    name: '深渊巨口',
+    role: 'normal',
+    artKey: 'maw',
+    hpRange: [128, 136],
+    initialStatuses: {},
+  },
+  giant_head: {
+    id: 'giant_head',
+    name: '巨型石首',
+    role: 'elite',
+    artKey: 'giant_head',
+    hpRange: [250, 250],
+    initialStatuses: { slow: 1 },
+  },
+  nemesis: {
+    id: 'nemesis',
+    name: '复仇女神',
+    role: 'elite',
+    artKey: 'nemesis',
+    hpRange: [155, 155],
+    initialStatuses: {},
+  },
+  reptomancer: {
+    id: 'reptomancer',
+    name: '爬虫术士',
+    role: 'elite',
+    artKey: 'reptomancer',
+    hpRange: [148, 148],
+    initialStatuses: {},
+  },
+  dagger: {
+    id: 'dagger',
+    name: '魔刃飞刀',
+    role: 'normal',
+    artKey: 'dagger',
+    isMinion: true,
+    hpRange: [22, 26],
+    initialStatuses: {},
+  },
+  time_eater: {
+    id: 'time_eater',
+    name: '时间吞噬者',
+    role: 'boss',
+    artKey: 'time_eater',
+    hpRange: [245, 245],
+    initialStatuses: { timeWarp: 12 },
+  },
+  awakened_one: {
+    id: 'awakened_one',
+    name: '觉醒者',
+    role: 'boss',
+    artKey: 'awakened_one',
+    hpRange: [185, 185],
+    initialStatuses: { curiosity: 1, regenerating: 6 },
+  },
+  donu: {
+    id: 'donu',
+    name: '多努',
+    role: 'boss',
+    artKey: 'donu',
+    hpRange: [152, 152],
+    initialStatuses: {},
+  },
+  deca: {
+    id: 'deca',
+    name: '德卡',
+    role: 'boss',
+    artKey: 'deca',
+    hpRange: [152, 152],
     initialStatuses: {},
   },
 });
@@ -217,12 +332,18 @@ export const ENCOUNTERS = deepFreeze({
     {
       id: 'slime_duo',
       name: '泥沼双怪',
-      enemies: [{ templateId: 'acid_slime' }, { templateId: 'spike_slime' }],
+      enemies: [
+        { templateId: 'acid_slime' },
+        { templateId: 'spike_slime', customHp: 14, customName: '小型尖刺史莱姆' },
+      ],
     },
     {
-      id: 'fungi_pair',
-      name: '毒孢菌丛',
-      enemies: [{ templateId: 'fungi_beast' }, { templateId: 'fungi_beast' }],
+      id: 'louse_and_slime',
+      name: '虱虫与史莱姆',
+      enemies: [
+        { templateId: 'red_louse' },
+        { templateId: 'acid_slime', customHp: 16, customName: '小型酸液史莱姆' },
+      ],
     },
     {
       id: 'looter_solo',
@@ -234,36 +355,41 @@ export const ENCOUNTERS = deepFreeze({
       name: '铁钩巡猎',
       enemies: [{ templateId: 'slaver_blue' }],
     },
+  ],
+  hardNormal: [
+    {
+      id: 'fungi_pair',
+      name: '毒孢菌丛',
+      enemies: [{ templateId: 'fungi_beast' }, { templateId: 'fungi_beast' }],
+    },
     {
       id: 'gremlin_pack',
       name: '地精袭扰小队',
       enemies: [
         { templateId: 'mad_gremlin' },
-        { templateId: 'mad_gremlin' },
+        { templateId: 'red_louse' },
         { templateId: 'green_louse' },
       ],
     },
-  ],
-  hardNormal: [
     {
       id: 'louse_and_cultist',
       name: '祭司与护卫虫',
-      enemies: [{ templateId: 'red_louse' }, { templateId: 'cultist' }],
+      enemies: [{ templateId: 'red_louse' }, { templateId: 'cultist', customHp: 44 }],
     },
     {
       id: 'fungi_and_slaver',
-      name: '菌兽与奴隶贩',
-      enemies: [{ templateId: 'fungi_beast' }, { templateId: 'slaver_blue' }],
+      name: '奴隶贩与虱虫',
+      enemies: [{ templateId: 'slaver_blue', customHp: 40 }, { templateId: 'red_louse' }],
     },
     {
       id: 'looter_and_gremlin',
       name: '劫匪与狂怒地精',
-      enemies: [{ templateId: 'looter' }, { templateId: 'mad_gremlin' }],
+      enemies: [{ templateId: 'looter', customHp: 39 }, { templateId: 'mad_gremlin' }],
     },
     {
       id: 'jaw_worm_and_slime',
-      name: '地底共生体',
-      enemies: [{ templateId: 'jaw_worm' }, { templateId: 'spike_slime' }],
+      name: '颚虫与虱虫',
+      enemies: [{ templateId: 'jaw_worm' }, { templateId: 'green_louse' }],
     },
     {
       id: 'tri_lice_swarm',
@@ -323,15 +449,17 @@ export const ENCOUNTERS = deepFreeze({
     {
       id: 'mystic_and_looter',
       name: '暗巷秘教',
-      enemies: [{ templateId: 'mystic' }, { templateId: 'looter' }],
+      enemies: [
+        { templateId: 'mystic', customHp: 35 },
+        { templateId: 'looter', customHp: 35 },
+      ],
     },
     {
       id: 'act2_fungi_pack',
       name: '变异菌群',
       enemies: [
         { templateId: 'fungi_beast' },
-        { templateId: 'fungi_beast' },
-        { templateId: 'spike_slime' },
+        { templateId: 'spike_slime', customHp: 22, customName: '小型尖刺史莱姆' },
       ],
     },
   ],
@@ -339,17 +467,26 @@ export const ENCOUNTERS = deepFreeze({
     {
       id: 'centurion_and_mystic',
       name: '百夫长与秘术师',
-      enemies: [{ templateId: 'centurion' }, { templateId: 'mystic' }],
+      enemies: [
+        { templateId: 'centurion', customHp: 56 },
+        { templateId: 'mystic', customHp: 38 },
+      ],
     },
     {
       id: 'twin_slavers',
       name: '双煞捕奴队',
-      enemies: [{ templateId: 'slaver_blue' }, { templateId: 'slaver_blue' }],
+      enemies: [
+        { templateId: 'slaver_blue', customHp: 37 },
+        { templateId: 'slaver_blue', customHp: 37 },
+      ],
     },
     {
       id: 'cultist_and_centurion',
       name: '狂热圣殿卫',
-      enemies: [{ templateId: 'cultist' }, { templateId: 'centurion' }],
+      enemies: [
+        { templateId: 'cultist', customHp: 42 },
+        { templateId: 'centurion', customHp: 54 },
+      ],
     },
   ],
   act2Elite: [
@@ -384,24 +521,273 @@ export const ENCOUNTERS = deepFreeze({
       name: '终幕首领：暗影收藏家',
       enemies: [{ templateId: 'the_collector' }],
     },
+    {
+      id: 'champ_boss',
+      name: '终幕首领：钢铁勇士',
+      enemies: [{ templateId: 'the_champ' }],
+    },
+  ],
+
+  // === Act 3 Pools ===
+  act3Early: [
+    {
+      id: 'orb_walker_solo',
+      name: '圆球行者巡逻',
+      enemies: [{ templateId: 'orb_walker' }],
+    },
+    {
+      id: 'shapes_duo',
+      name: '古代构装体群',
+      enemies: [{ templateId: 'spiker' }, { templateId: 'repulsor' }],
+    },
+    {
+      id: 'exploder_pair',
+      name: '自爆斥力阵列',
+      enemies: [{ templateId: 'exploder' }, { templateId: 'repulsor' }],
+    },
+  ],
+  act3Hard: [
+    {
+      id: 'shapes_trio',
+      name: '三重古代构装体',
+      enemies: [
+        { templateId: 'spiker' },
+        { templateId: 'exploder' },
+        { templateId: 'repulsor' },
+      ],
+    },
+    {
+      id: 'maw_solo',
+      name: '深渊巨口阻击',
+      enemies: [{ templateId: 'maw' }],
+    },
+    {
+      id: 'double_orb_walkers',
+      name: '双生圆球行者',
+      enemies: [
+        { templateId: 'orb_walker', customHp: 70 },
+        { templateId: 'orb_walker', customHp: 70 },
+      ],
+    },
+  ],
+  act3Elite: [
+    {
+      id: 'giant_head_elite',
+      name: '精英：巨型石首',
+      enemies: [{ templateId: 'giant_head' }],
+    },
+    {
+      id: 'nemesis_elite',
+      name: '精英：复仇女神',
+      enemies: [{ templateId: 'nemesis' }],
+    },
+    {
+      id: 'reptomancer_elite',
+      name: '精英：爬虫术士',
+      enemies: [{ templateId: 'reptomancer' }],
+    },
+  ],
+  act3Boss: [
+    {
+      id: 'time_eater_boss',
+      name: '第三幕首领：时间吞噬者',
+      enemies: [{ templateId: 'time_eater' }],
+    },
+    {
+      id: 'awakened_one_boss',
+      name: '第三幕首领：觉醒者',
+      enemies: [{ templateId: 'awakened_one' }],
+    },
+    {
+      id: 'donu_deca_boss',
+      name: '第三幕首领：多努与德卡',
+      enemies: [{ templateId: 'donu' }, { templateId: 'deca' }],
+    },
   ],
 });
 
+const STATUS_ZH_LABELS = Object.freeze({
+  strength: '力量',
+  dexterity: '敏捷',
+  ritual: '仪式',
+  enrage: '激怒',
+  thorns: '荆棘',
+  metallicize: '金属化',
+  weak: '虚弱',
+  vulnerable: '易伤',
+  frail: '脆弱',
+});
+
+const STATUS_CARD_ZH_LABELS = Object.freeze({
+  dazed: '晕眩',
+  slimed: '黏液',
+  burn: '灼伤',
+  wound: '伤口',
+});
+
+function rebuildA9IntentSummary(intent) {
+  const parts = [];
+  if (typeof intent.damage === 'number' && intent.damage > 0) {
+    const hits = intent.hits ?? 1;
+    parts.push(hits > 1 ? `造成 ${intent.damage}×${hits} 点伤害` : `造成 ${intent.damage} 点伤害`);
+  }
+  if (typeof intent.allEnemiesBlock === 'number' && intent.allEnemiesBlock > 0) {
+    parts.push(`使全体友方单位获得 ${intent.allEnemiesBlock} 点格挡`);
+  } else if (typeof intent.block === 'number' && intent.block > 0) {
+    parts.push(`获得 ${intent.block} 点格挡`);
+  }
+  if (intent.applyAllEnemiesStatuses) {
+    const buffStr = Object.entries(intent.applyAllEnemiesStatuses)
+      .map(([k, v]) => `${v} 点【${STATUS_ZH_LABELS[k] || k}】`)
+      .join('、');
+    if (buffStr) parts.push(`使全体友方单位获得 ${buffStr}`);
+  }
+  if (intent.applySelfStatuses) {
+    const selfStr = Object.entries(intent.applySelfStatuses)
+      .map(([k, v]) => `${v} ${k === 'strength' ? '点' : '层'}${STATUS_ZH_LABELS[k] || k}`)
+      .join('与 ');
+    if (selfStr) parts.push(`获得 ${selfStr}`);
+  }
+  if (intent.applyPlayerStatuses) {
+    const pos = [];
+    const neg = [];
+    for (const [k, v] of Object.entries(intent.applyPlayerStatuses)) {
+      const label = STATUS_ZH_LABELS[k] || k;
+      if (v < 0) neg.push(`${Math.abs(v)} 点${label}`);
+      else pos.push(`${v} 层${label}`);
+    }
+    if (pos.length > 0) parts.push(`给予玩家 ${pos.join('、')}`);
+    if (neg.length > 0) parts.push(`使玩家失去 ${neg.join('与 ')}`);
+  }
+  if (Array.isArray(intent.addDiscardCards) && intent.addDiscardCards.length > 0) {
+    const cardStr = intent.addDiscardCards
+      .map((c) => `${c.count} 张【${STATUS_CARD_ZH_LABELS[c.cardId] || c.cardId}】`)
+      .join('与 ');
+    parts.push(`将 ${cardStr}洗入你的弃牌堆`);
+  }
+  if (Array.isArray(intent.addDrawCards) && intent.addDrawCards.length > 0) {
+    const cardStr = intent.addDrawCards
+      .map((c) => `${c.count} 张【${STATUS_CARD_ZH_LABELS[c.cardId] || c.cardId}】`)
+      .join('与 ');
+    parts.push(`将 ${cardStr}洗入你的抽牌堆`);
+  }
+  return parts.length > 0 ? `意图：${parts.join('，')}` : intent.summary;
+}
+
+const SWARM_NORMAL_IDS = new Set([
+  'red_louse',
+  'green_louse',
+  'acid_slime',
+  'spike_slime',
+  'fungi_beast',
+  'mad_gremlin',
+  'spiker',
+  'exploder',
+  'repulsor',
+]);
+
 function applyAscensionIntentScaling(state, enemy, intent) {
-  if (!intent || typeof intent.damage !== 'number') return intent;
+  if (!intent) return intent;
   const asc = state?.ascension ?? 0;
+  const isEliteOrBoss = enemy.role === 'elite' || enemy.role === 'boss';
+
   let bonus = 0;
-  if (asc >= 2 && enemy.role === 'normal') {
-    bonus += 1;
+  if (typeof intent.damage === 'number' && !intent.scalesWithPlayerHp) {
+    const hits = Math.max(1, intent.hits ?? 1);
+    if (enemy.role === 'normal') {
+      const isSwarmer = SWARM_NORMAL_IDS.has(enemy.templateId);
+      const rawBonus = asc >= 9 ? (isSwarmer ? 1 : 2) : asc >= 2 ? 1 : 0;
+      bonus = hits >= 2 ? Math.min(1, rawBonus) : rawBonus;
+    } else if (isEliteOrBoss) {
+      const rawBonus = asc >= 9 ? 3 : asc >= 3 ? 2 : 0;
+      bonus = hits >= 2 ? Math.min(1, rawBonus) : rawBonus;
+    }
   }
-  if (asc >= 3 && (enemy.role === 'elite' || enemy.role === 'boss')) {
-    bonus += 2;
+
+  let next = bonus > 0 ? { ...intent, damage: intent.damage + bonus } : { ...intent };
+  let mutatedNonDamage = false;
+
+  if (asc >= 9) {
+    if (typeof next.allEnemiesBlock === 'number' && next.allEnemiesBlock > 0) {
+      next.allEnemiesBlock += 3;
+      if (typeof next.block === 'number') {
+        next.block += 3;
+      }
+      mutatedNonDamage = true;
+    } else if (typeof next.block === 'number' && next.block > 0) {
+      next.block += isEliteOrBoss ? 3 : 1;
+      mutatedNonDamage = true;
+    }
+
+    if (next.applyAllEnemiesStatuses) {
+      const scaledAll = { ...next.applyAllEnemiesStatuses };
+      for (const [k, v] of Object.entries(scaledAll)) {
+        if (typeof v === 'number' && v > 0) {
+          scaledAll[k] = v + 1;
+          mutatedNonDamage = true;
+        }
+      }
+      next.applyAllEnemiesStatuses = scaledAll;
+    }
+
+    if (next.applySelfStatuses && (isEliteOrBoss || enemy.templateId === 'cultist')) {
+      const scaledSelf = { ...next.applySelfStatuses };
+      for (const [k, v] of Object.entries(scaledSelf)) {
+        if (
+          typeof v === 'number' &&
+          v > 0 &&
+          ['strength', 'ritual', 'enrage', 'thorns', 'metallicize'].includes(k) &&
+          !(k === 'strength' && enemy.role === 'boss')
+        ) {
+          scaledSelf[k] = v + 1;
+          mutatedNonDamage = true;
+        }
+      }
+      next.applySelfStatuses = scaledSelf;
+    }
+
+    if (next.applyPlayerStatuses) {
+      const scaledPlayer = { ...next.applyPlayerStatuses };
+      for (const [k, v] of Object.entries(scaledPlayer)) {
+        if (typeof v === 'number' && v < 0 && (k === 'strength' || k === 'dexterity')) {
+          scaledPlayer[k] = v - 1;
+          mutatedNonDamage = true;
+        } else if (
+          typeof v === 'number' &&
+          v > 0 &&
+          next.id !== 'skull_bash' &&
+          ['weak', 'vulnerable', 'frail'].includes(k) &&
+          (isEliteOrBoss || v >= 2)
+        ) {
+          scaledPlayer[k] = v + 1;
+          mutatedNonDamage = true;
+        }
+      }
+      next.applyPlayerStatuses = scaledPlayer;
+    }
+
+    if (Array.isArray(next.addDiscardCards) && next.addDiscardCards.length > 0) {
+      next.addDiscardCards = next.addDiscardCards.map((entry) => ({
+        ...entry,
+        count: (entry.count ?? 1) + 1,
+      }));
+      mutatedNonDamage = true;
+    }
+
+    if (Array.isArray(next.addDrawCards) && next.addDrawCards.length > 0) {
+      next.addDrawCards = next.addDrawCards.map((entry) => ({
+        ...entry,
+        count: (entry.count ?? 1) + 1,
+      }));
+      mutatedNonDamage = true;
+    }
+
+    if (mutatedNonDamage && next.summary && next.id !== 'dividing_flames' && next.id !== 'time_warp_heal') {
+      next.summary = rebuildA9IntentSummary(next);
+    }
   }
-  if (bonus === 0) return intent;
-  return {
-    ...intent,
-    damage: intent.damage + bonus,
-  };
+
+  return bonus === 0 && !mutatedNonDamage ? intent : next;
 }
 
 export function createEnemyInstance(state, spec) {
@@ -411,24 +797,41 @@ export function createEnemyInstance(state, spec) {
   }
   state.nextUid = (state.nextUid ?? 1) + 1;
 
+  const asc = state?.ascension ?? 0;
   let maxHp =
     typeof spec.customHp === 'number'
       ? Math.max(1, Math.floor(spec.customHp))
       : randomInt(state, tpl.hpRange[0], tpl.hpRange[1]);
 
   if (typeof spec.customHp !== 'number') {
-    const asc = state?.ascension ?? 0;
-    if (asc >= 2 && tpl.role === 'normal') {
-      maxHp = Math.round(maxHp * 1.12);
-    } else if (asc >= 3 && (tpl.role === 'elite' || tpl.role === 'boss')) {
-      maxHp = Math.round(maxHp * 1.15);
+    if (tpl.role === 'normal') {
+      if (asc >= 9) maxHp = Math.round(maxHp * 1.12);
+      else if (asc >= 2) maxHp = Math.round(maxHp * 1.07);
+    } else if (tpl.role === 'elite' || tpl.role === 'boss') {
+      if (asc >= 9) maxHp = Math.round(maxHp * 1.14);
+      else if (asc >= 3) maxHp = Math.round(maxHp * 1.08);
     }
     if (hasDailyModifier(state, 'cursed_run')) {
       maxHp = Math.round(maxHp * 1.12);
     }
   }
 
-  const initialBlock = tpl.initialStatuses?.metallicize ? tpl.initialStatuses.metallicize : 0;
+  const statuses = { ...tpl.initialStatuses };
+  if (asc >= 9) {
+    if (tpl.id === 'lagavulin') statuses.metallicize = 6;
+    if (tpl.id === 'the_guardian') statuses.modeShift = 28;
+    if (tpl.id === 'louse_red' || tpl.id === 'louse_green') statuses.curlUp = 5;
+    if (tpl.id === 'fungi_beast') statuses.sporeCloud = 3;
+    if (tpl.id === 'red_slaver' || tpl.id === 'gremlin_angry') statuses.angry = 2;
+    if (tpl.id === 'orb_walker') statuses.ritual = 3;
+    if (tpl.id === 'spiker') statuses.thorns = 4;
+    if (tpl.id === 'awakened_one') {
+      statuses.curiosity = 2;
+      statuses.regenerating = 7;
+    }
+  }
+
+  const initialBlock = statuses.metallicize ? statuses.metallicize : 0;
 
   const enemy = {
     id: `enemy_${state.nextUid}`,
@@ -436,20 +839,32 @@ export function createEnemyInstance(state, spec) {
     name: spec.customName || tpl.name,
     role: spec.customRole || tpl.role,
     artKey: tpl.artKey,
-    ascension: state?.ascension ?? 0,
+    ascension: asc,
     hp: maxHp,
     maxHp,
     block: initialBlock,
-    statuses: { ...tpl.initialStatuses },
+    statuses,
     skipStatusTick: {},
     skipRitualThisTurn: false,
     turnIndex: 0,
     lastMoveId: null,
     variantIndex: spec.variantIndex ?? 0,
     mode: tpl.id === 'the_guardian' ? 'offensive' : 'normal',
-    modeShiftMax: tpl.id === 'the_guardian' ? 25 : 0,
+    modeShiftMax: tpl.id === 'the_guardian' ? (asc >= 9 ? 28 : 25) : 0,
     offensiveStep: 0,
     defensiveStep: 0,
+    awakeTurnIndex: 0,
+    multiStabUsed: 0,
+    champPhase: 1,
+    defensiveStanceCount: 0,
+    champPhase2PendingAnger: false,
+    champPhase2Step: 0,
+    slowStacks: 0,
+    unawakened: tpl.id === 'awakened_one',
+    awakenedPhase: 1,
+    pendingHaste: false,
+    hasteUsed: false,
+    isMinion: Boolean(spec.isMinion || tpl.isMinion),
     intent: null,
   };
 
@@ -463,7 +878,7 @@ export function getGuardianDefensiveIntent(step) {
       id: 'roll_attack',
       name: '翻滚撞击',
       type: 'attack',
-      damage: 9,
+      damage: 8,
       hits: 1,
     };
   }
@@ -471,10 +886,10 @@ export function getGuardianDefensiveIntent(step) {
     id: 'twin_slam',
     name: '双刃猛击',
     type: 'attack_buff',
-    damage: 8,
+    damage: 6,
     hits: 2,
     exitDefensiveMode: true,
-    summary: '意图：造成 8×2 点伤害，解除锋利外壳并切回进攻形态',
+    summary: '意图：造成 6×2 点伤害，解除锋利外壳并切回进攻形态',
   };
 }
 
@@ -486,14 +901,14 @@ export function getGuardianOffensiveIntent(step) {
         id: 'charging_up',
         name: '核心充能',
         type: 'defend',
-        block: 9,
+        block: 8,
       };
     case 1:
       return {
         id: 'fierce_bash',
         name: '凶猛重击',
         type: 'attack',
-        damage: 26,
+        damage: 21,
         hits: 1,
       };
     case 2:
@@ -509,13 +924,13 @@ export function getGuardianOffensiveIntent(step) {
         id: 'whirlwind_boss',
         name: '旋风斩击',
         type: 'attack',
-        damage: 5,
+        damage: 4,
         hits: 4,
       };
   }
 }
 
-export function getEnemyIntentCandidates(enemy) {
+export function getEnemyIntentCandidates(enemy, player = null) {
   switch (enemy.templateId) {
     case 'cultist': {
       if (enemy.turnIndex === 0) {
@@ -882,15 +1297,34 @@ export function getEnemyIntentCandidates(enemy) {
     }
 
     case 'lagavulin': {
-      if (enemy.turnIndex === 0) {
+      if ((enemy.statuses?.asleep ?? 0) > 0) {
         return [
           {
             probability: 1,
-            intent: { id: 'shell_awaken', name: '甲壳苏醒', type: 'defend', block: 8 },
+            intent: {
+              id: 'asleep_idle',
+              name: '甲壳沉睡',
+              type: 'sleep',
+              summary: `意图：处于沉睡中（剩余 ${enemy.statuses.asleep} 回合；每回合获得金属化格挡，受到破甲生命伤害后立即惊醒并眩晕 1 回合）`,
+            },
           },
         ];
       }
-      if ((enemy.turnIndex - 1) % 3 === 2) {
+      if ((enemy.statuses?.stunned ?? 0) > 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'stunned',
+              name: '惊醒眩晕',
+              type: 'sleep',
+              summary: '意图：刚被破甲惊醒并陷入眩晕，本回合无法行动！',
+            },
+          },
+        ];
+      }
+      const awakeTurn = enemy.awakeTurnIndex ?? 0;
+      if (awakeTurn % 3 === 2) {
         return [
           {
             probability: 1,
@@ -907,7 +1341,7 @@ export function getEnemyIntentCandidates(enemy) {
       return [
         {
           probability: 1,
-          intent: { id: 'claw_crush', name: '巨螯重击', type: 'attack', damage: 16, hits: 1 },
+          intent: { id: 'claw_crush', name: '巨螯重击', type: 'attack', damage: 18, hits: 1 },
         },
       ];
     }
@@ -933,13 +1367,14 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'activate_flames',
               name: '六魂苏醒',
               type: 'defend_buff',
-              block: 6,
-              summary: '意图：点燃六团鬼火并获得 6 点格挡，下回合释放六段烈焰连击！',
+              block: 5,
+              summary: '意图：激活六团冥火并获得 5 点格挡，下回合按你的当前生命释放【分裂烈焰】！',
             },
           },
         ];
       }
       if (enemy.turnIndex === 1) {
+        const dividerPerHit = Math.max(2, Math.floor((player?.hp ?? 48) / 14) + 1);
         return [
           {
             probability: 1,
@@ -947,8 +1382,9 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'divider',
               name: '分裂烈焰',
               type: 'attack',
-              damage: 4,
+              damage: dividerPerHit,
               hits: 6,
+              scalesWithPlayerHp: true,
             },
           },
         ];
@@ -962,7 +1398,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'sear',
               name: '灼魂火球',
               type: 'attack_debuff',
-              damage: 6,
+              damage: 5,
               hits: 1,
               addDiscardCards: [{ cardId: 'burn', count: 1 }],
             },
@@ -977,7 +1413,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'flame_charge',
               name: '幽火连袭',
               type: 'attack',
-              damage: 5,
+              damage: 4,
               hits: 2,
             },
           },
@@ -991,9 +1427,9 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'inflame_hex',
               name: '冥火升腾',
               type: 'defend_buff',
-              block: 10,
+              block: 8,
               applySelfStatuses: { strength: 2 },
-              summary: '意图：获得 10 点格挡与 2 点力量',
+              summary: '意图：获得 8 点格挡与 2 点力量',
             },
           },
         ];
@@ -1005,7 +1441,7 @@ export function getEnemyIntentCandidates(enemy) {
             id: 'inferno',
             name: '炼狱喷发',
             type: 'attack_debuff',
-            damage: 3,
+            damage: 2,
             hits: 6,
             addDiscardCards: [{ cardId: 'burn', count: 2 }],
           },
@@ -1080,9 +1516,9 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'shield_wall',
               name: '铁盾壁垒',
               type: 'attack_block',
-              damage: 9,
+              damage: 8,
               hits: 1,
-              block: 10,
+              block: 8,
             },
           },
         ];
@@ -1095,7 +1531,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'fury_mace',
               name: '链锤猛砸',
               type: 'attack',
-              damage: 15,
+              damage: 13,
               hits: 1,
             },
           },
@@ -1108,7 +1544,7 @@ export function getEnemyIntentCandidates(enemy) {
             id: 'double_cleave',
             name: '连环斩',
             type: 'attack',
-            damage: 7,
+            damage: 6,
             hits: 2,
           },
         },
@@ -1138,7 +1574,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'arcane_bolt',
               name: '秘法冲击',
               type: 'attack',
-              damage: 11,
+              damage: 10,
               hits: 1,
             },
           },
@@ -1151,9 +1587,9 @@ export function getEnemyIntentCandidates(enemy) {
             id: 'ward_blessing',
             name: '圣咏护佑',
             type: 'defend_buff',
-            block: 10,
-            applySelfStatuses: { strength: 3 },
-            summary: '意图：获得 10 点格挡与 3 点力量',
+            block: 8,
+            applySelfStatuses: { strength: 2 },
+            summary: '意图：获得 8 点格挡与 2 点力量',
           },
         },
       ];
@@ -1167,15 +1603,14 @@ export function getEnemyIntentCandidates(enemy) {
             intent: {
               id: 'big_stab',
               name: '穿心重刺',
-              type: 'attack_debuff',
-              damage: 18,
+              type: 'attack',
+              damage: 21,
               hits: 1,
-              applyPlayerStatuses: { vulnerable: 2 },
             },
           },
         ];
       }
-      const stabs = 2 + (enemy.turnIndex % 3);
+      const stabs = 2 + (enemy.multiStabUsed ?? 0);
       return [
         {
           probability: 1,
@@ -1201,7 +1636,7 @@ export function getEnemyIntentCandidates(enemy) {
               type: 'attack_debuff',
               damage: 9,
               hits: 1,
-              addDiscardCards: [{ cardId: 'dazed', count: 2 }],
+              addDiscardCards: [{ cardId: 'wound', count: 1 }],
               applySelfStatuses: { strength: 1 },
             },
           },
@@ -1231,9 +1666,9 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'boost_core',
               name: '齿轮超频',
               type: 'defend_buff',
-              block: 12,
-              applySelfStatuses: { strength: 3 },
-              summary: '意图：获得 12 点格挡与 3 点力量',
+              block: 10,
+              applySelfStatuses: { strength: 2 },
+              summary: '意图：获得 10 点格挡与 2 点力量',
             },
           },
         ];
@@ -1246,7 +1681,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'flail_beams',
               name: '双联光束',
               type: 'attack',
-              damage: 8,
+              damage: 7,
               hits: 2,
             },
           },
@@ -1260,8 +1695,8 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'charge_hyper',
               name: '超能聚束',
               type: 'defend',
-              block: 14,
-              summary: '意图：获得 14 点格挡，下回合发射毁灭性的【超能光束】！',
+              block: 12,
+              summary: '意图：获得 12 点格挡，下回合发射毁灭性的【超能光束】！',
             },
           },
         ];
@@ -1273,7 +1708,7 @@ export function getEnemyIntentCandidates(enemy) {
             id: 'hyper_beam',
             name: '超能光束',
             type: 'attack',
-            damage: 38,
+            damage: 34,
             hits: 1,
           },
         },
@@ -1290,9 +1725,9 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'emerald_ward',
               name: '翠焰王座',
               type: 'defend_buff',
-              block: 14,
-              applySelfStatuses: { strength: 3 },
-              summary: '意图：获得 14 点格挡与 3 点力量',
+              block: 11,
+              applySelfStatuses: { strength: 2 },
+              summary: '意图：获得 11 点格挡与 2 点力量',
             },
           },
         ];
@@ -1305,7 +1740,7 @@ export function getEnemyIntentCandidates(enemy) {
               id: 'fireball_col',
               name: '冥翠火球',
               type: 'attack',
-              damage: 16,
+              damage: 14,
               hits: 1,
             },
           },
@@ -1332,8 +1767,590 @@ export function getEnemyIntentCandidates(enemy) {
             id: 'dark_volley',
             name: '暗影齐射',
             type: 'attack',
-            damage: 8,
+            damage: 7,
             hits: 3,
+          },
+        },
+      ];
+    }
+
+    case 'the_champ': {
+      const phase = enemy.champPhase ?? 1;
+      if (phase >= 2 && enemy.champPhase2PendingAnger) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'champ_anger',
+              name: '狂暴怒吼',
+              type: 'buff',
+              clearSelfDebuffs: true,
+              applySelfStatuses: { strength: 6 },
+              summary: '意图：震碎自身全部负面状态并获得 6 点力量，下回合必将施放【处决】！',
+            },
+          },
+        ];
+      }
+      if (phase >= 2 && (enemy.champPhase2Step ?? 0) === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'champ_execute',
+              name: '处决',
+              type: 'attack',
+              damage: 7,
+              hits: 2,
+            },
+          },
+        ];
+      }
+      if (phase === 1 && enemy.turnIndex % 4 === 3) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'champ_taunt',
+              name: '轻蔑嘲讽',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 2, vulnerable: 2 },
+              summary: '意图：轻蔑嘲讽玩家，施加 2 层虚弱与 2 层易伤',
+            },
+          },
+        ];
+      }
+
+      const canDefensiveStance = (enemy.defensiveStanceCount ?? 0) < 2;
+      const pool = [
+        canDefensiveStance
+          ? {
+              weight: 0.15,
+              intent: {
+                id: 'defensive_stance',
+                name: '铁壁架势',
+                type: 'defend_buff',
+                block: 10,
+                applySelfStatuses: { metallicize: 3 },
+                incrementDefensiveStance: true,
+                summary: '意图：获得 10 点格挡与 3 层金属化',
+              },
+            }
+          : null,
+        {
+          weight: canDefensiveStance ? 0.15 : 0.3,
+          intent: {
+            id: 'champ_gloat',
+            name: '狂傲蓄势',
+            type: 'buff',
+            applySelfStatuses: { strength: 2 },
+            summary: '意图：炫耀武勇并获得 2 点力量',
+          },
+        },
+        {
+          weight: 0.25,
+          intent: {
+            id: 'face_slap',
+            name: '震面猛击',
+            type: 'attack_debuff',
+            damage: 9,
+            hits: 1,
+            applyPlayerStatuses: { frail: 2, vulnerable: 2 },
+          },
+        },
+        {
+          weight: 0.45,
+          intent: {
+            id: 'heavy_slash',
+            name: '巨剑重劈',
+            type: 'attack',
+            damage: 13,
+            hits: 1,
+          },
+        },
+      ].filter((item) => item && item.intent.id !== enemy.lastMoveId);
+
+      const totalWeight = pool.reduce((sum, item) => sum + item.weight, 0) || 1;
+      return pool.map((item) => ({
+        probability: item.weight / totalWeight,
+        intent: item.intent,
+      }));
+    }
+
+    // === Act 3 Normal Enemies ===
+    case 'orb_walker': {
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'orb_laser',
+              name: '激光灼烧',
+              type: 'attack_debuff',
+              damage: 10,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'burn', count: 1 }],
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'orb_claw', name: '机械利爪', type: 'attack', damage: 14, hits: 1 },
+        },
+      ];
+    }
+
+    case 'spiker': {
+      const currentThorns = enemy.statuses?.thorns ?? 3;
+      if (enemy.turnIndex % 2 === 1 && currentThorns < 7) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'spike_up',
+              name: '倒刺生长',
+              type: 'buff',
+              applySelfStatuses: { thorns: 2 },
+              summary: '意图：生长锋利倒刺，获得 2 层【荆棘】',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'spiker_cut', name: '荆棘穿刺', type: 'attack', damage: 7, hits: 1 },
+        },
+      ];
+    }
+
+    case 'exploder': {
+      if ((enemy.statuses?.explosive ?? 0) <= 1 || enemy.turnIndex >= 2) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'explosive_detonate',
+              name: '终极自爆',
+              type: 'attack',
+              damage: 30,
+              hits: 1,
+              selfDestruct: true,
+              summary: '意图：引爆能量核心，造成 30 点伤害后自我毁灭！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'exploder_slam', name: '冲撞', type: 'attack', damage: 9, hits: 1 },
+        },
+      ];
+    }
+
+    case 'repulsor': {
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'repulse_daze',
+              name: '斥力脉冲',
+              type: 'debuff',
+              addDrawCards: [{ cardId: 'dazed', count: 2 }],
+              summary: '意图：将 2 张【晕眩】洗入你的抽牌堆！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'repulsor_bash', name: '钝击', type: 'attack', damage: 11, hits: 1 },
+        },
+      ];
+    }
+
+    case 'maw': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'maw_roar',
+              name: '威慑咆哮',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 3, frail: 3 },
+              summary: '意图：发出震耳咆哮，使你获得 3 层虚弱与 3 层脆弱',
+            },
+          },
+        ];
+      }
+      const step = (enemy.turnIndex - 1) % 3;
+      if (step === 0) {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'maw_slam', name: '巨颚重砸', type: 'attack', damage: 22, hits: 1 },
+          },
+        ];
+      }
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'maw_drool',
+              name: '狂暴蓄势',
+              type: 'buff',
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：垂涎蓄力，获得 3 点力量',
+            },
+          },
+        ];
+      }
+      const nomHits = Math.min(5, Math.floor(enemy.turnIndex / 2) + 1);
+      return [
+        {
+          probability: 1,
+          intent: { id: 'maw_nom', name: '疯狂啃噬', type: 'attack', damage: 5, hits: nomHits },
+        },
+      ];
+    }
+
+    // === Act 3 Elites ===
+    case 'giant_head': {
+      if (enemy.turnIndex < 3) {
+        if (enemy.turnIndex % 2 === 1) {
+          return [
+            {
+              probability: 1,
+              intent: {
+                id: 'head_glare',
+                name: '凝视威压',
+                type: 'debuff',
+                applyPlayerStatuses: { weak: 1 },
+                summary: `意图：沉重凝视，施加 1 层虚弱（还剩 ${3 - enemy.turnIndex} 回合觉醒重击）`,
+              },
+            },
+          ];
+        }
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'head_count',
+              name: `低语倒数 (${3 - enemy.turnIndex})`,
+              type: 'attack',
+              damage: 13,
+              hits: 1,
+            },
+          },
+        ];
+      }
+      const escalateDmg = Math.min(60, 30 + (enemy.turnIndex - 3) * 5);
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'it_is_time',
+            name: '终焉降临',
+            type: 'attack',
+            damage: escalateDmg,
+            hits: 1,
+          },
+        },
+      ];
+    }
+
+    case 'nemesis': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'nemesis_tri_burn',
+              name: '死灵灼魂',
+              type: 'debuff',
+              addDiscardCards: [{ cardId: 'burn', count: 3 }],
+              summary: '意图：将 3 张【灼伤】塞入你的弃牌堆',
+            },
+          },
+        ];
+      }
+      const nemPool = [
+        {
+          weight: 0.45,
+          intent: {
+            id: 'nemesis_debilitate',
+            name: '衰弱连斩',
+            type: 'attack_debuff',
+            damage: 6,
+            hits: 3,
+            addDiscardCards: [{ cardId: 'burn', count: 2 }],
+          },
+        },
+        {
+          weight: 0.35,
+          intent: {
+            id: 'nemesis_scythe',
+            name: '死神巨镰',
+            type: 'attack',
+            damage: 36,
+            hits: 1,
+          },
+        },
+        {
+          weight: 0.2,
+          intent: {
+            id: 'nemesis_tri_burn',
+            name: '死灵灼魂',
+            type: 'debuff',
+            addDiscardCards: [{ cardId: 'burn', count: 3 }],
+            summary: '意图：将 3 张【灼伤】塞入你的弃牌堆',
+          },
+        },
+      ].filter((item) => item.intent.id !== enemy.lastMoveId);
+      const total = nemPool.reduce((s, x) => s + x.weight, 0) || 1;
+      return nemPool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+    }
+
+    case 'reptomancer': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'repto_summon',
+              name: '召唤魔刃',
+              type: 'buff',
+              summonMinions: 'dagger',
+              summonCount: 2,
+              summary: '意图：召唤 2 把【魔刃飞刀】协同进攻！',
+            },
+          },
+        ];
+      }
+      const step = enemy.turnIndex % 3;
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'snake_strike',
+              name: '毒蛇二连击',
+              type: 'attack_debuff',
+              damage: 12,
+              hits: 2,
+              applyPlayerStatuses: { weak: 1 },
+            },
+          },
+        ];
+      }
+      if (step === 2) {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'big_bite', name: '致命噬咬', type: 'attack', damage: 28, hits: 1 },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'repto_summon',
+            name: '召唤魔刃',
+            type: 'buff',
+            summonMinions: 'dagger',
+            summonCount: 2,
+            summary: '意图：召唤 2 把【魔刃飞刀】协同进攻！',
+          },
+        },
+      ];
+    }
+
+    case 'dagger': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'dagger_stab',
+              name: '飞刃穿刺',
+              type: 'attack_debuff',
+              damage: 9,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'wound', count: 1 }],
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'dagger_sacrifice',
+            name: '牺牲斩',
+            type: 'attack',
+            damage: 22,
+            hits: 1,
+            selfDestruct: true,
+          },
+        },
+      ];
+    }
+
+    // === Act 3 Bosses ===
+    case 'time_eater': {
+      if (enemy.pendingHaste && !enemy.hasteUsed) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'time_haste',
+              name: '狂潮加速',
+              type: 'buff',
+              clearSelfDebuffs: true,
+              healToHalfMax: true,
+              summary: '意图：时间回溯！清除全部负面状态并恢复至 50% 生命！',
+            },
+          },
+        ];
+      }
+      const tePool = [
+        {
+          weight: 0.45,
+          intent: { id: 'reverberate', name: '时空震荡', type: 'attack', damage: 7, hits: 3 },
+        },
+        {
+          weight: 0.35,
+          intent: {
+            id: 'head_slam',
+            name: '重锤冲撞',
+            type: 'attack_debuff',
+            damage: 22,
+            hits: 1,
+            applyPlayerStatuses: { weak: 1 },
+            addDiscardCards: [{ cardId: 'slimed', count: 2 }],
+          },
+        },
+        {
+          weight: 0.2,
+          intent: {
+            id: 'ripple',
+            name: '时间涟漪',
+            type: 'defend_buff',
+            block: 18,
+            applyPlayerStatuses: { weak: 1, vulnerable: 1, frail: 1 },
+            summary: '意图：获得 18 点格挡，并对你施加虚弱、易伤与脆弱各 1 层',
+          },
+        },
+      ].filter((x) => x.intent.id !== enemy.lastMoveId);
+      const total = tePool.reduce((s, x) => s + x.weight, 0) || 1;
+      return tePool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+    }
+
+    case 'awakened_one': {
+      if (enemy.unawakened !== false) {
+        if (enemy.turnIndex % 2 === 0) {
+          return [
+            {
+              probability: 1,
+              intent: { id: 'awakened_slash', name: '暗影裂爪', type: 'attack', damage: 16, hits: 1 },
+            },
+          ];
+        }
+        return [
+          {
+            probability: 1,
+            intent: { id: 'soul_strike', name: '灵魂四连击', type: 'attack', damage: 5, hits: 4 },
+          },
+        ];
+      }
+      const p2Step = (enemy.awakeTurnIndex ?? 0) % 3;
+      if (p2Step === 0) {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'dark_echo', name: '幽冥回响', type: 'attack', damage: 28, hits: 1 },
+          },
+        ];
+      }
+      if (p2Step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'awakened_sludge',
+              name: '腐朽淤泥',
+              type: 'attack_debuff',
+              damage: 15,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'burn', count: 1 }, { cardId: 'dazed', count: 1 }],
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'awakened_tackle', name: '觉醒猛扑', type: 'attack', damage: 8, hits: 3 },
+        },
+      ];
+    }
+
+    case 'donu': {
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'circle_of_power',
+              name: '力量法阵',
+              type: 'buff',
+              applyAllEnemiesStatuses: { strength: 3 },
+              summary: '意图：使全体友方单位获得 3 点【力量】！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'donu_beam', name: '光束齐射', type: 'attack', damage: 9, hits: 2 },
+        },
+      ];
+    }
+
+    case 'deca': {
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'deca_beam',
+              name: '脉冲双击',
+              type: 'attack_debuff',
+              damage: 9,
+              hits: 2,
+              addDiscardCards: [{ cardId: 'dazed', count: 2 }],
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'square_of_protection',
+            name: '守护方阵',
+            type: 'defend',
+            allEnemiesBlock: 14,
+            block: 14,
+            summary: '意图：使全体友方单位获得 14 点格挡！',
           },
         },
       ];
@@ -1357,7 +2374,7 @@ export function getEnemyIntentCandidates(enemy) {
 
 export function rollEnemyIntent(state, enemy) {
   const roll = nextRandom(state);
-  const candidates = getEnemyIntentCandidates(enemy);
+  const candidates = getEnemyIntentCandidates(enemy, state?.player ?? null);
   let cumulative = 0;
   let chosen = candidates[candidates.length - 1].intent;
   for (const item of candidates) {
@@ -1409,6 +2426,16 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
   const simEnemyStatuses = { ...(enemy.statuses || {}) };
   const simEnemySkip = { ...(enemy.skipStatusTick || {}) };
   let simSkipRitual = Boolean(enemy.skipRitualThisTurn);
+
+  if (curIntent?.clearSelfDebuffs) {
+    for (const k of ['vulnerable', 'weak', 'frail', 'poison', 'corpseExplosion']) {
+      delete simEnemyStatuses[k];
+      delete simEnemySkip[k];
+    }
+    if ((simEnemyStatuses.strength ?? 0) < 0) {
+      delete simEnemyStatuses.strength;
+    }
+  }
 
   if (curIntent?.applySelfStatuses) {
     for (const [k, v] of Object.entries(curIntent.applySelfStatuses)) {
@@ -1483,11 +2510,78 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
     }
   }
 
+  let nextAwakeTurnIndex = enemy.awakeTurnIndex ?? 0;
+  if (enemy.templateId === 'lagavulin') {
+    if ((simEnemyStatuses.asleep ?? 0) > 0) {
+      simEnemyStatuses.asleep -= 1;
+      if (simEnemyStatuses.asleep <= 0) {
+        delete simEnemyStatuses.asleep;
+        delete simEnemyStatuses.metallicize;
+        nextAwakeTurnIndex = 0;
+      }
+    } else if ((simEnemyStatuses.stunned ?? 0) > 0 || curIntent?.id === 'stunned') {
+      delete simEnemyStatuses.stunned;
+      nextAwakeTurnIndex = 0;
+    } else {
+      nextAwakeTurnIndex += 1;
+    }
+  } else if (enemy.templateId === 'awakened_one' && enemy.unawakened === false) {
+    nextAwakeTurnIndex += 1;
+  }
+
+  const nextMultiStabUsed =
+    enemy.templateId === 'book_of_stabbing' && curIntent?.id === 'multi_stab'
+      ? (enemy.multiStabUsed ?? 0) + 1
+      : (enemy.multiStabUsed ?? 0);
+
+  let nextChampPhase = enemy.champPhase ?? 1;
+  let nextChampPendingAnger = Boolean(enemy.champPhase2PendingAnger);
+  let nextChampPhase2Step = enemy.champPhase2Step ?? 0;
+  const nextDefensiveStanceCount =
+    enemy.templateId === 'the_champ' && curIntent?.incrementDefensiveStance
+      ? (enemy.defensiveStanceCount ?? 0) + 1
+      : (enemy.defensiveStanceCount ?? 0);
+
+  if (enemy.templateId === 'the_champ') {
+    if (curIntent?.id === 'champ_anger') {
+      nextChampPendingAnger = false;
+      nextChampPhase2Step = 0;
+    } else if (nextChampPhase === 1 && enemy.hp <= Math.floor(enemy.maxHp / 2)) {
+      nextChampPhase = 2;
+      nextChampPendingAnger = true;
+    } else if (nextChampPhase >= 2) {
+      nextChampPhase2Step = (nextChampPhase2Step + 1) % 3;
+    }
+  }
+
+  let nextPendingHaste = Boolean(enemy.pendingHaste);
+  let nextHasteUsed = Boolean(enemy.hasteUsed);
+  if (enemy.templateId === 'time_eater') {
+    if (curIntent?.id === 'time_haste') {
+      nextPendingHaste = false;
+      nextHasteUsed = true;
+    } else if (!nextHasteUsed && enemy.hp <= Math.floor(enemy.maxHp / 2)) {
+      nextPendingHaste = true;
+    }
+  }
+
+  if ((simEnemyStatuses.explosive ?? 0) > 0 && !curIntent?.selfDestruct) {
+    simEnemyStatuses.explosive = Math.max(1, simEnemyStatuses.explosive - 1);
+  }
+
   const simEnemy = {
     ...enemy,
     ascension: asc,
     statuses: simEnemyStatuses,
     turnIndex: (enemy.turnIndex ?? 0) + 1,
+    awakeTurnIndex: nextAwakeTurnIndex,
+    multiStabUsed: nextMultiStabUsed,
+    champPhase: nextChampPhase,
+    champPhase2PendingAnger: nextChampPendingAnger,
+    champPhase2Step: nextChampPhase2Step,
+    defensiveStanceCount: nextDefensiveStanceCount,
+    pendingHaste: nextPendingHaste,
+    hasteUsed: nextHasteUsed,
     lastMoveId: curIntent?.id ?? enemy.lastMoveId ?? null,
     mode: nextMode,
     offensiveStep: nextOffensiveStep,
@@ -1501,7 +2595,7 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
       }
     : null;
 
-  const rawCandidates = getEnemyIntentCandidates(simEnemy);
+  const rawCandidates = getEnemyIntentCandidates(simEnemy, simPlayer);
   const candidates = rawCandidates.map((item) => {
     const scaled = applyAscensionIntentScaling({ ascension: asc }, simEnemy, item.intent);
     const preview = getEnemyIntentPreview({ ...simEnemy, intent: scaled }, simPlayer);
@@ -1524,6 +2618,16 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
     conditionalNote = '若本回合触发【形态转换】，将切换防御形态并使用【翻滚撞击】';
   } else if (enemy.templateId === 'slime_boss' && enemy.hp > Math.floor(enemy.maxHp / 2)) {
     conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合改为【巨体分裂】`;
+  } else if (enemy.templateId === 'lagavulin' && (enemy.statuses?.asleep ?? 0) > 0) {
+    conditionalNote = '若本回合造成穿透格挡的生命伤害，将提前惊醒并眩晕 1 回合（跳过下次行动）';
+  } else if (enemy.templateId === 'hexaghost' && enemy.turnIndex === 0) {
+    conditionalNote = '【分裂烈焰】每段伤害 = max(2, ⌊你当前生命 ÷ 14⌋ + 1)（随当前生命动态变化）';
+  } else if (enemy.templateId === 'the_champ' && (enemy.champPhase ?? 1) === 1 && enemy.hp > Math.floor(enemy.maxHp / 2)) {
+    conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合将施放【狂暴怒吼】（清负面 +6力量）`;
+  } else if (enemy.templateId === 'time_eater' && !enemy.hasteUsed && enemy.hp > Math.floor(enemy.maxHp / 2)) {
+    conditionalNote = `注意【时间扭曲】（剩 ${enemy.statuses?.timeWarp ?? 12} 张牌）；半血以下将触发回血加速`;
+  } else if (enemy.templateId === 'awakened_one' && enemy.unawakened) {
+    conditionalNote = `首次击倒后将触发【黑暗重生】复活进入 ${enemy.maxHp} 生命二阶段形态！`;
   }
 
   let summaryText = '';

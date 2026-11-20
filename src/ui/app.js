@@ -12,6 +12,7 @@ import { getDailyChallengeSpec, getLocalDateKey } from '../engine/daily.js';
 import {
   buyShopCard,
   buyShopColorlessCard,
+  buyShopExclusiveRelic,
   buyShopPotion,
   buyShopPurge,
   buyShopRelic,
@@ -31,6 +32,7 @@ import {
   continueFromEvent,
   createNewRun,
   discardPotion,
+  getStarterPotionSlotCount,
   hasPendingNeowBlessing,
   leaveRestSite,
   leaveShop,
@@ -47,7 +49,7 @@ import {
   runRestartCombat,
   runUsePotion,
   selectMapNode,
-  settleAct1Victory,
+  settleVictory,
   skipNeowCardOffer,
   STARTER_POTION_SLOTS,
 } from '../engine/game.js';
@@ -117,10 +119,14 @@ function loadSavedRun() {
       if (!parsed.player.artKey) {
         parsed.player.artKey = charDef.artKey;
       }
+      const targetPotionSlots = getStarterPotionSlotCount(parsed.ascension ?? 0);
       if (!Array.isArray(parsed.player.potions)) {
-        parsed.player.potions = [charDef.starterPotion, null, null];
+        parsed.player.potions = [
+          charDef.starterPotion,
+          ...Array(Math.max(0, targetPotionSlots - 1)).fill(null),
+        ];
       } else {
-        while (parsed.player.potions.length < STARTER_POTION_SLOTS) {
+        while (parsed.player.potions.length < targetPotionSlots) {
           parsed.player.potions.push(null);
         }
       }
@@ -942,6 +948,23 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'new-run': {
+        if (state && state.screen !== 'game_over' && target.id !== 'btn-restart-gameover') {
+          ui.modal = 'confirm_new_run';
+          soundEngine.play('ui_click');
+          render();
+          break;
+        }
+        ui.selectedCharacterId = state?.characterId || meta.selectedCharacterId || 'ironclad';
+        ui.showCharacterSelect = true;
+        ui.modal = null;
+        ui.seedInput = '';
+        clearCombatSelection();
+        soundEngine.play('ui_click');
+        setNotice('');
+        render();
+        break;
+      }
+      case 'confirm-new-run': {
         ui.selectedCharacterId = state?.characterId || meta.selectedCharacterId || 'ironclad';
         ui.showCharacterSelect = true;
         ui.modal = null;
@@ -1312,8 +1335,9 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'settle-victory':
       case 'settle-act1-victory': {
-        const res = settleAct1Victory(state);
+        const res = settleVictory(state);
         if (res.ok) soundEngine.play('victory');
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
         render();
@@ -1434,6 +1458,18 @@ export function mountSpireApp(rootEl) {
         const res = buyShopRelic(state);
         if (res.ok) soundEngine.play('gold');
         setNotice(res.ok ? '已购入遗物！' : res.reason, res.ok ? 'normal' : 'warn');
+        render();
+        break;
+      }
+      case 'buy-shop-exclusive-relic': {
+        const res = buyShopExclusiveRelic(state);
+        if (res.ok) soundEngine.play('upgrade');
+        const msg = res.ok
+          ? res.relicId === 'membership_card'
+            ? '已购入【会员卡】！商店内其余所有在售商品与移除服务立享 50% 折扣！'
+            : '已购入商店专属遗物！'
+          : res.reason;
+        setNotice(msg, res.ok ? 'normal' : 'warn');
         render();
         break;
       }

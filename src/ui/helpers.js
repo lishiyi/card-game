@@ -102,17 +102,24 @@ export function renderCardHtml(cardInstance, options = {}) {
     .filter(Boolean)
     .join('·');
 
+  const medKitActive =
+    stats.unplayable &&
+    stats.type === 'status' &&
+    Boolean(combatCtx?.player?.relics?.includes('medical_kit'));
+
   const targetLabel = options.discardSelectable
     ? options.discardSynergy
       ? '✦ 弃置触发'
       : '点击弃置'
-    : stats.unplayable
-      ? '不可打出'
-      : stats.target === 'all_enemies'
-        ? '全体目标'
-        : stats.target === 'enemy'
-          ? '单体目标'
-          : '自身';
+    : medKitActive
+      ? '消耗打出'
+      : stats.unplayable
+        ? '不可打出'
+        : stats.target === 'all_enemies'
+          ? '全体目标'
+          : stats.target === 'enemy'
+            ? '单体目标'
+            : '自身';
 
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';
@@ -188,15 +195,17 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
       const polarity =
         (key === 'strength' || key === 'dexterity') && val < 0 ? 'debuff' : metaInfo.polarity;
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
+      const displayVal = key === 'slow' ? `+${(entity?.slowStacks ?? 0) * 10}%` : `${val}`;
+      const descText = metaInfo.describe(val, entity?.slowStacks ?? 0);
       return `<span
         class="status-chip ${escapeHtml(polarity)}"
         data-status-key="${escapeHtml(key)}"
         tabindex="0"
-        data-tooltip-title="${escapeHtml(`${metaInfo.name} (${val})`)}"
+        data-tooltip-title="${escapeHtml(`${metaInfo.name} (${displayVal})`)}"
         data-tooltip-tag="${escapeHtml(`${ownerLabel} · ${polarityLabel}`)}"
-        data-tooltip-desc="${escapeHtml(metaInfo.describe(val))}"
+        data-tooltip-desc="${escapeHtml(descText)}"
         data-tooltip-tone="${escapeHtml(polarity)}"
-      >${escapeHtml(metaInfo.name)} ${escapeHtml(val)}</span>`;
+      >${escapeHtml(metaInfo.name)} ${escapeHtml(displayVal)}</span>`;
     })
     .join('');
   return `<div class="status-row">${chips}</div>`;

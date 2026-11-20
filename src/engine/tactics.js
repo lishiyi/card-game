@@ -6,6 +6,7 @@
 
 import {
   canUpgradeCard,
+  countCombatStrikeCards,
   getCardAttackFlatBonus,
   getCardStats,
   getEffectiveCardCost,
@@ -26,7 +27,10 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
 
   for (let i = 0; i < hits; i += 1) {
     if (remHp <= 0) break;
-    const dmg = Math.max(0, Math.floor(perHitDamage));
+    let dmg = Math.max(0, Math.floor(perHitDamage));
+    if (dmg > 1 && (enemy.statuses?.intangible ?? 0) > 0) {
+      dmg = 1;
+    }
     totalDealt += dmg;
 
     const blocked = Math.min(remBlock, dmg);
@@ -78,8 +82,14 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   if (stats.target !== 'enemy' && stats.target !== 'all_enemies') return null;
 
   const combat = state.combat;
+  if (stats.randomEnemyHits && getAliveEnemies(combat).length > 1) {
+    return null;
+  }
+
   const hasSkull = hasRelic(state, 'snecko_skull');
   const skullBonus = hasSkull ? 1 : 0;
+  const burstPasses =
+    stats.type === 'skill' && !stats.noBurst && (state.player?.statuses?.burst ?? 0) > 0 ? 2 : 1;
 
   let basePerHit = null;
   let hits = 1;
@@ -97,9 +107,12 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     basePerHit = stats.damage ?? 0;
     hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
   } else if (typeof stats.damage === 'number') {
-    basePerHit = stats.damage;
+    const strikeBonus = stats.bonusDamagePerStrike
+      ? stats.bonusDamagePerStrike * countCombatStrikeCards(combat)
+      : 0;
+    basePerHit = stats.damage + strikeBonus;
     if (stats.isXCost) {
-      hits = Math.max(0, state.player?.energy ?? 0);
+      hits = Math.max(0, (state.player?.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0));
     } else {
       hits = stats.hits ?? 1;
       if (stats.bonusHitIfPoisoned && (enemy.statuses?.poison ?? 0) > 0) {
@@ -118,7 +131,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     sim = simulateSequentialHits(enemy, perHitDamage, hits, { isAttack: true });
   }
 
-  // Deterministic poison projection (direct poison statuses, Catalyst, and Envenom on unblocked attack hits)
+  // Deterministic poison projection (direct poison statuses, Catalyst, Burst, and Envenom)
   const currentPoison = enemy.statuses?.poison ?? 0;
   let poisonAdded = 0;
 
@@ -127,13 +140,15 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   }
 
   if (stats.applyEnemyStatuses?.poison) {
-    poisonAdded += stats.applyEnemyStatuses.poison + skullBonus;
+    poisonAdded += (stats.applyEnemyStatuses.poison + skullBonus) * burstPasses;
   }
 
   if (stats.multiplyPoison) {
-    const preCatPoison = currentPoison + poisonAdded;
-    if (preCatPoison > 0) {
-      poisonAdded += preCatPoison * (stats.multiplyPoison - 1) + skullBonus;
+    for (let p = 0; p < burstPasses; p += 1) {
+      const preCatPoison = currentPoison + poisonAdded;
+      if (preCatPoison > 0) {
+        poisonAdded += preCatPoison * (stats.multiplyPoison - 1) + skullBonus;
+      }
     }
   }
 
@@ -164,6 +179,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   return {
     ...baseResult,
     goldOnKill: stats.goldOnKill ?? 0,
+    maxHpOnKill: stats.maxHpOnKill ?? 0,
     poisonAdded,
     projectedPoison,
     isPoisonLethal,
@@ -224,7 +240,10 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
 
   if (!state?.combat || !cardInstance) return result;
   const stats = getCardStats(cardInstance);
-  if (stats.unplayable) return result;
+  const canMedKitPlay = Boolean(
+    stats.unplayable && stats.type === 'status' && hasRelic(state, 'medical_kit')
+  );
+  if (stats.unplayable && !canMedKitPlay) return result;
 
   const player = state.player;
   const combat = state.combat;
@@ -247,7 +266,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
   const grantsBlock =
     typeof stats.block === 'number' || typeof stats.exhaustNonAttacksBlockEach === 'number';
   const corruptionExhaust = isSkill && (player.statuses?.corruption ?? 0) > 0;
-  const triggersSelfExhaust = Boolean(stats.exhaust) || corruptionExhaust;
+  const triggersSelfExhaust = Boolean(stats.exhaust) || corruptionExhaust || canMedKitPlay;
   const triggersHandExhaust = Boolean(
     stats.exhaustHandRandom ||
       stats.exhaustNonAttacksBlockEach ||
@@ -274,11 +293,23 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
   };
 
+  if (canMedKitPlay) {
+    pushRelic('medical_kit', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【医疗箱】生效：可 0 费消耗打出此状态牌！',
+    });
+  }
+
   // 1. Enemy Danger / Synergy Triggers
   const enrageEnemies = [];
   const sharpHideEnemies = [];
+  const curiosityEnemies = [];
+  const thornsTargets = [];
+  const slowTargets = [];
   const vulnerableTargets = [];
   const poisonedTargets = [];
+  const timeWarpEnemies = [];
 
   for (const enemy of aliveEnemies) {
     if (isSkill && (enemy.statuses?.enrage ?? 0) > 0) {
@@ -289,6 +320,14 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'sharpHide', tone: 'warn' });
       sharpHideEnemies.push(enemy);
     }
+    if (stats.type === 'power' && (enemy.statuses?.curiosity ?? 0) > 0) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'curiosity', tone: 'warn' });
+      curiosityEnemies.push(enemy);
+    }
+    if ((enemy.statuses?.timeWarp ?? 0) === 1) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'timeWarp', tone: 'warn' });
+      timeWarpEnemies.push(enemy);
+    }
   }
 
   for (const enemy of targetedEnemies) {
@@ -296,9 +335,17 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'vulnerable', tone: 'buff' });
       vulnerableTargets.push(enemy);
     }
+    if (dealsDamage && (enemy.statuses?.slow ?? 0) > 0 && (enemy.slowStacks ?? 0) > 0) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'slow', tone: 'buff' });
+      slowTargets.push(enemy);
+    }
     if ((stats.bonusHitIfPoisoned || stats.multiplyPoison) && (enemy.statuses?.poison ?? 0) > 0) {
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'poison', tone: 'buff' });
       poisonedTargets.push(enemy);
+    }
+    if (isAttack && (enemy.statuses?.thorns ?? 0) > 0) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'thorns', tone: 'warn' });
+      thornsTargets.push(enemy);
     }
     if (isAttack && (enemy.statuses?.angry ?? 0) > 0) {
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'angry', tone: 'warn' });
@@ -322,11 +369,56 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       text: `⚠ 攻击牌将触发【锋利外壳】：受到 ${totalReflect} 点反伤`,
     });
   }
+  if (thornsTargets.length > 0) {
+    const maxThorns = Math.max(...thornsTargets.map((e) => e.statuses.thorns ?? 0));
+    result.callouts.push({
+      tone: 'warn',
+      text: `⚠ 目标拥有【荆棘】：每次打击受到 ${maxThorns} 点反伤`,
+    });
+  }
+  if (curiosityEnemies.length > 0) {
+    const names = curiosityEnemies.map((e) => `${e.name} +${e.statuses.curiosity}力量`).join('、');
+    result.callouts.push({
+      tone: 'warn',
+      text: `⚠ 能力牌将触发【好奇】：${names}`,
+    });
+  }
+  if (timeWarpEnemies.length > 0) {
+    result.callouts.push({
+      tone: 'warn',
+      text: '⚠ 【时间扭曲】临近阈值：打出本牌后将立即强制结束回合！',
+    });
+  }
+  if (slowTargets.length > 0) {
+    const sample = slowTargets[0];
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 【迟缓】生效：本回合已打 ${sample.slowStacks} 张牌，攻击伤害 +${sample.slowStacks * 10}%`,
+    });
+  }
 
   // 2. Player Status & Relic Synergies
   if (dealsDamage) {
     if ((player.statuses?.strength ?? 0) !== 0) {
       pushPlayerStatus('strength', player.statuses.strength > 0 ? 'buff' : 'warn');
+    }
+    if (isAttack && (player.statuses?.vigor ?? 0) > 0) {
+      pushPlayerStatus('vigor', 'buff');
+      if (hasRelic(state, 'akabeko')) {
+        pushRelic('akabeko', 'buff');
+      }
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 【活力】加成：本张攻击牌每段伤害 +${player.statuses.vigor}`,
+      });
+    }
+    if (
+      isAttack &&
+      hasRelic(state, 'red_skull') &&
+      player.hp > 0 &&
+      player.hp <= Math.floor(player.maxHp * 0.5)
+    ) {
+      pushRelic('red_skull', 'buff');
     }
     if ((player.statuses?.weak ?? 0) > 0) {
       pushPlayerStatus('weak', 'warn');
@@ -338,6 +430,14 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
         text: '✦ 【折纸青蛙】+【易伤】联动：伤害增幅提升至 +75%',
       });
     }
+  }
+
+  if (stats.isXCost && hasRelic(state, 'chemical_x')) {
+    pushRelic('chemical_x', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【化学物X】增幅：本牌 X 效果额外 +2！',
+    });
   }
 
   // Silent: Accuracy + Wrist Blade + Envenom
@@ -374,7 +474,11 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     appliesPoison ||
       stats.applyEnemyStatuses?.weak ||
       stats.applyEnemyStatuses?.vulnerable ||
-      stats.applyEnemyStatuses?.corpseExplosion
+      stats.applyEnemyStatuses?.corpseExplosion ||
+      (stats.applyEnemyStatuses?.strength ?? 0) < 0 ||
+      stats.tempEnemyStrengthLoss ||
+      stats.xEnemyStrengthLoss ||
+      stats.xEnemyWeak
   );
   if (appliesEnemyDebuff && (player.statuses?.sadisticNature ?? 0) > 0) {
     pushPlayerStatus('sadisticNature', 'buff');
@@ -396,7 +500,11 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       const sample = poisonedTargets[0];
       const cur = sample.statuses?.poison ?? 0;
       const skullBonus = hasRelic(state, 'snecko_skull') ? 1 : 0;
-      const next = cur * stats.multiplyPoison + skullBonus;
+      const burstPasses = isSkill && !stats.noBurst && (player.statuses?.burst ?? 0) > 0 ? 2 : 1;
+      let next = cur;
+      for (let p = 0; p < burstPasses; p += 1) {
+        next = next * stats.multiplyPoison + skullBonus;
+      }
       result.callouts.push({
         tone: 'buff',
         text: `✦ 【催化剂】剧毒爆发：${sample.name} 中毒 ${cur} → ${next} 层！`,
@@ -409,7 +517,58 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
   }
 
-  // Silent: Finisher & Sneaky Strike & Shuriken / Kunai
+  if (stats.ifVulnerableBonusEnergy || stats.ifVulnerableDraw) {
+    if (vulnerableTargets.length > 0) {
+      result.callouts.push({
+        tone: 'buff',
+        text: '✦ 【飞膝踢】命中易伤目标：回 1 能量并抽 1 张牌！',
+      });
+    } else if (targetedEnemies.length > 0) {
+      result.callouts.push({
+        tone: 'warn',
+        text: '⚠ 目标当前没有【易伤】，不会触发回能与抽牌',
+      });
+    }
+  }
+
+  if (stats.spotWeaknessStrength) {
+    const intendsAtk = targetedEnemies.some(
+      (e) => e.intent?.type?.startsWith('attack') || typeof e.intent?.damage === 'number'
+    );
+    if (intendsAtk) {
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 【洞悉弱点】识破攻击意图：将获得 ${stats.spotWeaknessStrength} 点力量！`,
+      });
+    } else if (targetedEnemies.length > 0) {
+      result.callouts.push({
+        tone: 'warn',
+        text: '⚠ 目标当前未意图攻击，【洞悉弱点】不会获得力量',
+      });
+    }
+  }
+
+  if (stats.doubleStrength) {
+    const curStr = player.statuses?.strength ?? 0;
+    pushPlayerStatus('strength', curStr > 0 ? 'buff' : 'warn');
+    result.callouts.push({
+      tone: curStr > 0 ? 'buff' : 'warn',
+      text:
+        curStr > 0
+          ? `✦ 【突破极限】力量翻倍：${curStr} → ${curStr * 2} 点力量！`
+          : '⚠ 当前没有正力量，【突破极限】不会叠加力量',
+    });
+  }
+
+  if (stats.loseHp && (player.statuses?.rupture ?? 0) > 0) {
+    pushPlayerStatus('rupture', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 【撕裂】触发：卡牌损血将获得 ${player.statuses.rupture} 点力量`,
+    });
+  }
+
+  // Silent: Finisher & Sneaky Strike & Shuriken / Kunai / Ornamental Fan
   if (stats.hitsPerAttackPlayedThisTurn) {
     const played = combat.attacksPlayedThisTurn ?? 0;
     result.callouts.push({
@@ -438,6 +597,10 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       pushRelic('kunai', 'buff');
       if ((combat.kunaiCounter ?? 0) === 2) comboTriggers.push('苦无(+1敏捷)');
     }
+    if (hasRelic(state, 'ornamental_fan')) {
+      pushRelic('ornamental_fan', 'buff');
+      if ((combat.ornamentalFanCounter ?? 0) === 2) comboTriggers.push('精致折扇(+4格挡)');
+    }
     if (comboTriggers.length > 0) {
       result.callouts.push({
         tone: 'buff',
@@ -446,7 +609,37 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
   }
 
-  // Per-card Silent powers (After Image / A Thousand Cuts)
+  if (stats.type === 'power' && hasRelic(state, 'mummified_hand')) {
+    pushRelic('mummified_hand', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【干瘪之手】联动：打出能力牌后随机令 1 张手牌本回合变为 0 费！',
+    });
+  }
+
+  if (hasRelic(state, 'orange_pellets') && ['attack', 'skill', 'power'].includes(stats.type)) {
+    const tracked = combat.playedCardTypesThisTurn || {};
+    const willComplete =
+      (tracked.attack || stats.type === 'attack') &&
+      (tracked.skill || stats.type === 'skill') &&
+      (tracked.power || stats.type === 'power');
+    if (willComplete) {
+      pushRelic('orange_pellets', 'buff');
+      result.callouts.push({
+        tone: 'buff',
+        text: '✦ 【橙色药丸】齐聚攻/技/能：打出后将清除自身全部负面状态！',
+      });
+    }
+  }
+
+  // Per-card & Skill triggers (Burst, After Image, A Thousand Cuts)
+  if (isSkill && !stats.noBurst && (player.statuses?.burst ?? 0) > 0) {
+    pushPlayerStatus('burst', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【爆发】生效：该技能牌将连续发动 2 次！',
+    });
+  }
   if ((player.statuses?.afterImage ?? 0) > 0 && stats.cardId !== 'after_image') {
     pushPlayerStatus('afterImage', 'buff');
   }
@@ -464,6 +657,13 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
     if ((player.statuses?.barricade ?? 0) > 0) {
       pushPlayerStatus('barricade', 'buff');
+    }
+    if ((player.statuses?.juggernaut ?? 0) > 0) {
+      pushPlayerStatus('juggernaut', 'buff');
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 【势不可挡】触发：获得格挡时对随机敌人造成 ${player.statuses.juggernaut} 点伤害`,
+      });
     }
   }
 

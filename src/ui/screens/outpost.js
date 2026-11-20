@@ -26,13 +26,17 @@ export function renderTreasureScreen({ state }) {
     ? state.player.deck.find((c) => c.instanceId === ts.curseCardId)
     : null;
 
+  const chestBadgeHtml = ts.chestLabel
+    ? `<span class="chest-tier-badge">${escapeHtml(ts.chestLabel)}</span>`
+    : '';
+
   if (!ts.opened) {
     return `
       <section class="panel-stage" aria-labelledby="treasure-heading">
         <div class="stage-header">
           <div>
-            <h2 id="treasure-heading" class="stage-heading">远古宝箱室</h2>
-            <p class="stage-subtitle">幽深石室中央摆放着一具镶金古铜宝箱，缝隙间溢出一缕温暖秘光。</p>
+            <h2 id="treasure-heading" class="stage-heading">远古宝箱室${chestBadgeHtml}</h2>
+            <p class="stage-subtitle">幽深石室中央摆放着一具${ts.chestLabel ? `<strong>${escapeHtml(ts.chestLabel)}</strong>` : '镶金古铜宝箱'}（小/中/大宝箱对应不同稀罕掉落权重），缝隙间溢出一缕温暖秘光。</p>
           </div>
           <button type="button" id="btn-skip-treasure" class="btn-stone" data-action="leave-treasure">
             跳过宝箱，继续前进 →
@@ -63,7 +67,7 @@ export function renderTreasureScreen({ state }) {
             <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('chest')}</span>
             <span class="loot-card-body">
               <span class="loot-card-title">
-                开启远古宝箱 · 拿走宝物
+                开启${escapeHtml(ts.chestLabel || '远古宝箱')} · 拿走宝物
                 <span class="loot-sub-pill">${hasCursedKey ? '⚠ 触发诅咒钥匙' : '必出遗物'}</span>
               </span>
               <span class="loot-card-desc">
@@ -81,7 +85,7 @@ export function renderTreasureScreen({ state }) {
     <section class="panel-stage" aria-labelledby="treasure-heading">
       <div class="stage-header">
         <div>
-          <h2 id="treasure-heading" class="stage-heading">远古宝箱 · 秘宝已收入囊中</h2>
+          <h2 id="treasure-heading" class="stage-heading">远古宝箱${chestBadgeHtml} · 秘宝已收入囊中</h2>
           <p class="stage-subtitle">机括轻响，沉睡的远古秘宝已归你所有。</p>
         </div>
         <button type="button" id="btn-leave-treasure" class="btn-brass" data-action="leave-treasure">
@@ -145,8 +149,10 @@ export function renderTreasureScreen({ state }) {
 export function renderBossRewardScreen({ state, ui }) {
   const br = state.bossReward;
   if (!br) return '';
+  const actCleared = br.actCleared ?? state.act ?? 1;
+  const isAct2Altar = actCleared >= 2;
   const bossName = getCurrentBossName(state);
-  const healRatioPct = (state.ascension ?? 0) >= 4 ? 60 : 75;
+  const healRatioPct = (state.ascension ?? 0) >= 4 ? 65 : 75;
   const cardChoices = Array.isArray(br.cardChoices) ? br.cardChoices : [];
 
   const cardsHtml = cardChoices
@@ -186,15 +192,33 @@ export function renderBossRewardScreen({ state, ui }) {
     })
     .join('');
 
+  const requiresAct3TwinBoss = (state.ascension ?? 0) >= 10;
+  const proceedBtnId = isAct2Altar ? 'btn-proceed-act3' : 'btn-proceed-act2';
+  const proceedLabel = isAct2Altar
+    ? requiresAct3TwinBoss
+      ? `踏入第三幕 · 深渊圣殿终末双王试炼（回复已损生命的 ${healRatioPct}%） →`
+      : `继续攀登第三幕 · 深渊圣殿（回复已损生命的 ${healRatioPct}%） →`
+    : `踏入第二幕 · 钢铁城邦（回复已损生命的 ${healRatioPct}%） →`;
+  const settleBtnId = isAct2Altar ? 'btn-settle-act2' : 'btn-settle-act1';
+  const settleLabel = requiresAct3TwinBoss
+    ? '进阶 10 须击败第 3 幕终末双王方可凯旋'
+    : isAct2Altar
+      ? '在此双幕凯旋结算（第二幕通关）'
+      : '在此凯旋结算（第一幕通关）';
+
   return `
     <section class="panel-stage" aria-labelledby="boss-reward-heading">
       <div class="stage-header">
         <div>
           <h2 id="boss-reward-heading" class="stage-heading" style="color: var(--jade-upgrade);">
-            第一幕首领告破！已击败【${escapeHtml(bossName)}】
+            ${isAct2Altar ? '第二幕' : '第一幕'}首领告破！已击败【${escapeHtml(bossName)}】
           </h2>
           <p class="stage-subtitle">
-            你已自动获得首领赏金 <strong>+${escapeHtml(br.bossGold)} 金币</strong>。请挑选 1 张金色【稀有】奖励卡牌（可选）与 1 件强大的【首领遗物】，随后选择踏入第二幕或在此凯旋结算！
+            你已自动获得首领赏金 <strong>+${escapeHtml(br.bossGold)} 金币</strong>。请挑选 1 张金色【稀有】奖励卡牌（可选）与 1 件强大的【首领遗物】${
+              requiresAct3TwinBoss
+                ? `；进阶 10【终末双王】需攻克第 3 幕连战双首领方算破塔！`
+                : `，随后选择继续攀登第 ${isAct2Altar ? '三' : '二'} 幕或在此凯旋结算！`
+            }
           </p>
         </div>
       </div>
@@ -216,11 +240,11 @@ export function renderBossRewardScreen({ state, ui }) {
       <div class="boss-relic-grid">${relicsHtml}</div>
 
       <div class="boss-actions-bar">
-        <button type="button" id="btn-proceed-act2" class="btn-brass" data-action="proceed-next-act">
-          踏入第二幕 · 钢铁城邦（回复已损生命的 ${healRatioPct}%） →
+        <button type="button" id="${proceedBtnId}" class="btn-brass" data-action="proceed-next-act">
+          ${proceedLabel}
         </button>
-        <button type="button" id="btn-settle-act1" class="btn-stone" data-action="settle-act1-victory">
-          在此凯旋结算（第一幕通关）
+        <button type="button" id="${settleBtnId}" class="btn-stone" data-action="settle-victory" ${requiresAct3TwinBoss ? 'disabled' : ''}>
+          ${settleLabel}
         </button>
       </div>
     </section>
@@ -375,7 +399,7 @@ export function renderRewardScreen({ state, ui }) {
 }
 
 export function renderRestScreen({ state }) {
-  const healPct = (state.ascension ?? 0) >= 4 ? 25 : 30;
+  const healPct = 30;
   const healAmount = Math.max(1, Math.floor(state.player.maxHp * (healPct / 100)));
   const upgradable = getUpgradableDeckCards(state);
   const featherHealed = state.restState?.featherHealed ?? 0;
@@ -496,6 +520,9 @@ export function renderShopScreen({ state, ui }) {
 
   const relicOffer = shop.relicOffer;
   const relicDef = relicOffer ? RELIC_LIBRARY[relicOffer.relicId] : null;
+  const shopRelicOffer = shop.shopRelicOffer;
+  const shopRelicDef = shopRelicOffer ? RELIC_LIBRARY[shopRelicOffer.relicId] : null;
+  const hasMembership = state.player.relics.includes('membership_card');
   const potionOffer = shop.potionOffer;
   const potionDef = potionOffer ? POTION_LIBRARY[potionOffer.potionId] : null;
   const nextPurgeCost = getCurrentPurgeCost({
@@ -507,8 +534,8 @@ export function renderShopScreen({ state, ui }) {
     <section class="panel-stage" aria-labelledby="shop-heading">
       <div class="stage-header">
         <div>
-          <h2 id="shop-heading" class="stage-heading">神秘商人</h2>
-          <p class="stage-subtitle">“欢迎来到我的地毯小铺，尖塔行者！看中什么尽管挑，商店专属无色秘牌也在货架上。”</p>
+          <h2 id="shop-heading" class="stage-heading">神秘商人${hasMembership ? ' <span class="shop-member-badge">会员卡全场半价 (-50%)</span>' : ''}</h2>
+          <p class="stage-subtitle">“欢迎来到我的地毯小铺，尖塔行者！看中什么尽管挑，商店专属无色秘牌与商店专属遗物也在货架上。”</p>
         </div>
         <button type="button" id="btn-leave-shop" class="btn-brass" data-action="leave-shop">
           离开商店 →
@@ -535,13 +562,21 @@ export function renderShopScreen({ state, ui }) {
       }
 
       <div class="shop-section">
-        <h3>遗物 · 药水 · 牌组精简服务</h3>
+        <h3>遗物 · 商店专属遗物 · 药水 · 牌组精简服务</h3>
         <div class="choice-stack">
           ${
             relicDef
               ? `<button type="button" id="btn-buy-relic" class="choice-btn" data-action="buy-shop-relic" ${relicOffer.sold || state.player.gold < relicOffer.price ? 'disabled' : ''}>
                   <span class="choice-title">${relicOffer.sold ? '[已售出] ' : ''}遗物：${escapeHtml(relicDef.name)}（${escapeHtml(relicOffer.price)} 金币 · ${escapeHtml(RELIC_TIER_LABELS[relicDef.tier] || '遗物')}）</span>
                   <span class="choice-detail">${escapeHtml(relicDef.description)}</span>
+                </button>`
+              : ''
+          }
+          ${
+            shopRelicDef
+              ? `<button type="button" id="btn-buy-shop-relic" class="choice-btn" data-action="buy-shop-exclusive-relic" ${shopRelicOffer.sold || state.player.gold < shopRelicOffer.price ? 'disabled' : ''}>
+                  <span class="choice-title">${shopRelicOffer.sold ? '[已售出] ' : ''}[商店专属] ${escapeHtml(shopRelicDef.name)}（${escapeHtml(shopRelicOffer.price)} 金币）</span>
+                  <span class="choice-detail">${escapeHtml(shopRelicDef.description)}</span>
                 </button>`
               : ''
           }
@@ -660,12 +695,20 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
       <div class="stage-header">
         <div>
           <h2 id="gameover-heading" class="stage-heading" style="color: ${isWin ? 'var(--jade-upgrade)' : 'var(--rust-warn)'};">
-            ${isWin ? `登顶凯旋！你征服了${(state.act ?? 1) >= 2 ? '双幕尖塔终战' : `【${escapeHtml(bossName)}】`}！` : '攀登折戟 · 征途落幕'}
+            ${
+              isWin
+                ? (state.act ?? 1) >= 3
+                  ? `👑 三幕终极登顶！你征服了深渊圣殿【${escapeHtml(bossName)}】！`
+                  : `登顶凯旋！你征服了${(state.act ?? 1) >= 2 ? '双幕尖塔终战' : `【${escapeHtml(bossName)}】`}！`
+                : '攀登折戟 · 征途落幕'
+            }
           </h2>
           <p class="stage-subtitle">
             ${
               isWin
-                ? '青铜核心与暗影枷锁轰然碎裂，你的战绩卡片与评分已镌刻进尖塔编年史。'
+                ? (state.act ?? 1) >= 3
+                  ? '深渊圣殿的远古守护神已在你面前陨落，完整的三幕登顶战绩与评分已永久镌刻进尖塔编年史。'
+                  : '青铜核心与暗影枷锁轰然碎裂，你的战绩卡片与评分已镌刻进尖塔编年史。'
                 : '尖塔吞没了无数挑战者，但每一次复盘与历练积累都会让你下一次走得更远。'
             }
           </p>

@@ -13,6 +13,8 @@ export const RELIC_TIER_LABELS = deepFreeze({
   common: '普通遗物',
   uncommon: '罕见遗物',
   rare: '稀有遗物',
+  shop: '商店专属遗物',
+  event: '事件专属遗物',
   boss: '首领遗物',
 });
 
@@ -100,8 +102,30 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 155,
     description: '每当你给予敌人【中毒】时，额外多施加 1 层中毒。',
   },
+  strawberry: {
+    id: 'strawberry',
+    name: '草莓',
+    tier: 'common',
+    price: 145,
+    maxHpBonus: 7,
+    description: '拾取时，最大生命值永久 +7，并回复 7 点生命。',
+  },
+  akabeko: {
+    id: 'akabeko',
+    name: '赤牛',
+    tier: 'common',
+    price: 155,
+    description: '每场战斗开始时获得 8 层【活力】，本场打出的第 1 张攻击牌基础伤害额外 +8。',
+  },
+  happy_flower: {
+    id: 'happy_flower',
+    name: '开心小花',
+    tier: 'common',
+    price: 150,
+    description: '每经历 3 个你的回合（跨战斗累计），回合开始时额外获得 1 点能量。',
+  },
 
-  // === Uncommon (7) ===
+  // === Uncommon (11) ===
   horn_cleat: {
     id: 'horn_cleat',
     name: '船夹板',
@@ -152,8 +176,38 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 215,
     description: '每当你单回合内打出 3 张攻击牌时，获得 1 点敏捷。',
   },
+  pear: {
+    id: 'pear',
+    name: '梨子',
+    tier: 'uncommon',
+    price: 205,
+    maxHpBonus: 10,
+    description: '拾取时，最大生命值永久 +10，并回复 10 点生命。',
+  },
+  ornamental_fan: {
+    id: 'ornamental_fan',
+    name: '装饰折扇',
+    tier: 'uncommon',
+    price: 215,
+    description: '每当你单回合内打出 3 张攻击牌时，立即获得 4 点格挡。',
+  },
+  red_skull: {
+    id: 'red_skull',
+    name: '红头骨',
+    tier: 'uncommon',
+    character: 'ironclad',
+    price: 210,
+    description: '战斗中当你的生命值不高于 50% 时，获得额外 3 点【力量】（回复至半血以上时消失）。',
+  },
+  mummified_hand: {
+    id: 'mummified_hand',
+    name: '木乃伊之手',
+    tier: 'uncommon',
+    price: 225,
+    description: '每当你打出一张【能力牌】时，随机使手中 1 张牌在本回合内费用变为 0。',
+  },
 
-  // === Rare (7) ===
+  // === Rare (11) ===
   captains_wheel: {
     id: 'captains_wheel',
     name: '船长舵轮',
@@ -206,6 +260,97 @@ export const RELIC_LIBRARY = deepFreeze({
     character: 'silent',
     price: 280,
     description: '每当一名带有【中毒】的敌人被击败时，将其剩余全部【中毒】层数转移给随机一名存活敌人。',
+  },
+  mango: {
+    id: 'mango',
+    name: '芒果',
+    tier: 'rare',
+    price: 270,
+    maxHpBonus: 14,
+    description: '拾取时，最大生命值永久 +14，并回复 14 点生命。',
+  },
+  fossilized_helix: {
+    id: 'fossilized_helix',
+    name: '化石螺旋',
+    tier: 'rare',
+    price: 290,
+    description: '每场战斗开始时获得 1 层【缓冲】，免疫下一次即将受到的生命损失。',
+  },
+  calipers: {
+    id: 'calipers',
+    name: '卡尺',
+    tier: 'rare',
+    price: 285,
+    description: '你的回合开始时，未耗尽的格挡不再直接清零，而是仅扣除最多 15 点。',
+  },
+  incense_burner: {
+    id: 'incense_burner',
+    name: '香炉',
+    tier: 'rare',
+    price: 295,
+    description: '每经历 6 个你的回合（跨战斗累计），回合开始时获得 1 层【无实体】。',
+  },
+
+  // === Shop-Exclusive Pool (5) ===
+  membership_card: {
+    id: 'membership_card',
+    name: '会员卡',
+    tier: 'shop',
+    price: 150,
+    description: '商店专属：所有神秘商人的卡牌、遗物、药水与卡牌移除服务均享 5 折（50%）优惠！',
+  },
+  chemical_x: {
+    id: 'chemical_x',
+    name: '化学物 X',
+    tier: 'shop',
+    price: 155,
+    description: '商店专属：你打出的所有【X 费卡牌】效果次数额外 +2。',
+  },
+  medical_kit: {
+    id: 'medical_kit',
+    name: '医疗箱',
+    tier: 'shop',
+    price: 160,
+    description: '商店专属：手牌中不可打出的【状态牌】（伤口/灼伤/晕眩）变为 0 费可打出，并立即【消耗】。',
+  },
+  orange_pellets: {
+    id: 'orange_pellets',
+    name: '橙色药丸',
+    tier: 'shop',
+    price: 150,
+    description: '商店专属：在同一回合内打齐攻击、技能、能力三种牌后，立即净化你身上的全部负面状态。',
+  },
+  lees_waffle: {
+    id: 'lees_waffle',
+    name: '李氏华夫饼',
+    tier: 'shop',
+    price: 165,
+    maxHpBonus: 7,
+    healFullOnPickup: true,
+    description: '商店专属：拾取时，最大生命值永久 +7，并立即回满全部生命值！',
+  },
+
+  // === Event-Exclusive Pool (3) ===
+  golden_idol_relic: {
+    id: 'golden_idol_relic',
+    name: '黄金神像',
+    tier: 'event',
+    price: 200,
+    description: '事件专属：所有战斗胜利掉落的金币奖励永久额外增加 25%。',
+  },
+  red_mask: {
+    id: 'red_mask',
+    name: '红头罩',
+    tier: 'event',
+    price: 190,
+    description: '事件专属：每场战斗开始时，给予所有敌人 1 层【虚弱】。',
+  },
+  enchiridion: {
+    id: 'enchiridion',
+    name: '魔导抄本',
+    tier: 'event',
+    price: 220,
+    description: '事件专属：每场战斗第 1 回合开始时，随机将 1 张本回合 0 费的【能力牌】加入手牌。',
   },
 
   // === Boss (10) ===
@@ -304,12 +449,17 @@ export function getRelicPoolsForCharacter(characterId = 'ironclad') {
   const common = allowed.filter((r) => r.tier === 'common').map((r) => r.id);
   const uncommon = allowed.filter((r) => r.tier === 'uncommon').map((r) => r.id);
   const rare = allowed.filter((r) => r.tier === 'rare').map((r) => r.id);
+  const shop = allowed.filter((r) => r.tier === 'shop').map((r) => r.id);
+  const event = allowed.filter((r) => r.tier === 'event').map((r) => r.id);
   const boss = allowed.filter((r) => r.tier === 'boss').map((r) => r.id);
   return {
     common,
     uncommon,
     rare,
+    shop,
+    event,
     boss,
+    allStandard: [...common, ...uncommon, ...rare],
     allNonBoss: [...common, ...uncommon, ...rare],
   };
 }
@@ -323,6 +473,12 @@ export const RELIC_POOLS = deepFreeze({
     .map((r) => r.id),
   rare: Object.values(RELIC_LIBRARY)
     .filter((r) => r.tier === 'rare')
+    .map((r) => r.id),
+  shop: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'shop')
+    .map((r) => r.id),
+  event: Object.values(RELIC_LIBRARY)
+    .filter((r) => r.tier === 'event')
     .map((r) => r.id),
   boss: Object.values(RELIC_LIBRARY)
     .filter((r) => r.tier === 'boss')
@@ -662,5 +818,134 @@ export const STATUS_METADATA = deepFreeze({
     name: '分裂体',
     polarity: 'buff',
     describe: () => '生命值降至 50% 或以下时，将在敌方回合分裂为两只史莱姆并继承当前生命值。',
+  },
+  asleep: {
+    id: 'asleep',
+    name: '沉睡',
+    polarity: 'buff',
+    describe: (v) => `处于甲壳沉睡中（剩余 ${v} 回合）：每回合自动获得金属化格挡且不会攻击。若受到穿透格挡的生命伤害，会立即惊醒、失去金属化并眩晕 1 回合。`,
+  },
+  stunned: {
+    id: 'stunned',
+    name: '眩晕',
+    polarity: 'debuff',
+    describe: () => '刚刚被强行打醒，本回合无法执行任何行动。',
+  },
+  painfulStabs: {
+    id: 'painfulStabs',
+    name: '痛刺',
+    polarity: 'buff',
+    describe: (v) => `每当你从该敌人处受到未格挡的攻击伤害时，将 ${v} 张【伤口】洗入你的弃牌堆。`,
+  },
+  gainStrengthEndTurn: {
+    id: 'gainStrengthEndTurn',
+    name: '力量恢复',
+    polarity: 'buff',
+    describe: (v) => `受【刺耳尖啸】临时压制的力量：本回合结束时将恢复 ${v} 点力量。`,
+  },
+  evolve: {
+    id: 'evolve',
+    name: '进化',
+    polarity: 'buff',
+    describe: (v) => `每当你抽到 1 张【状态】牌时，额外抽 ${v} 张牌。`,
+  },
+  fireBreathing: {
+    id: 'fireBreathing',
+    name: '火焰吐息',
+    polarity: 'buff',
+    describe: (v) => `每当你抽到 1 张【状态】或【诅咒】牌时，对所有敌人造成 ${v} 点固定伤害。`,
+  },
+  rupture: {
+    id: 'rupture',
+    name: '撕裂',
+    polarity: 'buff',
+    describe: (v) => `每当你因卡牌效果失去生命时，获得 ${v} 点【力量】。`,
+  },
+  juggernaut: {
+    id: 'juggernaut',
+    name: '势不可挡',
+    polarity: 'buff',
+    describe: (v) => `每当你获得格挡时，对随机一名敌人造成 ${v} 点固定伤害。`,
+  },
+  thorns: {
+    id: 'thorns',
+    name: '荆棘',
+    polarity: 'buff',
+    describe: (v) => `每当敌人对你发起一次攻击时，对攻击者反击 ${v} 点固定伤害。`,
+  },
+  blur: {
+    id: 'blur',
+    name: '残影',
+    polarity: 'buff',
+    describe: () => '下回合开始时，你当前的格挡不会自动清零。',
+  },
+  nextTurnBlock: {
+    id: 'nextTurnBlock',
+    name: '下回合格挡',
+    polarity: 'buff',
+    describe: (v) => `下回合开始时，立即获得 ${v} 点格挡。`,
+  },
+  energized: {
+    id: 'energized',
+    name: '蓄能',
+    polarity: 'buff',
+    describe: (v) => `下回合开始时，额外获得 ${v} 点能量。`,
+  },
+  drawCardNextTurn: {
+    id: 'drawCardNextTurn',
+    name: '下回合抽牌',
+    polarity: 'buff',
+    describe: (v) => `下回合开始时，额外抽取 ${v} 张牌。`,
+  },
+  burst: {
+    id: 'burst',
+    name: '爆发',
+    polarity: 'buff',
+    describe: (v) => `本回合内，你打出的下 ${v} 张技能牌将被连续触发 2 次。`,
+  },
+  vigor: {
+    id: 'vigor',
+    name: '活力',
+    polarity: 'buff',
+    describe: (v) => `你打出的下一张攻击牌每一段伤害额外 +${v} 点（打出攻击牌后消耗）。`,
+  },
+  buffer: {
+    id: 'buffer',
+    name: '缓冲',
+    polarity: 'buff',
+    describe: (v) => `免疫接下来 ${v} 次即将使你失去生命值的伤害并消耗 1 层。`,
+  },
+  slow: {
+    id: 'slow',
+    name: '迟缓',
+    polarity: 'debuff',
+    describe: (v, extra) => {
+      const pct = typeof extra === 'number' && extra > 0 ? extra * 10 : 0;
+      return `本回合玩家每打出 1 张牌，该敌人本回合受到的攻击伤害提高 10%${pct > 0 ? `（当前已叠加 +${pct}%）` : ''}。`;
+    },
+  },
+  explosive: {
+    id: 'explosive',
+    name: '定时爆破',
+    polarity: 'buff',
+    describe: (v) => `倒计时剩余 ${v} 回合：归零时在敌方回合造成 30 点巨额伤害并自我毁灭。`,
+  },
+  timeWarp: {
+    id: 'timeWarp',
+    name: '时间扭曲',
+    polarity: 'buff',
+    describe: (v) => `再打出 ${v} 张卡牌后将强制结束你的回合，并使时间吞噬者获得 2 点【力量】。`,
+  },
+  curiosity: {
+    id: 'curiosity',
+    name: '好奇',
+    polarity: 'buff',
+    describe: (v) => `每当你打出一张【能力牌】时，觉醒者永久获得 ${v} 点【力量】（二阶段清除）。`,
+  },
+  regenerating: {
+    id: 'regenerating',
+    name: '再生',
+    polarity: 'buff',
+    describe: (v) => `每回合结束时，回复 ${v} 点生命值。`,
   },
 });

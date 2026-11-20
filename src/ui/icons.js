@@ -423,6 +423,204 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'the_champ':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <!-- Crimson Arena Cape -->
+          <path d="M24 52 Q60 40 96 52 L106 112 L14 112 Z" fill="hsl(354, 58%, 26%)" stroke="hsl(42, 74%, 56%)" stroke-width="2" />
+          <!-- Heavy Steel Torso & Pauldrons -->
+          <path d="M20 56 Q34 42 48 54 L46 74 L22 72 Z" fill="hsl(212, 16%, 38%)" stroke="hsl(42, 70%, 58%)" stroke-width="2" />
+          <path d="M100 56 Q86 42 72 54 L74 74 L98 72 Z" fill="hsl(212, 16%, 38%)" stroke="hsl(42, 70%, 58%)" stroke-width="2" />
+          <rect x="38" y="48" width="44" height="54" rx="8" fill="hsl(212, 14%, 30%)" stroke="hsl(212, 22%, 62%)" stroke-width="2.2" />
+          <!-- Champion Golden Belt -->
+          <rect x="36" y="78" width="48" height="12" rx="3" fill="hsl(42, 82%, 48%)" stroke="hsl(42, 95%, 72%)" stroke-width="1.8" />
+          <circle cx="60" cy="84" r="5" fill="hsl(4, 78%, 52%)" stroke="hsl(44, 96%, 78%)" stroke-width="1.5" />
+          <!-- Crowned Gladiator Helmet -->
+          <polygon points="44,24 50,10 60,20 70,10 76,24" fill="hsl(42, 88%, 56%)" stroke="hsl(44, 96%, 76%)" stroke-width="1.5" />
+          <rect x="44" y="24" width="32" height="24" rx="7" fill="hsl(212, 16%, 40%)" stroke="hsl(42, 74%, 58%)" stroke-width="2" />
+          <line x1="50" y1="35" x2="70" y2="35" stroke="hsl(220, 30%, 10%)" stroke-width="4" />
+          <circle cx="55" cy="35" r="2.2" fill="hsl(8, 95%, 60%)" />
+          <circle cx="65" cy="35" r="2.2" fill="hsl(8, 95%, 60%)" />
+          <!-- Giant Greatsword -->
+          <polygon points="94,16 102,16 104,76 92,76" fill="hsl(210, 22%, 72%)" stroke="hsl(215, 25%, 30%)" stroke-width="2" />
+          <rect x="86" y="74" width="24" height="6" rx="2" fill="hsl(42, 82%, 52%)" />
+          <rect x="95" y="80" width="6" height="16" rx="2" fill="hsl(24, 38%, 28%)" />
+        </svg>
+      `;
+
+    case 'orb_walker':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="34" ry="6" fill="hsla(0,0%,0%,0.5)" />
+          <path d="M40 74 L26 106 L34 106 L48 76 Z" fill="hsl(28, 32%, 28%)" stroke="hsl(38, 60%, 54%)" stroke-width="1.8" />
+          <path d="M80 74 L94 106 L86 106 L72 76 Z" fill="hsl(28, 32%, 28%)" stroke="hsl(38, 60%, 54%)" stroke-width="1.8" />
+          <circle cx="60" cy="52" r="28" fill="hsl(220, 18%, 22%)" stroke="hsl(38, 68%, 58%)" stroke-width="2.4" />
+          <circle cx="60" cy="52" r="20" fill="hsl(220, 22%, 14%)" stroke="hsl(28, 48%, 42%)" stroke-width="1.4" />
+          <circle cx="60" cy="52" r="10" fill="hsl(12, 92%, 56%)" />
+          <circle cx="60" cy="52" r="4" fill="hsl(44, 100%, 84%)" />
+          <path d="M36 32 L24 22 M84 32 L96 22" stroke="hsl(38, 72%, 56%)" stroke-width="3" stroke-linecap="round" />
+        </svg>
+      `;
+
+    case 'spiker':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="36" ry="6" fill="hsla(0,0%,0%,0.48)" />
+          <polygon points="60,8 68,30 96,18 82,42 110,56 84,68 98,94 72,82 60,104 48,82 22,94 36,68 10,56 38,42 24,18 52,30" fill="hsl(206, 48%, 34%)" stroke="hsl(194, 82%, 68%)" stroke-width="2" />
+          <polygon points="60,26 84,56 60,86 36,56" fill="hsl(210, 56%, 22%)" stroke="hsl(196, 86%, 72%)" stroke-width="1.8" />
+          <circle cx="60" cy="56" r="8" fill="hsl(192, 96%, 68%)" />
+          <circle cx="60" cy="56" r="3" fill="hsl(0, 0%, 100%)" />
+        </svg>
+      `;
+
+    case 'exploder':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="36" ry="6" fill="hsla(0,0%,0%,0.52)" />
+          <path d="M58 14 Q68 6 76 16" fill="none" stroke="hsl(32, 92%, 62%)" stroke-width="3" stroke-linecap="round" />
+          <circle cx="78" cy="16" r="5" fill="hsl(38, 100%, 66%)" />
+          <polygon points="44,24 76,24 96,46 96,76 76,96 44,96 24,76 24,46" fill="hsl(8, 54%, 24%)" stroke="hsl(14, 82%, 58%)" stroke-width="2.4" />
+          <circle cx="60" cy="60" r="18" fill="hsl(14, 90%, 46%)" stroke="hsl(40, 96%, 68%)" stroke-width="2" />
+          <circle cx="60" cy="60" r="8" fill="hsl(44, 100%, 82%)" />
+          <path d="M36 44 L44 50 M84 44 L76 50 M36 76 L44 70 M84 76 L76 70" stroke="hsl(38, 86%, 64%)" stroke-width="2.2" />
+        </svg>
+      `;
+
+    case 'repulsor':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="34" ry="5" fill="hsla(0,0%,0%,0.45)" />
+          <ellipse cx="60" cy="56" rx="44" ry="14" fill="none" stroke="hsl(268, 76%, 64%)" stroke-width="2" stroke-dasharray="6 4" transform="rotate(-18 60 56)" />
+          <ellipse cx="60" cy="56" rx="44" ry="14" fill="none" stroke="hsl(44, 82%, 62%)" stroke-width="1.8" transform="rotate(18 60 56)" />
+          <polygon points="60,18 86,56 60,94 34,56" fill="hsl(262, 42%, 28%)" stroke="hsl(44, 86%, 64%)" stroke-width="2.4" />
+          <circle cx="60" cy="56" r="9" fill="hsl(278, 92%, 72%)" />
+        </svg>
+      `;
+
+    case 'maw':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="44" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <path d="M22 40 Q12 18 32 16 Q42 26 44 38 Z" fill="hsl(38, 44%, 72%)" stroke="hsl(28, 30%, 30%)" stroke-width="1.8" />
+          <path d="M98 40 Q108 18 88 16 Q78 26 76 38 Z" fill="hsl(38, 44%, 72%)" stroke="hsl(28, 30%, 30%)" stroke-width="1.8" />
+          <path d="M22 48 Q60 22 98 48 L94 102 Q60 112 26 102 Z" fill="hsl(268, 28%, 24%)" stroke="hsl(276, 48%, 52%)" stroke-width="2.2" />
+          <circle cx="44" cy="48" r="4.5" fill="hsl(288, 92%, 70%)" />
+          <circle cx="76" cy="48" r="4.5" fill="hsl(288, 92%, 70%)" />
+          <ellipse cx="60" cy="78" rx="26" ry="18" fill="hsl(348, 58%, 16%)" stroke="hsl(278, 36%, 44%)" stroke-width="2" />
+          <polygon points="40,66 46,78 52,64" fill="hsl(42, 48%, 88%)" />
+          <polygon points="56,62 60,76 64,62" fill="hsl(42, 48%, 88%)" />
+          <polygon points="68,64 74,78 80,66" fill="hsl(42, 48%, 88%)" />
+          <polygon points="44,92 50,80 56,94" fill="hsl(42, 48%, 88%)" />
+          <polygon points="64,94 70,80 76,92" fill="hsl(42, 48%, 88%)" />
+        </svg>
+      `;
+
+    case 'giant_head':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="112" rx="46" ry="6" fill="hsla(0,0%,0%,0.56)" />
+          <path d="M26 22 Q60 8 94 22 L98 98 Q60 112 22 98 Z" fill="hsl(214, 12%, 34%)" stroke="hsl(214, 18%, 58%)" stroke-width="2.6" />
+          <rect x="34" y="34" width="52" height="10" rx="3" fill="hsl(214, 12%, 24%)" />
+          <ellipse cx="46" cy="48" rx="7" ry="4" fill="hsl(188, 86%, 64%)" />
+          <ellipse cx="74" cy="48" rx="7" ry="4" fill="hsl(188, 86%, 64%)" />
+          <polygon points="55,50 65,50 68,72 52,72" fill="hsl(214, 12%, 26%)" stroke="hsl(214, 16%, 46%)" stroke-width="1.6" />
+          <rect x="42" y="82" width="36" height="6" rx="2" fill="hsl(214, 14%, 18%)" />
+          <path d="M30 62 L40 66 L34 74 M88 28 L78 36" fill="none" stroke="hsl(192, 74%, 56%)" stroke-width="1.6" />
+        </svg>
+      `;
+
+    case 'nemesis':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="38" ry="6" fill="hsla(0,0%,0%,0.52)" />
+          <path d="M96 18 Q54 6 24 44" fill="none" stroke="hsl(352, 86%, 62%)" stroke-width="5" stroke-linecap="round" />
+          <line x1="88" y1="20" x2="36" y2="106" stroke="hsl(240, 14%, 44%)" stroke-width="3.5" />
+          <path d="M36 42 Q60 22 84 42 L94 104 Q60 94 26 104 Z" fill="hsl(252, 34%, 20%)" stroke="hsl(276, 62%, 58%)" stroke-width="2" />
+          <circle cx="60" cy="34" r="14" fill="hsl(40, 24%, 82%)" stroke="hsl(268, 30%, 28%)" stroke-width="2" />
+          <circle cx="55" cy="34" r="3" fill="hsl(352, 92%, 58%)" />
+          <circle cx="65" cy="34" r="3" fill="hsl(352, 92%, 58%)" />
+        </svg>
+      `;
+
+    case 'reptomancer':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="40" ry="6" fill="hsla(0,0%,0%,0.5)" />
+          <polygon points="18,30 24,18 30,30 24,52" fill="hsl(286, 72%, 58%)" />
+          <polygon points="102,30 96,18 90,30 96,52" fill="hsl(286, 72%, 58%)" />
+          <path d="M34 42 Q60 28 86 42 L92 104 L28 104 Z" fill="hsl(162, 42%, 22%)" stroke="hsl(148, 70%, 52%)" stroke-width="2" />
+          <circle cx="60" cy="32" r="13" fill="hsl(152, 38%, 32%)" stroke="hsl(44, 78%, 58%)" stroke-width="2" />
+          <circle cx="55" cy="31" r="2.6" fill="hsl(48, 96%, 64%)" />
+          <circle cx="65" cy="31" r="2.6" fill="hsl(48, 96%, 64%)" />
+          <path d="M22 24 L22 104" stroke="hsl(36, 56%, 48%)" stroke-width="3" />
+          <circle cx="22" cy="22" r="5" fill="hsl(146, 92%, 58%)" />
+        </svg>
+      `;
+
+    case 'dagger':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="22" ry="5" fill="hsla(0,0%,0%,0.46)" />
+          <polygon points="60,12 72,56 60,72 48,56" fill="hsl(214, 24%, 76%)" stroke="hsl(292, 86%, 66%)" stroke-width="2.4" />
+          <rect x="42" y="70" width="36" height="7" rx="2" fill="hsl(290, 62%, 44%)" stroke="hsl(44, 86%, 64%)" stroke-width="1.6" />
+          <rect x="56" y="77" width="8" height="18" rx="2" fill="hsl(268, 36%, 24%)" />
+          <circle cx="60" cy="48" r="4" fill="hsl(312, 92%, 68%)" />
+        </svg>
+      `;
+
+    case 'time_eater':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="46" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <circle cx="76" cy="54" r="30" fill="hsl(268, 36%, 24%)" stroke="hsl(188, 72%, 58%)" stroke-width="2.6" />
+          <circle cx="76" cy="54" r="20" fill="hsl(232, 34%, 14%)" stroke="hsl(44, 82%, 60%)" stroke-width="2" />
+          <line x1="76" y1="54" x2="76" y2="38" stroke="hsl(44, 96%, 72%)" stroke-width="2.6" stroke-linecap="round" />
+          <line x1="76" y1="54" x2="88" y2="58" stroke="hsl(188, 92%, 68%)" stroke-width="2.4" stroke-linecap="round" />
+          <path d="M22 48 Q46 32 66 50 L68 104 L20 104 Z" fill="hsl(184, 42%, 24%)" stroke="hsl(180, 74%, 56%)" stroke-width="2.2" />
+          <circle cx="44" cy="36" r="14" fill="hsl(178, 32%, 28%)" stroke="hsl(184, 72%, 58%)" stroke-width="2" />
+          <circle cx="38" cy="35" r="2.8" fill="hsl(176, 98%, 72%)" />
+          <circle cx="48" cy="35" r="2.8" fill="hsl(176, 98%, 72%)" />
+        </svg>
+      `;
+
+    case 'awakened_one':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="110" rx="48" ry="7" fill="hsla(0,0%,0%,0.56)" />
+          <path d="M8 46 Q32 22 52 54 L20 84 Z" fill="hsl(220, 22%, 18%)" stroke="hsl(186, 68%, 52%)" stroke-width="2" />
+          <path d="M112 46 Q88 22 68 54 L100 84 Z" fill="hsl(220, 22%, 18%)" stroke="hsl(186, 68%, 52%)" stroke-width="2" />
+          <path d="M40 44 Q60 30 80 44 L86 104 L34 104 Z" fill="hsl(224, 24%, 14%)" stroke="hsl(188, 74%, 58%)" stroke-width="2.2" />
+          <polygon points="44,24 52,10 60,22 68,10 76,24" fill="hsl(186, 86%, 56%)" />
+          <circle cx="60" cy="34" r="14" fill="hsl(40, 18%, 78%)" stroke="hsl(188, 72%, 52%)" stroke-width="2" />
+          <polygon points="56,36 64,36 60,46" fill="hsl(220, 18%, 16%)" />
+          <circle cx="53" cy="31" r="2.8" fill="hsl(182, 98%, 68%)" />
+          <circle cx="67" cy="31" r="2.8" fill="hsl(182, 98%, 68%)" />
+          <circle cx="60" cy="24" r="2.5" fill="hsl(8, 94%, 60%)" />
+        </svg>
+      `;
+
+    case 'donu':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="40" ry="6" fill="hsla(0,0%,0%,0.5)" />
+          <circle cx="60" cy="56" r="38" fill="hsl(38, 64%, 44%)" stroke="hsl(44, 90%, 68%)" stroke-width="3" />
+          <circle cx="60" cy="56" r="15" fill="hsl(222, 24%, 12%)" stroke="hsl(44, 88%, 68%)" stroke-width="2.6" />
+          <circle cx="60" cy="56" r="7" fill="hsl(186, 94%, 66%)" />
+          <path d="M60 22 L60 32 M60 80 L60 90 M26 56 L36 56 M84 56 L94 56" stroke="hsl(44, 92%, 74%)" stroke-width="2.6" stroke-linecap="round" />
+        </svg>
+      `;
+
+    case 'deca':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="40" ry="6" fill="hsla(0,0%,0%,0.5)" />
+          <polygon points="60,14 102,56 60,98 18,56" fill="hsl(224, 34%, 28%)" stroke="hsl(42, 78%, 60%)" stroke-width="3" />
+          <rect x="42" y="38" width="36" height="36" rx="4" fill="hsl(222, 38%, 18%)" stroke="hsl(192, 82%, 62%)" stroke-width="2.2" />
+          <circle cx="60" cy="56" r="9" fill="hsl(192, 94%, 66%)" />
+          <circle cx="60" cy="56" r="4" fill="hsl(0, 0%, 100%)" />
+        </svg>
+      `;
+
     default:
       return `
         <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
@@ -491,6 +689,9 @@ export function getIntentIconSvg(intentType) {
   }
   if (intentType === 'buff') {
     return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg>`;
+  }
+  if (intentType === 'sleep') {
+    return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.8 13.4A5.8 5.8 0 0 1 6.6 6.2a5.8 5.8 0 1 0 7.2 7.2z" fill="currentColor" fill-opacity="0.22"/><path d="M12.2 4.2h3.4l-3.4 3.4h3.4"/></svg>`;
   }
   return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 7l6 6M13 7l-6 6"/></svg>`;
 }

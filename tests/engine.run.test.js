@@ -12,14 +12,25 @@ import {
   getCardCharacter,
   getCardStats,
 } from '../src/data/cards.js';
-import { ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
-import { TOTAL_FLOORS } from '../src/data/events.js';
-import { BOSS_RELIC_IDS, NON_STARTER_RELIC_IDS, RELIC_LIBRARY } from '../src/data/relics.js';
+import { createEnemyInstance, ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
+import {
+  getEventChoicesForAscension,
+  getEventIdsForAct,
+  getEventTuning,
+  TOTAL_FLOORS,
+} from '../src/data/events.js';
+import {
+  BOSS_RELIC_IDS,
+  getRelicPoolsForCharacter,
+  NON_STARTER_RELIC_IDS,
+  RELIC_LIBRARY,
+} from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
 import { DAILY_MODIFIERS, getDailyChallengeSpec, isValidDailyDateKey } from '../src/engine/daily.js';
 import {
   buyShopCard,
   buyShopColorlessCard,
+  buyShopExclusiveRelic,
   buyShopPotion,
   buyShopPurge,
   buyShopRelic,
@@ -42,6 +53,7 @@ import {
   findMapNode,
   getAvailableNodeIds,
   getCurrentPurgeCost,
+  getStarterPotionSlotCount,
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
   grantRelicToPlayer,
@@ -56,13 +68,17 @@ import {
   restUpgradeCard,
   rollRewardCards,
   runEndTurn,
+  runPlayCard,
+  runRestartCombat,
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
+  settleVictory,
   skipNeowCardOffer,
   transitionCombatVictory,
 } from '../src/engine/game.js';
 import {
+  ASCENSION_DEFS,
   buildRunReportFromState,
   calculateRunScore,
   createDefaultMeta,
@@ -70,6 +86,7 @@ import {
   getLockedContentSets,
   getScoreGrade,
   loadSavedMeta,
+  MAX_ASCENSION,
   recordCompletedRun,
   saveMeta,
 } from '../src/engine/meta.js';
@@ -616,9 +633,21 @@ test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic 
   assert.ok(actState.player.hp >= 70, `Expected inter-act heal, got ${actState.player.hp}`);
   assert.ok(ENCOUNTERS.act2Boss.some((b) => b.id === actState.bossEncounterId));
 
-  // Defeat Act 2 Boss -> final game_over victory
+  // Defeat Act 2 Boss -> Act 2 Boss Reward Altar -> proceed to Act 3 -> defeat Act 3 Boss -> final game_over victory
   actState.player.potions[0] = 'fire_potion';
   startCombat(actState, ENCOUNTERS.act2Boss[0], 'boss');
+  actState.combat.enemies.forEach((e, idx) => {
+    e.hp = idx === 0 ? 10 : 0;
+  });
+  assert.equal(runUsePotion(actState, 0, actState.combat.enemies[0].id).ok, true);
+  assert.equal(actState.screen, 'boss_reward');
+  assert.equal(actState.bossReward.actCleared, 2);
+  assert.equal(proceedToNextAct(actState).ok, true);
+  assert.equal(actState.act, 3);
+  assert.ok(ENCOUNTERS.act3Boss.some((b) => b.id === actState.bossEncounterId));
+
+  actState.player.potions[0] = 'fire_potion';
+  startCombat(actState, ENCOUNTERS.act3Boss[0], 'boss');
   actState.combat.enemies.forEach((e, idx) => {
     e.hp = idx === 0 ? 10 : 0;
   });
@@ -736,13 +765,18 @@ test('P2: Enemy next-turn intent prediction handles Ritual scaling, Boss cycles,
   assert.equal(predT2.candidates.length, 1);
   assert.equal(predT2.candidates[0].totalDamage, 9);
 
-  // 2. Hexaghost: Turn 0 Divider -> Turn 1 Inferno 4x6 (24 total)
+  // 2. Hexaghost: Turn 0 Activate Flames -> Turn 1 Divider scales as max(2, floor(player.hp / 14) + 1) per hit (x6)
   const hexRun = createNewRun({ seed: 88, ascension: 0 });
   startCombat(hexRun, { id: 'test_hex', name: '六火亡魂', enemies: [{ templateId: 'hexaghost' }] }, 'boss');
-  const hexPred = predictNextTurnIntents(hexRun.combat.enemies[0], hexRun.player, 0);
-  assert.equal(hexPred.candidates.length, 1);
-  assert.equal(hexPred.candidates[0].label, '4×6');
-  assert.equal(hexPred.candidates[0].totalDamage, 24);
+  const hexPredFull = predictNextTurnIntents(hexRun.combat.enemies[0], hexRun.player, 0);
+  assert.equal(hexPredFull.candidates.length, 1);
+  assert.equal(hexPredFull.candidates[0].label, '6×6');
+  assert.equal(hexPredFull.candidates[0].totalDamage, 36);
+
+  hexRun.player.hp = 36;
+  const hexPredLow = predictNextTurnIntents(hexRun.combat.enemies[0], hexRun.player, 0);
+  assert.equal(hexPredLow.candidates[0].label, '3×6');
+  assert.equal(hexPredLow.candidates[0].totalDamage, 18);
 
   // 3. Slime Boss: above 50% HP includes split conditional note; at <= 50% HP predicts guaranteed Split
   const slimeRun = createNewRun({ seed: 99, ascension: 0 });
@@ -1259,6 +1293,337 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.ok(text.includes('最高单击 64'));
   assert.ok(text.includes('?daily=2026-11-19'));
 });
+
+test('Relic Pool Tiering, Small/Medium/Large Chests, Dual Shop Relic Slots & Membership Card Discount, New Events, and Act 3 Meta Scoring', () => {
+  // 1. Strict pool isolation: NON_STARTER_RELIC_IDS excludes starter, shop, event, and boss; character pools isolate class relics
+  const ironPools = getRelicPoolsForCharacter('ironclad');
+  const silentPools = getRelicPoolsForCharacter('silent');
+  assert.equal(ironPools.common.includes('snecko_skull'), false);
+  assert.equal(silentPools.common.includes('snecko_skull'), true);
+  assert.equal(ironPools.uncommon.includes('red_skull'), true);
+  assert.equal(silentPools.uncommon.includes('red_skull'), false);
+  assert.equal(ironPools.shop.length, 5);
+  assert.equal(ironPools.event.length, 3);
+  assert.equal(ironPools.boss.length, 8); // Ironclad excludes ring_of_the_serpent & wrist_blade
+  assert.equal(ironPools.boss.includes('black_blood'), true);
+  assert.equal(ironPools.boss.includes('wrist_blade'), false);
+  assert.equal(silentPools.boss.length, 9); // Silent excludes black_blood
+  assert.equal(silentPools.boss.includes('ring_of_the_serpent'), true);
+  assert.equal(silentPools.boss.includes('black_blood'), false);
+  for (const id of NON_STARTER_RELIC_IDS) {
+    assert.ok(['common', 'uncommon', 'rare'].includes(RELIC_LIBRARY[id].tier));
+  }
+
+  // 2. Treasure chest generates small / medium / large tiers cleanly across seeds
+  const seenChestTiers = new Set();
+  for (let s = 1; s <= 40; s += 1) {
+    const st = createNewRun({ seed: 8000 + s, skipNeow: true });
+    const f9 = st.map[8][0];
+    st.currentNodeId = st.map[7].find((n) => n.nextIds.includes(f9.id))?.id ?? null;
+    if (!st.currentNodeId) continue;
+    selectMapNode(st, f9.id);
+    if (st.screen === 'treasure') {
+      seenChestTiers.add(st.treasureState.chestTier);
+      const opened = openTreasureChest(st);
+      assert.equal(opened.ok, true);
+      assert.ok(opened.relicId);
+      assert.ok(['common', 'uncommon', 'rare'].includes(RELIC_LIBRARY[opened.relicId].tier));
+    }
+  }
+  assert.ok(seenChestTiers.has('small') && seenChestTiers.has('medium') && seenChestTiers.has('large'));
+
+  // 3. Shop offers 2 distinct relic slots (general + shop-exclusive) and Membership Card halves remaining prices live
+  const shopState = createNewRun({ seed: 8100, skipNeow: true });
+  shopState.player.gold = 999;
+  const firstShop = shopState.map
+    .flat()
+    .find((n) => n.type === 'shop');
+  if (firstShop) {
+    shopState.currentNodeId =
+      firstShop.floor === 1
+        ? null
+        : shopState.map[firstShop.floor - 2].find((n) => n.nextIds.includes(firstShop.id)).id;
+    selectMapNode(shopState, firstShop.id);
+    assert.equal(shopState.screen, 'shop');
+    assert.ok(shopState.shop.relicOffer);
+    assert.ok(['common', 'uncommon', 'rare'].includes(RELIC_LIBRARY[shopState.shop.relicOffer.relicId].tier));
+    assert.ok(shopState.shop.shopRelicOffer);
+    assert.equal(RELIC_LIBRARY[shopState.shop.shopRelicOffer.relicId].tier, 'shop');
+
+    // Force membership_card into shopRelicOffer & buy -> assert unsold prices & purge drop by 50%
+    shopState.shop.shopRelicOffer = { relicId: 'membership_card', basePrice: 150, price: 150, sold: false };
+    const cardPriceBefore = shopState.shop.cards[0].price;
+    const generalRelicPriceBefore = shopState.shop.relicOffer.price;
+    const purgePriceBefore = shopState.shop.purgeCost;
+    assert.equal(buyShopExclusiveRelic(shopState).ok, true);
+    assert.equal(shopState.shop.shopRelicOffer.sold, true);
+    assert.ok(shopState.shop.cards[0].price <= Math.ceil(cardPriceBefore * 0.5) + 1);
+    assert.ok(shopState.shop.relicOffer.price <= Math.ceil(generalRelicPriceBefore * 0.5) + 1);
+    assert.ok(shopState.shop.purgeCost <= Math.ceil(purgePriceBefore * 0.5) + 1);
+  }
+
+  // 4. Event Act gating + Golden Idol, Cursed Tome (Enchiridion), Masked Bandits (Red Mask), Mind Bloom
+  const a1Events = getEventIdsForAct(1);
+  const a2Events = getEventIdsForAct(2);
+  const a3Events = getEventIdsForAct(3);
+  assert.equal(a1Events.includes('masked_bandits'), false);
+  assert.equal(a2Events.includes('masked_bandits'), true);
+  assert.equal(a2Events.includes('mind_bloom'), false);
+  assert.equal(a3Events.includes('mind_bloom'), true);
+
+  const evtRun = createNewRun({ seed: 8200, skipNeow: true });
+  evtRun.screen = 'event';
+  evtRun.eventState = { eventId: 'golden_idol', resolved: false, pendingPurge: false, pendingCardAction: null, libraryChoices: null, outcomeText: '', upgradedCardIds: [], addedCardIds: [] };
+  assert.equal(chooseEventOption(evtRun, 'smash_trap').ok, true);
+  assert.equal(evtRun.player.relics.includes('golden_idol_relic'), true);
+  assert.equal(continueFromEvent(evtRun).ok, true);
+
+  evtRun.screen = 'event';
+  evtRun.eventState = { eventId: 'cursed_tome', resolved: false, pendingPurge: false, pendingCardAction: null, libraryChoices: null, outcomeText: '', upgradedCardIds: [], addedCardIds: [] };
+  assert.equal(chooseEventOption(evtRun, 'read_final_chapter').ok, true);
+  assert.equal(evtRun.player.relics.includes('enchiridion'), true);
+  assert.equal(continueFromEvent(evtRun).ok, true);
+
+  evtRun.screen = 'event';
+  evtRun.eventState = { eventId: 'masked_bandits', resolved: false, pendingPurge: false, pendingCardAction: null, libraryChoices: null, outcomeText: '', upgradedCardIds: [], addedCardIds: [] };
+  assert.equal(chooseEventOption(evtRun, 'fight_bandits').ok, true);
+  assert.equal(evtRun.screen, 'combat');
+  evtRun.combat.enemies.forEach((e) => {
+    e.hp = 0;
+  });
+  transitionCombatVictory(evtRun);
+  assert.equal(evtRun.screen, 'reward');
+  assert.equal(evtRun.reward.relicId, 'red_mask');
+  assert.ok(evtRun.reward.gold > 75, 'Golden Idol should boost event combat gold by +25%');
+
+  evtRun.screen = 'event';
+  evtRun.act = 3;
+  evtRun.eventState = { eventId: 'mind_bloom', resolved: false, pendingPurge: false, pendingCardAction: null, libraryChoices: null, outcomeText: '', upgradedCardIds: [], addedCardIds: [] };
+  const maxHpBeforeBloom = evtRun.player.maxHp;
+  assert.equal(chooseEventOption(evtRun, 'awake_memory').ok, true);
+  assert.ok(evtRun.player.maxHp < maxHpBeforeBloom);
+  assert.ok(evtRun.player.deck.every((c) => !canUpgradeCard(c)), 'Awake Memory upgrades all upgradable cards');
+
+  // 5. Act 3 Meta Scoring & Battle Report
+  const a3Win = createNewRun({ seed: 8300, skipNeow: true });
+  a3Win.act = 3;
+  a3Win.floor = 16;
+  a3Win.runOutcome = 'victory';
+  const a3Score = calculateRunScore(a3Win);
+  assert.ok(a3Score.breakdown.some((b) => b.label === '三幕终极登顶' && b.points === 500));
+  const a3Report = formatShareableBattleReport(buildRunReportFromState(a3Win));
+  assert.ok(a3Report.includes('👑 三幕终极登顶'));
+});
+
+test('Ascension 6-10 rules: damaged start & 2 potion slots (A6), gold & upgrade compression (A7), dynamic events (A8), AI & status scaling (A9), and Act 3 Twin Boss (A10)', () => {
+  // 0. Metadata & URL clamping at MAX_ASCENSION = 10
+  assert.equal(MAX_ASCENSION, 10);
+  assert.equal(ASCENSION_DEFS.length, 11);
+  assert.equal(parseChallengeInput('?seed=S-16&asc=99').ascension, 10);
+  assert.equal(
+    buildChallengeUrl('https://lishiyi.github.io/card-game/', 42, 99),
+    'https://lishiyi.github.io/card-game/?seed=S-16&asc=10'
+  );
+
+  // 1. A6: Damaged start (-10% HP rounded down) & 2 potion slots (vs 3 on A5)
+  const a5Iron = createNewRun({ seed: 9101, ascension: 5, characterId: 'ironclad', skipNeow: true });
+  const a6Iron = createNewRun({ seed: 9101, ascension: 6, characterId: 'ironclad', skipNeow: true });
+  const a6Silent = createNewRun({ seed: 9101, ascension: 6, characterId: 'silent', skipNeow: true });
+  assert.equal(getStarterPotionSlotCount(5), 3);
+  assert.equal(getStarterPotionSlotCount(6), 2);
+  assert.equal(a5Iron.player.hp, 75);
+  assert.equal(a5Iron.player.potions.length, 3);
+  assert.equal(a6Iron.player.maxHp, 75);
+  assert.equal(a6Iron.player.hp, 68, 'Ironclad starts 68/75 on A6 (75 - floor(7.5))');
+  assert.equal(a6Iron.player.potions.length, 2);
+  assert.equal(a6Iron.player.potions[0], 'fire_potion');
+  assert.equal(a6Silent.player.maxHp, 65);
+  assert.equal(a6Silent.player.hp, 59, 'Silent starts 59/65 on A6 (65 - floor(6.5))');
+  assert.equal(a6Silent.player.potions.length, 2);
+
+  // 2. A7: Gold reduction (-15% normal/elite, -25% boss) & halved card reward upgrade rate
+  const a6GoldRun = createNewRun({ seed: 9202, ascension: 6, skipNeow: true });
+  const a7GoldRun = createNewRun({ seed: 9202, ascension: 7, skipNeow: true });
+  a6GoldRun.floor = 10;
+  a7GoldRun.floor = 10;
+  a6GoldRun.combat = { role: 'elite', enemies: [] };
+  a7GoldRun.combat = { role: 'elite', enemies: [] };
+  transitionCombatVictory(a6GoldRun);
+  transitionCombatVictory(a7GoldRun);
+  assert.ok(a7GoldRun.reward.gold < a6GoldRun.reward.gold, 'A7 must drop ~15% less elite gold than A6');
+
+  const a6BossGoldRun = createNewRun({ seed: 9203, ascension: 6, skipNeow: true });
+  const a7BossGoldRun = createNewRun({ seed: 9203, ascension: 7, skipNeow: true });
+  a6BossGoldRun.act = 1;
+  a7BossGoldRun.act = 1;
+  a6BossGoldRun.combat = { role: 'boss', enemies: [] };
+  a7BossGoldRun.combat = { role: 'boss', enemies: [] };
+  transitionCombatVictory(a6BossGoldRun);
+  transitionCombatVictory(a7BossGoldRun);
+  assert.ok(
+    a7BossGoldRun.bossReward.bossGold <= Math.round(a6BossGoldRun.bossReward.bossGold * 0.78),
+    `Expected A7 bossGold (${a7BossGoldRun.bossReward.bossGold}) <= 75% of A6 (${a6BossGoldRun.bossReward.bossGold})`
+  );
+
+  const a6UpgRun = createNewRun({ seed: 9204, ascension: 6, skipNeow: true });
+  const a7UpgRun = createNewRun({ seed: 9204, ascension: 7, skipNeow: true });
+  a6UpgRun.act = 3;
+  a7UpgRun.act = 3;
+  let a6Upgrades = 0;
+  let a7Upgrades = 0;
+  for (let i = 0; i < 100; i += 1) {
+    a6Upgrades += rollRewardCards(a6UpgRun, 3, 'normal', { affectPity: false }).filter((c) => c.upgraded).length;
+    a7Upgrades += rollRewardCards(a7UpgRun, 3, 'normal', { affectPity: false }).filter((c) => c.upgraded).length;
+  }
+  assert.ok(a7Upgrades < a6Upgrades, `Expected A7 upgrades (${a7Upgrades}) < A6 (${a6Upgrades})`);
+
+  // 3. A8: Dynamic event penalties & descriptions
+  const tune7 = getEventTuning(7);
+  const tune8 = getEventTuning(8);
+  assert.equal(tune7.isA8, false);
+  assert.equal(tune8.isA8, true);
+  assert.equal(tune8.shiningLightHpLoss, 16);
+  assert.equal(tune8.alchemistBuyGold, 45);
+  assert.equal(tune8.mindBloomRichGold, 360);
+  const a8Choices = getEventChoicesForAscension('shining_light', 8);
+  assert.ok(a8Choices[0].detail.includes('16 点生命'));
+
+  const a8EvRun = createNewRun({ seed: 9301, ascension: 8, skipNeow: true });
+  a8EvRun.screen = 'event';
+  a8EvRun.eventState = { eventId: 'shining_light', resolved: false };
+  a8EvRun.player.hp = 16;
+  assert.equal(chooseEventOption(a8EvRun, 'enter_light').ok, false, 'A8 Shining Light requires HP > 16');
+  a8EvRun.player.hp = 50;
+  assert.equal(chooseEventOption(a8EvRun, 'enter_light').ok, true);
+  assert.equal(a8EvRun.player.hp, 34);
+
+  a8EvRun.eventState = { eventId: 'potion_alchemist', resolved: false };
+  a8EvRun.player.gold = 40;
+  assert.equal(chooseEventOption(a8EvRun, 'buy_potions').ok, false, 'A8 Alchemist requires >= 45 gold');
+  a8EvRun.player.gold = 50;
+  assert.equal(chooseEventOption(a8EvRun, 'buy_potions').ok, true);
+  assert.equal(a8EvRun.player.gold, 5);
+
+  // 4. A9: Enemy HP, Damage, Passive Status, & AI Intent upgrades
+  const a8Laga = createEnemyInstance(createNewRun({ seed: 9401, ascension: 8, skipNeow: true }), {
+    templateId: 'lagavulin',
+  });
+  const a9Laga = createEnemyInstance(createNewRun({ seed: 9401, ascension: 9, skipNeow: true }), {
+    templateId: 'lagavulin',
+  });
+  assert.equal(a8Laga.statuses.metallicize, 5);
+  assert.equal(a9Laga.statuses.metallicize, 6);
+  assert.equal(a9Laga.block, 6);
+  assert.ok(a9Laga.maxHp > a8Laga.maxHp, 'A9 elite HP +24% > A8 +15%');
+
+  a9Laga.statuses.asleep = 0;
+  a9Laga.awakeTurnIndex = 1;
+  const lagaNext = predictNextTurnIntents(a9Laga, a8Laga, 9);
+  assert.ok(lagaNext.tooltipLines[0].includes('失去 2 点力量与 2 点敏捷'));
+
+  const a9Sentry = createEnemyInstance(createNewRun({ seed: 9402, ascension: 9, skipNeow: true }), {
+    templateId: 'sentry',
+    variantIndex: 0,
+  });
+  assert.equal(a9Sentry.intent.id, 'bolt');
+  assert.equal(a9Sentry.intent.addDiscardCards[0].count, 3, 'A9 Sentry shuffles 3 Dazed instead of 2');
+  assert.ok(a9Sentry.intent.summary.includes('3 张【晕眩】'));
+
+  const a9Nob = createEnemyInstance(createNewRun({ seed: 9403, ascension: 9, skipNeow: true }), {
+    templateId: 'gremlin_nob',
+  });
+  assert.equal(a9Nob.intent.applySelfStatuses.enrage, 3);
+
+  const a9Cultist = createEnemyInstance(createNewRun({ seed: 9404, ascension: 9, skipNeow: true }), {
+    templateId: 'cultist',
+  });
+  assert.equal(a9Cultist.intent.applySelfStatuses.ritual, 4);
+  assert.ok(a9Cultist.maxHp >= createEnemyInstance(createNewRun({ seed: 9404, ascension: 8, skipNeow: true }), {
+    templateId: 'cultist',
+  }).maxHp);
+
+  // 5. A10: Blocks early Act 1/2 victory; Act 3 Boss triggers 2nd distinct Act 3 Boss immediately
+  const a10Run = createNewRun({ seed: 9500, ascension: 10, skipNeow: true });
+  a10Run.bossReward = {
+    actCleared: 2,
+    bossGold: 100,
+    cardChoices: [],
+    cardClaimed: true,
+    relicChoices: ['sozu'],
+    pickedRelicId: null,
+  };
+  a10Run.act = 2;
+  a10Run.screen = 'boss_reward';
+  const earlySettle = settleVictory(a10Run);
+  assert.equal(earlySettle.ok, false, 'A10 cannot settle victory early before Act 3 Twin Boss');
+
+  assert.equal(proceedToNextAct(a10Run).ok, true);
+  assert.equal(a10Run.act, 3);
+  a10Run.floor = 15;
+  a10Run.currentNodeId = a10Run.map[14][0].id;
+  const act3BossNode = a10Run.map[15][0];
+  a10Run.bossEncounterId = 'time_eater_boss';
+  assert.equal(selectMapNode(a10Run, act3BossNode.id).ok, true);
+  assert.equal(a10Run.screen, 'combat');
+  assert.ok(a10Run.combat.encounterName.includes('终末双王 · 第 1/2 战'));
+  const firstBossId = a10Run.bossEncounterId;
+
+  // Player takes damage before finishing Boss 1 -> Burning Blood (+6) triggers before Boss 2 spawns
+  a10Run.player.hp = 30;
+  a10Run.combat.enemies.forEach((e) => {
+    e.hp = 1;
+    e.block = 0;
+  });
+  a10Run.combat.hand = [{ instanceId: 88001, cardId: 'strike', upgraded: true }];
+  a10Run.player.energy = 3;
+  const killBoss1 = runPlayCard(a10Run, 88001, a10Run.combat.enemies[0].id);
+  assert.equal(killBoss1.ok, true);
+  assert.equal(killBoss1.outcome, 'ongoing', 'PlayCard returns ongoing when Twin Boss phase 2 starts');
+  assert.equal(a10Run.screen, 'combat');
+  assert.equal(a10Run.act3BossRushStage, 2);
+  assert.equal(a10Run.act3FirstBossId, firstBossId);
+  assert.notEqual(a10Run.bossEncounterId, firstBossId, '2nd Act 3 Boss must be distinct from 1st');
+  assert.ok(a10Run.combat.encounterName.includes('终末双王 · 第 2/2 战'));
+  assert.equal(a10Run.player.hp, 36, 'Burning Blood (+6) healed after Boss 1 before Boss 2 starts without rest');
+
+  // Verify runRestartCombat in Boss 2 restarts Boss 2 (NOT Boss 1!)
+  a10Run.player.hp = 20;
+  const restartBoss2 = runRestartCombat(a10Run);
+  assert.equal(restartBoss2.ok, true);
+  assert.equal(a10Run.act3BossRushStage, 2);
+  assert.equal(a10Run.player.hp, 36);
+  assert.ok(a10Run.combat.encounterName.includes('终末双王 · 第 2/2 战'));
+
+  // Defeat Boss 2 -> Final Victory!
+  a10Run.combat.enemies.forEach((e) => {
+    if (e.templateId === 'awakened_one') e.unawakened = false;
+    e.hp = 1;
+    e.block = 0;
+  });
+  a10Run.combat.hand = [{ instanceId: 88002, cardId: 'cleave', upgraded: true }];
+  a10Run.player.energy = 3;
+  const killBoss2 = runPlayCard(a10Run, 88002);
+  assert.equal(killBoss2.ok, true);
+  assert.equal(a10Run.screen, 'game_over');
+  assert.equal(a10Run.runOutcome, 'victory');
+  assert.equal(a10Run.stats.bossesSlain, 2);
+
+  // Meta A9 -> A10 progression cap
+  const metaA9 = createDefaultMeta();
+  metaA9.maxAscensionUnlocked = 9;
+  const a9Win = createNewRun({ seed: 9501, ascension: 9, skipNeow: true });
+  a9Win.act = 3;
+  a9Win.floor = 16;
+  a9Win.runOutcome = 'victory';
+  const recA9 = recordCompletedRun(metaA9, a9Win);
+  assert.equal(recA9.unlockedAscension, 10);
+  assert.equal(metaA9.maxAscensionUnlocked, 10);
+
+  const a10MetaRec = recordCompletedRun(metaA9, a10Run);
+  assert.equal(a10MetaRec.unlockedAscension, null);
+  assert.equal(metaA9.maxAscensionUnlocked, 10, 'Capped at MAX_ASCENSION 10');
+});
+
 
 
 

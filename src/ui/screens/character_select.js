@@ -71,6 +71,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
     const starterRelic = RELIC_LIBRARY[def.starterRelic];
     const starterPotion = POTION_LIBRARY[def.starterPotion];
     const hpVal = selectedAsc >= 4 ? def.asc4MaxHp : def.maxHp;
+    const startHp = selectedAsc >= 6 ? Math.max(1, hpVal - Math.floor(hpVal * 0.1)) : hpVal;
     const deckSummary = summarizeStarterDeck(def.starterDeck);
 
     const archetypeHtml = def.archetypes
@@ -120,8 +121,8 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
 
         <div class="character-vitals-grid">
           <div class="char-stat-box">
-            <span class="char-stat-label">最大生命</span>
-            <strong class="char-stat-val vital-hp">${escapeHtml(hpVal)}</strong>
+            <span class="char-stat-label">${selectedAsc >= 6 ? '起始/最大生命' : '最大生命'}</span>
+            <strong class="char-stat-val vital-hp">${escapeHtml(selectedAsc >= 6 ? `${startHp}/${hpVal}` : hpVal)}</strong>
           </div>
           <div class="char-stat-box">
             <span class="char-stat-label">初始金币</span>

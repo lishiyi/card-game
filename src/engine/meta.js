@@ -9,7 +9,7 @@ import { RELIC_LIBRARY } from '../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
 
-export const MAX_ASCENSION = 5;
+export const MAX_ASCENSION = 10;
 export const MAX_RUN_HISTORY = 30;
 export const META_STORAGE_KEY = 'sts_lite_meta_v1';
 
@@ -40,25 +40,55 @@ export const ASCENSION_DEFS = deepFreeze([
     level: 2,
     name: '进阶 2 · 凶暴怪物',
     shortLabel: '进阶 2',
-    description: '含进阶 1；所有普通敌人生命上限提升 12%，基础攻击伤害 +1。',
+    description: '含进阶 1；所有普通敌人生命上限提升 7%，基础攻击伤害 +1。',
   },
   {
     level: 3,
     name: '进阶 3 · 致命强敌',
     shortLabel: '进阶 3',
-    description: '含进阶 1–2；所有精英与首领生命上限提升 15%，基础攻击伤害 +2。',
+    description: '含进阶 1–2；所有精英与首领生命上限提升 8%，基础攻击伤害 +2。',
   },
   {
     level: 4,
     name: '进阶 4 · 荒芜补给',
     shortLabel: '进阶 4',
-    description: '含进阶 1–3；开局最大生命 -5，篝火休息回复降至 25%，幕间休整回复降至 60%。',
+    description: '含进阶 1–3；开局最大生命 -5，幕间休整回复降至 65%。',
   },
   {
     level: 5,
     name: '进阶 5 · 尖塔诅咒',
     shortLabel: '进阶 5',
     description: '含进阶 1–4；开局牌组加入 1 张诅咒【笨拙】，商店商品与删牌价格上涨 15%。',
+  },
+  {
+    level: 6,
+    name: '进阶 6 · 负伤启程',
+    shortLabel: '进阶 6',
+    description: '含进阶 1–5；开局初始损失 10% 当前生命（带伤入塔），初始药水栏位由 3 格减至 2 格。',
+  },
+  {
+    level: 7,
+    name: '进阶 7 · 贫瘠战果',
+    shortLabel: '进阶 7',
+    description: '含进阶 1–6；普通与精英战斗金币掉落减少 15%，首领战金币减少 25%，奖励卡牌自带升级概率减半。',
+  },
+  {
+    level: 8,
+    name: '进阶 8 · 险恶奇遇',
+    shortLabel: '进阶 8',
+    description: '含进阶 1–7；未知事件的生命与金币代价大幅提高，回复、金币与属性增益全面收紧。',
+  },
+  {
+    level: 9,
+    name: '进阶 9 · 强敌狂化',
+    shortLabel: '进阶 9',
+    description: '含进阶 1–8；普通敌生命提至 +12%、攻击再 +1；精英与首领生命提至 +14%、攻击再 +1，负面状态、格挡与状态牌威胁全面升级。',
+  },
+  {
+    level: 10,
+    name: '进阶 10 · 终末双王',
+    shortLabel: '进阶 10',
+    description: '含进阶 1–9；必须攻克第 3 幕【深渊圣殿】方算通关，且击败首位第 3 幕首领后不回复生命立即迎战第 2 位第 3 幕首领！',
   },
 ]);
 
@@ -137,7 +167,8 @@ export function calculateRunXp(state) {
   const floors = state?.stats?.floorsCleared ?? 0;
   const wins = state?.stats?.combatsWon ?? 0;
   const elites = state?.stats?.elitesSlain ?? 0;
-  const actBonus = (state?.act ?? 1) >= 2 ? 60 : 0;
+  const act = state?.act ?? 1;
+  const actBonus = act >= 3 ? 130 : act >= 2 ? 60 : 0;
   const winBonus = state?.runOutcome === 'victory' ? 120 + (state?.ascension ?? 0) * 25 : 0;
   const dailyBonus = state?.dailyChallenge ? 25 : 0;
   return Math.max(15, floors * 8 + wins * 12 + elites * 18 + actBonus + winBonus + dailyBonus);
@@ -163,7 +194,7 @@ export function calculateRunScore(state) {
   const elitesSlain = state.stats?.elitesSlain ?? 0;
   const bossesSlain =
     state.stats?.bossesSlain ??
-    (state.runOutcome === 'victory' ? (act >= 2 ? 2 : 1) : act >= 2 ? 1 : 0);
+    (state.runOutcome === 'victory' ? act : Math.max(0, act - 1));
   const perfectCombats = state.stats?.perfectCombats ?? 0;
   const deck = Array.isArray(state.player?.deck) ? state.player.deck : [];
   const relics = Array.isArray(state.player?.relics) ? state.player.relics : [];
@@ -200,9 +231,9 @@ export function calculateRunScore(state) {
   }
   if (isVictory) {
     breakdown.push({
-      label: act >= 2 ? '双幕登顶凯旋' : '第一幕凯旋结算',
-      points: act >= 2 ? 300 : 150,
-      detail: act >= 2 ? '征服钢铁城邦终战' : '成功斩落第一幕首领',
+      label: act >= 3 ? '三幕终极登顶' : act >= 2 ? '双幕登顶凯旋' : '第一幕凯旋结算',
+      points: act >= 3 ? 500 : act >= 2 ? 300 : 150,
+      detail: act >= 3 ? '彻底征服深渊圣殿终战' : act >= 2 ? '征服钢铁城邦终战' : '成功斩落第一幕首领',
     });
   }
   if (perfectCombats > 0) {
@@ -365,9 +396,11 @@ export function formatShareableBattleReport(report, shareUrl = '') {
       ? `进阶 ${report.ascension}`
       : '标准攀登';
   const outcomeTitle = isWin
-    ? (report.act ?? 1) >= 2
-      ? '🏆 双幕登顶凯旋'
-      : '🏆 第一幕凯旋'
+    ? (report.act ?? 1) >= 3
+      ? '👑 三幕终极登顶'
+      : (report.act ?? 1) >= 2
+        ? '🏆 双幕登顶凯旋'
+        : '🏆 第一幕凯旋'
     : `💀 折戟于第 ${report.act ?? 1} 幕 · F${report.floor ?? 1}`;
 
   const lines = [

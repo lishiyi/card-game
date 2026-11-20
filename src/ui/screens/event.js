@@ -2,7 +2,11 @@
  * Unknown Event screen renderer (narrative choices, card upgrade/transform/purge sub-flows, and Library draft).
  */
 
-import { EVENT_LIBRARY } from '../../data/events.js';
+import {
+  EVENT_LIBRARY,
+  getEventChoicesForAscension,
+  getEventTuning,
+} from '../../data/events.js';
 import { getUpgradableDeckCards } from '../../engine/game.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 
@@ -107,23 +111,25 @@ export function renderEventScreen({ state, ui }) {
   } else {
     const hasEmptyPotion = state.player.potions.some((p) => p === null);
     const upgradableCount = getUpgradableDeckCards(state).length;
+    const evTune = getEventTuning(state.ascension ?? 0);
+    const choicesList = getEventChoicesForAscension(evDef.id, state.ascension ?? 0);
 
-    const choicesHtml = evDef.choices
+    const choicesHtml = choicesList
       .map((ch) => {
         let blockedReason = '';
         if (
-          (evDef.id === 'shining_light' && ch.id === 'enter_light' && state.player.hp <= 12) ||
-          (evDef.id === 'thorn_reliquary' && ch.id === 'open_reliquary' && state.player.hp <= 8) ||
-          (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.hp <= 6) ||
-          (evDef.id === 'golden_idol' && ch.id === 'smash_trap' && state.player.hp <= 14) ||
-          (evDef.id === 'cursed_tome' && ch.id === 'read_final_chapter' && state.player.hp <= 14) ||
-          (evDef.id === 'cursed_tome' && ch.id === 'skim_preface' && state.player.hp <= 5) ||
-          (evDef.id === 'mushroom_grotto' && ch.id === 'refine_red_spore' && state.player.hp <= 7)
+          (evDef.id === 'shining_light' && ch.id === 'enter_light' && state.player.hp <= evTune.shiningLightHpLoss) ||
+          (evDef.id === 'thorn_reliquary' && ch.id === 'open_reliquary' && state.player.hp <= evTune.thornOpenHpLoss) ||
+          (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.hp <= evTune.forgeOverclockHpLoss) ||
+          (evDef.id === 'golden_idol' && ch.id === 'smash_trap' && state.player.hp <= evTune.idolSmashHpLoss) ||
+          (evDef.id === 'cursed_tome' && ch.id === 'read_final_chapter' && state.player.hp <= evTune.tomeFinalHpLoss) ||
+          (evDef.id === 'cursed_tome' && ch.id === 'skim_preface' && state.player.hp <= evTune.tomeSkimHpLoss) ||
+          (evDef.id === 'mushroom_grotto' && ch.id === 'refine_red_spore' && state.player.hp <= evTune.grottoRedHpLoss)
         ) {
           blockedReason = '（生命不足）';
         } else if (
-          (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.gold < 30) ||
-          (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && state.player.gold < 35)
+          (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.gold < evTune.forgeOverclockGold) ||
+          (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && state.player.gold < evTune.alchemistBuyGold)
         ) {
           blockedReason = '（金币不足）';
         } else if (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && !hasEmptyPotion) {

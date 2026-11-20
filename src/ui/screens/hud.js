@@ -23,6 +23,14 @@ export function renderTopHud({ state, ui }) {
       const r = RELIC_LIBRARY[id];
       if (!r) return '';
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+      let counterHtml = '';
+      if (id === 'happy_flower') {
+        const count = state.relicCounters?.happy_flower ?? 0;
+        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/3</span>`;
+      } else if (id === 'incense_burner') {
+        const count = state.relicCounters?.incense_burner ?? 0;
+        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/6</span>`;
+      }
       return `<span
         class="relic-badge tier-${escapeHtml(r.tier)}"
         data-relic-id="${escapeHtml(id)}"
@@ -31,7 +39,7 @@ export function renderTopHud({ state, ui }) {
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(r.description)}"
         data-tooltip-tone="relic"
-      >${escapeHtml(r.name)}</span>`;
+      >${escapeHtml(r.name)}${counterHtml}</span>`;
     })
     .join('');
 
@@ -44,7 +52,11 @@ export function renderTopHud({ state, ui }) {
             tabindex="0"
             data-tooltip-title="空药水栏"
             data-tooltip-tag="药水栏位"
-            data-tooltip-desc="${escapeHtml(`最多可携带 ${state.player.potions.length} 瓶药水，可在战斗战利品、炼金师事件或神秘商人处获得。`)}"
+            data-tooltip-desc="${escapeHtml(
+              (state.ascension ?? 0) >= 6 && state.player.potions.length < 3
+                ? `受进阶 6 限制：初始仅 ${state.player.potions.length} 个药水栏（常规为 3 格）；可在战斗战利品、炼金师事件或神秘商人处获得药水。`
+                : `最多可携带 ${state.player.potions.length} 瓶药水，可在战斗战利品、炼金师事件或神秘商人处获得。`
+            )}"
           >
             <button type="button" id="potion-slot-${idx}" class="potion-slot" disabled>空药水栏</button>
           </span>
@@ -154,10 +166,10 @@ export function renderTopHud({ state, ui }) {
           <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
           <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
         </div>
-        <div class="hud-gear-scroll">
+        <div class="hud-gear-scroll" aria-label="遗物栏区域">
           <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>
-          <div class="potion-strip" aria-label="药水栏">${potionsHtml}</div>
         </div>
+        <div class="potion-strip" aria-label="药水栏">${potionsHtml}</div>
       </div>
 
       <nav class="top-actions" aria-label="全局操作">

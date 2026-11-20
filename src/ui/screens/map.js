@@ -329,11 +329,14 @@ export function renderMapScreen({ state, settings, ui }) {
         </div>`
       : '';
 
+  const act = state.act ?? 1;
+  const actHeading =
+    act >= 3 ? '第三幕 · 深渊圣殿攀登路线' : act >= 2 ? '第二幕 · 钢铁城邦攀登路线' : '尖塔攀登路线';
   return `
     <section class="panel-stage" aria-labelledby="map-heading">
       <div class="stage-header">
         <div>
-          <h2 id="map-heading" class="stage-heading">${isAct2 ? '第二幕 · 钢铁城邦攀登路线' : '尖塔攀登路线'}</h2>
+          <h2 id="map-heading" class="stage-heading">${actHeading}</h2>
           <p class="stage-subtitle">自下而上沿连线攀登（悬停任意节点可高亮其上下游路线）：第 1–5 层无精英稳步发育，第 9 层必遇远古宝箱，第 ${escapeHtml(TOTAL_FLOORS)} 层迎战首领【${escapeHtml(bossName)}】。</p>
         </div>
         ${
