@@ -1323,8 +1323,8 @@ export const CARD_LIBRARY = deepFreeze({
     rarity: 'special',
     target: 'self',
     price: 0,
-    base: { cost: 3, applySelfStatuses: { omega: 45 } },
-    upgraded: { cost: 3, applySelfStatuses: { omega: 55 } },
+    base: { cost: 3, applySelfStatuses: { omega: 50 } },
+    upgraded: { cost: 3, applySelfStatuses: { omega: 60 } },
   },
 
   // === The Watcher Common Cards (18) ===
@@ -1729,9 +1729,9 @@ export const CARD_LIBRARY = deepFreeze({
     name: '点穴',
     character: 'watcher',
     type: 'skill',
-    rarity: 'uncommon',
+    rarity: 'common',
     target: 'enemy',
-    price: 78,
+    price: 54,
     base: { cost: 1, applyMarkAndTrigger: 9 },
     upgraded: { cost: 1, applyMarkAndTrigger: 13 },
   },
@@ -2417,9 +2417,9 @@ export const CARD_LIBRARY = deepFreeze({
     name: '愤慨',
     character: 'watcher',
     type: 'skill',
-    rarity: 'common',
+    rarity: 'uncommon',
     target: 'all_enemies',
-    price: 54,
+    price: 78,
     base: { cost: 1, block: 6, ifInWrathVulnAllElseWrath: 3 },
     upgraded: { cost: 0, block: 9, ifInWrathVulnAllElseWrath: 5 },
   },
@@ -2428,9 +2428,9 @@ export const CARD_LIBRARY = deepFreeze({
     name: '圣洁',
     character: 'watcher',
     type: 'skill',
-    rarity: 'common',
+    rarity: 'uncommon',
     target: 'self',
-    price: 56,
+    price: 78,
     base: { cost: 1, block: 8, ifLastCardType: { type: 'skill', draw: 2 } },
     upgraded: { cost: 1, block: 11, ifLastCardType: { type: 'skill', draw: 2 } },
   },
@@ -2439,9 +2439,9 @@ export const CARD_LIBRARY = deepFreeze({
     name: '旋转',
     character: 'watcher',
     type: 'skill',
-    rarity: 'common',
+    rarity: 'uncommon',
     target: 'self',
-    price: 56,
+    price: 80,
     base: { cost: 2, block: 14, applySelfStatuses: { freeAttackPower: 1 } },
     upgraded: { cost: 2, block: 18, applySelfStatuses: { freeAttackPower: 1 } },
   },
@@ -3142,7 +3142,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.ifLastCardType.draw) {
       effects.push(`抽 ${stats.ifLastCardType.draw} 张牌`);
     }
-    parts.push(`若本回合上一张打出的是${needLabel}，${effects.join('并')}${activeNote}。`);
+    parts.push(`若本场战斗上一张打出的是${needLabel}，${effects.join('并')}${activeNote}。`);
   }
   if (stats.ifTargetAttackingEnterStance) {
     const stName = STANCE_NAMES_ZH[stats.ifTargetAttackingEnterStance] || stats.ifTargetAttackingEnterStance;
@@ -3417,10 +3417,10 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`每当你切换姿态时，获得 ${stats.applySelfStatuses.mentalFortress} 点格挡。`);
     }
     if (stats.applySelfStatuses.rushdown) {
-      parts.push(`每当你进入【愤怒】姿态时，抽 ${stats.applySelfStatuses.rushdown} 张牌（每回合最多触发 2 次）。`);
+      parts.push(`每当你进入【愤怒】姿态时，抽 ${stats.applySelfStatuses.rushdown} 张牌。`);
     }
     if (stats.applySelfStatuses.nirvana) {
-      parts.push(`每当你通过【预见】弃置 1 张牌时，获得 ${stats.applySelfStatuses.nirvana} 点格挡。`);
+      parts.push(`每次触发【预见】时至少获得 ${stats.applySelfStatuses.nirvana} 点格挡（每弃置 1 张牌提供 ${stats.applySelfStatuses.nirvana} 点）。`);
     }
     if (stats.applySelfStatuses.foresight) {
       parts.push(`每回合开始时，触发【预见 ${stats.applySelfStatuses.foresight}】。`);
@@ -3438,7 +3438,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`每回合结束时，对所有敌人造成 ${stats.applySelfStatuses.omega} 点固定伤害。`);
     }
     if (stats.applySelfStatuses.blasphemer) {
-      parts.push('下个你的回合开始时，你将立即死亡！');
+      parts.push('下个你的回合开始时，你将承受致命反噬伤害！');
     }
     if (stats.applySelfStatuses.simmeringFury) {
       parts.push(`下回合开始时进入【愤怒】姿态并额外抽 ${stats.applySelfStatuses.simmeringFury} 张牌。`);
@@ -3468,7 +3468,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push('下回合你打出的所有攻击牌造成双倍伤害！');
     }
     if (stats.applySelfStatuses.freeAttackPower) {
-      parts.push(`本回合你打出的下 ${stats.applySelfStatuses.freeAttackPower} 张攻击牌费用变为 0。`);
+      parts.push(`你打出的下 ${stats.applySelfStatuses.freeAttackPower} 张攻击牌费用变为 0（跨回合保留）。`);
     }
     if (stats.applySelfStatuses.waveOfTheHand) {
       parts.push(`本回合你每获得 1 次格挡，给予所有敌人 ${stats.applySelfStatuses.waveOfTheHand} 层虚弱。`);

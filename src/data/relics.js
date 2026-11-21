@@ -1499,13 +1499,13 @@ export const STATUS_METADATA = deepFreeze({
     id: 'rushdown',
     name: '猛冲',
     polarity: 'buff',
-    describe: (v) => `每当你进入【愤怒】姿态时，立即抽 ${v} 张牌（每回合最多触发 2 次）。`,
+    describe: (v) => `每当你进入【愤怒】姿态时，立即抽 ${v} 张牌（无单回合次数上限）。`,
   },
   nirvana: {
     id: 'nirvana',
     name: '涅槃',
     polarity: 'buff',
-    describe: (v) => `每当你通过【预见】弃置 1 张牌时，立即获得 ${v} 点格挡。`,
+    describe: (v) => `每次触发【预见】时至少获得 ${v} 点格挡（每弃置 1 张牌可获得 ${v} 点格挡）。`,
   },
   foresight: {
     id: 'foresight',
@@ -1541,7 +1541,7 @@ export const STATUS_METADATA = deepFreeze({
     id: 'blasphemer',
     name: '渎神誓约',
     polarity: 'debuff',
-    describe: () => '下个你的回合开始时，你将立刻失去 999 点生命——请在本回合内彻底终结战斗！',
+    describe: () => '下个你的回合开始时，你将承受 999 点致命反噬伤害（可被无实体降至 1 点或被缓冲抵挡）——请在本回合内终结战斗！',
   },
   simmeringFury: {
     id: 'simmeringFury',
@@ -1631,7 +1631,7 @@ export const STATUS_METADATA = deepFreeze({
     id: 'freeAttackPower',
     name: '免费攻击',
     polarity: 'buff',
-    describe: (v) => `本回合你打出的下 ${v} 张攻击牌费用降为 0。`,
+    describe: (v) => `你打出的下 ${v} 张攻击牌费用降为 0（跨回合保留直至打出攻击牌）。`,
   },
   waveOfTheHand: {
     id: 'waveOfTheHand',

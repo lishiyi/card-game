@@ -2270,16 +2270,17 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   const handBeforeR2 = wState.combat.hand.length;
   playCard(wState, tranq1.instanceId);
   playCard(wState, cresc1.instanceId);
-  assert.equal(wState.combat.rushdownTriggersThisTurn, RUSHDOWN_MAX_TRIGGERS_PER_TURN);
+  assert.equal(wState.combat.rushdownTriggersThisTurn, 2);
   assert.equal(wState.combat.hand.length, handBeforeR2, 'Played 2 cards, Rushdown #2 drew 2');
 
-  // Swap 3 (Wrath -> Calm -> Wrath): Rushdown CAP reached -> must NOT draw!
+  // Swap 3 (Wrath -> Calm -> Wrath): Rushdown is UNCAPPED like original Slay the Spire -> draws 2 again!
   const drawPileBeforeR3 = wState.combat.drawPile.length;
   playCard(wState, tranq2.instanceId);
-  const synCap = computeCardSynergies(wState, cresc2);
-  assert.ok(synCap.callouts.some((c) => c.tone === 'warn' && c.text.includes('上限')));
+  const synR3 = computeCardSynergies(wState, cresc2);
+  assert.ok(synR3.callouts.some((c) => c.tone === 'buff' && c.text.includes('猛冲')));
   playCard(wState, cresc2.instanceId);
-  assert.equal(wState.combat.drawPile.length, drawPileBeforeR3, 'Rushdown must respect per-turn anti-infinite cap (2)');
+  assert.equal(wState.combat.rushdownTriggersThisTurn, 3);
+  assert.equal(wState.combat.drawPile.length, drawPileBeforeR3 - 2, 'Uncapped Rushdown draws 2 on 3rd Wrath entry');
 
   // 2. Mantra -> Divinity (3x damage, +3E, auto-exit on next turn) + Damaru + Devotion + Brilliance
   const mState = createNewRun({ seed: 13002, characterId: 'watcher', skipNeow: true });
@@ -2739,4 +2740,116 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   const hpPreBomb = enCo.hp;
   endPlayerTurn(co);
   assert.equal(hpPreBomb - enCo.hp, 30, 'The Bomb detonates for 30 AoE after 3 turns');
+});
+
+test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/60, cross-turn Chain & Swivel, Nirvana 0-discard/empty Scry, Blasphemy+Intangible, Vault vs Time Eater, 0-dmg Talk to the Hand, smart Meditate', () => {
+  // 1. Original-StS Rarities & Omega 50/60
+  assert.equal(RUSHDOWN_MAX_TRIGGERS_PER_TURN, Infinity);
+  assert.equal(CARD_LIBRARY.omega.base.applySelfStatuses.omega, 50);
+  assert.equal(CARD_LIBRARY.omega.upgraded.applySelfStatuses.omega, 60);
+  assert.equal(CARD_LIBRARY.pressure_points.rarity, 'common');
+  assert.equal(CARD_LIBRARY.indignation.rarity, 'uncommon');
+  assert.equal(CARD_LIBRARY.sanctity.rarity, 'uncommon');
+  assert.equal(CARD_LIBRARY.swivel.rarity, 'uncommon');
+
+  // 2. Cross-turn lastCardTypePlayed (Crush Joints/Sanctity/Follow-Up/Sash Whip) & Cross-turn Swivel freeAttackPower
+  const st = createNewRun({ seed: 23001, characterId: 'watcher', skipNeow: true });
+  startCombat(st, ENCOUNTERS.floor1[0], 'normal');
+  const en = st.combat.enemies[0];
+  en.hp = 150;
+  en.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const swiv = createCardInstance(st, 'swivel', false); // Skill -> also sets lastCardTypePlayed='skill' & arms freeAttackPower
+  const cj = createCardInstance(st, 'crush_joints', false); // Needs previous Skill for Vulnerable
+  const rag = createCardInstance(st, 'ragnarok', false); // 3E Attack -> should cost 0E next turn from Swivel!
+  st.combat.hand = [swiv];
+  st.combat.drawPile = [cj, rag, createCardInstance(st, 'strike', false), createCardInstance(st, 'defend', false), createCardInstance(st, 'strike', false)];
+  st.player.energy = 3;
+  assert.equal(playCard(st, swiv.instanceId).ok, true);
+  assert.equal(st.player.statuses.freeAttackPower, 1);
+  assert.equal(st.combat.lastCardTypePlayed, 'skill');
+
+  // End Turn 1 -> Turn 2 must preserve BOTH lastCardTypePlayed='skill' AND freeAttackPower=1!
+  endPlayerTurn(st);
+  assert.equal(st.combat.lastCardTypePlayed, 'skill', 'lastCardTypePlayed must persist across turns');
+  assert.equal(st.player.statuses.freeAttackPower, 1, 'Swivel freeAttackPower must persist across turns');
+  assert.equal(getEffectiveCardCost(getCardStats(rag), st.player, st.combat), 0, 'Ragnarok costs 0E on Turn 2 via Swivel');
+  st.player.energy = 1; // Only 1 energy left -> play 0E Ragnarok? Wait, test Crush Joints first while lastCardTypePlayed==='skill'!
+  assert.equal(playCard(st, cj.instanceId, en.id).ok, true);
+  assert.equal(en.statuses.vulnerable, 1, 'Crush Joints triggers Vulnerable on Turn 2 from Turn 1 Skill');
+  assert.equal(st.player.statuses.freeAttackPower, undefined, 'Swivel consumed on Crush Joints (cost 0E)');
+  assert.equal(st.player.energy, 1, 'Crush Joints cost 0E thanks to cross-turn Swivel');
+
+  // 3. Nirvana triggers on BOTH 0-discard Scry AND empty draw pile Scry
+  const nv = createNewRun({ seed: 23002, characterId: 'watcher', skipNeow: true });
+  startCombat(nv, ENCOUNTERS.floor1[0], 'normal');
+  nv.combat.enemies[0].hp = 100;
+  nv.player.statuses.nirvana = 4;
+  nv.player.block = 0;
+  const te1 = createCardInstance(nv, 'third_eye', false); // 7 block + Scry 3
+  const te2 = createCardInstance(nv, 'third_eye', false);
+  nv.combat.hand = [te1, te2];
+  nv.combat.drawPile = [createCardInstance(nv, 'eruption', true)];
+  playCard(nv, te1.instanceId);
+  confirmScryChoice(nv, []); // Discard 0 cards!
+  assert.equal(nv.player.block, 7 + 4, 'Nirvana grants 4 Block even when keeping all scried cards');
+  nv.player.block = 0;
+  nv.combat.drawPile = []; // Empty draw pile!
+  playCard(nv, te2.instanceId);
+  assert.equal(nv.player.block, 7 + 4, 'Nirvana grants 4 Block even when scrying an empty draw pile');
+
+  // 4. Blasphemy + Intangible reduces lethal oath to 1 damage
+  const bi = createNewRun({ seed: 23003, characterId: 'watcher', skipNeow: true });
+  startCombat(bi, ENCOUNTERS.floor1[0], 'normal');
+  bi.combat.enemies[0].hp = 200;
+  bi.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  bi.player.hp = 50;
+  bi.player.statuses.intangible = 2; // 2 -> decays to 1 on end of turn, still active at start of next turn!
+  const blas2 = createCardInstance(bi, 'blasphemy', false);
+  bi.combat.hand = [blas2];
+  playCard(bi, blas2.instanceId);
+  endPlayerTurn(bi);
+  assert.equal(bi.player.hp, 49, 'Intangible reduces Blasphemy lethal oath to 1 damage');
+  assert.equal(bi.combat.status, 'ongoing');
+
+  // 5. Vault played as Time Eater 12th card STILL grants extra turn & skips Time Eater attack!
+  const vt = createNewRun({ seed: 23004, characterId: 'watcher', skipNeow: true });
+  startCombat(vt, ENCOUNTERS.floor1[0], 'boss');
+  const teBoss = vt.combat.enemies[0];
+  teBoss.hp = 300;
+  teBoss.statuses.timeWarp = 1; // Next card is the 12th card!
+  teBoss.intent = { id: 'smash', name: '重击', type: 'attack', damage: 40, hits: 1 };
+  vt.player.hp = 60;
+  vt.player.block = 0;
+  const vaultCard = createCardInstance(vt, 'vault', true);
+  vt.combat.hand = [vaultCard];
+  vt.player.energy = 3;
+  const turnBefore = vt.combat.turn;
+  playCard(vt, vaultCard.instanceId);
+  assert.equal(vt.combat.turn, turnBefore + 1, 'Vault advanced to player extra turn');
+  assert.equal(vt.player.hp, 60, 'Vault skipped Time Eater 40-damage attack even on 12th card');
+  assert.equal(teBoss.statuses.timeWarp, 12, 'Time Warp counter reset after 12th card');
+
+  // 6. Talk to the Hand triggers even on 0-damage attack hit + Meditate smartly retrieves Eruption over Strike
+  const tm = createNewRun({ seed: 23005, characterId: 'watcher', skipNeow: true });
+  startCombat(tm, ENCOUNTERS.floor1[0], 'normal');
+  const tEn = tm.combat.enemies[0];
+  tEn.hp = 100;
+  tEn.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  tEn.statuses.talkToTheHand = 3;
+  tm.player.statuses.strength = -10; // Forces Strike to deal 0 damage!
+  tm.player.block = 0;
+  const zeroStrike = createCardInstance(tm, 'strike', false);
+  const erupDiscard = createCardInstance(tm, 'eruption', true);
+  const strikeDiscard = createCardInstance(tm, 'strike', false);
+  const med = createCardInstance(tm, 'meditate', false);
+  tm.combat.hand = [zeroStrike, med];
+  tm.combat.discardPile = [erupDiscard, strikeDiscard]; // Basic strike is LAST in discard!
+  tm.player.energy = 3;
+  playCard(tm, zeroStrike.instanceId, tEn.id);
+  assert.equal(tm.player.block, 3, 'Talk to the Hand grants Block even on 0-damage attack hits');
+  playCard(tm, med.instanceId);
+  assert.ok(
+    tm.combat.hand.some((c) => c.instanceId === erupDiscard.instanceId),
+    'Meditate smartly retrieves Eruption+ from discard pile instead of basic Strike'
+  );
 });

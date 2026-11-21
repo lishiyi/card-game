@@ -877,14 +877,10 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
     if (targetStance === 'wrath') {
       if ((player.statuses?.rushdown ?? 0) > 0) {
-        const used = combat.rushdownTriggersThisTurn ?? 0;
-        const capReached = used >= RUSHDOWN_MAX_TRIGGERS_PER_TURN;
-        pushPlayerStatus('rushdown', capReached ? 'warn' : 'buff');
+        pushPlayerStatus('rushdown', 'buff');
         result.callouts.push({
-          tone: capReached ? 'warn' : 'buff',
-          text: capReached
-            ? `⚠ 【猛冲】本回合已达上限（${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次），本次不再抽牌`
-            : `✦ 【猛冲】触发：进入愤怒抽 ${player.statuses.rushdown} 张牌（本回合第 ${used + 1}/${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次）`,
+          tone: 'buff',
+          text: `✦ 【猛冲】触发：进入愤怒立即抽 ${player.statuses.rushdown} 张牌！`,
         });
       }
       const wrathProxyPlayer = { ...player, stance: 'wrath' };
@@ -987,7 +983,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
     if ((player.statuses?.nirvana ?? 0) > 0) {
       pushPlayerStatus('nirvana', 'buff');
-      scryParts.push(`涅槃(每弃1张 +${player.statuses.nirvana}盾)`);
+      scryParts.push(`涅槃(预见至少 +${player.statuses.nirvana}盾)`);
     }
     if (scryParts.length > 0) {
       result.callouts.push({

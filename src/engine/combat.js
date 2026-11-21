@@ -29,7 +29,7 @@ import { pickRandom, randomInt, shuffled } from './rng.js';
 export const MAX_HAND_SIZE = 10;
 export const BASE_DRAW_PER_TURN = 5;
 export const VELVET_CHOKER_CARD_LIMIT = 6;
-export const RUSHDOWN_MAX_TRIGGERS_PER_TURN = 2;
+export const RUSHDOWN_MAX_TRIGGERS_PER_TURN = Infinity;
 const VALID_STANCES = new Set(['neutral', 'calm', 'wrath', 'divinity']);
 const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail'];
 const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'intangible'];
@@ -532,7 +532,8 @@ export function drawCards(state, count, options = {}) {
 
 export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack: true }) {
   const combat = state.combat;
-  if (!combat || !enemy || enemy.hp <= 0 || rawAmount <= 0) return 0;
+  if (!combat || !enemy || enemy.hp <= 0 || rawAmount < 0) return 0;
+  if (rawAmount === 0 && !options.isAttack) return 0;
 
   let amount = Math.floor(rawAmount);
   if (amount > 1 && (enemy.statuses?.intangible ?? 0) > 0) {
@@ -561,7 +562,6 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
   // Talk to the Hand: player gains Block on every attack hit against marked target
   if (
     options.isAttack &&
-    (blocked > 0 || hpLoss > 0) &&
     state.player.hp > 0 &&
     (enemy.statuses?.talkToTheHand ?? 0) > 0
   ) {
@@ -1178,29 +1178,20 @@ export function changeStance(state, nextStance = 'neutral', options = {}) {
     pushCombatLog(combat, `【心灵堡垒】触发：获得 ${mfBlock} 点格挡！`, 'block');
   }
 
-  // Rushdown: draw on entering Wrath (capped at RUSHDOWN_MAX_TRIGGERS_PER_TURN per turn)
+  // Rushdown: draw on every entry into Wrath (uncapped, matching original Slay the Spire)
   if (
     normalizedNext === 'wrath' &&
     (state.player.statuses?.rushdown ?? 0) > 0 &&
     !options.silent
   ) {
-    const triggers = combat.rushdownTriggersThisTurn ?? 0;
-    if (triggers < RUSHDOWN_MAX_TRIGGERS_PER_TURN) {
-      combat.rushdownTriggersThisTurn = triggers + 1;
-      const drawAmt = state.player.statuses.rushdown;
-      pushCombatLog(
-        combat,
-        `【猛冲】触发（${combat.rushdownTriggersThisTurn}/${RUSHDOWN_MAX_TRIGGERS_PER_TURN}）：抽 ${drawAmt} 张牌！`,
-        'info'
-      );
-      drawCards(state, drawAmt);
-    } else {
-      pushCombatLog(
-        combat,
-        `【猛冲】本回合已达上限（${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次），不再继续抽牌。`,
-        'info'
-      );
-    }
+    combat.rushdownTriggersThisTurn = (combat.rushdownTriggersThisTurn ?? 0) + 1;
+    const drawAmt = state.player.statuses.rushdown;
+    pushCombatLog(
+      combat,
+      `【猛冲】触发（本回合第 ${combat.rushdownTriggersThisTurn} 次）：抽 ${drawAmt} 张牌！`,
+      'info'
+    );
+    drawCards(state, drawAmt);
   }
 
   // Flurry of Blows: return from discard pile on stance change
@@ -1254,6 +1245,11 @@ export function initiateScry(state, amount, sourceName = '预见', options = {})
   if (safeAmt <= 0 || combat.drawPile.length === 0) {
     pushCombatLog(combat, `【${sourceName}】抽牌堆为空，无需预见。`, 'info');
     if (safeAmt > 0) {
+      if ((state.player.statuses?.nirvana ?? 0) > 0) {
+        const nirvBlock = state.player.statuses.nirvana;
+        addPlayerBlock(state, nirvBlock);
+        pushCombatLog(combat, `【涅槃】触发：预见获得 ${nirvBlock} 点格挡！`, 'block');
+      }
       returnDiscardCardsByFlag(state, 'returnOnScry', '【预见】');
     }
     if (drawAfterScry > 0) {
@@ -1337,11 +1333,18 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
 
   if (toDiscard.length > 0) {
     discardCardsBatch(state, toDiscard, { manual: false });
-    if ((state.player.statuses?.nirvana ?? 0) > 0) {
-      const nirvBlock = toDiscard.length * state.player.statuses.nirvana;
-      addPlayerBlock(state, nirvBlock);
-      pushCombatLog(combat, `【涅槃】触发：预见弃置 ${toDiscard.length} 张牌，获得 ${nirvBlock} 点格挡！`, 'block');
-    }
+  }
+  if ((state.player.statuses?.nirvana ?? 0) > 0) {
+    const nirvMult = Math.max(1, toDiscard.length);
+    const nirvBlock = nirvMult * state.player.statuses.nirvana;
+    addPlayerBlock(state, nirvBlock);
+    pushCombatLog(
+      combat,
+      toDiscard.length > 0
+        ? `【涅槃】触发：预见弃置 ${toDiscard.length} 张牌，获得 ${nirvBlock} 点格挡！`
+        : `【涅槃】触发：预见完成，获得 ${nirvBlock} 点格挡！`,
+      'block'
+    );
   }
   pushCombatLog(
     combat,
@@ -1629,14 +1632,12 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   combat.kunaiCounter = 0;
   combat.ornamentalFanCounter = 0;
   combat.rushdownTriggersThisTurn = 0;
-  combat.lastCardTypePlayed = null;
   combat.playedCardTypesThisTurn = { attack: false, skill: false, power: false };
   setPendingCardChoice(combat, null);
   delete state.player.statuses.flameBarrier;
   delete state.player.statuses.rage;
   delete state.player.statuses.doubleTap;
   delete state.player.statuses.duplication;
-  delete state.player.statuses.freeAttackPower;
   delete state.player.statuses.waveOfTheHand;
   delete state.player.statuses.doubleDamage;
   for (const e of combat.enemies || []) {
@@ -1654,11 +1655,17 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, '【幻影杀手】触发：本回合所有攻击伤害翻倍（×2）！', 'status');
   }
 
-  // Blasphemy lethal oath triggers at start of next player turn
+  // Blasphemy lethal oath triggers at start of next player turn (Intangible reduces to 1; Buffer blocks)
   if ((state.player.statuses.blasphemer ?? 0) > 0) {
     delete state.player.statuses.blasphemer;
-    pushCombatLog(combat, '【渎神誓约】反噬降临！', 'damage');
-    losePlayerHp(state, 999, '渎神誓约');
+    const isIntangible = (state.player.statuses.intangible ?? 0) > 0;
+    const oathDmg = isIntangible ? 1 : 999;
+    pushCombatLog(
+      combat,
+      isIntangible ? '【渎神誓约】反噬降临，但【无实体】将其降至 1 点！' : '【渎神誓约】反噬降临！',
+      'damage'
+    );
+    losePlayerHp(state, oathDmg, '渎神誓约');
     if (state.player.hp <= 0 || combat.status !== 'ongoing') {
       return;
     }
@@ -2896,18 +2903,28 @@ export function playCard(
     if (stats.retrieveDiscardRetain && combat.discardPile.length > 0) {
       const want = stats.retrieveDiscardRetain;
       const retrievedNames = [];
+      const rankMeditateCandidate = (cardInst) => {
+        const cs = getCardStats(cardInst);
+        if (cs.type === 'curse' || cs.type === 'status' || cs.unplayable) return -100;
+        let sc = cs.rarity === 'rare' ? 35 : cs.rarity === 'uncommon' ? 24 : cs.rarity === 'special' ? 22 : 12;
+        if (cardInst.upgraded) sc += 8;
+        if (cs.enterStance === 'wrath' || cs.ifInWrathVulnAllElseWrath) sc += 26;
+        if (cs.enterStance === 'divinity' || cs.exitStance || cs.ifInCalmDrawElseCalm || cs.ifTargetAttackingEnterStance) sc += 16;
+        if (cs.blockEqualUnblockedDamage || cs.wrathBonusBlock || cs.draw || cs.type === 'power') sc += 14;
+        if (cardInst.cardId === 'strike' || cardInst.cardId === 'defend') sc -= 20;
+        return sc;
+      };
       for (let r = 0; r < want; r += 1) {
         if (combat.hand.length >= MAX_HAND_SIZE || combat.discardPile.length === 0) break;
-        // Prefer non-curse/status cards from the most recent discard entries
-        let pickIdx = -1;
+        let pickIdx = 0;
+        let bestScore = -Infinity;
         for (let k = combat.discardPile.length - 1; k >= 0; k -= 1) {
-          const t = getCardStats(combat.discardPile[k]).type;
-          if (t !== 'curse' && t !== 'status') {
+          const sc = rankMeditateCandidate(combat.discardPile[k]);
+          if (sc > bestScore) {
+            bestScore = sc;
             pickIdx = k;
-            break;
           }
         }
-        if (pickIdx === -1) pickIdx = combat.discardPile.length - 1;
         const [card] = combat.discardPile.splice(pickIdx, 1);
         if (card) {
           card.tempRetainTurn = true;
@@ -3473,7 +3490,9 @@ export function playCard(
     }
   }
 
-  combat.lastCardTypePlayed = stats.type;
+  if (stats.type === 'attack' || stats.type === 'skill' || stats.type === 'power') {
+    combat.lastCardTypePlayed = stats.type;
+  }
 
   // 11. Move card to final destination (before pendingCardChoice so deck cycle stays exact)
   if (stats.type === 'power' && !internalOpts.forceExhaust) {
@@ -3578,6 +3597,10 @@ export function playCard(
     }
   }
   if (triggeredTimeWarp) {
+    if (stats.extraTurn && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+      combat.extraTurnQueued = true;
+      pushCombatLog(combat, `【${stats.name}】时空跃迁：抵消时间扭曲并跳过敌方回合，立即开启新回合！`, 'victory');
+    }
     return endPlayerTurn(state, onVictoryCallback);
   }
 
@@ -3832,7 +3855,6 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
   delete state.player.statuses.burst;
   delete state.player.statuses.doubleTap;
   delete state.player.statuses.duplication;
-  delete state.player.statuses.freeAttackPower;
   delete state.player.statuses.waveOfTheHand;
 
   for (const pileCard of [...combat.hand, ...combat.discardPile, ...combat.drawPile]) {
