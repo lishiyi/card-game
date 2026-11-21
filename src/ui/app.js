@@ -297,14 +297,37 @@ export function mountSpireApp(rootEl) {
   fxManager.applyAnimSpeedAttr();
 
   let activeTooltipAnchor = null;
+  let tooltipPinnedByTap = false;
+  let lastTouchInteractionTs = 0;
+
+  function markTouchInteraction() {
+    lastTouchInteractionTs = Date.now();
+  }
+
+  function isRecentTouchInteraction() {
+    return Date.now() - lastTouchInteractionTs < 1000;
+  }
+
+  function isCoarseTouchDevice() {
+    return (
+      isRecentTouchInteraction() ||
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(hover: none) and (pointer: coarse)').matches)
+    );
+  }
 
   function hideTooltip() {
     activeTooltipAnchor = null;
+    tooltipPinnedByTap = false;
     tooltipEl.hidden = true;
   }
 
   function positionTooltip(anchorEl) {
     if (!anchorEl || tooltipEl.hidden) return;
+    if (!anchorEl.isConnected) {
+      hideTooltip();
+      return;
+    }
     const rect = anchorEl.getBoundingClientRect();
     const tipRect = tooltipEl.getBoundingClientRect();
     const margin = 10;
@@ -325,12 +348,14 @@ export function mountSpireApp(rootEl) {
     tooltipEl.style.top = `${Math.round(top)}px`;
   }
 
-  function showTooltip(anchorEl) {
+  function showTooltip(anchorEl, { pinned = false } = {}) {
     if (!anchorEl) {
       hideTooltip();
       return;
     }
     if (activeTooltipAnchor === anchorEl && !tooltipEl.hidden) {
+      if (pinned) tooltipPinnedByTap = true;
+      positionTooltip(anchorEl);
       return;
     }
     const title = anchorEl.dataset.tooltipTitle || '';
@@ -343,6 +368,7 @@ export function mountSpireApp(rootEl) {
     }
 
     activeTooltipAnchor = anchorEl;
+    tooltipPinnedByTap = Boolean(pinned);
     tooltipEl.innerHTML = `
       <div class="spire-tooltip-head">
         <span class="spire-tooltip-title ${tone ? `tone-${escapeHtml(tone)}` : ''}">${escapeHtml(title)}</span>
@@ -1013,21 +1039,34 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener('click', (event) => {
     if (dragController.shouldSuppressClick()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
-    const target = targetEl ? targetEl.closest('[data-action]') : null;
+    const rawTarget = targetEl ? targetEl.closest('[data-action]') : null;
+    const isBackdropInnerClick =
+      Boolean(rawTarget) &&
+      rawTarget.id === 'modal-backdrop' &&
+      event.target !== rawTarget;
+    const target = isBackdropInnerClick ? null : rawTarget;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
 
-    // Mobile / touch tap-to-inspect support for passive badges (relics, statuses, intents, disabled potions)
+    // Nested inspect chips (relic, potion, starter-deck badges) inside a Character Select card inspect cleanly without re-rendering the card
+    const isNestedInspectChip =
+      Boolean(tipAnchor) &&
+      Boolean(target) &&
+      tipAnchor !== target &&
+      target.dataset.action === 'select-character';
+
+    // Mobile / touch tap-to-inspect support for passive badges (relics, potions, daily chips, locked Ascension pills, statuses, intents)
     const isPassiveClick =
       !target ||
       target.dataset.action === 'noop' ||
+      isNestedInspectChip ||
       (target.dataset.action === 'click-enemy' && !ui.selectedCardId && ui.selectedPotionSlot === null);
 
     if (isPassiveClick) {
       if (tipAnchor) {
-        if (activeTooltipAnchor === tipAnchor && !tooltipEl.hidden) {
+        if (activeTooltipAnchor === tipAnchor && !tooltipEl.hidden && tooltipPinnedByTap) {
           hideTooltip();
         } else {
-          showTooltip(tipAnchor);
+          showTooltip(tipAnchor, { pinned: true });
         }
       } else {
         hideTooltip();
@@ -1036,15 +1075,6 @@ export function mountSpireApp(rootEl) {
     }
 
     const action = target.dataset.action;
-    if (
-      (action === 'close-modal-backdrop' ||
-        action === 'cancel-neow-action' ||
-        action === 'decline-challenge') &&
-      target.id === 'modal-backdrop' &&
-      event.target !== target
-    ) {
-      return;
-    }
 
     switch (action) {
       case 'select-character': {
@@ -1255,11 +1285,27 @@ export function mountSpireApp(rootEl) {
           ? ui.selectedCharacterId || meta.selectedCharacterId
           : state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId;
         const maxAllowed = getMaxAscensionForCharacter(meta, activeChar);
+        const isCharAscPill = target.classList.contains('char-asc-pill');
         if (Number.isInteger(lvl) && lvl >= 0 && lvl <= maxAllowed) {
+          const prevAsc = Math.min(maxAllowed, meta.selectedAscension ?? 0);
+          if (isCharAscPill && lvl === prevAsc) {
+            if (activeTooltipAnchor === target && !tooltipEl.hidden && tooltipPinnedByTap) {
+              hideTooltip();
+            } else {
+              showTooltip(target, { pinned: true });
+            }
+            break;
+          }
           meta.selectedAscension = lvl;
           saveMeta(meta);
           soundEngine.play('ui_click');
           render();
+          if (isCharAscPill) {
+            const refreshedBtn = rootEl.querySelector(`#btn-char-asc-${lvl}`);
+            if (refreshedBtn) {
+              showTooltip(refreshedBtn, { pinned: isCoarseTouchDevice() });
+            }
+          }
         }
         break;
       }
@@ -1734,14 +1780,27 @@ export function mountSpireApp(rootEl) {
     });
   }
 
+  window.addEventListener('touchstart', markTouchInteraction, { capture: true, passive: true });
+  window.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        markTouchInteraction();
+      }
+    },
+    { capture: true, passive: true }
+  );
+
   // Instant hover tooltips + map route highlight + live combat Lethal/Shield-Break & Synergy previews in-place
   rootEl.addEventListener('mouseover', (event) => {
-    if (dragController.isDragging()) return;
+    if (dragController.isDragging() || isRecentTouchInteraction()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
     if (tipAnchor) {
-      showTooltip(tipAnchor);
-    } else {
+      if (!tooltipPinnedByTap || activeTooltipAnchor !== tipAnchor) {
+        showTooltip(tipAnchor, { pinned: false });
+      }
+    } else if (!tooltipPinnedByTap) {
       hideTooltip();
     }
 
@@ -1795,7 +1854,9 @@ export function mountSpireApp(rootEl) {
   });
 
   rootEl.addEventListener('mouseleave', () => {
-    hideTooltip();
+    if (!tooltipPinnedByTap) {
+      hideTooltip();
+    }
     updateHoveredMapEdges(null);
     if (
       ui.hoveredCardId !== null ||
@@ -1812,8 +1873,8 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener('focusin', (event) => {
     const targetEl = event.target instanceof Element ? event.target : null;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
-    if (tipAnchor) {
-      showTooltip(tipAnchor);
+    if (tipAnchor && !isRecentTouchInteraction()) {
+      showTooltip(tipAnchor, { pinned: false });
     }
     if (state && !ui.showCharacterSelect && state.screen === 'combat' && state.combat) {
       const handCardEl = targetEl ? targetEl.closest('#hand-tray .game-card[data-instance-id]') : null;
@@ -1825,7 +1886,9 @@ export function mountSpireApp(rootEl) {
   });
 
   rootEl.addEventListener('focusout', () => {
-    hideTooltip();
+    if (!tooltipPinnedByTap) {
+      hideTooltip();
+    }
   });
 
   let modalTouchLastY = 0;
@@ -1834,6 +1897,7 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener(
     'touchstart',
     (event) => {
+      markTouchInteraction();
       if (!(ui.modal || rootEl.querySelector('#modal-backdrop')) || event.touches.length !== 1) return;
       modalTouchLastY = event.touches[0].clientY;
       modalTouchLastX = event.touches[0].clientX;

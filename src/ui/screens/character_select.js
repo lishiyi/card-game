@@ -189,6 +189,29 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
   const ascPillsHtml = ASCENSION_DEFS.map((def) => {
     const unlocked = def.level <= maxAscAllowed;
     const active = def.level === selectedAsc;
+    if (!unlocked) {
+      return `
+        <span
+          class="asc-pill-tooltip-anchor"
+          tabindex="0"
+          data-tooltip-title="${escapeHtml(def.name)}"
+          data-tooltip-tag="通关上一阶解锁"
+          data-tooltip-desc="${escapeHtml(def.description)}"
+          data-tooltip-tone="debuff"
+        >
+          <button
+            type="button"
+            id="btn-char-asc-${def.level}"
+            class="char-asc-pill"
+            data-action="select-ascension"
+            data-ascension="${def.level}"
+            disabled
+          >
+            A${def.level}
+          </button>
+        </span>
+      `;
+    }
     return `
       <button
         type="button"
@@ -197,9 +220,9 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
         data-action="select-ascension"
         data-ascension="${def.level}"
         data-tooltip-title="${escapeHtml(def.name)}"
-        data-tooltip-tag="${unlocked ? '点击切换进阶' : '通关上一阶解锁'}"
+        data-tooltip-tag="${active ? '当前已选进阶' : '点击切换进阶'}"
         data-tooltip-desc="${escapeHtml(def.description)}"
-        ${unlocked ? '' : 'disabled'}
+        data-tooltip-tone="${def.level > 0 ? 'debuff' : 'buff'}"
       >
         A${def.level}
       </button>
@@ -308,6 +331,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
             <div class="char-asc-group" role="group" aria-label="选择进阶难度">${ascPillsHtml}</div>
             <span class="launch-asc-note">${escapeHtml(ascDef.name)}</span>
           </div>
+          <p class="launch-asc-desc" id="launch-asc-desc">${escapeHtml(ascDef.description)}</p>
           <div class="launch-seed-row">
             <label for="char-seed-input" class="launch-label">种子 / 挑战链接（可选）：</label>
             <input

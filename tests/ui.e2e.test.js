@@ -60,7 +60,7 @@ function resolveBrowserBinary() {
   return null;
 }
 
-function launchHeadlessChromium() {
+function spawnSingleHeadlessChromium() {
   return new Promise((resolve, reject) => {
     const browserBin = resolveBrowserBinary();
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spire-chrome-'));
@@ -74,6 +74,9 @@ function launchHeadlessChromium() {
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-background-networking',
+        '--disable-renderer-backgrounding',
+        '--disable-background-timer-throttling',
+        '--disable-ipc-flooding-protection',
         '--disable-extensions',
         '--disable-component-extensions-with-background-pages',
         '--disable-default-apps',
@@ -130,6 +133,48 @@ function launchHeadlessChromium() {
       reject(err);
     });
   });
+}
+
+async function probeBrowserRendererReady(browser) {
+  const debugPort = new URL(browser.browserWsUrl).port;
+  const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+  const pageTarget = targets.find((x) => x.type === 'page');
+  if (!pageTarget?.webSocketDebuggerUrl) return false;
+  const ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
+  try {
+    await new Promise((resolve, reject) => {
+      const tm = setTimeout(() => reject(new Error('probe ws timeout')), 2500);
+      ws.addEventListener('open', () => { clearTimeout(tm); resolve(); }, { once: true });
+      ws.addEventListener('error', (err) => { clearTimeout(tm); reject(err); }, { once: true });
+    });
+    const ok = await new Promise((resolve) => {
+      const tm = setTimeout(() => resolve(false), 2500);
+      ws.addEventListener('message', (ev) => {
+        const msg = JSON.parse(String(ev.data));
+        if (msg.id === 1) {
+          clearTimeout(tm);
+          resolve(msg.result?.result?.value === 1);
+        }
+      });
+      ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: '1', returnByValue: true } }));
+    });
+    return ok;
+  } catch {
+    return false;
+  } finally {
+    try { ws.close(); } catch { /* ignore */ }
+  }
+}
+
+async function launchHeadlessChromium() {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const browser = await spawnSingleHeadlessChromium();
+    const healthy = await probeBrowserRendererReady(browser);
+    if (healthy) return browser;
+    browser.killGroup();
+    browser.cleanupProfile();
+  }
+  return spawnSingleHeadlessChromium();
 }
 
 async function teardownSession({ server, browser, cdp }) {
@@ -246,13 +291,38 @@ async function createCdpClient(pageWsUrl) {
       return res;
     }
     if (method === 'Page.navigate' && pageDomainEnabled) {
+      const targetUrl = String(params?.url || '');
+      const navToken = `nav_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      try {
+        await sendRaw('Runtime.evaluate', {
+          expression: `window.__CDP_NAV_TOKEN__ = ${JSON.stringify(navToken)}; true`,
+          returnByValue: true,
+        });
+      } catch {
+        // Ignore if previous execution context is not ready.
+      }
       let lastRes = null;
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        const loadDone = waitForEvent('Page.loadEventFired', 4000);
+        const loadDone = waitForEvent('Page.loadEventFired', 8000);
         lastRes = await sendRaw(method, params);
         const loaded = await loadDone;
         if (loaded !== null) {
-          return lastRes;
+          break;
+        }
+      }
+      if (targetUrl.startsWith('http://127.0.0.1:')) {
+        const readyDeadline = Date.now() + 5000;
+        while (Date.now() < readyDeadline) {
+          try {
+            const check = await sendRaw('Runtime.evaluate', {
+              expression: `Boolean(window.__SPIRE_APP__) && document.readyState === 'complete' && window.__CDP_NAV_TOKEN__ !== ${JSON.stringify(navToken)}`,
+              returnByValue: true,
+            });
+            if (check?.result?.value === true) break;
+          } catch {
+            // Transient execution-context destruction while navigation commits.
+          }
+          await new Promise((r) => setTimeout(r, 40));
         }
       }
       return lastRes;
@@ -4386,10 +4456,121 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     assert.equal(mobileCombatPolish.hasBottomLeave, true, 'Shop must include bottom Leave Shop button');
     assert.equal(mobileCombatPolish.leftShopScreen, 'map', 'Clicking bottom Leave Shop button must return to map');
 
-    // 6. Verify mobile 3-hero tab switcher & Daily Challenge auto-scroll to Floor 1
-    await cdp.evaluate(`window.localStorage.clear()`);
+    // 6. Verify mobile 3-hero tab switcher, real-touch persistent tooltips (relic/potion, daily pills, modal pills, unlocked A1/A2 & locked A3), & Daily Challenge auto-scroll to Floor 1
+    await cdp.evaluate(`(() => {
+      window.localStorage.clear();
+      const metaRaw = {
+        xp: 0,
+        unlockedTier: 0,
+        maxAscensionUnlocked: 2,
+        selectedAscension: 0,
+        selectedCharacterId: 'ironclad',
+        characterProgress: {
+          ironclad: { maxAscensionUnlocked: 2, runsPlayed: 2, victories: 2, bestFloor: 16, bestScore: 900 },
+          silent: { maxAscensionUnlocked: 0, runsPlayed: 0, victories: 0, bestFloor: 0, bestScore: 0 },
+          watcher: { maxAscensionUnlocked: 0, runsPlayed: 0, victories: 0, bestFloor: 0, bestScore: 0 },
+        },
+        unlockAllOverride: false,
+        runsPlayed: 2,
+        victories: 2,
+        bestFloor: 16,
+        bestScore: 900,
+        totalEnemiesSlain: 20,
+        recordedRunKeys: [],
+        dailyRecords: {},
+        runHistory: [],
+      };
+      window.localStorage.setItem('sts_lite_meta_v1', JSON.stringify(metaRaw));
+    })()`);
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
+
+    const realTouchTap = async (selector) => {
+      const pt = await cdp.evaluate(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return null;
+        el.scrollIntoView({ block: 'center', behavior: 'auto' });
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+      })()`);
+      assert.ok(pt, `Expected touch target to exist: ${selector}`);
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: pt.x, y: pt.y, id: 1 }],
+      });
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchEnd',
+        touchPoints: [],
+      });
+      await new Promise((r) => setTimeout(r, 140));
+    };
+
+    const readTooltip = () =>
+      cdp.evaluate(`(() => {
+        const tip = document.getElementById('spire-tooltip');
+        return {
+          open: Boolean(tip && !tip.hidden),
+          title: tip?.querySelector('.spire-tooltip-title')?.textContent?.trim() || '',
+          tag: tip?.querySelector('.spire-tooltip-tag')?.textContent?.trim() || '',
+          desc: tip?.querySelector('.spire-tooltip-desc')?.textContent?.trim() || '',
+        };
+      })()`);
+
+    // 6a. Real touch tap on Relic & Potion badges inside Character Card must stay open (no flash-dismiss!)
+    await realTouchTap('#char-card-ironclad .relic-badge');
+    const relicTip = await readTooltip();
+    assert.equal(relicTip.open, true, 'Relic tooltip on Character Select must stay open after real touch tap');
+    assert.ok(relicTip.title.includes('燃烧之血'), `Unexpected relic tooltip title: ${relicTip.title}`);
+
+    await realTouchTap('#char-card-ironclad .char-potion-pill');
+    const potionTip = await readTooltip();
+    assert.equal(potionTip.open, true, 'Potion tooltip on Character Select must stay open after real touch tap');
+    assert.ok(potionTip.title.includes('火焰药水'), `Unexpected potion tooltip title: ${potionTip.title}`);
+
+    // 6b. Real touch tap on Daily Challenge Ascension pill & Daily Modifier chip must stay open and toggle cleanly on 2nd tap
+    await realTouchTap('#daily-banner-ascension-pill');
+    const dailyAscTip = await readTooltip();
+    assert.equal(dailyAscTip.open, true, 'Daily Ascension pill tooltip must stay open after real touch tap');
+    assert.ok(dailyAscTip.title.includes('进阶'), `Unexpected daily asc tooltip title: ${dailyAscTip.title}`);
+    await realTouchTap('#daily-banner-ascension-pill');
+    assert.equal((await readTooltip()).open, false, 'Second real touch tap on Daily Ascension pill should toggle closed');
+
+    await realTouchTap('#daily-challenge-banner .daily-mod-chip');
+    const dailyModTip = await readTooltip();
+    assert.equal(dailyModTip.open, true, 'Daily modifier chip tooltip must stay open after real touch tap');
+    assert.ok(dailyModTip.desc.length > 5);
+
+    // 6c. Real touch tap on unlocked A1 & A2 pills + locked A3 pill must show detailed tooltip & inline desc
+    await realTouchTap('#btn-char-asc-1');
+    const a1Tip = await readTooltip();
+    const a1InlineDesc = await cdp.evaluate(`document.getElementById('launch-asc-desc')?.textContent?.trim() || ''`);
+    assert.equal(a1Tip.open, true, 'Unlocked A1 pill tooltip must stay open after real touch tap');
+    assert.ok(a1Tip.title.includes('进阶 1'));
+    assert.ok(a1InlineDesc.includes('精英'));
+
+    await realTouchTap('#btn-char-asc-2');
+    const a2Tip = await readTooltip();
+    assert.equal(a2Tip.open, true, 'Unlocked A2 pill tooltip must stay open after real touch tap');
+    assert.ok(a2Tip.title.includes('进阶 2'));
+
+    await realTouchTap('#btn-char-asc-2');
+    assert.equal((await readTooltip()).open, false, 'Second tap on already-selected A2 pill should toggle tooltip closed');
+
+    await realTouchTap('.asc-pill-tooltip-anchor');
+    const lockedAscTip = await readTooltip();
+    assert.equal(lockedAscTip.open, true, 'Locked Ascension pill tooltip must open on real touch tap');
+    assert.ok(lockedAscTip.title.includes('进阶 3') && lockedAscTip.tag.includes('解锁'));
+
+    // 6d. Real touch tap on Daily Ascension & Modifier chips inside Meta Modal (#modal-backdrop) must also stay open!
+    await realTouchTap('#btn-open-meta');
+    await realTouchTap('#meta-daily-banner .ascension-pill');
+    const modalAscTip = await readTooltip();
+    assert.equal(modalAscTip.open, true, 'Modal Daily Ascension tooltip must stay open after real touch tap');
+    await realTouchTap('#meta-daily-banner .daily-mod-chip');
+    const modalModTip = await readTooltip();
+    assert.equal(modalModTip.open, true, 'Modal Daily Modifier tooltip must stay open after real touch tap');
+    await realTouchTap('#btn-close-modal');
+
     const mobileCharTabAudit = await cdp.evaluate(`(() => {
       const tabCount = document.querySelectorAll('#mobile-char-tabs .mobile-char-tab').length;
       const visibleCardsBefore = [...document.querySelectorAll('.character-card')].filter(

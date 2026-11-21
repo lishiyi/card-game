@@ -3691,6 +3691,16 @@ body.spire-dragging {
   color: var(--accent-brass);
 }
 
+.asc-pill-tooltip-anchor {
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.asc-pill-tooltip-anchor .char-asc-pill:disabled {
+  pointer-events: none;
+}
+
 .char-asc-pill:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -3698,6 +3708,14 @@ body.spire-dragging {
 
 .launch-asc-note {
   font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-sand);
+}
+
+.launch-asc-desc {
+  margin: -2px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
   color: var(--text-ash);
 }
 
