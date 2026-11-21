@@ -60,7 +60,7 @@ function resolveBrowserBinary() {
   return null;
 }
 
-function spawnSingleHeadlessChromium() {
+function spawnSingleHeadlessChromium(timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
     const browserBin = resolveBrowserBinary();
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spire-chrome-'));
@@ -73,6 +73,10 @@ function spawnSingleHeadlessChromium() {
         '--disable-dev-shm-usage',
         '--no-first-run',
         '--no-default-browser-check',
+        '--password-store=basic',
+        '--use-mock-keychain',
+        '--metrics-recording-only',
+        '--disable-breakpad',
         '--disable-background-networking',
         '--disable-renderer-backgrounding',
         '--disable-background-timer-throttling',
@@ -88,7 +92,7 @@ function spawnSingleHeadlessChromium() {
         '--remote-debugging-port=0',
         'about:blank',
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+      { stdio: ['ignore', 'ignore', 'pipe'], detached: true }
     );
 
     const cleanupProfile = () => {
@@ -111,26 +115,62 @@ function spawnSingleHeadlessChromium() {
       }
     };
 
+    let settled = false;
     let stderrBuf = '';
-    const timer = setTimeout(() => {
+    const activePortPath = path.join(userDataDir, 'DevToolsActivePort');
+
+    const finishResolve = (browserWsUrl) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(portPoller);
+      resolve({ proc, browserWsUrl, userDataDir, cleanupProfile, killGroup });
+    };
+
+    const finishReject = (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(portPoller);
       killGroup();
       cleanupProfile();
-      reject(new Error(`Timed out waiting for Chromium DevTools endpoint: ${stderrBuf}`));
-    }, 20000);
+      reject(err);
+    };
+
+    const timer = setTimeout(() => {
+      finishReject(new Error(`Timed out waiting for Chromium DevTools endpoint: ${stderrBuf}`));
+    }, timeoutMs);
+
+    const portPoller = setInterval(() => {
+      try {
+        if (!fs.existsSync(activePortPath)) return;
+        const lines = fs.readFileSync(activePortPath, 'utf8').trim().split(/\r?\n/);
+        if (lines.length >= 2 && /^\d+$/.test(lines[0]) && lines[1].startsWith('/')) {
+          finishResolve(`ws://127.0.0.1:${lines[0]}${lines[1]}`);
+        }
+      } catch {
+        // File may still be mid-write; retry next tick
+      }
+    }, 100);
 
     proc.stderr.on('data', (chunk) => {
       stderrBuf += chunk.toString();
       const match = stderrBuf.match(/DevTools listening on (ws:\/\/[^\s]+)/);
       if (match) {
-        clearTimeout(timer);
-        resolve({ proc, browserWsUrl: match[1], userDataDir, cleanupProfile, killGroup });
+        finishResolve(match[1]);
       }
     });
 
     proc.on('error', (err) => {
-      clearTimeout(timer);
-      cleanupProfile();
-      reject(err);
+      finishReject(err);
+    });
+
+    proc.on('exit', (code, signal) => {
+      if (!settled) {
+        finishReject(
+          new Error(`Chromium exited before DevTools ready (code=${code}, signal=${signal}): ${stderrBuf}`)
+        );
+      }
     });
   });
 }
@@ -167,14 +207,24 @@ async function probeBrowserRendererReady(browser) {
 }
 
 async function launchHeadlessChromium() {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const browser = await spawnSingleHeadlessChromium();
-    const healthy = await probeBrowserRendererReady(browser);
-    if (healthy) return browser;
-    browser.killGroup();
-    browser.cleanupProfile();
+  let lastError = null;
+  const attemptTimeouts = [10000, 12000, 15000];
+  for (let attempt = 0; attempt < attemptTimeouts.length; attempt += 1) {
+    let browser = null;
+    try {
+      browser = await spawnSingleHeadlessChromium(attemptTimeouts[attempt]);
+      const healthy = await probeBrowserRendererReady(browser);
+      if (healthy) return browser;
+      lastError = new Error('Chromium renderer healthcheck failed');
+    } catch (err) {
+      lastError = err;
+    }
+    if (browser) {
+      browser.killGroup();
+      browser.cleanupProfile();
+    }
   }
-  return spawnSingleHeadlessChromium();
+  throw lastError || new Error('Failed to launch headless Chromium');
 }
 
 async function teardownSession({ server, browser, cdp }) {
