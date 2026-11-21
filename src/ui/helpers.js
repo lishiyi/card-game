@@ -9,6 +9,7 @@ import {
   getCardStats,
 } from '../data/cards.js';
 import { STATUS_METADATA } from '../data/relics.js';
+import { getCardArtSvg } from './card_art.js';
 import { getCardTypeIconSvg } from './icons.js';
 
 export const CARD_TYPE_LABELS = Object.freeze({
@@ -179,6 +180,7 @@ export function renderCardHtml(cardInstance, options = {}) {
           </span>
           <span class="rarity-badge rarity-${escapeHtml(stats.rarity)} ${isColorless ? 'badge-colorless' : ''}">${escapeHtml(rarityText)}</span>
         </div>
+        <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}</div>
         <div class="card-desc ${descToneClass}">${escapeHtml(desc.text)}</div>
       </div>
       ${

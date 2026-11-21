@@ -4343,6 +4343,78 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     assert.ok(mobileAudit.ascRight <= mobileAudit.innerWidth - 2, `Mobile 390px HUD Ascension pill clipped: right=${mobileAudit.ascRight}, width=${mobileAudit.innerWidth}`);
     assert.ok(mobileAudit.scrollWidth <= mobileAudit.innerWidth, `Horizontal overflow on 390px mobile: ${mobileAudit.scrollWidth} > ${mobileAudit.innerWidth}`);
 
+    // 5. Verify mobile combat polish (hidden PC hints & (E), card art SVGs, compact hand width) + bottom Leave Shop button
+    const mobileCombatPolish = await cdp.evaluate(`(() => {
+      const handCards = [...document.querySelectorAll('#hand-tray .game-card')];
+      const artSvgs = document.querySelectorAll('#hand-tray .card-art-svg').length;
+      const firstCardW = Math.round(handCards[0]?.getBoundingClientRect().width || 999);
+      const endTurnText = document.getElementById('btn-end-turn')?.innerText?.trim() || '';
+      const bannerText = document.getElementById('combat-banner')?.innerText?.trim() || '';
+      const enemyGrad = Boolean(document.querySelector('.enemy-side .unit-svg linearGradient, .enemy-side .unit-svg radialGradient'));
+
+      // Switch to Shop to verify #btn-leave-shop-bottom works cleanly
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      const shopNode = st.map.flat().find((n) => n.type === 'shop');
+      const prevNode = st.map[shopNode.row - 1][0];
+      st.currentNodeId = prevNode.id;
+      prevNode.nextIds = [shopNode.id];
+      app.render();
+      document.getElementById('map-node-' + shopNode.id).click();
+      const hasBottomLeave = Boolean(document.getElementById('btn-leave-shop-bottom'));
+      document.getElementById('btn-leave-shop-bottom').click();
+      const leftShopScreen = st.screen;
+
+      return {
+        handCount: handCards.length,
+        artSvgs,
+        firstCardW,
+        endTurnText,
+        bannerHasKeyboardHint: bannerText.includes('数字键'),
+        enemyGrad,
+        hasBottomLeave,
+        leftShopScreen,
+      };
+    })()`);
+    assert.equal(mobileCombatPolish.artSvgs, mobileCombatPolish.handCount, 'Every hand card must render an inline card-art SVG');
+    assert.ok(mobileCombatPolish.firstCardW <= 122, `Mobile hand card should be compact (<=122px), got ${mobileCombatPolish.firstCardW}px`);
+    assert.equal(mobileCombatPolish.endTurnText, '结束回合', 'Mobile End Turn button should hide desktop (E) shortcut');
+    assert.equal(mobileCombatPolish.bannerHasKeyboardHint, false, 'Mobile combat banner should hide desktop keyboard hints');
+    assert.equal(mobileCombatPolish.enemyGrad, true, 'Enemy SVG should render hero-tier gradient shading');
+    assert.equal(mobileCombatPolish.hasBottomLeave, true, 'Shop must include bottom Leave Shop button');
+    assert.equal(mobileCombatPolish.leftShopScreen, 'map', 'Clicking bottom Leave Shop button must return to map');
+
+    // 6. Verify mobile 3-hero tab switcher & Daily Challenge auto-scroll to Floor 1
+    await cdp.evaluate(`window.localStorage.clear()`);
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+    const mobileCharTabAudit = await cdp.evaluate(`(() => {
+      const tabCount = document.querySelectorAll('#mobile-char-tabs .mobile-char-tab').length;
+      const visibleCardsBefore = [...document.querySelectorAll('.character-card')].filter(
+        (el) => getComputedStyle(el).display !== 'none'
+      ).length;
+      document.getElementById('mobile-char-tab-watcher').click();
+      const watcherSelected = document.getElementById('char-card-watcher')?.classList.contains('selected');
+      const visibleCardsAfter = [...document.querySelectorAll('.character-card')].filter(
+        (el) => getComputedStyle(el).display !== 'none'
+      ).length;
+      document.getElementById('btn-start-daily-challenge').click();
+      const availRect = document.querySelector('.map-node-btn.available')?.getBoundingClientRect();
+      return {
+        tabCount,
+        visibleCardsBefore,
+        watcherSelected,
+        visibleCardsAfter,
+        f1InViewport: Boolean(availRect && availRect.top >= 0 && availRect.bottom <= window.innerHeight + 4),
+      };
+    })()`);
+    assert.equal(mobileCharTabAudit.tabCount, 3, 'Mobile Character Select must render 3 hero tabs');
+    assert.equal(mobileCharTabAudit.visibleCardsBefore, 1, 'Mobile Character Select must show only 1 active hero card');
+    assert.equal(mobileCharTabAudit.watcherSelected, true, 'Clicking mobile Watcher tab must select Watcher');
+    assert.equal(mobileCharTabAudit.visibleCardsAfter, 1);
+    assert.equal(mobileCharTabAudit.f1InViewport, true, 'Daily Challenge map must auto-scroll Floor 1 available nodes into mobile viewport');
+
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
       (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'

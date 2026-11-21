@@ -601,6 +601,12 @@ export function renderShopScreen({ state, ui }) {
           </button>
         </div>
       </div>
+
+      <div class="shop-bottom-actions">
+        <button type="button" id="btn-leave-shop-bottom" class="btn-brass" data-action="leave-shop">
+          离开商店 →
+        </button>
+      </div>
     </section>
   `;
 }

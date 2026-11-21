@@ -12,7 +12,9 @@ import {
   getCardCharacter,
   getCardStats,
 } from '../src/data/cards.js';
-import { createEnemyInstance, ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
+import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
+import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
+import { getCharacterSvg } from '../src/ui/icons.js';
 import {
   EVENT_IDS,
   EVENT_LIBRARY,
@@ -2058,4 +2060,48 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(chooseEventOption(mbRun, 'war_memory').ok, true);
   assert.equal(mbRun.screen, 'combat');
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
+});
+
+test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 191 cards resolve valid vector card art', () => {
+  const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
+  const seenEnemyGradIds = new Set();
+  const enemyEntries = Object.entries(ENEMY_TEMPLATES);
+  assert.equal(enemyEntries.length, 40);
+
+  for (const [id, tpl] of enemyEntries) {
+    const svg = getCharacterSvg(tpl.artKey || id);
+    assert.notEqual(svg, fallbackSvg, `Enemy ${id} must not fall back to generic SVG`);
+    assert.ok(svg.includes('<svg') && svg.includes('</svg>'), `Enemy ${id} SVG must be well-formed`);
+    assert.ok(
+      svg.includes('linearGradient') || svg.includes('radialGradient'),
+      `Enemy ${id} SVG must use hero-tier gradient shading`
+    );
+    for (const m of svg.matchAll(/id="([^"]+)"/g)) {
+      assert.equal(seenEnemyGradIds.has(m[1]), false, `Duplicate enemy SVG gradient id: ${m[1]} (${id})`);
+      seenEnemyGradIds.add(m[1]);
+    }
+  }
+  const guardianDefSvg = getCharacterSvg('the_guardian', 'defensive');
+  assert.ok(guardianDefSvg.includes('ea-gd-orb') && guardianDefSvg.includes('radialGradient'));
+
+  const cardEntries = Object.entries(CARD_LIBRARY);
+  assert.equal(cardEntries.length, 191);
+  for (const sigId of Object.keys(SIGNATURE_CARD_ART)) {
+    assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
+  }
+  for (const [cid] of cardEntries) {
+    const stats = getCardStats({ instanceId: `art_${cid}`, cardId: cid, upgraded: false });
+    const svg = getCardArtSvg(cid, stats);
+    assert.ok(svg.includes('class="card-art-svg"') && svg.includes('</svg>'), `Card ${cid} must render valid vector art`);
+  }
+
+  // Shared Strike/Defend tint dynamically by active hero
+  const strikeStats = getCardStats({ instanceId: 's', cardId: 'strike', upgraded: false });
+  const defendStats = getCardStats({ instanceId: 'd', cardId: 'defend', upgraded: false });
+  assert.equal(getCardArtKey('strike', strikeStats, 'ironclad'), 'iron_slash');
+  assert.equal(getCardArtKey('strike', strikeStats, 'silent'), 'silent_shiv');
+  assert.equal(getCardArtKey('strike', strikeStats, 'watcher'), 'watcher_martial');
+  assert.equal(getCardArtKey('defend', defendStats, 'ironclad'), 'iron_shield');
+  assert.equal(getCardArtKey('defend', defendStats, 'silent'), 'silent_cloak');
+  assert.equal(getCardArtKey('defend', defendStats, 'watcher'), 'watcher_calm');
 });

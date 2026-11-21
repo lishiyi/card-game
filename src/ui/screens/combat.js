@@ -219,15 +219,19 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const latestLogMsg = combat.logs.length > 0 ? combat.logs[combat.logs.length - 1].message : '';
 
   let bannerText = ui.notice;
+  let bannerDesktopHint = '';
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
   if (pendingMode === 'discard') {
-    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌弃置（点击手牌或按数字键 1–9）`;
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌弃置`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'discard-prompt';
   } else if (pendingMode === 'exhaust') {
-    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌消耗（点击手牌或按数字键 1–9）`;
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌消耗`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'exhaust-prompt';
   } else if (pendingMode === 'upgrade') {
-    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌本场战斗升级（点击手牌或按数字键 1–9）`;
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌本场战斗升级`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'upgrade-prompt';
   } else if (pendingMode === 'scry') {
     bannerText = `【${pendingChoice.sourceName}】正在预见抽牌堆顶 ${pendingChoice.count} 张卡牌……`;
@@ -239,13 +243,17 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerText =
       selectedCardStats && aliveEnemies.length === 1 && settings?.mobileTapConfirm
         ? `已选中【${itemName}】，再次点击该牌或点击敌人即可打出`
-        : `请点击一名敌人作为【${itemName}】的目标（再次点击卡牌或按 Esc 取消）`;
+        : `请点击一名敌人作为【${itemName}】的目标`;
+    if (!(selectedCardStats && aliveEnemies.length === 1 && settings?.mobileTapConfirm)) {
+      bannerDesktopHint = '（再次点击卡牌或按 Esc 取消）';
+    }
     bannerClass = 'targeting';
   } else if (isConfirmingSelfCard) {
     bannerText = `已选中【${selectedCardStats.name}】，再次点击该牌或上滑至战场即可打出（点击别处取消）`;
     bannerClass = 'targeting';
   } else if (!bannerText) {
-    bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}（可点击或拖拽出牌，数字键 1-9 快速出牌，E 键结束回合）`;
+    bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}`;
+    bannerDesktopHint = '（可点击或拖拽出牌，数字键 1-9 快速出牌，E 键结束回合）';
   }
 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
@@ -296,7 +304,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           : '';
 
   return `
-    <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
+    <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}${
+      bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
+    }</div>
     ${
       wrathUnblockedDanger > 0
         ? `<div class="wrath-danger-banner" id="wrath-danger-banner" role="alert">⚠ 当前处于【愤怒姿态】：敌方双倍攻击将穿透格挡造成 <strong>${escapeHtml(wrathUnblockedDanger)}</strong> 点伤害！请先切换姿态、补盾或本回合斩杀</div>`
@@ -382,7 +392,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             data-action="end-turn"
             ${combat.phase !== 'player' || aliveEnemies.length === 0 || isAnyPendingChoice ? 'disabled' : ''}
           >
-            结束回合 (E)
+            结束回合<span class="hotkey-hint"> (E)</span>
           </button>
           <button type="button" id="btn-discard-pile" class="btn-stone" data-action="open-modal" data-modal="discard">
             弃牌堆 (${escapeHtml(combat.discardPile.length)})

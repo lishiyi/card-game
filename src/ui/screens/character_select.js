@@ -41,7 +41,7 @@ export function renderCharacterSelectHeader({ hasActiveRun }) {
   return `
     <header class="top-hud character-select-hud">
       <div class="brand-cluster">
-        <h1 class="game-title">杀戮尖塔 · 简明版</h1>
+        <h1 class="game-title">杀戮尖塔<span class="title-subtitle"> · 简明版</span></h1>
         <span class="floor-indicator">选择攀登角色</span>
       </div>
       <nav class="top-actions" aria-label="全局操作">
@@ -225,6 +225,27 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
     )
     .join('');
 
+  const mobileTabsHtml = CHARACTER_IDS.map((charId) => {
+    const def = CHARACTER_LIBRARY[charId];
+    const isSelected = def.id === selectedDef.id;
+    const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
+    return `
+      <button
+        type="button"
+        id="mobile-char-tab-${escapeHtml(def.id)}"
+        class="mobile-char-tab theme-${escapeHtml(def.accentTheme)} ${isSelected ? 'active' : ''}"
+        role="tab"
+        aria-selected="${isSelected ? 'true' : 'false'}"
+        data-action="select-character"
+        data-character-id="${escapeHtml(def.id)}"
+      >
+        <span class="mobile-char-tab-portrait">${getCharacterSvg(def.artKey)}</span>
+        <span class="mobile-char-tab-name">${escapeHtml(def.name)}</span>
+        <span class="mobile-char-tab-meta">A${escapeHtml(charMaxAsc)}</span>
+      </button>
+    `;
+  }).join('');
+
   return `
     <section class="panel-stage character-select-stage" id="character-select-screen" aria-labelledby="char-select-heading">
       <div class="stage-header character-select-header">
@@ -270,6 +291,10 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
             开启今日挑战 →
           </button>
         </div>
+      </div>
+
+      <div class="mobile-char-tabs" id="mobile-char-tabs" role="tablist" aria-label="切换攀登角色">
+        ${mobileTabsHtml}
       </div>
 
       <div class="character-select-grid">

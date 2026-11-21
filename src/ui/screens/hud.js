@@ -124,7 +124,7 @@ export function renderTopHud({ state, ui }) {
   return `
     <header class="top-hud">
       <div class="brand-cluster">
-        <h1 class="game-title">杀戮尖塔 · 简明版</h1>
+        <h1 class="game-title">杀戮尖塔<span class="title-subtitle"> · 简明版</span></h1>
         <span class="character-hud-pill char-${escapeHtml(charId)}" id="hud-character-pill">${escapeHtml(charName)}</span>
         <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
         ${

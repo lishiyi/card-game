@@ -616,20 +616,32 @@ export function mountSpireApp(rootEl) {
       }
     }
 
+    if (state.screen !== 'map') {
+      ui.lastMapAutoScrollKey = '';
+    }
+
     if (state.screen === 'combat') {
       syncCombatTactics();
       if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
         window.scrollTo(0, 0);
       }
-    } else if (
-      state.screen === 'map' &&
-      prevScreen !== 'map' &&
-      state.currentNodeId &&
-      !ui.modal
-    ) {
-      const currentNodeEl = rootEl.querySelector(`#map-node-${CSS.escape(state.currentNodeId)}`);
-      if (currentNodeEl && typeof currentNodeEl.scrollIntoView === 'function') {
-        currentNodeEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+    } else if (state.screen === 'map' && !ui.modal) {
+      const pendingNeow = hasPendingNeowBlessing(state);
+      const mapScrollKey = `${state.runId}:${state.act ?? 1}:${state.currentNodeId || 'f0'}:${pendingNeow ? 'neow' : 'ready'}`;
+      if (ui.lastMapAutoScrollKey !== mapScrollKey) {
+        ui.lastMapAutoScrollKey = mapScrollKey;
+        if (pendingNeow) {
+          if (typeof window.scrollTo === 'function') {
+            window.scrollTo(0, 0);
+          }
+        } else {
+          const focusEl = state.currentNodeId
+            ? rootEl.querySelector(`#map-node-${CSS.escape(state.currentNodeId)}`)
+            : rootEl.querySelector('.map-node-btn.available');
+          if (focusEl && typeof focusEl.scrollIntoView === 'function') {
+            focusEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+          }
+        }
       }
     } else if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
       window.scrollTo(0, 0);
