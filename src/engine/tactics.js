@@ -11,9 +11,14 @@ import {
   getCardStats,
   getEffectiveCardCost,
 } from '../data/cards.js';
-import { POTION_LIBRARY } from '../data/relics.js';
-import { getAliveEnemies, hasRelic, VELVET_CHOKER_CARD_LIMIT } from './combat.js';
-import { calculateAttackDamage } from './math.js';
+import { POTION_LIBRARY, STANCE_METADATA } from '../data/relics.js';
+import {
+  getAliveEnemies,
+  hasRelic,
+  RUSHDOWN_MAX_TRIGGERS_PER_TURN,
+  VELVET_CHOKER_CARD_LIMIT,
+} from './combat.js';
+import { calculateAttackDamage, getEnemyIntentPreview } from './math.js';
 
 function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   const initialBlock = Math.max(0, enemy.block ?? 0);
@@ -110,8 +115,18 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
 
   let basePerHit = null;
   let hits = 1;
+  let directHpLossOverride = null;
 
-  if (stats.useBlockAsDamage) {
+  if (typeof stats.judgmentThreshold === 'number') {
+    if (enemy.hp <= stats.judgmentThreshold) {
+      directHpLossOverride = enemy.hp;
+    } else {
+      return null;
+    }
+  } else if (typeof stats.applyMarkAndTrigger === 'number') {
+    const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * burstPasses;
+    directHpLossOverride = Math.min(enemy.hp, projectedMark);
+  } else if (stats.useBlockAsDamage) {
     basePerHit = Math.max(0, state.player?.block ?? 0);
     hits = 1;
   } else if (typeof stats.exhaustAllHandDamageEach === 'number') {
@@ -123,6 +138,9 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   } else if (stats.hitsPerAttackPlayedThisTurn) {
     basePerHit = stats.damage ?? 0;
     hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
+  } else if (stats.hitsPerAliveEnemy) {
+    basePerHit = stats.damage ?? 0;
+    hits = Math.max(1, getAliveEnemies(combat).length);
   } else if (typeof stats.damage === 'number') {
     const strikeBonus = stats.bonusDamagePerStrike
       ? stats.bonusDamagePerStrike * countCombatStrikeCards(combat)
@@ -139,7 +157,24 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   }
 
   let sim = null;
-  if (basePerHit !== null) {
+  if (directHpLossOverride !== null) {
+    const remHp = Math.max(0, enemy.hp - directHpLossOverride);
+    sim = {
+      hits: 1,
+      perHitDamage: directHpLossOverride,
+      totalDamage: directHpLossOverride,
+      hpLoss: directHpLossOverride,
+      unblockedHits: directHpLossOverride > 0 ? 1 : 0,
+      initialBlock: Math.max(0, enemy.block ?? 0),
+      remainingBlock: Math.max(0, enemy.block ?? 0),
+      remainingHp: remHp,
+      isShieldBreak: false,
+      isLethal: enemy.hp > 0 && remHp <= 0,
+      poisonAdded: 0,
+      projectedPoison: enemy.statuses?.poison ?? 0,
+      isPoisonLethal: false,
+    };
+  } else if (basePerHit !== null) {
     const flatBonus = getCardAttackFlatBonus(stats, state.player, combat);
     const perHitDamage = calculateAttackDamage(basePerHit, state.player, enemy, {
       strengthMultiplier: stats.strengthMultiplier ?? 1,
@@ -198,6 +233,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     ...baseResult,
     goldOnKill: stats.goldOnKill ?? 0,
     maxHpOnKill: stats.maxHpOnKill ?? 0,
+    fatalPermanentUpgrade: Boolean(stats.fatalPermanentUpgrade),
     poisonAdded,
     projectedPoison,
     isPoisonLethal,
@@ -790,6 +826,204 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
         text: `⚠ 【天鹅绒项圈】提醒：本回合仅剩最后 ${remaining} 张出牌额度`,
       });
     }
+  }
+
+  // Watcher: Stances, Mantra, Scry, Mark, Talk to the Hand, Duality & Oath warnings
+  const curStance = combat.stance || 'neutral';
+  let targetStance = null;
+  if (stats.enterStance) {
+    targetStance = stats.enterStance;
+  } else if (stats.exitStance && curStance !== 'neutral') {
+    targetStance = 'neutral';
+  } else if (stats.ifInCalmDrawElseCalm && curStance !== 'calm') {
+    targetStance = 'calm';
+  } else if (stats.ifTargetAttackingEnterStance) {
+    const intendsAtk = targetedEnemies.some(
+      (e) => e.intent?.type?.startsWith('attack') || typeof e.intent?.damage === 'number'
+    );
+    if (intendsAtk) {
+      targetStance = stats.ifTargetAttackingEnterStance;
+    }
+  }
+  const willChangeStance = Boolean(targetStance && targetStance !== curStance);
+
+  if (stats.applySelfStatuses?.blasphemer) {
+    result.callouts.push({
+      tone: 'warn',
+      text: '⚠ 【渎神誓约】：进入神格（3× 伤害 +3 能量），但下回合开始时必死！请确保本回合斩杀',
+    });
+  }
+
+  if (willChangeStance) {
+    if (curStance === 'calm') {
+      const calmEnergy = hasRelic(state, 'violet_lotus') ? 3 : 2;
+      if (hasRelic(state, 'violet_lotus')) {
+        pushRelic('violet_lotus', 'buff');
+      }
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 退出【平静】：立即获得 +${calmEnergy} 点能量！`,
+      });
+    }
+    if ((player.statuses?.mentalFortress ?? 0) > 0) {
+      pushPlayerStatus('mentalFortress', 'buff');
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 【心灵堡垒】触发：切换姿态获得 +${player.statuses.mentalFortress} 格挡`,
+      });
+    }
+    if (targetStance === 'wrath') {
+      if ((player.statuses?.rushdown ?? 0) > 0) {
+        const used = combat.rushdownTriggersThisTurn ?? 0;
+        const capReached = used >= RUSHDOWN_MAX_TRIGGERS_PER_TURN;
+        pushPlayerStatus('rushdown', capReached ? 'warn' : 'buff');
+        result.callouts.push({
+          tone: capReached ? 'warn' : 'buff',
+          text: capReached
+            ? `⚠ 【猛冲】本回合已达上限（${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次），本次不再抽牌`
+            : `✦ 【猛冲】触发：进入愤怒抽 ${player.statuses.rushdown} 张牌（本回合第 ${used + 1}/${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次）`,
+        });
+      }
+      const wrathProxyPlayer = { ...player, stance: 'wrath' };
+      const doubledIncoming = aliveEnemies.reduce((sum, enemy) => {
+        const preview = getEnemyIntentPreview(enemy, wrathProxyPlayer);
+        return sum + (preview.isAttack ? preview.totalDamage : 0);
+      }, 0);
+      if (doubledIncoming > 0) {
+        result.callouts.push({
+          tone: 'warn',
+          text: `⚠ 进入【愤怒】：攻击伤害 ×2，但若未退出姿态，本回合将承受 ${doubledIncoming} 点双倍敌方伤害！`,
+        });
+      } else {
+        result.callouts.push({
+          tone: 'buff',
+          text: '✦ 进入【愤怒】：所有攻击伤害翻倍（2×）！',
+        });
+      }
+    } else if (targetStance === 'calm') {
+      const calmMeta = STANCE_METADATA.calm;
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 进入【${calmMeta.name}】：退出时可获得 +${hasRelic(state, 'violet_lotus') ? 3 : 2} 点能量`,
+      });
+    }
+  }
+
+  if (stats.ifInCalmDrawElseCalm && curStance === 'calm') {
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 处于【平静】：【内心平静】将直接抽 ${stats.ifInCalmDrawElseCalm} 张牌！`,
+    });
+  }
+
+  if (stats.ifTargetAttackingEnterStance && !targetStance && targetedEnemies.length > 0) {
+    result.callouts.push({
+      tone: 'warn',
+      text: '⚠ 目标当前未意图攻击，【无惧邪恶】不会进入平静',
+    });
+  }
+
+  if (stats.wrathBonusBlock) {
+    if (curStance === 'wrath') {
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 处于【愤怒】：【停步】触发额外 +${stats.wrathBonusBlock} 基础格挡！`,
+      });
+    }
+  }
+
+  if (stats.ifLastCardType) {
+    const expectedLabel = stats.ifLastCardType.type === 'skill' ? '技能牌' : '攻击牌';
+    const matched = combat.lastCardTypePlayed === stats.ifLastCardType.type;
+    result.callouts.push({
+      tone: matched ? 'buff' : 'warn',
+      text: matched
+        ? `✦ 上一张牌为${expectedLabel}：【${stats.name}】将触发连携特效！`
+        : `⚠ 上一张打出并非${expectedLabel}，【${stats.name}】不会触发连携特效`,
+    });
+  }
+
+  if (stats.gainMantra) {
+    const curMantra = player.statuses?.mantra ?? 0;
+    const nextMantra = curMantra + stats.gainMantra;
+    if (curMantra > 0) pushPlayerStatus('mantra', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text:
+        nextMantra >= 10
+          ? `✦ 真言突破 10 层（${curMantra} → ${nextMantra}）：立即进入【神格】（3× 伤害 +3 能量）！`
+          : `✦ 真言积蓄：${curMantra} → ${nextMantra} / 10`,
+    });
+  }
+
+  if (typeof stats.judgmentThreshold === 'number' && targetedEnemies.length > 0) {
+    const canExecute = targetedEnemies.some((e) => e.hp <= stats.judgmentThreshold);
+    result.callouts.push({
+      tone: canExecute ? 'buff' : 'warn',
+      text: canExecute
+        ? `✦ 【审判】阈值达成（目标生命 ≤ ${stats.judgmentThreshold}）：立即斩杀！`
+        : `⚠ 目标生命高于 ${stats.judgmentThreshold}，【审判】当前不会生效`,
+    });
+  }
+
+  if (typeof stats.applyMarkAndTrigger === 'number') {
+    const markedCount = aliveEnemies.filter(
+      (e) => (e.statuses?.mark ?? 0) > 0 || targetedEnemies.some((t) => t.id === e.id)
+    ).length;
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 【点穴】施加 +${stats.applyMarkAndTrigger} 印记并引爆全场 ${markedCount} 名带印记敌人（无视格挡）`,
+    });
+  }
+
+  if (stats.scry) {
+    const scryParts = [];
+    if (hasRelic(state, 'golden_eye')) {
+      pushRelic('golden_eye', 'buff');
+      scryParts.push('黄金之眼(+2 预见)');
+    }
+    if ((player.statuses?.nirvana ?? 0) > 0) {
+      pushPlayerStatus('nirvana', 'buff');
+      scryParts.push(`涅槃(每弃1张 +${player.statuses.nirvana}盾)`);
+    }
+    if (scryParts.length > 0) {
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 预见联动：${scryParts.join(' · ')}`,
+      });
+    }
+  }
+
+  if (isAttack && hasRelic(state, 'duality')) {
+    pushRelic('duality', 'buff');
+  }
+
+  if (isAttack) {
+    const tthTargets = targetedEnemies.filter((e) => (e.statuses?.talkToTheHand ?? 0) > 0);
+    if (tthTargets.length > 0) {
+      for (const e of tthTargets) {
+        result.enemyTriggers.push({ enemyId: e.id, statusKey: 'talkToTheHand', tone: 'buff' });
+      }
+      const maxTth = Math.max(...tthTargets.map((e) => e.statuses.talkToTheHand ?? 0));
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 【别烦我】生效：本张攻击每次命中获得 +${maxTth} 格挡`,
+      });
+    }
+  }
+
+  if (stats.endTurnAfter) {
+    result.callouts.push({
+      tone: 'warn',
+      text: `⚠ 【${stats.name}】打出后将立即强制结束你的回合！`,
+    });
+  }
+
+  if (stats.extraTurn) {
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【腾跃】跳过敌方行动，立刻开启你的下一回合！',
+    });
   }
 
   // 3. Affected other cards in hand (Second Wind / Fiend Fire / Armaments+)

@@ -5,7 +5,7 @@
  */
 
 import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
-import { CHARACTER_IDS, normalizeCharacterId } from '../data/characters.js';
+import { CHARACTER_IDS, getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { RELIC_LIBRARY } from '../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
@@ -97,25 +97,25 @@ export const UNLOCK_TIERS = deepFreeze([
   {
     tier: 1,
     xpRequired: 100,
-    title: '一阶觉醒 · 鲜血与剧毒',
-    summary: '解锁【死神收割】、【磐石守备】、【涂毒】与稀有遗物【钨合金棍】。',
-    cardIds: ['reaper', 'steadfast_guard', 'envenom'],
+    title: '一阶觉醒 · 鲜血、剧毒与渎神',
+    summary: '解锁【死神收割】、【磐石守备】、【涂毒】、【渎神】与稀有遗物【钨合金棍】。',
+    cardIds: ['reaper', 'steadfast_guard', 'envenom', 'blasphemy'],
     relicIds: ['tungsten_rod'],
   },
   {
     tier: 2,
     xpRequired: 240,
-    title: '二阶觉醒 · 灰烬与催化',
-    summary: '解锁【腐化】、【恶魔之焰】、【催化剂】与稀有遗物【卡戎之灰】、【坚韧绷带】。',
-    cardIds: ['corruption', 'fiend_fire', 'catalyst'],
-    relicIds: ['charons_ashes', 'tough_bandages'],
+    title: '二阶觉醒 · 灰烬、催化与天眼',
+    summary: '解锁【腐化】、【恶魔之焰】、【催化剂】、【天人形态】与稀有遗物【卡戎之灰】、【坚韧绷带】、【黄金之眼】。',
+    cardIds: ['corruption', 'fiend_fire', 'catalyst', 'deva_form'],
+    relicIds: ['charons_ashes', 'tough_bandages', 'golden_eye'],
   },
   {
     tier: 3,
     xpRequired: 420,
-    title: '三阶觉醒 · 壁垒与幽魂',
-    summary: '解锁【壁垒】、【黑暗之拥】、【幽魂形态】与稀有遗物【船长舵轮】、【毒标本】。',
-    cardIds: ['barricade', 'dark_embrace', 'wraith_form'],
+    title: '三阶觉醒 · 壁垒、幽魂与诸神黄昏',
+    summary: '解锁【壁垒】、【黑暗之拥】、【幽魂形态】、【诸神黄昏】与稀有遗物【船长舵轮】、【毒标本】。',
+    cardIds: ['barricade', 'dark_embrace', 'wraith_form', 'ragnarok'],
     relicIds: ['captains_wheel', 'the_specimen'],
   },
 ]);
@@ -409,7 +409,7 @@ export function buildRunReportFromState(state) {
 
   return {
     characterId: charId,
-    characterName: state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士'),
+    characterName: state.player?.name || getCharacterDef(charId).name,
     seed: state.seed,
     seedCode: formatSeedCode(state.seed),
     outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',

@@ -1237,6 +1237,733 @@ export const CARD_LIBRARY = deepFreeze({
     upgraded: { cost: 0, obtainRandomPotion: true, exhaust: true },
   },
 
+  // === The Watcher Starter (2) & Special Generated (6) ===
+  eruption: {
+    id: 'eruption',
+    name: '爆发',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'starter',
+    target: 'enemy',
+    price: 0,
+    base: { cost: 2, damage: 9, hits: 1, enterStance: 'wrath' },
+    upgraded: { cost: 1, damage: 9, hits: 1, enterStance: 'wrath' },
+  },
+  vigilance: {
+    id: 'vigilance',
+    name: '警惕',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'starter',
+    target: 'self',
+    price: 0,
+    base: { cost: 2, block: 9, enterStance: 'calm' },
+    upgraded: { cost: 2, block: 13, enterStance: 'calm' },
+  },
+  miracle: {
+    id: 'miracle',
+    name: '奇迹',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 0, retain: true, gainEnergy: 1, exhaust: true },
+    upgraded: { cost: 0, retain: true, gainEnergy: 2, exhaust: true },
+  },
+  smite: {
+    id: 'smite',
+    name: '惩戒',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'special',
+    target: 'enemy',
+    price: 0,
+    base: { cost: 1, retain: true, damage: 12, hits: 1, exhaust: true },
+    upgraded: { cost: 1, retain: true, damage: 16, hits: 1, exhaust: true },
+  },
+  safety: {
+    id: 'safety',
+    name: '平安',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 1, retain: true, block: 12, exhaust: true },
+    upgraded: { cost: 1, retain: true, block: 16, exhaust: true },
+  },
+  insight: {
+    id: 'insight',
+    name: '洞察',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 0, retain: true, draw: 2, exhaust: true },
+    upgraded: { cost: 0, retain: true, draw: 3, exhaust: true },
+  },
+  beta: {
+    id: 'beta',
+    name: '贝塔',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 2, addDrawCards: [{ cardId: 'omega', count: 1 }], exhaust: true },
+    upgraded: { cost: 1, addDrawCards: [{ cardId: 'omega', count: 1 }], exhaust: true },
+  },
+  omega: {
+    id: 'omega',
+    name: '终焉',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 3, applySelfStatuses: { omega: 45 } },
+    upgraded: { cost: 3, applySelfStatuses: { omega: 55 } },
+  },
+
+  // === The Watcher Common Cards (18) ===
+  bowling_bash: {
+    id: 'bowling_bash',
+    name: '保龄重击',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 54,
+    base: { cost: 1, damage: 7, hits: 1, hitsPerAliveEnemy: true },
+    upgraded: { cost: 1, damage: 10, hits: 1, hitsPerAliveEnemy: true },
+  },
+  consecrate: {
+    id: 'consecrate',
+    name: '祝圣',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'all_enemies',
+    price: 48,
+    base: { cost: 0, damage: 5, hits: 1 },
+    upgraded: { cost: 0, damage: 8, hits: 1 },
+  },
+  crush_joints: {
+    id: 'crush_joints',
+    name: '粉碎关节',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 52,
+    base: {
+      cost: 1,
+      damage: 8,
+      hits: 1,
+      ifLastCardType: { type: 'skill', applyEnemyStatuses: { vulnerable: 1 } },
+    },
+    upgraded: {
+      cost: 1,
+      damage: 10,
+      hits: 1,
+      ifLastCardType: { type: 'skill', applyEnemyStatuses: { vulnerable: 2 } },
+    },
+  },
+  cut_through_fate: {
+    id: 'cut_through_fate',
+    name: '斩断命运',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 55,
+    base: { cost: 1, damage: 7, hits: 1, scry: 2, draw: 1 },
+    upgraded: { cost: 1, damage: 9, hits: 1, scry: 3, draw: 1 },
+  },
+  empty_fist: {
+    id: 'empty_fist',
+    name: '空拳',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 54,
+    base: { cost: 1, damage: 9, hits: 1, exitStance: true },
+    upgraded: { cost: 1, damage: 14, hits: 1, exitStance: true },
+  },
+  flurry_of_blows: {
+    id: 'flurry_of_blows',
+    name: '疾风连击',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 52,
+    base: { cost: 0, damage: 4, hits: 1, returnOnStanceChange: true },
+    upgraded: { cost: 0, damage: 6, hits: 1, returnOnStanceChange: true },
+  },
+  flying_sleeves: {
+    id: 'flying_sleeves',
+    name: '飞袖',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 52,
+    base: { cost: 1, retain: true, damage: 4, hits: 2 },
+    upgraded: { cost: 1, retain: true, damage: 6, hits: 2 },
+  },
+  follow_up: {
+    id: 'follow_up',
+    name: '追击',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 50,
+    base: {
+      cost: 1,
+      damage: 7,
+      hits: 1,
+      ifLastCardType: { type: 'attack', gainEnergy: 1 },
+    },
+    upgraded: {
+      cost: 1,
+      damage: 11,
+      hits: 1,
+      ifLastCardType: { type: 'attack', gainEnergy: 1 },
+    },
+  },
+  just_lucky: {
+    id: 'just_lucky',
+    name: '纯属运气',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 48,
+    base: { cost: 0, scry: 1, block: 2, damage: 3, hits: 1 },
+    upgraded: { cost: 0, scry: 2, block: 3, damage: 4, hits: 1 },
+  },
+  sash_whip: {
+    id: 'sash_whip',
+    name: '腰带鞭',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'common',
+    target: 'enemy',
+    price: 52,
+    base: {
+      cost: 1,
+      damage: 8,
+      hits: 1,
+      ifLastCardType: { type: 'attack', applyEnemyStatuses: { weak: 1 } },
+    },
+    upgraded: {
+      cost: 1,
+      damage: 10,
+      hits: 1,
+      ifLastCardType: { type: 'attack', applyEnemyStatuses: { weak: 2 } },
+    },
+  },
+  crescendo: {
+    id: 'crescendo',
+    name: '渐强',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 50,
+    base: { cost: 1, retain: true, enterStance: 'wrath', exhaust: true },
+    upgraded: { cost: 0, retain: true, enterStance: 'wrath', exhaust: true },
+  },
+  empty_body: {
+    id: 'empty_body',
+    name: '空身',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 50,
+    base: { cost: 1, block: 7, exitStance: true },
+    upgraded: { cost: 1, block: 10, exitStance: true },
+  },
+  evaluate: {
+    id: 'evaluate',
+    name: '评估',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 52,
+    base: { cost: 1, block: 7, addDrawCards: [{ cardId: 'insight', count: 1 }] },
+    upgraded: { cost: 1, block: 11, addDrawCards: [{ cardId: 'insight', count: 1 }] },
+  },
+  halt: {
+    id: 'halt',
+    name: '停步',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 50,
+    base: { cost: 0, block: 3, wrathBonusBlock: 9 },
+    upgraded: { cost: 0, block: 4, wrathBonusBlock: 14 },
+  },
+  prostrate: {
+    id: 'prostrate',
+    name: '顶礼膜拜',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 48,
+    base: { cost: 0, gainMantra: 3, block: 4 },
+    upgraded: { cost: 0, gainMantra: 4, block: 5 },
+  },
+  protect: {
+    id: 'protect',
+    name: '守护',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 52,
+    base: { cost: 2, retain: true, block: 14 },
+    upgraded: { cost: 2, retain: true, block: 18 },
+  },
+  third_eye: {
+    id: 'third_eye',
+    name: '第三只眼',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 52,
+    base: { cost: 1, block: 7, scry: 3 },
+    upgraded: { cost: 1, block: 9, scry: 5 },
+  },
+  tranquility: {
+    id: 'tranquility',
+    name: '宁静',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'common',
+    target: 'self',
+    price: 50,
+    base: { cost: 1, retain: true, enterStance: 'calm', exhaust: true },
+    upgraded: { cost: 0, retain: true, enterStance: 'calm', exhaust: true },
+  },
+
+  // === The Watcher Uncommon Cards (23) ===
+  carve_reality: {
+    id: 'carve_reality',
+    name: '刻画现实',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 80,
+    base: { cost: 1, damage: 6, hits: 1, addCardsToHand: { cardId: 'smite', count: 1 } },
+    upgraded: { cost: 1, damage: 10, hits: 1, addCardsToHand: { cardId: 'smite', count: 1 } },
+  },
+  conclude: {
+    id: 'conclude',
+    name: '终结',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'all_enemies',
+    price: 84,
+    base: { cost: 1, damage: 12, hits: 1, endTurnAfter: true },
+    upgraded: { cost: 1, damage: 16, hits: 1, endTurnAfter: true },
+  },
+  fear_no_evil: {
+    id: 'fear_no_evil',
+    name: '无惧邪恶',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 84,
+    base: { cost: 1, damage: 8, hits: 1, ifTargetAttackingEnterStance: 'calm' },
+    upgraded: { cost: 1, damage: 11, hits: 1, ifTargetAttackingEnterStance: 'calm' },
+  },
+  sands_of_time: {
+    id: 'sands_of_time',
+    name: '时间之沙',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 82,
+    base: { cost: 4, retain: true, damage: 20, hits: 1, retainCostReduce: 1 },
+    upgraded: { cost: 4, retain: true, damage: 26, hits: 1, retainCostReduce: 1 },
+  },
+  talk_to_the_hand: {
+    id: 'talk_to_the_hand',
+    name: '别烦我',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 88,
+    base: {
+      cost: 1,
+      damage: 5,
+      hits: 1,
+      applyEnemyStatuses: { talkToTheHand: 2 },
+      exhaust: true,
+    },
+    upgraded: {
+      cost: 1,
+      damage: 7,
+      hits: 1,
+      applyEnemyStatuses: { talkToTheHand: 3 },
+      exhaust: true,
+    },
+  },
+  tantrum: {
+    id: 'tantrum',
+    name: '发泄',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 88,
+    base: { cost: 1, damage: 3, hits: 3, enterStance: 'wrath', shuffleSelfToDraw: true },
+    upgraded: { cost: 1, damage: 3, hits: 4, enterStance: 'wrath', shuffleSelfToDraw: true },
+  },
+  wallop: {
+    id: 'wallop',
+    name: '重锤',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 86,
+    base: { cost: 2, damage: 9, hits: 1, blockEqualUnblockedDamage: true },
+    upgraded: { cost: 2, damage: 12, hits: 1, blockEqualUnblockedDamage: true },
+  },
+  weave: {
+    id: 'weave',
+    name: '编织',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 76,
+    base: { cost: 0, damage: 4, hits: 1, returnOnScry: true },
+    upgraded: { cost: 0, damage: 6, hits: 1, returnOnScry: true },
+  },
+  wheel_kick: {
+    id: 'wheel_kick',
+    name: '回旋踢',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 84,
+    base: { cost: 2, damage: 15, hits: 1, draw: 2 },
+    upgraded: { cost: 2, damage: 20, hits: 1, draw: 2 },
+  },
+  deceive_reality: {
+    id: 'deceive_reality',
+    name: '欺骗现实',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 1, block: 5, addCardsToHand: { cardId: 'safety', count: 1 } },
+    upgraded: { cost: 1, block: 8, addCardsToHand: { cardId: 'safety', count: 1 } },
+  },
+  empty_mind: {
+    id: 'empty_mind',
+    name: '空心',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 84,
+    base: { cost: 1, draw: 2, exitStance: true },
+    upgraded: { cost: 1, draw: 3, exitStance: true },
+  },
+  inner_peace: {
+    id: 'inner_peace',
+    name: '内心平静',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 86,
+    base: { cost: 1, ifInCalmDrawElseCalm: 3 },
+    upgraded: { cost: 1, ifInCalmDrawElseCalm: 4 },
+  },
+  perseverance: {
+    id: 'perseverance',
+    name: '坚韧不拔',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 76,
+    base: { cost: 1, retain: true, block: 6, retainScaleBlock: 3 },
+    upgraded: { cost: 1, retain: true, block: 8, retainScaleBlock: 4 },
+  },
+  pray: {
+    id: 'pray',
+    name: '祈祷',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 1, gainMantra: 4, addDrawCards: [{ cardId: 'insight', count: 1 }] },
+    upgraded: { cost: 1, gainMantra: 5, addDrawCards: [{ cardId: 'insight', count: 1 }] },
+  },
+  pressure_points: {
+    id: 'pressure_points',
+    name: '点穴',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'enemy',
+    price: 78,
+    base: { cost: 1, applyMarkAndTrigger: 9 },
+    upgraded: { cost: 1, applyMarkAndTrigger: 13 },
+  },
+  simmering_fury: {
+    id: 'simmering_fury',
+    name: '暗涌之怒',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 1, applySelfStatuses: { simmeringFury: 2 } },
+    upgraded: { cost: 1, applySelfStatuses: { simmeringFury: 3 } },
+  },
+  worship: {
+    id: 'worship',
+    name: '崇拜',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 2, retain: true, gainMantra: 5 },
+    upgraded: { cost: 1, retain: true, gainMantra: 5 },
+  },
+  fasting: {
+    id: 'fasting',
+    name: '斋戒',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 86,
+    base: { cost: 2, applySelfStatuses: { strength: 3, dexterity: 3, energyDownEachTurn: 1 } },
+    upgraded: { cost: 2, applySelfStatuses: { strength: 4, dexterity: 4, energyDownEachTurn: 1 } },
+  },
+  foresight: {
+    id: 'foresight',
+    name: '先见之明',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 84,
+    base: { cost: 1, applySelfStatuses: { foresight: 3 } },
+    upgraded: { cost: 1, applySelfStatuses: { foresight: 4 } },
+  },
+  like_water: {
+    id: 'like_water',
+    name: '上善若水',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 1, applySelfStatuses: { likeWater: 6 } },
+    upgraded: { cost: 1, applySelfStatuses: { likeWater: 9 } },
+  },
+  mental_fortress: {
+    id: 'mental_fortress',
+    name: '心灵堡垒',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 88,
+    base: { cost: 1, applySelfStatuses: { mentalFortress: 5 } },
+    upgraded: { cost: 1, applySelfStatuses: { mentalFortress: 7 } },
+  },
+  nirvana: {
+    id: 'nirvana',
+    name: '涅槃',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 80,
+    base: { cost: 1, applySelfStatuses: { nirvana: 4 } },
+    upgraded: { cost: 1, applySelfStatuses: { nirvana: 6 } },
+  },
+  rushdown: {
+    id: 'rushdown',
+    name: '猛冲',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'uncommon',
+    target: 'self',
+    price: 92,
+    base: { cost: 1, applySelfStatuses: { rushdown: 2 } },
+    upgraded: { cost: 0, applySelfStatuses: { rushdown: 2 } },
+  },
+
+  // === The Watcher Rare Cards (12) ===
+  alpha: {
+    id: 'alpha',
+    name: '阿尔法',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 136,
+    base: { cost: 1, addDrawCards: [{ cardId: 'beta', count: 1 }], exhaust: true },
+    upgraded: { cost: 1, innate: true, addDrawCards: [{ cardId: 'beta', count: 1 }], exhaust: true },
+  },
+  blasphemy: {
+    id: 'blasphemy',
+    name: '渎神',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 145,
+    base: { cost: 1, enterStance: 'divinity', applySelfStatuses: { blasphemer: 1 }, exhaust: true },
+    upgraded: {
+      cost: 1,
+      retain: true,
+      enterStance: 'divinity',
+      applySelfStatuses: { blasphemer: 1 },
+      exhaust: true,
+    },
+  },
+  brilliance: {
+    id: 'brilliance',
+    name: '光辉',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'rare',
+    target: 'enemy',
+    price: 140,
+    base: { cost: 1, damage: 12, hits: 1, bonusDamagePerCombatMantra: true },
+    upgraded: { cost: 1, damage: 16, hits: 1, bonusDamagePerCombatMantra: true },
+  },
+  deva_form: {
+    id: 'deva_form',
+    name: '天人形态',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 148,
+    base: { cost: 3, ethereal: true, applySelfStatuses: { devaForm: 1 } },
+    upgraded: { cost: 3, ethereal: false, applySelfStatuses: { devaForm: 1 } },
+  },
+  devotion: {
+    id: 'devotion',
+    name: '虔诚',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 142,
+    base: { cost: 1, applySelfStatuses: { devotion: 3 } },
+    upgraded: { cost: 1, applySelfStatuses: { devotion: 4 } },
+  },
+  establishment: {
+    id: 'establishment',
+    name: '确立',
+    character: 'watcher',
+    type: 'power',
+    rarity: 'rare',
+    target: 'self',
+    price: 138,
+    base: { cost: 1, applySelfStatuses: { establishment: 1 } },
+    upgraded: { cost: 1, innate: true, applySelfStatuses: { establishment: 1 } },
+  },
+  judgment: {
+    id: 'judgment',
+    name: '审判',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'enemy',
+    price: 142,
+    base: { cost: 1, judgmentThreshold: 30 },
+    upgraded: { cost: 1, judgmentThreshold: 40 },
+  },
+  lesson_learned: {
+    id: 'lesson_learned',
+    name: '汲取教训',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'rare',
+    target: 'enemy',
+    price: 148,
+    base: { cost: 2, damage: 10, hits: 1, fatalPermanentUpgrade: true, exhaust: true },
+    upgraded: { cost: 2, damage: 13, hits: 1, fatalPermanentUpgrade: true, exhaust: true },
+  },
+  ragnarok: {
+    id: 'ragnarok',
+    name: '诸神黄昏',
+    character: 'watcher',
+    type: 'attack',
+    rarity: 'rare',
+    target: 'all_enemies',
+    price: 148,
+    base: { cost: 3, damage: 5, hits: 5, randomEnemyHits: true },
+    upgraded: { cost: 3, damage: 6, hits: 6, randomEnemyHits: true },
+  },
+  scrawl: {
+    id: 'scrawl',
+    name: '潦草急就',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 145,
+    base: { cost: 1, drawUntilHandFull: true, exhaust: true },
+    upgraded: { cost: 0, drawUntilHandFull: true, exhaust: true },
+  },
+  spirit_shield: {
+    id: 'spirit_shield',
+    name: '灵魂护盾',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 140,
+    base: { cost: 2, blockPerOtherHandCard: 3 },
+    upgraded: { cost: 2, blockPerOtherHandCard: 4 },
+  },
+  vault: {
+    id: 'vault',
+    name: '腾跃',
+    character: 'watcher',
+    type: 'skill',
+    rarity: 'rare',
+    target: 'self',
+    price: 150,
+    base: { cost: 3, extraTurn: true, exhaust: true },
+    upgraded: { cost: 2, extraTurn: true, exhaust: true },
+  },
+
   // === Shop-Exclusive Colorless Cards (Uncommon: 6, Rare: 4) ===
   flash_of_steel: {
     id: 'flash_of_steel',
@@ -1463,8 +2190,9 @@ export const CARD_LIBRARY = deepFreeze({
 
 export function getCardCharacter(def) {
   if (!def) return 'ironclad';
-  if (def.character) return def.character;
-  if (def.type === 'status' || def.type === 'curse') return 'neutral';
+  const resolved = !def.character && def.cardId && CARD_LIBRARY[def.cardId] ? CARD_LIBRARY[def.cardId] : def;
+  if (resolved.character) return resolved.character;
+  if (resolved.type === 'status' || resolved.type === 'curse') return 'neutral';
   return 'ironclad';
 }
 
@@ -1551,6 +2279,9 @@ export function getCardStats(cardInstance) {
   if (typeof cardInstance.combatDamageMod === 'number' && typeof rawStats.damage === 'number') {
     rawStats.damage = Math.max(0, rawStats.damage + cardInstance.combatDamageMod);
   }
+  if (typeof cardInstance.combatBlockMod === 'number' && typeof rawStats.block === 'number') {
+    rawStats.block = Math.max(0, rawStats.block + cardInstance.combatBlockMod);
+  }
   const costReduced = Boolean(
     isUpgraded &&
       typeof def.base.cost === 'number' &&
@@ -1567,6 +2298,10 @@ export function getCardStats(cardInstance) {
     upgraded: isUpgraded,
     baseCost: def.base.cost,
     combatCost: typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : null,
+    retainedCostDiscount:
+      typeof cardInstance.retainedCostDiscount === 'number'
+        ? Math.max(0, cardInstance.retainedCostDiscount)
+        : 0,
     costReduced,
     type: def.type,
     rarity: def.rarity,
@@ -1597,6 +2332,9 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
     return 0;
   }
   let base = typeof stats.combatCost === 'number' ? Math.max(0, stats.combatCost) : (stats.cost ?? 0);
+  if (stats.retainedCostDiscount > 0) {
+    base = Math.max(0, base - stats.retainedCostDiscount);
+  }
   if (stats.reduceCostPerDiscardThisTurn && combat) {
     base = Math.max(0, base - (combat.discardedThisTurn ?? 0));
   }
@@ -1615,6 +2353,9 @@ export function getCardAttackFlatBonus(stats, player = null, combat = null) {
   if ((player.statuses?.vigor ?? 0) > 0) {
     bonus += player.statuses.vigor;
   }
+  if (stats.bonusDamagePerCombatMantra && combat && (combat.mantraGainedThisCombat ?? 0) > 0) {
+    bonus += combat.mantraGainedThisCombat;
+  }
   if (Array.isArray(player.relics) && player.relics.includes('wrist_blade')) {
     const effCost = getEffectiveCardCost(stats, player, combat);
     if (effCost === 0) {
@@ -1623,6 +2364,13 @@ export function getCardAttackFlatBonus(stats, player = null, combat = null) {
   }
   return bonus;
 }
+
+const STANCE_NAMES_ZH = {
+  neutral: '无姿态',
+  calm: '平静',
+  wrath: '愤怒',
+  divinity: '神格',
+};
 
 export function formatCardDescription(cardInstance, combatContext = null) {
   const stats = getCardStats(cardInstance);
@@ -1667,6 +2415,12 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (displayBlock > rawBlockBase) blockState = 'boosted';
     else if (displayBlock < rawBlockBase) blockState = 'reduced';
   }
+  const displayWrathBonusBlock =
+    typeof stats.wrathBonusBlock === 'number'
+      ? player
+        ? calculateCardBlock(stats.wrathBonusBlock, player)
+        : stats.wrathBonusBlock
+      : null;
   const displaySkillBonusBlock =
     typeof stats.drawSkillGainBlock === 'number'
       ? player
@@ -1680,6 +2434,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
 
   const hasSneckoSkull = Boolean(Array.isArray(player?.relics) && player.relics.includes('snecko_skull'));
   const poisonDisplay = (val) => (hasSneckoSkull ? val + 1 : val);
+  const currentStance = combat?.stance ?? player?.stance ?? 'neutral';
 
   const parts = [];
 
@@ -1750,12 +2505,34 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`将 ${stats.addCardsToHand.count} 张【${tokenName}】加入手牌。`);
     }
   }
+  if (stats.scry && stats.cardId === 'just_lucky') {
+    parts.push(`预见 ${stats.scry}。`);
+  }
   if (typeof stats.block === 'number') {
     if (stats.gainSameBlockNextTurn) {
       parts.push(`获得 ${displayBlock} 点格挡，并在下回合开始时再获得 ${displayBlock} 点格挡。`);
     } else {
       parts.push(`获得 ${displayBlock} 点格挡。`);
     }
+  }
+  if (typeof stats.wrathBonusBlock === 'number') {
+    const activeTag = currentStance === 'wrath' ? '（当前已激活！）' : '';
+    parts.push(`若处于【愤怒】姿态，再额外获得 ${displayWrathBonusBlock} 点格挡${activeTag}。`);
+  }
+  if (typeof stats.blockPerOtherHandCard === 'number') {
+    const otherCount = combat ? Math.max(0, (combat.hand?.length ?? 1) - 1) : null;
+    const estTotal =
+      otherCount !== null && player
+        ? calculateCardBlock(otherCount * stats.blockPerOtherHandCard, player)
+        : null;
+    const liveNote = estTotal !== null ? `（当前约 ${estTotal} 点）` : '';
+    parts.push(`手牌中每有 1 张其他卡牌，获得 ${stats.blockPerOtherHandCard} 点格挡${liveNote}。`);
+  }
+  if (stats.retainScaleBlock) {
+    parts.push(`每当本牌在回合结束被【保留】时，本场战斗格挡值永久 +${stats.retainScaleBlock}。`);
+  }
+  if (stats.retainCostReduce) {
+    parts.push(`每当本牌在回合结束被【保留】时，本场战斗费用永久 -${stats.retainCostReduce}。`);
   }
   if (stats.doubleBlock) {
     parts.push('将你当前的格挡值翻倍。');
@@ -1784,7 +2561,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   } else if (stats.upgradeHandRandom) {
     parts.push(`本场战斗中随机升级 ${stats.upgradeHandRandom} 张手牌。`);
   }
-  if (stats.scry) {
+  if (stats.scry && stats.cardId !== 'just_lucky' && stats.type !== 'attack') {
     parts.push(`预见 ${stats.scry}（检视抽牌堆顶 ${stats.scry} 张牌并任意弃置）。`);
   }
   if (stats.exhaustAllHandDamageEach) {
@@ -1795,6 +2572,10 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   } else if (stats.hitsPerAttackPlayedThisTurn) {
     const playedNote = combat ? `（本回合已打 ${combat.attacksPlayedThisTurn ?? 0} 张）` : '';
     parts.push(`本回合每打出 1 张攻击牌，造成 ${displayDamage} 点伤害${playedNote}。`);
+  } else if (stats.hitsPerAliveEnemy && typeof stats.damage === 'number') {
+    const aliveCount = combat ? combat.enemies.filter((e) => e.hp > 0).length : null;
+    const countNote = aliveCount !== null ? `（当前 ${aliveCount} 次）` : '';
+    parts.push(`场上每有 1 名存活敌人，对目标造成 ${displayDamage} 点伤害${countNote}。`);
   } else if (typeof stats.damage === 'number') {
     const targetPhrase = stats.randomEnemyHits
       ? '对随机一名敌人造成'
@@ -1809,6 +2590,17 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
   }
+  if (stats.scry && stats.cardId !== 'just_lucky' && stats.type === 'attack') {
+    parts.push(`预见 ${stats.scry}。`);
+  }
+  if (stats.bonusDamagePerCombatMantra) {
+    const gained = combat?.mantraGainedThisCombat ?? 0;
+    const note = combat ? `（本场已获 ${gained} 点）` : '';
+    parts.push(`本场战斗每获得 1 点【真言】，本牌额外造成 1 点伤害${note}。`);
+  }
+  if (stats.blockEqualUnblockedDamage) {
+    parts.push('获得等同于本牌造成未格挡伤害量的格挡。');
+  }
   if (stats.bonusDamagePerStrike) {
     parts.push(`牌组中每有 1 张名字含“打击”的牌，本牌伤害额外 +${stats.bonusDamagePerStrike}。`);
   }
@@ -1820,6 +2612,61 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   }
   if (stats.maxHpOnKill) {
     parts.push(`若以此牌斩杀敌人，永久提高 ${stats.maxHpOnKill} 点最大生命。`);
+  }
+  if (stats.fatalPermanentUpgrade) {
+    parts.push('若以此牌斩杀敌人，永久升级牌组中随机 1 张可升级卡牌。');
+  }
+  if (stats.judgmentThreshold) {
+    parts.push(`若目标敌人当前生命值不高于 ${stats.judgmentThreshold} 点，立即将其生命值归零！`);
+  }
+  if (stats.applyMarkAndTrigger) {
+    parts.push(`给予目标 ${stats.applyMarkAndTrigger} 层【印记】，随后所有敌人无视格挡失去等同于各自【印记】层数的生命。`);
+  }
+  if (stats.ifLastCardType) {
+    const needLabel = stats.ifLastCardType.type === 'skill' ? '技能牌' : '攻击牌';
+    const met = combat && combat.lastCardTypePlayed === stats.ifLastCardType.type;
+    const activeNote = met ? '（已满足！）' : '';
+    const effects = [];
+    if (stats.ifLastCardType.applyEnemyStatuses?.vulnerable) {
+      effects.push(`给予目标 ${stats.ifLastCardType.applyEnemyStatuses.vulnerable} 层易伤`);
+    }
+    if (stats.ifLastCardType.applyEnemyStatuses?.weak) {
+      effects.push(`给予目标 ${stats.ifLastCardType.applyEnemyStatuses.weak} 层虚弱`);
+    }
+    if (stats.ifLastCardType.gainEnergy) {
+      effects.push(`获得 ${stats.ifLastCardType.gainEnergy} 点能量`);
+    }
+    if (stats.ifLastCardType.draw) {
+      effects.push(`抽 ${stats.ifLastCardType.draw} 张牌`);
+    }
+    parts.push(`若本回合上一张打出的是${needLabel}，${effects.join('并')}${activeNote}。`);
+  }
+  if (stats.ifTargetAttackingEnterStance) {
+    const stName = STANCE_NAMES_ZH[stats.ifTargetAttackingEnterStance] || stats.ifTargetAttackingEnterStance;
+    parts.push(`若目标的当前意图是攻击，进入【${stName}】姿态。`);
+  }
+  if (stats.ifInCalmDrawElseCalm) {
+    const inCalmNote = currentStance === 'calm' ? '（当前在平静：将抽牌！）' : '';
+    parts.push(`若当前处于【平静】姿态，抽 ${stats.ifInCalmDrawElseCalm} 张牌；否则进入【平静】姿态${inCalmNote}。`);
+  }
+  if (stats.enterStance) {
+    const stName = STANCE_NAMES_ZH[stats.enterStance] || stats.enterStance;
+    parts.push(`进入【${stName}】姿态。`);
+  }
+  if (stats.exitStance) {
+    parts.push('退出当前姿态。');
+  }
+  if (stats.gainMantra) {
+    parts.push(`获得 ${stats.gainMantra} 点【真言】（满 10 点进入神格）。`);
+  }
+  if (stats.returnOnStanceChange) {
+    parts.push('每当你切换姿态时，将弃牌堆中的本牌返回手牌。');
+  }
+  if (stats.returnOnScry) {
+    parts.push('每当你触发【预见】时，将弃牌堆中的本牌返回手牌。');
+  }
+  if (stats.shuffleSelfToDraw) {
+    parts.push('打出后洗入抽牌堆。');
   }
   if (stats.bonusHitIfPoisoned) {
     parts.push(`若目标已【中毒】，则再造成 ${displayDamage} 点伤害。`);
@@ -1877,6 +2724,11 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applyEnemyStatuses.vulnerable) {
       parts.push(`给予${targetLabel} ${stats.applyEnemyStatuses.vulnerable} 层易伤。`);
     }
+    if (stats.applyEnemyStatuses.talkToTheHand) {
+      parts.push(
+        `本场战斗每当你攻击${targetLabel}时，获得 ${stats.applyEnemyStatuses.talkToTheHand} 点格挡。`
+      );
+    }
     if (typeof stats.applyEnemyStatuses.strength === 'number' && stats.applyEnemyStatuses.strength < 0) {
       parts.push(`使${targetLabel}失去 ${Math.abs(stats.applyEnemyStatuses.strength)} 点力量。`);
     }
@@ -1915,7 +2767,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
         : '弃掉所有手牌，每弃 1 张便将 1 张【小刀】加入手牌。'
     );
   }
-  if (stats.draw) {
+  if (stats.drawUntilHandFull) {
+    parts.push('抽牌直至你的手牌达到上限（10 张）。');
+  } else if (stats.draw) {
     if (stats.drawSkillGainBlock) {
       parts.push(`抽 ${stats.draw} 张牌；若抽到技能牌，再获得 ${displaySkillBonusBlock} 点格挡。`);
     } else {
@@ -1931,6 +2785,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (stats.applySelfStatuses.dexterity) {
       parts.push(`获得 ${stats.applySelfStatuses.dexterity} 点敏捷。`);
+    }
+    if (stats.applySelfStatuses.energyDownEachTurn) {
+      parts.push(`每回合开始时减少 ${stats.applySelfStatuses.energyDownEachTurn} 点能量。`);
     }
     if (stats.applySelfStatuses.tempStrengthDown) {
       parts.push(`本回合结束时，失去 ${stats.applySelfStatuses.tempStrengthDown} 点力量。`);
@@ -2015,9 +2872,48 @@ export function formatCardDescription(cardInstance, combatContext = null) {
         `每回合开始时，额外抽 ${stats.applySelfStatuses.toolsOfTheTrade} 张牌并弃掉 ${stats.applySelfStatuses.toolsOfTheTrade} 张手牌。`
       );
     }
+    if (stats.applySelfStatuses.likeWater) {
+      parts.push(`回合结束时若处于【平静】姿态，获得 ${stats.applySelfStatuses.likeWater} 点格挡。`);
+    }
+    if (stats.applySelfStatuses.mentalFortress) {
+      parts.push(`每当你切换姿态时，获得 ${stats.applySelfStatuses.mentalFortress} 点格挡。`);
+    }
+    if (stats.applySelfStatuses.rushdown) {
+      parts.push(`每当你进入【愤怒】姿态时，抽 ${stats.applySelfStatuses.rushdown} 张牌（每回合最多触发 2 次）。`);
+    }
+    if (stats.applySelfStatuses.nirvana) {
+      parts.push(`每当你通过【预见】弃置 1 张牌时，获得 ${stats.applySelfStatuses.nirvana} 点格挡。`);
+    }
+    if (stats.applySelfStatuses.foresight) {
+      parts.push(`每回合开始时，触发【预见 ${stats.applySelfStatuses.foresight}】。`);
+    }
+    if (stats.applySelfStatuses.devotion) {
+      parts.push(`每回合开始时，获得 ${stats.applySelfStatuses.devotion} 点【真言】。`);
+    }
+    if (stats.applySelfStatuses.establishment) {
+      parts.push(`每当手牌在回合结束被【保留】时，其本场战斗费用 -${stats.applySelfStatuses.establishment}。`);
+    }
+    if (stats.applySelfStatuses.devaForm) {
+      parts.push('每回合开始时，获得不断递增的额外能量（+1、+2、+3…）。');
+    }
+    if (stats.applySelfStatuses.omega) {
+      parts.push(`每回合结束时，对所有敌人造成 ${stats.applySelfStatuses.omega} 点固定伤害。`);
+    }
+    if (stats.applySelfStatuses.blasphemer) {
+      parts.push('下个你的回合开始时，你将立即死亡！');
+    }
+    if (stats.applySelfStatuses.simmeringFury) {
+      parts.push(`下回合开始时进入【愤怒】姿态并额外抽 ${stats.applySelfStatuses.simmeringFury} 张牌。`);
+    }
   }
   if (stats.applySelfStatusesAfter?.noDraw) {
     parts.push('本回合内不能再抽牌。');
+  }
+  if (stats.extraTurn) {
+    parts.push('跳过敌方回合，立即开始你的下一个新回合！');
+  }
+  if (stats.endTurnAfter) {
+    parts.push('立即结束你的回合。');
   }
 
   const corruptedExhaust =

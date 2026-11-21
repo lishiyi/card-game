@@ -4,12 +4,13 @@
 
 import { canUpgradeCard, getCardStats } from '../../data/cards.js';
 import { predictNextTurnIntents } from '../../data/enemies.js';
-import { POTION_LIBRARY } from '../../data/relics.js';
+import { POTION_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
 import {
   canPlayCard,
   getActivePendingCardChoice,
   getAliveEnemies,
   hasPendingCardChoice,
+  hasRelic,
 } from '../../engine/combat.js';
 import { getEnemyIntentPreview } from '../../engine/math.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
@@ -250,6 +251,27 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
   const playerArtKey = state.player.artKey || state.characterId || 'ironclad';
   const mobileLogExpanded = Boolean(ui.mobileLogExpanded);
+  const currentStance = combat.stance || state.player.stance || 'neutral';
+  const stanceMeta = STANCE_METADATA[currentStance] || STANCE_METADATA.neutral;
+  const calmExitEnergy = hasRelic(state, 'violet_lotus') ? 3 : 2;
+  const stancePillText =
+    currentStance === 'calm'
+      ? `平静 · 出态 +${calmExitEnergy}能`
+      : currentStance === 'wrath'
+        ? '愤怒 · 攻防 ×2'
+        : currentStance === 'divinity'
+          ? '神格 · 伤害 ×3'
+          : '';
+  const totalEnemyAttackIncoming = aliveEnemies.reduce((sum, enemy) => {
+    const preview = getEnemyIntentPreview(enemy, state.player);
+    return sum + (preview.isAttack ? preview.totalDamage : 0);
+  }, 0);
+  const wrathUnblockedDanger =
+    currentStance === 'wrath' &&
+    combat.status === 'ongoing' &&
+    totalEnemyAttackIncoming > (state.player.block ?? 0)
+      ? totalEnemyAttackIncoming - (state.player.block ?? 0)
+      : 0;
 
   const mobileChoiceHint =
     pendingMode === 'discard'
@@ -275,13 +297,31 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
+    ${
+      wrathUnblockedDanger > 0
+        ? `<div class="wrath-danger-banner" id="wrath-danger-banner" role="alert">⚠ 当前处于【愤怒姿态】：敌方双倍攻击将穿透格挡造成 <strong>${escapeHtml(wrathUnblockedDanger)}</strong> 点伤害！请先切换姿态、补盾或本回合斩杀</div>`
+        : ''
+    }
 
     <section class="combat-arena" id="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
       <div class="synergy-callout-bar" id="synergy-callout-bar" aria-live="polite" hidden></div>
       <div class="fighters-group player-side">
-        <div class="fighter-unit" id="player-unit">
+        <div class="fighter-unit ${currentStance !== 'neutral' ? `stance-${escapeHtml(currentStance)}` : ''}" id="player-unit" data-stance="${escapeHtml(currentStance)}">
           <div class="intent-stack">
             <div class="intent-badge">第 ${escapeHtml(combat.turn)} 回合</div>
+            ${
+              currentStance !== 'neutral'
+                ? `<div
+                    id="player-stance-pill"
+                    class="stance-pill stance-${escapeHtml(currentStance)}"
+                    tabindex="0"
+                    data-tooltip-title="${escapeHtml(`当前姿态：${stanceMeta.name}`)}"
+                    data-tooltip-tag="观者姿态"
+                    data-tooltip-desc="${escapeHtml(stanceMeta.description)}"
+                    data-tooltip-tone="${currentStance === 'wrath' ? 'debuff' : 'buff'}"
+                  >${escapeHtml(stancePillText)}</div>`
+                : ''
+            }
           </div>
           <div class="unit-figure">${getCharacterSvg(playerArtKey)}</div>
           <div class="unit-name-row">

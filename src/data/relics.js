@@ -36,8 +36,16 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 150,
     description: '每场战斗第 1 回合开始时，额外抽 2 张牌。',
   },
+  pure_water: {
+    id: 'pure_water',
+    name: '纯洁之水',
+    tier: 'starter',
+    character: 'watcher',
+    price: 150,
+    description: '每场战斗第 1 回合开始时，将 1 张【奇迹】（0 费保留消耗，获得 1 点能量）加入手牌。',
+  },
 
-  // === Common (9) ===
+  // === Common ===
   vajra: {
     id: 'vajra',
     name: '金刚杵',
@@ -101,6 +109,14 @@ export const RELIC_LIBRARY = deepFreeze({
     character: 'silent',
     price: 155,
     description: '每当你给予敌人【中毒】时，额外多施加 1 层中毒。',
+  },
+  damaru: {
+    id: 'damaru',
+    name: '法鼓',
+    tier: 'common',
+    character: 'watcher',
+    price: 155,
+    description: '每回合开始时，获得 1 点【真言】（累计满 10 点立即进入神格）。',
   },
   strawberry: {
     id: 'strawberry',
@@ -206,8 +222,24 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 225,
     description: '每当你打出一张【能力牌】时，随机使手中 1 张牌在本回合内费用变为 0。',
   },
+  teardrop_locket: {
+    id: 'teardrop_locket',
+    name: '泪滴吊坠',
+    tier: 'uncommon',
+    character: 'watcher',
+    price: 215,
+    description: '每场战斗开始时，直接进入【平静】姿态（退出平静时获得 2 点能量）。',
+  },
+  duality: {
+    id: 'duality',
+    name: '二元性',
+    tier: 'uncommon',
+    character: 'watcher',
+    price: 215,
+    description: '每当你打出 1 张攻击牌时，本回合临时获得 1 点【敏捷】。',
+  },
 
-  // === Rare (11) ===
+  // === Rare ===
   captains_wheel: {
     id: 'captains_wheel',
     name: '船长舵轮',
@@ -260,6 +292,14 @@ export const RELIC_LIBRARY = deepFreeze({
     character: 'silent',
     price: 280,
     description: '每当一名带有【中毒】的敌人被击败时，将其剩余全部【中毒】层数转移给随机一名存活敌人。',
+  },
+  golden_eye: {
+    id: 'golden_eye',
+    name: '黄金之眼',
+    tier: 'rare',
+    character: 'watcher',
+    price: 275,
+    description: '每次触发【预见】时，额外多检视 2 张抽牌堆顶部的卡牌。',
   },
   mango: {
     id: 'mango',
@@ -330,7 +370,7 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '商店专属：拾取时，最大生命值永久 +7，并立即回满全部生命值！',
   },
 
-  // === Event-Exclusive Pool (3) ===
+  // === Event-Exclusive Pool (4) ===
   golden_idol_relic: {
     id: 'golden_idol_relic',
     name: '黄金神像',
@@ -361,7 +401,7 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '事件专属（替代黄金神像）：每当你获得金币时，回复 5 点生命值。',
   },
 
-  // === Boss (10) ===
+  // === Boss ===
   black_blood: {
     id: 'black_blood',
     name: '漆黑之血',
@@ -381,6 +421,24 @@ export const RELIC_LIBRARY = deepFreeze({
     requiresRelic: 'ring_of_the_snake',
     replacesRelic: 'ring_of_the_snake',
     description: '替换【蛇之戒指】：此后每回合开始时，均额外抽 1 张牌。',
+  },
+  holy_water: {
+    id: 'holy_water',
+    name: '圣水',
+    tier: 'boss',
+    character: 'watcher',
+    price: 320,
+    requiresRelic: 'pure_water',
+    replacesRelic: 'pure_water',
+    description: '替换【纯洁之水】：每场战斗第 1 回合开始时，将 3 张【奇迹】加入手牌。',
+  },
+  violet_lotus: {
+    id: 'violet_lotus',
+    name: '紫莲花',
+    tier: 'boss',
+    character: 'watcher',
+    price: 320,
+    description: '每当你退出【平静】姿态时，额外多获得 1 点能量（共 3 点能量）。',
   },
   wrist_blade: {
     id: 'wrist_blade',
@@ -618,6 +676,24 @@ export const POTION_LIBRARY = deepFreeze({
     tempStrength: 5,
     draw: 1,
     description: '本回合临时获得 5 点【力量】并抽 1 张牌。',
+  },
+  miracle_potion: {
+    id: 'miracle_potion',
+    name: '瓶装奇迹',
+    character: 'watcher',
+    target: 'self',
+    price: 54,
+    addCardsToHand: { cardId: 'miracle', count: 2, upgraded: false },
+    description: '将 2 张【奇迹】（0 费保留消耗，+1 能量）加入手牌。',
+  },
+  ambrosia: {
+    id: 'ambrosia',
+    name: '神格甘露',
+    character: 'watcher',
+    target: 'self',
+    price: 68,
+    enterStance: 'divinity',
+    description: '立即进入【神格】姿态（获得 3 点能量，本回合攻击伤害 ×3）！',
   },
 });
 
@@ -988,5 +1064,132 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) =>
       `每当受到玩家攻击伤害，立即获得 ${v} 点格挡并使本层数 +1（敌方回合开始时重置为 3）。`,
+  },
+  mantra: {
+    id: 'mantra',
+    name: '真言',
+    polarity: 'buff',
+    describe: (v) => `累计达到 10 点时消耗 10 点并立即进入【神格】姿态（+3 能量，本回合攻击伤害 ×3）。当前 ${v} / 10。`,
+  },
+  mark: {
+    id: 'mark',
+    name: '印记',
+    polarity: 'debuff',
+    describe: (v) => `每当玩家打出【点穴】时，带有印记的所有敌人无视格挡直接失去等同于各自【印记】层数（${v} 点）的生命。`,
+  },
+  talkToTheHand: {
+    id: 'talkToTheHand',
+    name: '别烦我',
+    polarity: 'debuff',
+    describe: (v) => `每当玩家对该敌人造成一次攻击伤害时，玩家立即获得 ${v} 点格挡。`,
+  },
+  likeWater: {
+    id: 'likeWater',
+    name: '上善若水',
+    polarity: 'buff',
+    describe: (v) => `回合结束时，若你处于【平静】姿态，自动获得 ${v} 点格挡。`,
+  },
+  mentalFortress: {
+    id: 'mentalFortress',
+    name: '心灵堡垒',
+    polarity: 'buff',
+    describe: (v) => `每当你切换至不同姿态（含退出姿态）时，立即获得 ${v} 点格挡。`,
+  },
+  rushdown: {
+    id: 'rushdown',
+    name: '猛冲',
+    polarity: 'buff',
+    describe: (v) => `每当你进入【愤怒】姿态时，立即抽 ${v} 张牌（每回合最多触发 2 次）。`,
+  },
+  nirvana: {
+    id: 'nirvana',
+    name: '涅槃',
+    polarity: 'buff',
+    describe: (v) => `每当你通过【预见】弃置 1 张牌时，立即获得 ${v} 点格挡。`,
+  },
+  foresight: {
+    id: 'foresight',
+    name: '先见之明',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，自动触发【预见 ${v}】。`,
+  },
+  devotion: {
+    id: 'devotion',
+    name: '虔诚',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，自动获得 ${v} 点【真言】。`,
+  },
+  establishment: {
+    id: 'establishment',
+    name: '确立',
+    polarity: 'buff',
+    describe: (v) => `每回合结束时，所有被【保留】在手牌中的卡牌本场战斗费用永久减少 ${v} 点。`,
+  },
+  devaForm: {
+    id: 'devaForm',
+    name: '天人形态',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，获得不断递增的额外能量（当前下回合 +${v} 点，随后每回合继续 +1）。`,
+  },
+  omega: {
+    id: 'omega',
+    name: '终焉',
+    polarity: 'buff',
+    describe: (v) => `每回合结束时，对所有敌人造成 ${v} 点毁灭性固定伤害。`,
+  },
+  blasphemer: {
+    id: 'blasphemer',
+    name: '渎神誓约',
+    polarity: 'debuff',
+    describe: () => '下个你的回合开始时，你将立刻失去 999 点生命——请在本回合内彻底终结战斗！',
+  },
+  simmeringFury: {
+    id: 'simmeringFury',
+    name: '暗涌之怒',
+    polarity: 'buff',
+    describe: (v) => `下回合开始时，自动进入【愤怒】姿态并额外抽 ${v} 张牌。`,
+  },
+  tempDexterityDown: {
+    id: 'tempDexterityDown',
+    name: '敏捷消退',
+    polarity: 'debuff',
+    describe: (v) => `本回合结束时，将失去 ${v} 点临时敏捷。`,
+  },
+  energyDownEachTurn: {
+    id: 'energyDownEachTurn',
+    name: '斋戒',
+    polarity: 'debuff',
+    describe: (v) => `每回合开始时，减少 ${v} 点起始能量（最低为 0）。`,
+  },
+});
+
+export const STANCE_METADATA = deepFreeze({
+  neutral: {
+    id: 'neutral',
+    name: '无姿态',
+    shortLabel: '无姿态',
+    tone: 'neutral',
+    description: '处于常态，攻防伤害均为 1 倍。',
+  },
+  calm: {
+    id: 'calm',
+    name: '平静',
+    shortLabel: '平静 · 出态 +2能',
+    tone: 'calm',
+    description: '心如止水：当你离开【平静】姿态（切换至其他姿态或无姿态）时，立即获得 2 点能量（持有【紫莲花】时为 3 点）。',
+  },
+  wrath: {
+    id: 'wrath',
+    name: '愤怒',
+    shortLabel: '愤怒 · 攻防 ×2',
+    tone: 'wrath',
+    description: '双刃爆发：你造成的攻击伤害翻倍（×2），同时敌人对你造成的攻击伤害也翻倍（×2）！回合结束前务必注意切换或叠足格挡。',
+  },
+  divinity: {
+    id: 'divinity',
+    name: '神格',
+    shortLabel: '神格 · 伤害 ×3',
+    tone: 'divinity',
+    description: '神圣降临：进入时立即获得 3 点能量，本回合你造成的攻击伤害变为 3 倍（×3），且承伤不变！下回合开始时自动退出神格。',
   },
 });

@@ -12,7 +12,12 @@ import {
   getEffectiveCardCost,
 } from '../src/data/cards.js';
 import { ENCOUNTERS } from '../src/data/enemies.js';
-import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../src/data/relics.js';
+import {
+  POTION_LIBRARY,
+  RELIC_LIBRARY,
+  STANCE_METADATA,
+  STATUS_METADATA,
+} from '../src/data/relics.js';
 import {
   applyStatus,
   confirmScryChoice,
@@ -23,6 +28,7 @@ import {
   playCard,
   resolveCardChoice,
   restartCombat,
+  RUSHDOWN_MAX_TRIGGERS_PER_TURN,
   startCombat,
   toggleScryChoice,
   usePotion,
@@ -548,19 +554,19 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 55);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 2);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 12);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 11);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 11);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 62);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 3);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 13);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 13);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 12);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 5);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    10
+    12
   );
-  assert.equal(Object.keys(POTION_LIBRARY).length, 14);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 130);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 16);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 191);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     55
@@ -568,6 +574,10 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'silent').length,
     55
+  );
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'watcher').length,
+    61
   );
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
@@ -579,6 +589,15 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.ok(STATUS_METADATA.vigor && STATUS_METADATA.buffer && STATUS_METADATA.slow);
   assert.ok(STATUS_METADATA.timeWarp && STATUS_METADATA.curiosity && STATUS_METADATA.regenerating);
   assert.ok(STATUS_METADATA.flight && STATUS_METADATA.malleable);
+  assert.ok(
+    STATUS_METADATA.mantra &&
+      STATUS_METADATA.mark &&
+      STATUS_METADATA.talkToTheHand &&
+      STATUS_METADATA.mentalFortress &&
+      STATUS_METADATA.rushdown &&
+      STATUS_METADATA.blasphemer
+  );
+  assert.ok(STANCE_METADATA.calm && STANCE_METADATA.wrath && STANCE_METADATA.divinity);
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -2200,9 +2219,236 @@ test('Stage 1: Act 2 Enemies (Byrd Flight, Spheric Guardian Barricade, Snake Pla
   assert.equal(choiceState.combat.discardPile.some((c) => c.instanceId === dTop2.instanceId), true);
 });
 
+test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-trigger cap, Scry synergies, Retain scaling, Mark/Judgment/Lesson Learned, Vault/Conclude, Watcher Relics/Potions, and Enchiridion/Alchemize pool isolation', () => {
+  // 1. Pure Water (T1 Miracle), Teardrop Locket (start Calm), Violet Lotus (+3E Calm exit), Wrath 2x outgoing/incoming, Mental Fortress, Flurry of Blows, Rushdown cap (2/turn)
+  const wState = createNewRun({ seed: 13001, characterId: 'watcher', skipNeow: true });
+  wState.player.relics = ['pure_water', 'teardrop_locket', 'violet_lotus'];
+  startCombat(wState, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = wState.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.maxHp = 200;
+  enemy.block = 0;
+  enemy.intent = { id: 'atk', name: '挥击', type: 'attack', damage: 10, hits: 1 };
 
+  assert.equal(wState.combat.stance, 'calm', 'Teardrop Locket starts combat in Calm');
+  assert.equal(wState.player.stance, 'calm');
+  assert.ok(wState.combat.hand.some((c) => c.cardId === 'miracle'), 'Pure Water adds Miracle on Turn 1');
 
+  // Set up Rushdown + Mental Fortress + Flurry in discard + 3 Wrath/Calm swaps
+  wState.player.statuses.mentalFortress = 5;
+  wState.player.statuses.rushdown = 2;
+  wState.player.energy = 6;
+  wState.player.block = 0;
+  const flurry = createCardInstance(wState, 'flurry_of_blows', false);
+  wState.combat.discardPile = [flurry];
+  wState.combat.drawPile = Array.from({ length: 8 }, () => createCardInstance(wState, 'strike', false));
+  const erup1 = createCardInstance(wState, 'eruption', true); // 1E Wrath
+  const tranq1 = createCardInstance(wState, 'tranquility', true); // 0E Calm
+  const cresc1 = createCardInstance(wState, 'crescendo', true); // 0E Wrath
+  const tranq2 = createCardInstance(wState, 'tranquility', true); // 0E Calm
+  const cresc2 = createCardInstance(wState, 'crescendo', true); // 0E Wrath
+  wState.combat.hand = [erup1, tranq1, cresc1, tranq2, cresc2];
 
+  // Check Tactics Wrath danger warning BEFORE entering Wrath
+  const wrathSyn = computeCardSynergies(wState, erup1, enemy.id);
+  assert.ok(wrathSyn.callouts.some((c) => c.text.includes('退出【平静】') && c.text.includes('+3')));
+  assert.ok(wrathSyn.callouts.some((c) => c.tone === 'warn' && c.text.includes('20 点双倍')));
 
+  // Swap 1 (Calm -> Wrath): +3E (Violet Lotus) - 1E = 8E, Mental Fortress +5 block, Flurry returns from discard, Rushdown #1 draws 2!
+  assert.equal(playCard(wState, erup1.instanceId, enemy.id).ok, true);
+  assert.equal(wState.combat.stance, 'wrath');
+  assert.equal(wState.player.energy, 8);
+  assert.equal(wState.player.block, 5);
+  assert.equal(wState.combat.hand.some((c) => c.instanceId === flurry.instanceId), true, 'Flurry of Blows returns from discard on stance change');
+  assert.equal(wState.combat.rushdownTriggersThisTurn, 1);
+  assert.equal(getEnemyIntentPreview(enemy, wState.player).totalDamage, 20, 'Enemy attack doubles in Wrath');
+  assert.equal(calculateAttackDamage(6, wState.player, enemy), 12, 'Player attack doubles in Wrath');
 
+  // Swap 2 (Wrath -> Calm -> Wrath): Rushdown #2 draws 2
+  const handBeforeR2 = wState.combat.hand.length;
+  playCard(wState, tranq1.instanceId);
+  playCard(wState, cresc1.instanceId);
+  assert.equal(wState.combat.rushdownTriggersThisTurn, RUSHDOWN_MAX_TRIGGERS_PER_TURN);
+  assert.equal(wState.combat.hand.length, handBeforeR2, 'Played 2 cards, Rushdown #2 drew 2');
 
+  // Swap 3 (Wrath -> Calm -> Wrath): Rushdown CAP reached -> must NOT draw!
+  const drawPileBeforeR3 = wState.combat.drawPile.length;
+  playCard(wState, tranq2.instanceId);
+  const synCap = computeCardSynergies(wState, cresc2);
+  assert.ok(synCap.callouts.some((c) => c.tone === 'warn' && c.text.includes('上限')));
+  playCard(wState, cresc2.instanceId);
+  assert.equal(wState.combat.drawPile.length, drawPileBeforeR3, 'Rushdown must respect per-turn anti-infinite cap (2)');
+
+  // 2. Mantra -> Divinity (3x damage, +3E, auto-exit on next turn) + Damaru + Devotion + Brilliance
+  const mState = createNewRun({ seed: 13002, characterId: 'watcher', skipNeow: true });
+  mState.player.relics = ['damaru'];
+  startCombat(mState, ENCOUNTERS.floor1[0], 'normal');
+  const mEnemy = mState.combat.enemies[0];
+  mEnemy.hp = 200;
+  mEnemy.maxHp = 200;
+  mEnemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  assert.equal(mState.player.statuses.mantra, 1, 'Damaru grants 1 Mantra on Turn 1');
+  mState.player.energy = 5;
+  const pray = createCardInstance(mState, 'pray', true); // +5 Mantra -> 6
+  const worship = createCardInstance(mState, 'worship', true); // +5 Mantra -> 11 -> Divinity + 1 leftover!
+  const brilliance = createCardInstance(mState, 'brilliance', false); // 12 + 11 combat mantra = 23 * 3 = 69!
+  mState.combat.hand = [pray, worship, brilliance];
+  playCard(mState, pray.instanceId);
+  assert.equal(mState.player.statuses.mantra, 6);
+  playCard(mState, worship.instanceId);
+  assert.equal(mState.combat.stance, 'divinity');
+  assert.equal(mState.player.statuses.mantra, 1, 'Excess Mantra carries over past 10');
+  assert.equal(mState.player.energy, 6, '5 - 1 - 1 + 3 (Divinity) = 6');
+  const hpBeforeBril = mEnemy.hp;
+  playCard(mState, brilliance.instanceId, mEnemy.id);
+  assert.equal(hpBeforeBril - mEnemy.hp, 69, 'Brilliance scales with combatMantra (12+11=23) and triples in Divinity (69)');
+  endPlayerTurn(mState);
+  assert.equal(mState.combat.stance, 'neutral', 'Divinity automatically exits at start of next player turn');
+
+  // 3. Blasphemy lethal oath kills player at start of next turn
+  const bState = createNewRun({ seed: 13003, characterId: 'watcher', skipNeow: true });
+  startCombat(bState, ENCOUNTERS.floor1[0], 'normal');
+  bState.combat.enemies[0].hp = 200;
+  bState.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const blas = createCardInstance(bState, 'blasphemy', false);
+  bState.combat.hand = [blas];
+  const blasSyn = computeCardSynergies(bState, blas);
+  assert.ok(blasSyn.callouts.some((c) => c.tone === 'warn' && c.text.includes('渎神誓约')));
+  playCard(bState, blas.instanceId);
+  assert.equal(bState.combat.stance, 'divinity');
+  assert.equal(bState.player.statuses.blasphemer, 1);
+  endPlayerTurn(bState);
+  assert.equal(bState.player.hp, 0);
+  assert.equal(bState.runOutcome, 'defeat');
+  assert.equal(bState.player.stance, 'neutral');
+
+  // 4. Scry ecosystem: Golden Eye (+2), Nirvana (+4 block/discard), Weave (return from discard), Cut Through Fate (Scry then draw), Foresight (start-of-turn Scry)
+  const scState = createNewRun({ seed: 13004, characterId: 'watcher', skipNeow: true });
+  scState.player.relics = ['golden_eye'];
+  startCombat(scState, ENCOUNTERS.floor1[0], 'normal');
+  const scEnemy = scState.combat.enemies[0];
+  scEnemy.hp = 120;
+  scState.player.statuses.nirvana = 4;
+  scState.player.block = 0;
+  const weave = createCardInstance(scState, 'weave', false);
+  const ctf = createCardInstance(scState, 'cut_through_fate', false); // Scry 2 + 2 Golden Eye = 4, then Draw 1
+  const topA = createCardInstance(scState, 'wound', false);
+  const topB = createCardInstance(scState, 'strike', false);
+  const topC = createCardInstance(scState, 'halt', false);
+  const topD = createCardInstance(scState, 'defend', false);
+  scState.combat.hand = [ctf];
+  scState.combat.discardPile = [weave];
+  scState.combat.drawPile = [topA, topB, topC, topD];
+  playCard(scState, ctf.instanceId, scEnemy.id);
+  assert.equal(scState.combat.pendingCardChoice?.mode, 'scry');
+  assert.equal(scState.combat.pendingCardChoice.candidates.length, 4, 'Golden Eye adds +2 to Scry 2 -> 4');
+  toggleScryChoice(scState, topA.instanceId);
+  toggleScryChoice(scState, topB.instanceId);
+  confirmScryChoice(scState);
+  assert.equal(scState.player.block, 8, 'Nirvana grants 4*2 = 8 block on 2 Scry discards');
+  assert.equal(scState.combat.hand.some((c) => c.instanceId === weave.instanceId), true, 'Weave returns from discard on Scry');
+  assert.equal(scState.combat.hand.some((c) => c.instanceId === topC.instanceId), true, 'Cut Through Fate draws top remaining card after Scry');
+
+  // 5. Talk to the Hand, Wallop, Halt (Wrath), Fear No Evil, Inner Peace, Crush Joints (ifLastCardType), Bowling Bash, Pressure Points (Mark), Judgment, Lesson Learned
+  const kState = createNewRun({ seed: 13005, characterId: 'watcher', skipNeow: true });
+  kState.player.relics = ['duality'];
+  startCombat(kState, ENCOUNTERS.normal[0], 'normal'); // 2 enemies
+  const [e1, e2] = kState.combat.enemies;
+  e1.hp = 100;
+  e1.maxHp = 100;
+  e1.block = 10;
+  e1.intent = { id: 'atk', name: '撕咬', type: 'attack', damage: 8, hits: 1 };
+  e2.hp = 25;
+  e2.maxHp = 40;
+  e2.block = 15;
+  kState.player.energy = 10;
+  kState.player.block = 0;
+
+  const tth = createCardInstance(kState, 'talk_to_the_hand', false); // 5 dmg + 2 TTH
+  const bb = createCardInstance(kState, 'bowling_bash', false); // 7 * 2 enemies = 14
+  const pp = createCardInstance(kState, 'pressure_points', false); // +9 Mark & trigger (ignores block!)
+  const judg = createCardInstance(kState, 'judgment', false); // <=30 instant kill!
+  const halt = createCardInstance(kState, 'halt', false);
+  const cj = createCardInstance(kState, 'crush_joints', false); // skill -> vulnerable
+  const fne = createCardInstance(kState, 'fear_no_evil', false); // attacking -> Calm
+  kState.combat.hand = [tth, bb, pp, judg, halt, cj, fne];
+
+  // Judgment preview is lethal on e2 (hp 25 <= 30), null on e1 (hp 100 > 30)
+  assert.equal(previewCardDamageOnEnemy(kState, judg, e2)?.isLethal, true);
+  assert.equal(previewCardDamageOnEnemy(kState, judg, e1), null);
+
+  // Pressure Points ignores e1's 10 block and deals 9 direct HP loss
+  const e1HpBeforeMark = e1.hp;
+  playCard(kState, pp.instanceId, e1.id);
+  assert.equal(e1.statuses.mark, 9);
+  assert.equal(e1.hp, e1HpBeforeMark - 9, 'Pressure Points Mark ignores enemy block');
+  assert.equal(e1.block, 10);
+
+  // Crush Joints after Pressure Points (a Skill!) triggers Vulnerable
+  const cjSyn = computeCardSynergies(kState, cj, e1.id);
+  assert.ok(cjSyn.callouts.some((c) => c.tone === 'buff' && c.text.includes('技能牌')));
+  playCard(kState, cj.instanceId, e1.id);
+  assert.ok((e1.statuses.vulnerable ?? 0) >= 1, 'Crush Joints applies Vulnerable after a Skill');
+  assert.equal(kState.player.statuses.dexterity, 1, 'Duality grants +1 temp Dex on Attack');
+
+  // Talk to the Hand + Bowling Bash multi-hit -> block per hit
+  playCard(kState, tth.instanceId, e1.id);
+  const blkBeforeBB = kState.player.block;
+  playCard(kState, bb.instanceId, e1.id);
+  assert.ok(kState.player.block >= blkBeforeBB + 4, 'Talk to the Hand triggers on every Bowling Bash hit');
+
+  // Judgment kills e2 through 15 block
+  playCard(kState, judg.instanceId, e2.id);
+  assert.equal(e2.hp, 0, 'Judgment instantly kills enemy with HP <= 30 through Block');
+
+  // Fear No Evil vs attacking e1 enters Calm
+  playCard(kState, fne.instanceId, e1.id);
+  assert.equal(kState.combat.stance, 'calm');
+
+  // Lesson Learned fatal permanently upgrades a card in master deck
+  const llState = createNewRun({ seed: 13006, characterId: 'watcher', skipNeow: true });
+  const unupgradedBefore = llState.player.deck.filter((c) => !c.upgraded).length;
+  startCombat(llState, ENCOUNTERS.floor1[0], 'normal');
+  llState.combat.enemies[0].hp = 8;
+  const llCard = createCardInstance(llState, 'lesson_learned', false);
+  llState.combat.hand = [llCard];
+  playCard(llState, llCard.instanceId, llState.combat.enemies[0].id);
+  const unupgradedAfter = llState.player.deck.filter((c) => !c.upgraded).length;
+  assert.equal(unupgradedAfter, unupgradedBefore - 1, 'Lesson Learned fatal must permanently upgrade 1 master deck card');
+
+  // 6. Retain scaling (Sands of Time, Perseverance, Establishment), Vault extra turn, Conclude end turn, Fasting, Deva Form, Omega, Miracle Potion & Ambrosia
+  const rState = createNewRun({ seed: 13007, characterId: 'watcher', skipNeow: true });
+  rState.player.potions = ['miracle_potion', 'ambrosia', null];
+  startCombat(rState, ENCOUNTERS.floor1[0], 'normal');
+  rState.combat.enemies[0].hp = 200;
+  rState.combat.enemies[0].intent = { id: 'atk', name: '攻击', type: 'attack', damage: 15, hits: 1 };
+  const sands = createCardInstance(rState, 'sands_of_time', false); // cost 4 -> 2 after retain + establishment!
+  const pers = createCardInstance(rState, 'perseverance', false); // block 6 -> 9 on retain
+  const vault = createCardInstance(rState, 'vault', true); // 2E extra turn
+  rState.player.statuses.establishment = 1;
+  rState.player.statuses.omega = 50;
+  rState.combat.hand = [sands, pers, vault];
+
+  // Vault skips enemy attack and still triggers Retain scaling & Omega!
+  const hpBeforeVault = rState.player.hp;
+  playCard(rState, vault.instanceId);
+  assert.equal(rState.player.hp, hpBeforeVault, 'Vault extra turn skips enemy attack completely');
+  assert.equal(rState.combat.enemies[0].hp, 150, 'Omega deals 50 AoE damage at end of turn');
+  assert.equal(getEffectiveCardCost(getCardStats(sands), rState.player, rState.combat), 2, 'Sands of Time (-1) + Establishment (-1) drops cost 4 -> 2');
+  assert.equal(getCardStats(pers).block, 9, 'Perseverance grows +3 block when retained');
+
+  // Miracle Potion & Ambrosia potions
+  assert.equal(usePotion(rState, 0).ok, true);
+  assert.ok(rState.combat.hand.filter((c) => c.cardId === 'miracle').length >= 2, 'Miracle Potion adds 2 Miracles');
+  assert.equal(usePotion(rState, 1).ok, true);
+  assert.equal(rState.combat.stance, 'divinity', 'Ambrosia enters Divinity immediately');
+
+  // 7. Enchiridion strictly draws Powers from Watcher's own pool (never Ironclad/Silent)
+  const enchState = createNewRun({ seed: 13008, characterId: 'watcher', skipNeow: true });
+  enchState.player.relics.push('enchiridion');
+  startCombat(enchState, ENCOUNTERS.floor1[0], 'normal');
+  const zeroCostPowers = enchState.combat.hand.filter((c) => c.tempZeroCostTurn && getCardStats(c).type === 'power');
+  assert.equal(zeroCostPowers.length, 1);
+  const pChar = getCardCharacter(zeroCostPowers[0]);
+  assert.ok(pChar === 'watcher' || pChar === 'colorless', `Enchiridion leaked ${pChar} power to Watcher`);
+});

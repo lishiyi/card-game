@@ -186,7 +186,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '食人蛇花',
     role: 'normal',
     artKey: 'snake_plant',
-    hpRange: [74, 80],
+    hpRange: [66, 72],
     malleableBase: 3,
     initialStatuses: { malleable: 3 },
   },
@@ -326,7 +326,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '觉醒者',
     role: 'boss',
     artKey: 'awakened_one',
-    hpRange: [185, 185],
+    hpRange: [172, 172],
     initialStatuses: { curiosity: 1, regenerating: 6 },
   },
   donu: {
@@ -418,7 +418,7 @@ export const ENCOUNTERS = deepFreeze({
     {
       id: 'looter_and_gremlin',
       name: '劫匪与狂怒地精',
-      enemies: [{ templateId: 'looter', customHp: 39 }, { templateId: 'mad_gremlin' }],
+      enemies: [{ templateId: 'looter', customHp: 39 }, { templateId: 'mad_gremlin', customHp: 17 }],
     },
     {
       id: 'jaw_worm_and_slime',
@@ -542,26 +542,26 @@ export const ENCOUNTERS = deepFreeze({
       id: 'gremlin_leader_elite',
       name: '精英：地精首领',
       enemies: [
-        { templateId: 'mad_gremlin', customHp: 20, isMinion: true },
+        { templateId: 'mad_gremlin', customHp: 17, isMinion: true },
         { templateId: 'gremlin_leader' },
-        { templateId: 'mad_gremlin', customHp: 20, isMinion: true },
+        { templateId: 'mad_gremlin', customHp: 17, isMinion: true },
       ],
     },
   ],
   act2Boss: [
     {
       id: 'automaton_boss',
-      name: '终幕首领：青铜自动机',
+      name: '首领：青铜自动机',
       enemies: [{ templateId: 'bronze_automaton' }],
     },
     {
       id: 'collector_boss',
-      name: '终幕首领：暗影收藏家',
+      name: '首领：暗影收藏家',
       enemies: [{ templateId: 'the_collector' }],
     },
     {
       id: 'champ_boss',
-      name: '终幕首领：钢铁勇士',
+      name: '首领：钢铁勇士',
       enemies: [{ templateId: 'the_champ' }],
     },
   ],
@@ -1857,7 +1857,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
             id: 'snake_chomp',
             name: '狂暴三连咬',
             type: 'attack',
-            damage: 7,
+            damage: 6,
             hits: 3,
           },
         },
@@ -1883,7 +1883,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
                 summonMinions: 'mad_gremlin',
                 summonCount: 2,
                 summonMax: 2,
-                summonHp: 20,
+                summonHp: 17,
                 summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
               },
             },
@@ -1899,7 +1899,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
               summonMinions: 'mad_gremlin',
               summonCount: 2,
               summonMax: 2,
-              summonHp: 20,
+              summonHp: 17,
               summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
             },
           },
@@ -1919,8 +1919,8 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
             type: 'defend_buff',
             allEnemiesBlock: 6,
             block: 6,
-            applyAllEnemiesStatuses: { strength: 3 },
-            summary: '意图：使全体敌方获得 3 点【力量】与 6 点格挡！',
+            applyAllEnemiesStatuses: { strength: 2 },
+            summary: '意图：使全体敌方获得 2 点【力量】与 6 点格挡！',
           },
         },
         {
@@ -1938,7 +1938,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
             summonMinions: 'mad_gremlin',
             summonCount: 2,
             summonMax: 2,
-            summonHp: 20,
+            summonHp: 17,
             summary: '意图：吹响号角，补齐至多 2 名【狂怒地精】增援！',
           },
         });
@@ -2568,7 +2568,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
         return [
           {
             probability: 1,
-            intent: { id: 'dark_echo', name: '幽冥回响', type: 'attack', damage: 28, hits: 1 },
+            intent: { id: 'dark_echo', name: '幽冥回响', type: 'attack', damage: 25, hits: 1 },
           },
         ];
       }

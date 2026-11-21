@@ -832,7 +832,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 10);
+  assert.equal(BOSS_RELIC_IDS.length, 12);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -1909,7 +1909,113 @@ test('Stage 1: Act-scoped 19-event pool, 7 new events + Bloody Idol, Silent neut
   assert.equal(getCharacterProgress(migrated, 'ironclad').bestScore, 880);
 });
 
+test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy Water), 3-hero pool isolation, Boss Swap, ?char=watcher URL, and Stage 1.1 event/boss fixes', () => {
+  // 1. Watcher run setup at A0 and A4
+  const wA0 = createNewRun({ seed: 12001, characterId: 'watcher', ascension: 0, unlockAllOverride: true });
+  assert.equal(wA0.characterId, 'watcher');
+  assert.equal(wA0.player.name, '观者');
+  assert.equal(wA0.player.maxHp, 72);
+  assert.equal(wA0.player.hp, 72);
+  assert.equal(wA0.player.stance, 'neutral');
+  assert.equal(wA0.player.deck.length, 10);
+  assert.deepEqual(wA0.player.relics, ['pure_water']);
+  assert.equal(wA0.player.potions[0], 'miracle_potion');
+  assert.equal(wA0.player.deck.filter((c) => c.cardId === 'strike').length, 4);
+  assert.equal(wA0.player.deck.filter((c) => c.cardId === 'defend').length, 4);
+  assert.equal(wA0.player.deck.filter((c) => c.cardId === 'eruption').length, 1);
+  assert.equal(wA0.player.deck.filter((c) => c.cardId === 'vigilance').length, 1);
 
+  const wA4 = createNewRun({ seed: 12002, characterId: 'watcher', ascension: 4, unlockAllOverride: true });
+  assert.equal(wA4.player.maxHp, 68);
 
+  // 2. Strict 3-character relic & card pool isolation
+  const ironRelics = getRelicPoolsForCharacter('ironclad');
+  const silentRelics = getRelicPoolsForCharacter('silent');
+  const watcherRelics = getRelicPoolsForCharacter('watcher');
+  const allIronIds = Object.values(ironRelics).flat();
+  const allSilentIds = Object.values(silentRelics).flat();
+  const allWatcherIds = Object.values(watcherRelics).flat();
+  assert.equal(allIronIds.includes('violet_lotus'), false);
+  assert.equal(allIronIds.includes('golden_eye'), false);
+  assert.equal(allSilentIds.includes('violet_lotus'), false);
+  assert.equal(allSilentIds.includes('damaru'), false);
+  assert.equal(allWatcherIds.includes('snecko_skull'), false);
+  assert.equal(allWatcherIds.includes('charons_ashes'), false);
+  assert.ok(allWatcherIds.includes('violet_lotus') && allWatcherIds.includes('holy_water'));
+  assert.ok(allWatcherIds.includes('damaru') && allWatcherIds.includes('golden_eye'));
 
+  // Rewards for Watcher only contain Watcher cards (never Ironclad/Silent)
+  for (let s = 1; s <= 15; s += 1) {
+    const rw = createNewRun({ seed: 12100 + s, characterId: 'watcher', skipNeow: true, unlockAllOverride: true });
+    rw.combat = { role: 'normal' };
+    transitionCombatVictory(rw);
+    for (const card of rw.reward.cardChoices) {
+      const ch = getCardCharacter(card);
+      assert.equal(ch, 'watcher', `Watcher combat reward leaked non-watcher card: ${card.cardId} (${ch})`);
+    }
+  }
 
+  // 3. Watcher Neow Boss Swap removes pure_water and never rolls holy_water / black_blood / ring_of_the_serpent
+  for (let s = 1; s <= 35; s += 1) {
+    const sw = createNewRun({ seed: 12200 + s, characterId: 'watcher', unlockAllOverride: true });
+    const res = chooseNeowOption(sw, 'boss_swap');
+    assert.equal(res.ok, true);
+    assert.equal(sw.player.relics.includes('pure_water'), false);
+    assert.equal(sw.player.relics.includes('holy_water'), false);
+    assert.equal(sw.player.relics.includes('black_blood'), false);
+    assert.equal(sw.player.relics.includes('ring_of_the_serpent'), false);
+    sw.combat = { role: 'boss' };
+    transitionCombatVictory(sw);
+    assert.equal(sw.bossReward.relicChoices.includes('holy_water'), false);
+  }
+
+  // 4. Holy Water replaces Pure Water cleanly when granted
+  const hwRun = createNewRun({ seed: 12301, characterId: 'watcher', skipNeow: true });
+  assert.equal(grantRelicToPlayer(hwRun, 'holy_water'), true);
+  assert.deepEqual(hwRun.player.relics, ['holy_water']);
+
+  // 5. ?char=watcher Challenge URL round-trip & independent Watcher Meta Ascension progression
+  const url = buildChallengeUrl('https://example.com/card-game/', 4242, 3, 10, 'watcher');
+  assert.ok(url.includes('char=watcher'));
+  const parsed = parseChallengeInput(url, 10);
+  assert.equal(parsed.characterId, 'watcher');
+  assert.equal(parsed.ascension, 3);
+
+  const meta = createDefaultMeta();
+  assert.equal(getMaxAscensionForCharacter(meta, 'watcher'), 0);
+  const wWin = createNewRun({ seed: 12401, characterId: 'watcher', ascension: 0, skipNeow: true });
+  wWin.act = 3;
+  wWin.floor = 16;
+  wWin.runOutcome = 'victory';
+  const rec = recordCompletedRun(meta, wWin);
+  assert.equal(rec.unlockedAscension, 1);
+  assert.equal(getMaxAscensionForCharacter(meta, 'watcher'), 1);
+  assert.equal(getMaxAscensionForCharacter(meta, 'ironclad'), 0);
+  assert.equal(getCharacterProgress(meta, 'watcher').victories, 1);
+
+  // 6. Stage 1.1 fixes: masked_bandits strictly Act 2 only; Act 2 Boss names have no '终幕首领：'; Mind Bloom war_memory has no double '首领：'
+  assert.equal(getEventIdsForAct(1).includes('masked_bandits'), false, 'masked_bandits must not spawn in Act 1');
+  assert.equal(getEventIdsForAct(2).includes('masked_bandits'), true, 'masked_bandits must spawn in Act 2');
+  assert.equal(getEventIdsForAct(3).includes('masked_bandits'), false, 'masked_bandits must not spawn in Act 3');
+  for (const b of ENCOUNTERS.act2Boss) {
+    assert.equal(b.name.includes('终幕首领'), false, `Act 2 boss ${b.id} must not carry 终幕首领 prefix`);
+    assert.ok(b.name.startsWith('首领：'), `Act 2 boss ${b.id} should use 首领： prefix`);
+  }
+  const mbRun = createNewRun({ seed: 12501, characterId: 'watcher', skipNeow: true });
+  mbRun.act = 3;
+  mbRun.floor = 5;
+  mbRun.screen = 'event';
+  mbRun.eventState = {
+    eventId: 'mind_bloom',
+    resolved: false,
+    pendingPurge: false,
+    pendingCardAction: null,
+    libraryChoices: null,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(mbRun, 'war_memory').ok, true);
+  assert.equal(mbRun.screen, 'combat');
+  assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
+});

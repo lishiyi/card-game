@@ -75,12 +75,17 @@ function launchHeadlessChromium() {
         '--no-default-browser-check',
         '--disable-background-networking',
         '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--mute-audio',
+        '--disable-features=Translate,BackForwardCache,AcceptCHFrame',
         `--user-data-dir=${userDataDir}`,
         '--window-size=1280,880',
         '--remote-debugging-port=0',
         'about:blank',
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'] }
+      { stdio: ['ignore', 'pipe', 'pipe'], detached: true }
     );
 
     const cleanupProfile = () => {
@@ -91,9 +96,21 @@ function launchHeadlessChromium() {
       }
     };
 
+    const killGroup = () => {
+      try {
+        process.kill(-proc.pid, 'SIGKILL');
+      } catch {
+        try {
+          proc.kill('SIGKILL');
+        } catch {
+          // Ignore kill race
+        }
+      }
+    };
+
     let stderrBuf = '';
     const timer = setTimeout(() => {
-      proc.kill('SIGKILL');
+      killGroup();
       cleanupProfile();
       reject(new Error(`Timed out waiting for Chromium DevTools endpoint: ${stderrBuf}`));
     }, 20000);
@@ -103,7 +120,7 @@ function launchHeadlessChromium() {
       const match = stderrBuf.match(/DevTools listening on (ws:\/\/[^\s]+)/);
       if (match) {
         clearTimeout(timer);
-        resolve({ proc, browserWsUrl: match[1], userDataDir, cleanupProfile });
+        resolve({ proc, browserWsUrl: match[1], userDataDir, cleanupProfile, killGroup });
       }
     });
 
@@ -126,10 +143,14 @@ async function teardownSession({ server, browser, cdp }) {
       if (browser.proc.exitCode !== null) r();
       else browser.proc.once('exit', r);
     });
-    try {
-      browser.proc.kill('SIGKILL');
-    } catch {
-      // Ignore kill error
+    if (browser.killGroup) {
+      browser.killGroup();
+    } else {
+      try {
+        browser.proc.kill('SIGKILL');
+      } catch {
+        // Ignore kill error
+      }
     }
     await Promise.race([exited, new Promise((r) => setTimeout(r, 500))]);
     browser.cleanupProfile?.();
@@ -150,25 +171,93 @@ async function createCdpClient(pageWsUrl) {
   let nextId = 1;
   const pending = new Map();
   const events = [];
+  const methodWaiters = new Map();
+  let pageDomainEnabled = false;
+
+  const waitForEvent = (eventName, timeoutMs = 5000) =>
+    new Promise((resolve) => {
+      const list = methodWaiters.get(eventName) || [];
+      let settled = false;
+      const done = (params = null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const cur = methodWaiters.get(eventName);
+        if (cur) {
+          const idx = cur.indexOf(done);
+          if (idx !== -1) cur.splice(idx, 1);
+        }
+        resolve(params);
+      };
+      const timer = setTimeout(() => done(null), timeoutMs);
+      list.push(done);
+      methodWaiters.set(eventName, list);
+    });
+
+  ws.addEventListener('close', () => {
+    for (const [, p] of pending) {
+      clearTimeout(p.timer);
+      p.reject(new Error('CDP WebSocket closed before receiving response'));
+    }
+    pending.clear();
+    for (const [, waiters] of methodWaiters) {
+      for (const fn of [...waiters]) fn(null);
+    }
+    methodWaiters.clear();
+  });
 
   ws.addEventListener('message', (ev) => {
     const msg = JSON.parse(String(ev.data));
     if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
+      const { resolve, reject, timer } = pending.get(msg.id);
+      clearTimeout(timer);
       pending.delete(msg.id);
       if (msg.error) reject(new Error(msg.error.message));
       else resolve(msg.result);
     } else if (msg.method) {
       events.push(msg);
+      const waiters = methodWaiters.get(msg.method);
+      if (waiters && waiters.length > 0) {
+        const snapshot = [...waiters];
+        waiters.length = 0;
+        for (const fn of snapshot) fn(msg.params);
+      }
     }
   });
 
-  function send(method, params = {}) {
+  function sendRaw(method, params = {}) {
     const id = nextId++;
-    ws.send(JSON.stringify({ id, method, params }));
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        if (pending.has(id)) {
+          pending.delete(id);
+          reject(new Error(`CDP call timed out after 15s: ${method}`));
+        }
+      }, 15000);
+      pending.set(id, { resolve, reject, timer });
+      ws.send(JSON.stringify({ id, method, params }));
     });
+  }
+
+  async function send(method, params = {}) {
+    if (method === 'Page.enable') {
+      const res = await sendRaw(method, params);
+      pageDomainEnabled = true;
+      return res;
+    }
+    if (method === 'Page.navigate' && pageDomainEnabled) {
+      let lastRes = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const loadDone = waitForEvent('Page.loadEventFired', 4000);
+        lastRes = await sendRaw(method, params);
+        const loaded = await loadDone;
+        if (loaded !== null) {
+          return lastRes;
+        }
+      }
+      return lastRes;
+    }
+    return sendRaw(method, params);
   }
 
   async function evaluate(expression) {
@@ -1234,9 +1323,9 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       deviceScaleFactor: 2,
       mobile: true,
     });
-    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
     await new Promise((r) => setTimeout(r, 350));
     await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
@@ -4043,10 +4132,202 @@ test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive 
   }
 });
 
+test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher Stances/Wrath Danger/Divinity UI, Cut Through Fate Scry Modal, and Mobile 390px HUD & Scry Polish', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
 
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
 
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
 
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
 
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
 
+    // 1. Verify all 3 heroes render on Character Select, Watcher has bespoke SVG & amethyst theme, launch Watcher run
+    const selectAudit = await cdp.evaluate(`(() => {
+      const cards = [...document.querySelectorAll('.character-card')].map((el) => el.dataset.characterId);
+      document.getElementById('char-card-watcher').click();
+      const watcherSelected = document.getElementById('char-card-watcher').classList.contains('selected');
+      const hasWatcherSvg = Boolean(document.querySelector('#char-card-watcher .character-portrait-stage svg'));
+      const launchText = document.getElementById('btn-start-character-run')?.textContent?.trim() || '';
+      const shellChar = document.querySelector('.spire-shell')?.dataset?.character;
+      document.getElementById('btn-start-character-run').click();
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        cards,
+        watcherSelected,
+        hasWatcherSvg,
+        launchText,
+        shellChar,
+        runChar: st.characterId,
+        starterRelic: st.player.relics[0],
+        maxHp: st.player.maxHp,
+      };
+    })()`);
 
+    assert.deepEqual(selectAudit.cards, ['ironclad', 'silent', 'watcher']);
+    assert.equal(selectAudit.watcherSelected, true);
+    assert.equal(selectAudit.hasWatcherSvg, true);
+    assert.ok(selectAudit.launchText.includes('观者'));
+    assert.equal(selectAudit.shellChar, 'watcher');
+    assert.equal(selectAudit.runChar, 'watcher');
+    assert.equal(selectAudit.starterRelic, 'pure_water');
+    assert.equal(selectAudit.maxHp, 72);
 
+    // 2. Enter combat -> verify Pure Water Miracle, Calm -> Wrath stance dance, doubled enemy intent & Wrath Danger banner!
+    const stanceUiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+
+      const enemy = st.combat.enemies[0];
+      enemy.hp = 80;
+      enemy.maxHp = 80;
+      enemy.block = 0;
+      enemy.intent = { id: 'test_atk', name: '重击', type: 'attack', damage: 10, hits: 1 };
+      st.act = 2;
+      st.floor = 11;
+      st.ascension = 2;
+      st.player.energy = 3;
+      st.player.block = 0;
+      st.combat.hand = [
+        { instanceId: 'e2e_vig', cardId: 'vigilance', upgraded: false },
+        { instanceId: 'e2e_erup', cardId: 'eruption', upgraded: true },
+        { instanceId: 'e2e_ctf', cardId: 'cut_through_fate', upgraded: false },
+        { instanceId: 'e2e_str', cardId: 'strike', upgraded: false },
+      ];
+      st.combat.drawPile = [
+        { instanceId: 'e2e_d1', cardId: 'clumsy', upgraded: false },
+        { instanceId: 'e2e_d2', cardId: 'halt', upgraded: false },
+        { instanceId: 'e2e_d3', cardId: 'ragnarok', upgraded: false },
+      ];
+      app.render();
+
+      const intentBefore = document.querySelector('.enemy-side .intent-badge')?.textContent?.trim() || '';
+
+      // Play Vigilance -> Calm
+      document.getElementById('hand-card-e2e_vig').click();
+      const calmPillText = document.getElementById('player-stance-pill')?.textContent?.trim() || '';
+      const hasCalmAura = document.getElementById('player-unit')?.classList.contains('stance-calm');
+
+      // Play Eruption+ -> exits Calm (+2E -> 1 - 1 + 2 = 2E) and enters Wrath!
+      document.getElementById('hand-card-e2e_erup').click();
+      document.getElementById('enemy-unit-' + enemy.id).click();
+      const wrathPillText = document.getElementById('player-stance-pill')?.textContent?.trim() || '';
+      const hasWrathAura = document.getElementById('player-unit')?.classList.contains('stance-wrath');
+      const intentInWrath = document.querySelector('.enemy-side .intent-badge')?.textContent?.trim() || '';
+      const hasWrathBanner = Boolean(document.getElementById('wrath-danger-banner'));
+      const strikeDescInWrath = document.querySelector('#hand-card-e2e_str .card-desc')?.textContent?.trim() || '';
+      const energyAfterCalmExit = st.player.energy;
+
+      return {
+        intentBefore,
+        calmPillText,
+        hasCalmAura,
+        wrathPillText,
+        hasWrathAura,
+        intentInWrath,
+        hasWrathBanner,
+        strikeDescInWrath,
+        energyAfterCalmExit,
+      };
+    })()`);
+
+    assert.equal(stanceUiAudit.intentBefore, '10');
+    assert.ok(stanceUiAudit.calmPillText.includes('平静'));
+    assert.equal(stanceUiAudit.hasCalmAura, true);
+    assert.ok(stanceUiAudit.wrathPillText.includes('愤怒'));
+    assert.equal(stanceUiAudit.hasWrathAura, true);
+    assert.equal(stanceUiAudit.intentInWrath, '20', 'Enemy attack intent must double to 20 in Wrath');
+    assert.equal(stanceUiAudit.hasWrathBanner, true, 'Wrath Danger banner must appear when incoming exceeds block');
+    assert.ok(stanceUiAudit.strikeDescInWrath.includes('12'), 'Strike damage must preview doubled 12 in Wrath');
+    assert.equal(stanceUiAudit.energyAfterCalmExit, 2, 'Exiting Calm via 1E Eruption+ must refund +2 energy');
+
+    // 3. Play Cut Through Fate -> open real Scry modal -> switch to Mobile 390x844 -> verify single confirm button, compact header, discard + deferred draw, and non-clipped HUD Ascension pill!
+    await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const enemy = st.combat.enemies[0];
+      document.getElementById('hand-card-e2e_ctf').click();
+      document.getElementById('enemy-unit-' + enemy.id).click();
+    })()`);
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    await new Promise((r) => setTimeout(r, 120));
+
+    const mobileAudit = await cdp.evaluate(`(() => {
+      const modal = document.getElementById('scry-choice-modal');
+      const hasBottomDuplicate = Boolean(document.getElementById('btn-confirm-scry-bottom'));
+      const confirmBtn = document.getElementById('btn-confirm-scry');
+      const headerRect = modal.querySelector('.modal-header').getBoundingClientRect();
+      const firstCardRect = modal.querySelector('#scry-card-list .game-card').getBoundingClientRect();
+
+      // Mark Clumsy for discard, then confirm Scry -> should draw Halt!
+      document.getElementById('scry-card-e2e_d1').click();
+      document.getElementById('btn-confirm-scry').click();
+
+      const st = window.__SPIRE_APP__.getState();
+      const handIdsAfter = st.combat.hand.map((c) => c.instanceId);
+      const discardIdsAfter = st.combat.discardPile.map((c) => c.instanceId);
+      const ascRect = document.getElementById('hud-ascension-pill')?.getBoundingClientRect();
+      const scrollWidth = document.documentElement.scrollWidth;
+      const innerWidth = window.innerWidth;
+
+      return {
+        hasBottomDuplicate,
+        headerHeight: Math.round(headerRect.height),
+        firstCardBelowHeader: firstCardRect.top >= headerRect.bottom - 1,
+        drewHalt: handIdsAfter.includes('e2e_d2'),
+        discardedClumsy: discardIdsAfter.includes('e2e_d1'),
+        ascRight: ascRect ? Math.round(ascRect.right) : 999,
+        innerWidth,
+        scrollWidth,
+      };
+    })()`);
+
+    assert.equal(mobileAudit.hasBottomDuplicate, false, 'Duplicate bottom Scry confirm button must be removed');
+    assert.ok(mobileAudit.headerHeight <= 155, `Mobile Scry header should be compact, got ${mobileAudit.headerHeight}px`);
+    assert.equal(mobileAudit.firstCardBelowHeader, true);
+    assert.equal(mobileAudit.drewHalt, true, 'Cut Through Fate must draw top kept card after Scry confirmation');
+    assert.equal(mobileAudit.discardedClumsy, true);
+    assert.ok(mobileAudit.ascRight <= mobileAudit.innerWidth - 2, `Mobile 390px HUD Ascension pill clipped: right=${mobileAudit.ascRight}, width=${mobileAudit.innerWidth}`);
+    assert.ok(mobileAudit.scrollWidth <= mobileAudit.innerWidth, `Horizontal overflow on 390px mobile: ${mobileAudit.scrollWidth} > ${mobileAudit.innerWidth}`);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});

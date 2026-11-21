@@ -2,6 +2,7 @@
  * Top global HUD: Title, Floor/Act/Ascension/Seed indicators, Vitals, Relics, Potions, and Action bar.
  */
 
+import { getCharacterDef } from '../../data/characters.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyModifierDefs } from '../../engine/daily.js';
@@ -118,7 +119,7 @@ export function renderTopHud({ state, ui }) {
   const asc = state.ascension ?? 0;
   const ascDef = ASCENSION_DEFS[asc] || ASCENSION_DEFS[0];
   const charId = state.characterId || 'ironclad';
-  const charName = state.player?.name || (charId === 'silent' ? '静默猎手' : '铁甲战士');
+  const charName = state.player?.name || getCharacterDef(charId).name;
 
   return `
     <header class="top-hud">

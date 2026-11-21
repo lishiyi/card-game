@@ -78,6 +78,36 @@ export const CHARACTER_LIBRARY = deepFreeze({
       'survivor',
     ],
   },
+  watcher: {
+    id: 'watcher',
+    name: '观者',
+    englishName: 'The Watcher',
+    title: '掌控姿态、真言与预见的盲眼圣僧',
+    accentTheme: 'amethyst',
+    artKey: 'watcher',
+    maxHp: 72,
+    asc4MaxHp: 68,
+    startingGold: 99,
+    maxEnergy: 3,
+    starterRelic: 'pure_water',
+    bossStarterUpgrade: 'holy_water',
+    starterPotion: 'miracle_potion',
+    archetypes: ['姿态舞', '真言神格', '预见保留'],
+    summary:
+      '洞察命运的盲眼苦行僧。在【平静】蓄能与【愤怒】双倍爆发之间灵动切换，汇聚 10 点【真言】步入三倍伤害的【神格】，或以【预见】与【保留】精算斩杀。',
+    starterDeck: [
+      'strike',
+      'strike',
+      'strike',
+      'strike',
+      'defend',
+      'defend',
+      'defend',
+      'defend',
+      'eruption',
+      'vigilance',
+    ],
+  },
 });
 
 export const CHARACTER_IDS = deepFreeze(Object.keys(CHARACTER_LIBRARY));

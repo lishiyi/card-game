@@ -32,6 +32,18 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     raw *= 2;
   }
 
+  const attackerStance = options.attackerStance ?? attacker?.stance ?? 'neutral';
+  if (attackerStance === 'wrath') {
+    raw *= 2;
+  } else if (attackerStance === 'divinity') {
+    raw *= 3;
+  }
+
+  const defenderStance = options.defenderStance ?? defender?.stance ?? 'neutral';
+  if (defenderStance === 'wrath') {
+    raw *= 2;
+  }
+
   if (!options.ignoreFlight && defender && (defender?.statuses?.flight ?? 0) > 0) {
     raw *= 0.5;
   }

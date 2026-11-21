@@ -18,6 +18,7 @@ import {
   getAvailablePotionIds,
   POTION_LIBRARY,
   RELIC_LIBRARY,
+  STANCE_METADATA,
   STATUS_METADATA,
 } from '../data/relics.js';
 import { hasDailyModifier } from './daily.js';
@@ -27,6 +28,8 @@ import { pickRandom, randomInt, shuffled } from './rng.js';
 export const MAX_HAND_SIZE = 10;
 export const BASE_DRAW_PER_TURN = 5;
 export const VELVET_CHOKER_CARD_LIMIT = 6;
+export const RUSHDOWN_MAX_TRIGGERS_PER_TURN = 2;
+const VALID_STANCES = new Set(['neutral', 'calm', 'wrath', 'divinity']);
 const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail'];
 const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'intangible'];
 const SIGNED_STATUSES = new Set(['strength', 'dexterity']);
@@ -408,6 +411,18 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
     );
   } else if (blocked > 0) {
     pushCombatLog(combat, `【${enemy.name}】格挡了 ${blocked} 点伤害。`, 'block');
+  }
+
+  // Talk to the Hand: player gains Block on every attack hit against marked target
+  if (
+    options.isAttack &&
+    (blocked > 0 || hpLoss > 0) &&
+    state.player.hp > 0 &&
+    (enemy.statuses?.talkToTheHand ?? 0) > 0
+  ) {
+    const ttthBlock = enemy.statuses.talkToTheHand;
+    addPlayerBlock(state, ttthBlock);
+    pushCombatLog(combat, `【别烦我】触发：获得 ${ttthBlock} 点格挡！`, 'block');
   }
 
   // Spiker Thorns passive: triggers per attack hit (before lethal return)
@@ -864,7 +879,140 @@ function requestManualDiscard(state, count, sourceName = '弃牌', onVictoryCall
   requestHandCardChoice(state, 'discard', count, sourceName, onVictoryCallback);
 }
 
-export function initiateScry(state, amount, sourceName = '预见') {
+function returnDiscardCardsByFlag(state, flagName, sourceLabel) {
+  const combat = state?.combat;
+  if (!combat || !Array.isArray(combat.discardPile) || combat.discardPile.length === 0) return 0;
+  let returned = 0;
+  const remainingDiscard = [];
+  for (const card of combat.discardPile) {
+    const stats = getCardStats(card);
+    if (stats[flagName] && combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(card);
+      returned += 1;
+    } else {
+      remainingDiscard.push(card);
+    }
+  }
+  combat.discardPile = remainingDiscard;
+  if (returned > 0) {
+    pushCombatLog(
+      combat,
+      `${sourceLabel}触发：${returned} 张卡牌从弃牌堆返回手牌！`,
+      'info'
+    );
+  }
+  return returned;
+}
+
+export function changeStance(state, nextStance = 'neutral', options = {}) {
+  const combat = state?.combat;
+  if (!combat || combat.status !== 'ongoing') {
+    return { changed: false, prev: 'neutral', next: 'neutral' };
+  }
+  const normalizedNext = VALID_STANCES.has(nextStance) ? nextStance : 'neutral';
+  const prev = VALID_STANCES.has(combat.stance) ? combat.stance : 'neutral';
+  if (prev === normalizedNext) {
+    return { changed: false, prev, next: normalizedNext };
+  }
+
+  combat.stance = normalizedNext;
+  state.player.stance = normalizedNext;
+
+  const prevName = STANCE_METADATA[prev]?.name ?? prev;
+  const nextName = STANCE_METADATA[normalizedNext]?.name ?? normalizedNext;
+  pushCombatLog(
+    combat,
+    normalizedNext === 'neutral'
+      ? `退出【${prevName}】姿态，回归常态。`
+      : `切换姿态：【${prevName}】→【${nextName}】！`,
+    'status'
+  );
+
+  // Exiting Calm grants +2 Energy (+3 with Violet Lotus)
+  if (prev === 'calm') {
+    const calmGain = hasRelic(state, 'violet_lotus') ? 3 : 2;
+    state.player.energy += calmGain;
+    pushCombatLog(
+      combat,
+      hasRelic(state, 'violet_lotus')
+        ? `退出【平静】（【紫莲花】加持）：获得 ${calmGain} 点能量！`
+        : `退出【平静】：获得 ${calmGain} 点能量！`,
+      'info'
+    );
+  }
+
+  // Entering Divinity grants +3 Energy immediately
+  if (normalizedNext === 'divinity') {
+    state.player.energy += 3;
+    pushCombatLog(combat, '步入【神格】：立即获得 3 点能量，本回合攻击伤害 ×3！', 'victory');
+  }
+
+  // Mental Fortress: gain Block on every stance change
+  if ((state.player.statuses?.mentalFortress ?? 0) > 0 && !options.silent) {
+    const mfBlock = state.player.statuses.mentalFortress;
+    addPlayerBlock(state, mfBlock);
+    pushCombatLog(combat, `【心灵堡垒】触发：获得 ${mfBlock} 点格挡！`, 'block');
+  }
+
+  // Rushdown: draw on entering Wrath (capped at RUSHDOWN_MAX_TRIGGERS_PER_TURN per turn)
+  if (
+    normalizedNext === 'wrath' &&
+    (state.player.statuses?.rushdown ?? 0) > 0 &&
+    !options.silent
+  ) {
+    const triggers = combat.rushdownTriggersThisTurn ?? 0;
+    if (triggers < RUSHDOWN_MAX_TRIGGERS_PER_TURN) {
+      combat.rushdownTriggersThisTurn = triggers + 1;
+      const drawAmt = state.player.statuses.rushdown;
+      pushCombatLog(
+        combat,
+        `【猛冲】触发（${combat.rushdownTriggersThisTurn}/${RUSHDOWN_MAX_TRIGGERS_PER_TURN}）：抽 ${drawAmt} 张牌！`,
+        'info'
+      );
+      drawCards(state, drawAmt);
+    } else {
+      pushCombatLog(
+        combat,
+        `【猛冲】本回合已达上限（${RUSHDOWN_MAX_TRIGGERS_PER_TURN} 次），不再继续抽牌。`,
+        'info'
+      );
+    }
+  }
+
+  // Flurry of Blows: return from discard pile on stance change
+  if (!options.silent) {
+    returnDiscardCardsByFlag(state, 'returnOnStanceChange', '姿态切换');
+  }
+
+  return { changed: true, prev, next: normalizedNext };
+}
+
+export function gainMantra(state, amount, options = {}) {
+  const combat = state?.combat;
+  const gain = Math.max(0, Math.floor(amount ?? 0));
+  if (!combat || combat.status !== 'ongoing' || gain <= 0) return { enteredDivinity: false };
+
+  combat.mantraGainedThisCombat = (combat.mantraGainedThisCombat ?? 0) + gain;
+  applyStatus(state.player, 'mantra', gain);
+  pushCombatLog(
+    combat,
+    `获得 ${gain} 点【真言】（当前 ${state.player.statuses.mantra ?? 0}/10）。`,
+    'status'
+  );
+
+  let enteredDivinity = false;
+  while ((state.player.statuses.mantra ?? 0) >= 10) {
+    state.player.statuses.mantra -= 10;
+    if (state.player.statuses.mantra <= 0) {
+      delete state.player.statuses.mantra;
+    }
+    changeStance(state, 'divinity', options);
+    enteredDivinity = true;
+  }
+  return { enteredDivinity };
+}
+
+export function initiateScry(state, amount, sourceName = '预见', options = {}) {
   const combat = state?.combat;
   if (
     !combat ||
@@ -874,9 +1022,19 @@ export function initiateScry(state, amount, sourceName = '预见') {
   ) {
     return { ok: false, reason: '当前无法执行预见' };
   }
-  const safeAmt = Math.max(0, Math.floor(amount ?? 0));
+  const baseAmt = Math.max(0, Math.floor(amount ?? 0));
+  const goldenEyeBonus = baseAmt > 0 && hasRelic(state, 'golden_eye') ? 2 : 0;
+  const safeAmt = baseAmt + goldenEyeBonus;
+  const drawAfterScry = Math.max(0, Math.floor(options.drawAfterScry ?? 0));
+
   if (safeAmt <= 0 || combat.drawPile.length === 0) {
     pushCombatLog(combat, `【${sourceName}】抽牌堆为空，无需预见。`, 'info');
+    if (safeAmt > 0) {
+      returnDiscardCardsByFlag(state, 'returnOnScry', '【预见】');
+    }
+    if (drawAfterScry > 0) {
+      drawCards(state, drawAfterScry);
+    }
     return { ok: true, count: 0 };
   }
   const topCount = Math.min(safeAmt, combat.drawPile.length);
@@ -889,8 +1047,15 @@ export function initiateScry(state, amount, sourceName = '预见') {
     optional: true,
     candidates,
     selectedIds: [],
+    drawAfterScry,
   });
-  pushCombatLog(combat, `【${sourceName}】触发预见：检视抽牌堆顶 ${topCount} 张卡牌。`, 'info');
+  pushCombatLog(
+    combat,
+    goldenEyeBonus > 0
+      ? `【${sourceName}】触发预见（【黄金之眼】+2）：检视抽牌堆顶 ${topCount} 张卡牌。`
+      : `【${sourceName}】触发预见：检视抽牌堆顶 ${topCount} 张卡牌。`,
+    'info'
+  );
   return { ok: true, count: topCount };
 }
 
@@ -930,6 +1095,7 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
   const candidateIds = new Set((pending.candidates || []).map((c) => c.instanceId));
   const rawIds = Array.isArray(explicitDiscardIds) ? explicitDiscardIds : pending.selectedIds || [];
   const discardSet = new Set(rawIds.filter((id) => candidateIds.has(id)));
+  const drawAfterScry = Math.max(0, Math.floor(pending.drawAfterScry ?? 0));
 
   const toDiscard = [];
   const nextDraw = [];
@@ -947,6 +1113,11 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
 
   if (toDiscard.length > 0) {
     discardCardsBatch(state, toDiscard, { manual: false });
+    if ((state.player.statuses?.nirvana ?? 0) > 0) {
+      const nirvBlock = toDiscard.length * state.player.statuses.nirvana;
+      addPlayerBlock(state, nirvBlock);
+      pushCombatLog(combat, `【涅槃】触发：预见弃置 ${toDiscard.length} 张牌，获得 ${nirvBlock} 点格挡！`, 'block');
+    }
   }
   pushCombatLog(
     combat,
@@ -955,6 +1126,14 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
       : `【${pending.sourceName}】预见完成：保留全部 ${keptCount} 张牌于抽牌堆顶。`,
     'info'
   );
+
+  // Weave returns from discard pile whenever Scry resolves
+  returnDiscardCardsByFlag(state, 'returnOnScry', '【预见】');
+
+  // Deferred draw (e.g., Cut Through Fate or Foresight start-of-turn Scry)
+  if (drawAfterScry > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+    drawCards(state, drawAfterScry);
+  }
 
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     finalizeCombatVictory(state, onVictoryCallback);
@@ -1153,6 +1332,7 @@ function handleCombatDefeat(state) {
   state.combat.status = 'defeat';
   state.combat.phase = 'ended';
   state.player.block = 0;
+  state.player.stance = 'neutral';
   state.combatSnapshot = null;
   if (state.stats) {
     state.stats.defeatedBy = `第 ${state.act ?? 1} 幕 F${Math.max(1, state.floor ?? 1)} · ${state.combat.encounterName || '未知强敌'}`;
@@ -1174,11 +1354,28 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   combat.shurikenCounter = 0;
   combat.kunaiCounter = 0;
   combat.ornamentalFanCounter = 0;
+  combat.rushdownTriggersThisTurn = 0;
+  combat.lastCardTypePlayed = null;
   combat.playedCardTypesThisTurn = { attack: false, skill: false, power: false };
   setPendingCardChoice(combat, null);
   delete state.player.statuses.flameBarrier;
   for (const e of combat.enemies || []) {
     if (e.slowStacks) e.slowStacks = 0;
+  }
+
+  // Blasphemy lethal oath triggers at start of next player turn
+  if ((state.player.statuses.blasphemer ?? 0) > 0) {
+    delete state.player.statuses.blasphemer;
+    pushCombatLog(combat, '【渎神誓约】反噬降临！', 'damage');
+    losePlayerHp(state, 999, '渎神誓约');
+    if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+      return;
+    }
+  }
+
+  // Divinity automatically exits back to Neutral at start of player turn
+  if (combat.stance === 'divinity') {
+    changeStance(state, 'neutral');
   }
 
   const hasBarricade = (state.player.statuses.barricade ?? 0) > 0;
@@ -1217,7 +1414,22 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     }
   }
 
-  state.player.energy = state.player.maxEnergy;
+  const energyPenalty = state.player.statuses.energyDownEachTurn ?? 0;
+  state.player.energy = Math.max(0, state.player.maxEnergy - energyPenalty);
+  if (energyPenalty > 0) {
+    pushCombatLog(combat, `【斋戒】生效：本回合初始能量减少 ${energyPenalty} 点。`, 'status');
+  }
+
+  if ((state.player.statuses.devaForm ?? 0) > 0) {
+    const devaGain = state.player.statuses.devaForm;
+    state.player.energy += devaGain;
+    state.player.statuses.devaForm = devaGain + 1;
+    pushCombatLog(
+      combat,
+      `【天人形态】生效：额外获得 ${devaGain} 点能量（下回合 +${devaGain + 1}）！`,
+      'info'
+    );
+  }
 
   if (!state.relicCounters) state.relicCounters = {};
   if (hasRelic(state, 'happy_flower')) {
@@ -1329,6 +1541,22 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     addCardsToHand(state, 'shiv', state.player.statuses.infiniteBlades, false);
   }
 
+  // Watcher start-of-turn Mantra & Stance triggers (Damaru, Devotion, Simmering Fury)
+  if (hasRelic(state, 'damaru')) {
+    gainMantra(state, 1);
+  }
+  if ((state.player.statuses.devotion ?? 0) > 0) {
+    gainMantra(state, state.player.statuses.devotion);
+  }
+
+  let simmeringDraw = 0;
+  if ((state.player.statuses.simmeringFury ?? 0) > 0) {
+    simmeringDraw = state.player.statuses.simmeringFury;
+    delete state.player.statuses.simmeringFury;
+    pushCombatLog(combat, `【暗涌之怒】爆发：进入【愤怒】并额外抽 ${simmeringDraw} 张牌！`, 'status');
+    changeStance(state, 'wrath');
+  }
+
   const bagDraw = combat.turn === 1 && hasRelic(state, 'bag_of_prep') ? 2 : 0;
   const snakeDraw = combat.turn === 1 && hasRelic(state, 'ring_of_the_snake') ? 2 : 0;
   const dailyT1Draw = combat.turn === 1 && hasDailyModifier(state, 'time_dilation') ? 1 : 0;
@@ -1348,13 +1576,48 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.ring_of_the_serpent.name}】生效：本回合额外抽 1 张牌。`, 'info');
   }
 
-  drawCards(
-    state,
-    BASE_DRAW_PER_TURN + bagDraw + snakeDraw + dailyT1Draw + serpentDraw + sneckoDraw + toolsDraw + nextTurnDraw
-  );
+  const totalTurnDraw =
+    BASE_DRAW_PER_TURN +
+    bagDraw +
+    snakeDraw +
+    dailyT1Draw +
+    serpentDraw +
+    sneckoDraw +
+    toolsDraw +
+    nextTurnDraw +
+    simmeringDraw;
+
+  // Foresight: Scry before drawing turn cards (resumes turn draw via drawAfterScry)
+  const foresightAmt = state.player.statuses.foresight ?? 0;
+  if (foresightAmt > 0 && combat.drawPile.length > 0 && toolsDraw === 0) {
+    initiateScry(state, foresightAmt, '先见之明', { drawAfterScry: totalTurnDraw });
+  } else {
+    if (foresightAmt > 0 && combat.drawPile.length === 0) {
+      returnDiscardCardsByFlag(state, 'returnOnScry', '【先见之明】');
+    }
+    drawCards(state, totalTurnDraw);
+  }
+
+  if (combat.turn === 1) {
+    if (hasRelic(state, 'holy_water')) {
+      addCardsToHand(state, 'miracle', 3, false);
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.holy_water.name}】生效：将 3 张【奇迹】加入手牌！`,
+        'info'
+      );
+    } else if (hasRelic(state, 'pure_water')) {
+      addCardsToHand(state, 'miracle', 1, false);
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.pure_water.name}】生效：将 1 张【奇迹】加入手牌。`,
+        'info'
+      );
+    }
+  }
 
   if (combat.turn === 1 && hasRelic(state, 'enchiridion') && getAliveEnemies(combat).length > 0) {
-    const charId = state.player.characterId ?? 'ironclad';
+    const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
     const powerPool = Object.values(CARD_LIBRARY)
       .filter(
         (c) =>
@@ -1396,6 +1659,7 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   state.player.energy = state.player.maxEnergy;
   state.player.statuses = {};
   state.player.skipStatusTick = {};
+  state.player.stance = 'neutral';
 
   const deckCopies = state.player.deck.map((c) => ({
     instanceId: c.instanceId,
@@ -1416,6 +1680,11 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     turn: 0,
     phase: 'setup',
     status: 'ongoing',
+    stance: 'neutral',
+    mantraGainedThisCombat: 0,
+    lastCardTypePlayed: null,
+    rushdownTriggersThisTurn: 0,
+    extraTurnQueued: false,
     hpLostThisCombat: 0,
     cardsPlayedThisTurn: 0,
     attacksPlayedThisTurn: 0,
@@ -1481,6 +1750,14 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     pushCombatLog(
       combat,
       `遗物【${RELIC_LIBRARY.snecko_eye.name}】生效：获得【混乱】，每回合额外抽 2 张牌，抽到的牌费用将随机重设！`,
+      'status'
+    );
+  }
+  if (hasRelic(state, 'teardrop_locket')) {
+    changeStance(state, 'calm', { silent: true });
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.teardrop_locket.name}】生效：以【平静】姿态开启战斗！`,
       'status'
     );
   }
@@ -1640,6 +1917,14 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
   const flatBonus = getCardAttackFlatBonus(stats, state.player, combat);
   const attacksBeforeThis = combat.attacksPlayedThisTurn ?? 0;
   const hadDiscardedBeforeThis = (combat.discardedThisTurn ?? 0) > 0;
+  const prevCardType = combat.lastCardTypePlayed ?? null;
+  const targetIntendsAttackBefore = Boolean(
+    targetEnemy &&
+      targetEnemy.hp > 0 &&
+      targetEnemy.intent &&
+      (targetEnemy.intent.type?.startsWith('attack') ||
+        typeof targetEnemy.intent.damage === 'number')
+  );
   const energySpent = stats.isXCost ? state.player.energy : (effectiveCost ?? 0);
   const chemXBonus = stats.isXCost && hasRelic(state, 'chemical_x') ? 2 : 0;
   const effectiveX = energySpent + chemXBonus;
@@ -1674,6 +1959,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
   let totalManualExhaust = 0;
   let totalManualUpgrade = 0;
   let totalScry = 0;
+  let totalDrawAfterScry = 0;
 
   for (let pass = 0; pass < repeatTimes; pass += 1) {
     if (pass > 0) {
@@ -1737,7 +2023,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       }
     }
 
-    // 4. Block gain, Dodge and Roll next-turn block, & Entrench double block (before Body Slam / Iron Wave)
+    // 4. Block gain, Halt Wrath bonus, Spirit Shield, Dodge and Roll next-turn block, & Entrench double block
     if (typeof stats.block === 'number') {
       const gainedBlock = calculateCardBlock(stats.block, state.player);
       addPlayerBlock(state, gainedBlock);
@@ -1747,6 +2033,24 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       if (stats.gainSameBlockNextTurn && gainedBlock > 0) {
         applyStatus(state.player, 'nextTurnBlock', gainedBlock);
         pushCombatLog(combat, `【${stats.name}】将在下回合开始时获得 ${gainedBlock} 点格挡。`, 'block');
+      }
+    }
+    if (typeof stats.wrathBonusBlock === 'number' && combat.stance === 'wrath') {
+      const wrathBlock = calculateCardBlock(stats.wrathBonusBlock, state.player);
+      addPlayerBlock(state, wrathBlock);
+      if (wrathBlock > 0) {
+        pushCombatLog(combat, `【${stats.name}】愤怒加成：额外获得 ${wrathBlock} 点格挡！`, 'block');
+      }
+    }
+    if (typeof stats.blockPerOtherHandCard === 'number' && combat.hand.length > 0) {
+      const ssBlock = calculateCardBlock(combat.hand.length * stats.blockPerOtherHandCard, state.player);
+      addPlayerBlock(state, ssBlock);
+      if (ssBlock > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】根据手中 ${combat.hand.length} 张其他卡牌，获得 ${ssBlock} 点格挡！`,
+          'block'
+        );
       }
     }
     if (stats.doubleBlock && state.player.block > 0) {
@@ -1845,7 +2149,67 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       }
     }
 
-    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Hand of Greed, Feed, Dropkick, Sword Boomerang, Perfected Strike, Glass Knife)
+    // 4e. Judgment instant execute & Pressure Points Mark trigger
+    if (stats.judgmentThreshold && targetEnemy && targetEnemy.hp > 0) {
+      if (targetEnemy.hp <= stats.judgmentThreshold) {
+        const prevHp = targetEnemy.hp;
+        targetEnemy.hp = 0;
+        if (state.stats) {
+          state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + prevHp;
+        }
+        pushCombatLog(
+          combat,
+          `【${stats.name}】神圣裁决！【${targetEnemy.name}】生命值（${prevHp} ≤ ${stats.judgmentThreshold}）瞬间归零！`,
+          'victory'
+        );
+        if (!handleEnemyZeroHp(state, targetEnemy)) {
+          targetEnemy.block = 0;
+          targetEnemy.intent = null;
+          handleEnemyDeathPassives(state, targetEnemy);
+        }
+      } else {
+        pushCombatLog(
+          combat,
+          `【${targetEnemy.name}】生命值（${targetEnemy.hp}）高于 ${stats.judgmentThreshold}，【${stats.name}】未能裁决。`,
+          'info'
+        );
+      }
+    }
+
+    if (stats.applyMarkAndTrigger && targetEnemy && targetEnemy.hp > 0) {
+      applyStatus(targetEnemy, 'mark', stats.applyMarkAndTrigger);
+      pushCombatLog(
+        combat,
+        `【${targetEnemy.name}】获得 ${stats.applyMarkAndTrigger} 层【印记】（当前 ${targetEnemy.statuses.mark} 层）。`,
+        'status'
+      );
+      triggerSadisticNature(state, targetEnemy);
+      for (const enemy of [...getAliveEnemies(combat)]) {
+        if (enemy.hp <= 0) continue;
+        const markStacks = enemy.statuses?.mark ?? 0;
+        if (markStacks > 0) {
+          const markLoss = Math.min(enemy.hp, markStacks);
+          enemy.hp = Math.max(0, enemy.hp - markStacks);
+          if (state.stats && markLoss > 0) {
+            state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + markLoss;
+            state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, markLoss);
+          }
+          pushCombatLog(
+            combat,
+            `【印记】引爆：【${enemy.name}】无视格挡失去 ${markStacks} 点生命！`,
+            'attack'
+          );
+          if (enemy.hp <= 0 && !handleEnemyZeroHp(state, enemy)) {
+            enemy.block = 0;
+            enemy.intent = null;
+            pushCombatLog(combat, `【${enemy.name}】被【印记】击倒！`, 'victory');
+            handleEnemyDeathPassives(state, enemy);
+          }
+        }
+      }
+    }
+
+    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Bowling Bash, Wallop, Lesson Learned, Ragnarok, etc.)
     if (stats.exhaustAllHandDamageEach) {
       const toExhaust = [...combat.hand];
       combat.hand = [];
@@ -1865,6 +2229,8 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       let hits;
       if (stats.hitsPerAttackPlayedThisTurn) {
         hits = attacksBeforeThis;
+      } else if (stats.hitsPerAliveEnemy) {
+        hits = Math.max(1, getAliveEnemies(combat).length);
       } else if (stats.isXCost) {
         hits = effectiveX;
       } else {
@@ -1889,7 +2255,20 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
         const targetAliveBefore = Boolean(targetEnemy && targetEnemy.hp > 0);
         let totalUnblocked = 0;
 
-        if (stats.target === 'all_enemies') {
+        if (stats.randomEnemyHits) {
+          for (let h = 0; h < hits; h += 1) {
+            if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+            const alive = getAliveEnemies(combat);
+            if (alive.length === 0) break;
+            const recipient = pickRandom(state, alive);
+            if (!recipient) break;
+            const dmg = calculateAttackDamage(baseDmg, state.player, recipient, {
+              strengthMultiplier: strMult,
+              flatBonus,
+            });
+            totalUnblocked += dealDamageToEnemy(state, recipient, dmg, { isAttack: true });
+          }
+        } else if (stats.target === 'all_enemies') {
           for (let h = 0; h < hits; h += 1) {
             if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
             const targets = getAliveEnemies(combat);
@@ -1902,19 +2281,6 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
               });
               totalUnblocked += dealDamageToEnemy(state, enemy, dmg, { isAttack: true });
             }
-          }
-        } else if (stats.randomEnemyHits) {
-          for (let h = 0; h < hits; h += 1) {
-            if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
-            const alive = getAliveEnemies(combat);
-            if (alive.length === 0) break;
-            const recipient = pickRandom(state, alive);
-            if (!recipient) break;
-            const dmg = calculateAttackDamage(baseDmg, state.player, recipient, {
-              strengthMultiplier: strMult,
-              flatBonus,
-            });
-            totalUnblocked += dealDamageToEnemy(state, recipient, dmg, { isAttack: true });
           }
         } else if (targetEnemy) {
           for (let h = 0; h < hits; h += 1) {
@@ -1929,6 +2295,15 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
 
         if (state.player.hp <= 0 || combat.status !== 'ongoing') {
           return { ok: true, outcome: state.combat?.status ?? combat.status };
+        }
+
+        if (stats.blockEqualUnblockedDamage && totalUnblocked > 0) {
+          addPlayerBlock(state, totalUnblocked);
+          pushCombatLog(
+            combat,
+            `【${stats.name}】以攻代守：根据未格挡伤害获得 ${totalUnblocked} 点格挡！`,
+            'block'
+          );
         }
 
         if (stats.damageDecayPerPlay) {
@@ -1983,6 +2358,25 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
           );
         }
 
+        if (
+          stats.fatalPermanentUpgrade &&
+          targetAliveBefore &&
+          targetEnemy &&
+          targetEnemy.hp <= 0 &&
+          !targetEnemy.isMinion
+        ) {
+          const upgradableDeck = (state.player.deck || []).filter((c) => canUpgradeCard(c));
+          const chosenDeckCard = pickRandom(state, upgradableDeck);
+          if (chosenDeckCard) {
+            chosenDeckCard.upgraded = true;
+            pushCombatLog(
+              combat,
+              `【${stats.name}】斩杀领悟：永久升级了牌组中的【${getCardStats(chosenDeckCard).name}】！`,
+              'victory'
+            );
+          }
+        }
+
         if (stats.lifestealUnblocked && totalUnblocked > 0 && state.player.hp > 0) {
           const before = state.player.hp;
           state.player.hp = Math.min(state.player.maxHp, state.player.hp + totalUnblocked);
@@ -2019,7 +2413,36 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       pushCombatLog(combat, `将 1 张【${stats.name}】复制品放入弃牌堆。`, 'info');
     }
 
-    // 6. Enemy status application (Poison, Disarm, Piercing Wail, Malaise, Bouncing Flask, Catalyst, Sadistic Nature)
+    // 5b. Watcher last-card-type chain bonuses (Crush Joints, Sash Whip, Follow-Up)
+    if (stats.ifLastCardType && prevCardType === stats.ifLastCardType.type) {
+      if (stats.ifLastCardType.applyEnemyStatuses && targetEnemy && targetEnemy.hp > 0) {
+        for (const [sKey, sVal] of Object.entries(stats.ifLastCardType.applyEnemyStatuses)) {
+          applyStatus(targetEnemy, sKey, sVal);
+          const sMeta = STATUS_METADATA[sKey];
+          pushCombatLog(
+            combat,
+            `【${stats.name}】连携触发：【${targetEnemy.name}】获得 ${sVal} 层【${sMeta?.name ?? sKey}】！`,
+            'status'
+          );
+          if (sMeta?.polarity === 'debuff') {
+            triggerSadisticNature(state, targetEnemy);
+          }
+        }
+      }
+      if (stats.ifLastCardType.gainEnergy) {
+        state.player.energy += stats.ifLastCardType.gainEnergy;
+        pushCombatLog(
+          combat,
+          `【${stats.name}】连携触发：获得 ${stats.ifLastCardType.gainEnergy} 点能量！`,
+          'info'
+        );
+      }
+      if (stats.ifLastCardType.draw && getAliveEnemies(combat).length > 0) {
+        drawCards(state, stats.ifLastCardType.draw);
+      }
+    }
+
+    // 6. Enemy status application (Poison, Disarm, Piercing Wail, Malaise, Bouncing Flask, Catalyst, Talk to the Hand)
     if (stats.applyEnemyStatuses) {
       const recipients =
         stats.target === 'all_enemies'
@@ -2153,7 +2576,9 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
         ? state.player.potions.findIndex((p) => p === null)
         : -1;
       if (emptySlot !== -1) {
-        const potionPool = getAvailablePotionIds(state.player.characterId ?? 'ironclad');
+        const potionPool = getAvailablePotionIds(
+          state.characterId ?? state.player.characterId ?? 'ironclad'
+        );
         const potId = pickRandom(state, potionPool);
         if (potId) {
           state.player.potions[emptySlot] = potId;
@@ -2168,7 +2593,7 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       }
     }
 
-    // 7. Self status application & Limit Break
+    // 7. Self status application, Limit Break, Stances & Mantra
     if (stats.applySelfStatuses) {
       for (const [statusKey, val] of Object.entries(stats.applySelfStatuses)) {
         applyStatus(state.player, statusKey, val);
@@ -2190,18 +2615,47 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       }
     }
 
-    // 8. Draw cards (& Escape Plan conditional Skill Block)
-    if (stats.draw) {
-      const drawnNow = [];
-      drawCards(state, stats.draw, { outDrawnCards: drawnNow });
-      if (
-        stats.drawSkillGainBlock &&
-        drawnNow.length > 0 &&
-        getCardStats(drawnNow[0]).type === 'skill'
-      ) {
-        const epBlock = calculateCardBlock(stats.drawSkillGainBlock, state.player);
-        addPlayerBlock(state, epBlock);
-        pushCombatLog(combat, `【${stats.name}】抽到了技能牌，获得 ${epBlock} 点格挡！`, 'block');
+    if (stats.ifTargetAttackingEnterStance && targetIntendsAttackBefore) {
+      changeStance(state, stats.ifTargetAttackingEnterStance);
+    }
+    if (stats.ifInCalmDrawElseCalm) {
+      if (combat.stance === 'calm') {
+        drawCards(state, stats.ifInCalmDrawElseCalm);
+      } else {
+        changeStance(state, 'calm');
+      }
+    }
+    if (stats.enterStance) {
+      changeStance(state, stats.enterStance);
+    }
+    if (stats.exitStance) {
+      changeStance(state, 'neutral');
+    }
+    if (stats.gainMantra) {
+      gainMantra(state, stats.gainMantra);
+    }
+
+    // 8. Draw cards (& Scrawl draw-to-full / Escape Plan conditional Skill Block / deferred Scry+Draw)
+    if (stats.drawUntilHandFull) {
+      const needDraw = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
+      if (needDraw > 0) {
+        drawCards(state, needDraw);
+      }
+    } else if (stats.draw) {
+      if (stats.scry && !stats.drawSkillGainBlock) {
+        totalDrawAfterScry += stats.draw;
+      } else {
+        const drawnNow = [];
+        drawCards(state, stats.draw, { outDrawnCards: drawnNow });
+        if (
+          stats.drawSkillGainBlock &&
+          drawnNow.length > 0 &&
+          getCardStats(drawnNow[0]).type === 'skill'
+        ) {
+          const epBlock = calculateCardBlock(stats.drawSkillGainBlock, state.player);
+          addPlayerBlock(state, epBlock);
+          pushCombatLog(combat, `【${stats.name}】抽到了技能牌，获得 ${epBlock} 点格挡！`, 'block');
+        }
       }
     }
 
@@ -2212,9 +2666,13 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
       }
     }
 
-    // 9b. Player per-card & per-attack reactive powers & relics (After Image, A Thousand Cuts, Shuriken, Kunai)
+    // 9b. Player per-card & per-attack reactive powers & relics (Duality, After Image, A Thousand Cuts, Shuriken, Kunai)
     if (stats.type === 'attack') {
       combat.attacksPlayedThisTurn = (combat.attacksPlayedThisTurn ?? 0) + 1;
+      if (hasRelic(state, 'duality')) {
+        applyStatus(state.player, 'dexterity', 1);
+        applyStatus(state.player, 'tempDexterityDown', 1);
+      }
       if (hasRelic(state, 'shuriken')) {
         combat.shurikenCounter = (combat.shurikenCounter ?? 0) + 1;
         if (combat.shurikenCounter >= 3) {
@@ -2292,6 +2750,8 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     }
   }
 
+  combat.lastCardTypePlayed = stats.type;
+
   // 11. Move card to final destination (before pendingCardChoice so deck cycle stays exact)
   if (stats.type === 'power') {
     // Powers stay active on character and leave deck cycle for combat
@@ -2301,6 +2761,10 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     (stats.type === 'status' && stats.unplayable && hasRelic(state, 'medical_kit'))
   ) {
     exhaustCardsBatch(state, [cardInstance]);
+  } else if (stats.shuffleSelfToDraw) {
+    const insertIdx = randomInt(state, 0, combat.drawPile.length);
+    combat.drawPile.splice(insertIdx, 0, cardInstance);
+    pushCombatLog(combat, `【${stats.name}】已洗回抽牌堆。`, 'info');
   } else {
     combat.discardPile.push(cardInstance);
   }
@@ -2402,7 +2866,25 @@ export function playCard(state, instanceId, targetEnemyId = null, onVictoryCallb
     } else if (totalManualUpgrade > 0) {
       requestHandCardChoice(state, 'upgrade', totalManualUpgrade, stats.name, onVictoryCallback);
     } else if (totalScry > 0) {
-      initiateScry(state, totalScry, stats.name);
+      initiateScry(state, totalScry, stats.name, { drawAfterScry: totalDrawAfterScry });
+    }
+  }
+
+  // 12b. Vault (extra turn skipping enemies) & Conclude (immediate end turn)
+  if (
+    getAliveEnemies(combat).length > 0 &&
+    state.player.hp > 0 &&
+    combat.status === 'ongoing' &&
+    !hasPendingCardChoice(combat)
+  ) {
+    if (stats.extraTurn) {
+      combat.extraTurnQueued = true;
+      pushCombatLog(combat, `【${stats.name}】时空跃迁：跳过敌方回合，立即开启新回合！`, 'victory');
+      return endPlayerTurn(state, onVictoryCallback);
+    }
+    if (stats.endTurnAfter) {
+      pushCombatLog(combat, `【${stats.name}】落下终章，自动结束本回合。`, 'info');
+      return endPlayerTurn(state, onVictoryCallback);
     }
   }
 
@@ -2493,6 +2975,13 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
       Boolean(potion.addCardsToHand.upgraded)
     );
   }
+  if (potion.enterStance) {
+    changeStance(state, potion.enterStance);
+    if (potion.enterStance === 'divinity' && mult > 1) {
+      state.player.energy += 3;
+      pushCombatLog(combat, '【神圣树皮】加持【神格甘露】：额外再获得 3 点能量！', 'info');
+    }
+  }
   if (potion.healPct && state.player.hp > 0) {
     const healAmt = Math.max(1, Math.floor((state.player.maxHp * (potion.healPct * mult)) / 100));
     const before = state.player.hp;
@@ -2550,12 +3039,17 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     }
   }
 
-  // 0. Temporary Strength decay (Flex)
+  // 0. Temporary Strength & Dexterity decay (Flex / Duality)
   if ((state.player.statuses.tempStrengthDown ?? 0) > 0) {
     const drop = state.player.statuses.tempStrengthDown;
     delete state.player.statuses.tempStrengthDown;
     applyStatus(state.player, 'strength', -drop);
     pushCombatLog(combat, `临时强化消退，失去 ${drop} 点力量。`, 'status');
+  }
+  if ((state.player.statuses.tempDexterityDown ?? 0) > 0) {
+    const dropDex = state.player.statuses.tempDexterityDown;
+    delete state.player.statuses.tempDexterityDown;
+    applyStatus(state.player, 'dexterity', -dropDex);
   }
 
   // 1. Resolve end-of-turn hand curses/statuses (Burn, Regret, Doubt), then Ethereal / Retain / Discard
@@ -2584,6 +3078,7 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
   }
 
   const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
+  const establishmentDiscount = state.player.statuses.establishment ?? 0;
   const etherealToExhaust = [];
   const retainedHand = [];
   for (const cardInstance of combat.hand) {
@@ -2592,6 +3087,18 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
       etherealToExhaust.push(cardInstance);
     } else if (stats.retain || keepHandByPyramid) {
       retainedHand.push(cardInstance);
+      if (stats.retainCostReduce) {
+        cardInstance.retainedCostDiscount =
+          (cardInstance.retainedCostDiscount ?? 0) + stats.retainCostReduce;
+      }
+      if (stats.retainScaleBlock) {
+        cardInstance.combatBlockMod =
+          (cardInstance.combatBlockMod ?? 0) + stats.retainScaleBlock;
+      }
+      if (establishmentDiscount > 0 && !stats.unplayable && !stats.isXCost && typeof stats.cost === 'number') {
+        cardInstance.retainedCostDiscount =
+          (cardInstance.retainedCostDiscount ?? 0) + establishmentDiscount;
+      }
     } else {
       combat.discardPile.push(cardInstance);
     }
@@ -2606,7 +3113,7 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     }
   }
 
-  // 2. End of turn relics & powers
+  // 2. End of turn relics & powers (Orichalcum, Metallicize, Like Water, Omega)
   if (hasRelic(state, 'orichalcum') && state.player.block === 0) {
     addPlayerBlock(state, 6);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.orichalcum.name}】生效：获得 6 点格挡。`, 'block');
@@ -2616,8 +3123,31 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     addPlayerBlock(state, m);
     pushCombatLog(combat, `【金属化】生效：获得 ${m} 点格挡。`, 'block');
   }
+  if ((state.player.statuses.likeWater ?? 0) > 0 && combat.stance === 'calm') {
+    const lw = state.player.statuses.likeWater;
+    addPlayerBlock(state, lw);
+    pushCombatLog(combat, `【上善若水】生效（平静姿态）：获得 ${lw} 点格挡！`, 'block');
+  }
+  if ((state.player.statuses.omega ?? 0) > 0) {
+    const omegaDmg = state.player.statuses.omega;
+    const alive = getAliveEnemies(combat);
+    if (alive.length > 0) {
+      pushCombatLog(combat, `【终焉】降临：对所有敌人造成 ${omegaDmg} 点毁灭性伤害！`, 'attack');
+      for (const enemy of alive) {
+        dealDamageToEnemy(state, enemy, omegaDmg, { isAttack: false });
+      }
+    }
+  }
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     finalizeCombatVictory(state, onVictoryCallback);
+    return { ok: true, outcome: state.combat?.status ?? combat.status };
+  }
+
+  // Vault extra turn: skip enemy phase completely and immediately start player's next turn
+  if (combat.extraTurnQueued) {
+    combat.extraTurnQueued = false;
+    decayRoundStatuses(state.player);
+    startPlayerTurn(state, onVictoryCallback);
     return { ok: true, outcome: state.combat?.status ?? combat.status };
   }
 
@@ -3094,7 +3624,7 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
         'status'
       );
     }
-    enemy.intent = rollEnemyIntent(state, enemy);
+    enemy.intent = rollEnemyIntent(state, enemy, state.player, combat);
   }
 
   // 5. Start next Player turn
@@ -3109,6 +3639,7 @@ function finalizeCombatVictory(state, onVictoryCallback = null) {
   combat.status = 'victory';
   combat.phase = 'ended';
   state.player.block = 0;
+  state.player.stance = 'neutral';
   state.player.statuses = {};
   state.player.skipStatusTick = {};
   state.combatSnapshot = null;

@@ -857,23 +857,18 @@ function renderScryChoiceModal({ state }) {
 
   return `
     <div class="modal-backdrop" id="modal-backdrop" data-action="noop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal-sheet" id="scry-choice-modal">
-        <div class="modal-header">
-          <div>
+      <div class="modal-sheet scry-modal-sheet" id="scry-choice-modal">
+        <div class="modal-header scry-modal-header">
+          <div class="scry-header-copy">
             <h2 id="modal-title" class="stage-heading">预见（Scry）· ${escapeHtml(pending.sourceName)}</h2>
-            <p class="stage-subtitle">以下为抽牌堆顶部的 ${escapeHtml(candidates.length)} 张牌（从左至右依次抽取）。点击卡牌可标记弃置，未标记的卡牌将按原顺序保留在牌堆顶。</p>
+            <p class="stage-subtitle">抽牌堆顶 ${escapeHtml(candidates.length)} 张牌（从左至右依次抽取）。点击标记弃置，未标记按原序保留。</p>
           </div>
-          <button type="button" id="btn-confirm-scry" class="btn-brass" data-action="confirm-scry-choice">
+          <button type="button" id="btn-confirm-scry" class="btn-brass scry-confirm-btn" data-action="confirm-scry-choice">
             确认预见（弃置 ${escapeHtml(discardCount)} · 保留 ${escapeHtml(keepCount)}）
           </button>
         </div>
         <div class="modal-body">
           <div class="card-showcase scry-showcase" id="scry-card-list">${cardsHtml}</div>
-          <div style="display:flex;justify-content:flex-end;margin-top:14px;">
-            <button type="button" id="btn-confirm-scry-bottom" class="btn-brass" data-action="confirm-scry-choice">
-              确认预见（弃置 ${escapeHtml(discardCount)} · 保留 ${escapeHtml(keepCount)}）
-            </button>
-          </div>
         </div>
       </div>
     </div>

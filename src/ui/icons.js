@@ -80,6 +80,53 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'watcher':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="wt-robe" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(276, 52%, 40%)" />
+              <stop offset="100%" stop-color="hsl(268, 52%, 17%)" />
+            </linearGradient>
+            <linearGradient id="wt-sash" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(44, 90%, 66%)" />
+              <stop offset="100%" stop-color="hsl(32, 76%, 44%)" />
+            </linearGradient>
+            <linearGradient id="wt-staff" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(46, 92%, 72%)" />
+              <stop offset="100%" stop-color="hsl(28, 52%, 34%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="38" ry="7" fill="hsla(0,0%,0%,0.48)" />
+          <!-- Orbiting stance aura petals (Calm cyan / Wrath crimson / Divinity gold) -->
+          <circle cx="22" cy="40" r="6" fill="hsla(198, 90%, 64%, 0.24)" stroke="hsl(196, 92%, 68%)" stroke-width="1.4" />
+          <circle cx="22" cy="40" r="2.3" fill="hsl(196, 96%, 80%)" />
+          <circle cx="26" cy="22" r="4.5" fill="hsla(44, 94%, 64%, 0.25)" stroke="hsl(44, 94%, 68%)" stroke-width="1.3" />
+          <circle cx="96" cy="24" r="5" fill="hsla(352, 86%, 58%, 0.26)" stroke="hsl(352, 88%, 66%)" stroke-width="1.3" />
+          <!-- Flowing amethyst robe & wide sleeves -->
+          <path d="M36 46 Q20 68 24 102 L48 99 L60 104 L74 99 L94 102 Q90 68 78 46 Z" fill="url(#wt-robe)" stroke="hsl(282, 54%, 56%)" stroke-width="1.8" />
+          <!-- Golden monastery sash & inner tunic -->
+          <path d="M44 48 Q60 43 74 48 L70 98 L48 98 Z" fill="hsl(266, 36%, 14%)" />
+          <path d="M44 50 L74 68 L70 76 L46 58 Z" fill="url(#wt-sash)" opacity="0.92" />
+          <path d="M47 72 L72 72 L69 78 L49 78 Z" fill="hsl(338, 72%, 52%)" />
+          <!-- Cowl & hood -->
+          <path d="M38 44 Q42 15 60 13 Q78 15 82 44 Q71 52 60 52 Q49 52 38 44 Z" fill="url(#wt-robe)" stroke="hsl(284, 58%, 60%)" stroke-width="1.8" />
+          <!-- Face & iconic silk blindfold -->
+          <ellipse cx="60" cy="34" rx="13" ry="14" fill="hsl(32, 34%, 76%)" />
+          <path d="M45 29 Q60 26 75 29 L74 37 Q60 39 46 37 Z" fill="hsl(44, 34%, 88%)" stroke="hsl(276, 44%, 44%)" stroke-width="1.3" />
+          <!-- Floating blindfold ribbon tails -->
+          <path d="M45 31 Q32 34 26 42" stroke="hsl(44, 36%, 86%)" stroke-width="3" stroke-linecap="round" fill="none" />
+          <path d="M46 35 Q34 40 30 49" stroke="hsl(44, 32%, 78%)" stroke-width="2.2" stroke-linecap="round" fill="none" />
+          <!-- Third-eye lotus sigil on blindfold -->
+          <path d="M60 28 L64 33 L60 37 L56 33 Z" fill="hsl(292, 92%, 70%)" stroke="hsl(44, 96%, 76%)" stroke-width="1.1" />
+          <!-- Martial lotus staff on right -->
+          <line x1="94" y1="20" x2="84" y2="102" stroke="url(#wt-staff)" stroke-width="4.2" stroke-linecap="round" />
+          <path d="M94 12 Q103 18 99 26 Q94 22 94 12 Z" fill="hsl(292, 86%, 72%)" stroke="hsl(44, 94%, 70%)" stroke-width="1.2" />
+          <path d="M94 12 Q85 18 89 26 Q94 22 94 12 Z" fill="hsl(292, 86%, 72%)" stroke="hsl(44, 94%, 70%)" stroke-width="1.2" />
+          <circle cx="94" cy="21" r="4.2" fill="hsl(44, 96%, 72%)" />
+        </svg>
+      `;
+
     case 'cultist':
       return `
         <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">

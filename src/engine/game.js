@@ -186,6 +186,7 @@ export function createNewRun(options = {}) {
       maxEnergy: charDef.maxEnergy ?? 3,
       energy: charDef.maxEnergy ?? 3,
       block: 0,
+      stance: 'neutral',
       relics: [charDef.starterRelic],
       potions: [
         charDef.starterPotion,
@@ -1703,7 +1704,7 @@ export function chooseEventOption(state, choiceId) {
         const bossTemplateEnc = pickRandom(state, ENCOUNTERS.boss);
         const cloneEnc = {
           id: `mind_bloom_${bossTemplateEnc.id}`,
-          name: `心花幻影：${bossTemplateEnc.name.replace(/^终幕首领：/, '')}`,
+          name: `心花幻影：${bossTemplateEnc.name.replace(/^(?:终幕)?首领：/, '')}`,
           enemies: bossTemplateEnc.enemies.map((e) => ({ ...e, customRole: 'normal' })),
         };
         state.eventCombatReward = { gold: tune.mindBloomWarGold, relicTier: 'rare' };
@@ -2279,7 +2280,12 @@ export function generateNeowState(state) {
   const charDef = getCharacterDef(state?.characterId);
   const starterRelicName = RELIC_LIBRARY[charDef.starterRelic]?.name || charDef.starterRelic;
   const charName = charDef.name;
-  const upgradeHint = charDef.id === 'silent' ? '如中和+ 或 幸存者+' : '如痛击+ 或 防御+';
+  const upgradeHint =
+    charDef.id === 'silent'
+      ? '如中和+ 或 幸存者+'
+      : charDef.id === 'watcher'
+        ? '如爆发+ 或 警惕+'
+        : '如痛击+ 或 防御+';
   const swapPoolCount = getRelicPoolsForCharacter(charDef.id).boss.filter(
     (id) => !RELIC_LIBRARY[id]?.requiresRelic
   ).length;

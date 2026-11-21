@@ -285,6 +285,7 @@ export const EVENT_LIBRARY = deepFreeze({
     id: 'masked_bandits',
     title: '蒙面强盗团',
     minAct: 2,
+    maxAct: 2,
     description:
       '几名戴着猩红面罩的盗匪从阴影中蜂拥而出，堵住了去路：“把钱袋交出来，或者尝尝我们的刀刃！”',
     options: [

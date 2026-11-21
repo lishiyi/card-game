@@ -99,6 +99,7 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
     const bonusParts = [];
     if (preview.goldOnKill > 0) bonusParts.push(`+${preview.goldOnKill}金`);
     if (preview.maxHpOnKill > 0) bonusParts.push(`+${preview.maxHpOnKill}上限`);
+    if (preview.fatalPermanentUpgrade) bonusParts.push('+永久升级');
     const bonusNote = bonusParts.length > 0 ? ` ${bonusParts.join(' ')}` : '';
     const label = preview.isShieldBreak
       ? `破盾斩杀 (-${preview.totalDamage}${bonusNote})`

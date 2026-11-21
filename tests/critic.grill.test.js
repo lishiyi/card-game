@@ -69,6 +69,11 @@ function assertRunInvariants(state, contextMsg = '') {
     const c = state.combat;
     assert.ok(Number.isFinite(state.player.energy) && state.player.energy >= 0, `Invalid energy: ${state.player.energy}`);
     assert.ok(Number.isFinite(state.player.block) && state.player.block >= 0, `Invalid block: ${state.player.block}`);
+    assert.equal(
+      c.stance || 'neutral',
+      state.player.stance || 'neutral',
+      `Combat/player stance desync (${contextMsg})`
+    );
     assert.ok(c.hand.length <= MAX_HAND_SIZE, `Hand exceeded MAX_HAND_SIZE: ${c.hand.length}`);
 
     // No card instance should ever exist in two piles simultaneously!
@@ -117,6 +122,9 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   }, TypeError);
   assert.throws(() => {
     CHARACTER_LIBRARY.silent.maxHp = 999;
+  }, TypeError);
+  assert.throws(() => {
+    CHARACTER_LIBRARY.watcher.maxHp = 999;
   }, TypeError);
 });
 
@@ -222,14 +230,14 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad & Silent, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
+test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad, Silent & Watcher, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
   let victories = 0;
   let defeats = 0;
   let act2Entries = 0;
 
   for (let seed = 1000; seed < 1150; seed += 1) {
     const ascension = seed % 2 === 0 ? 0 : (seed % 10) + 1;
-    const characterId = seed % 2 === 0 ? 'silent' : 'ironclad';
+    const characterId = ['ironclad', 'silent', 'watcher'][seed % 3];
     const state = createNewRun({ seed, characterId, ascension, unlockAllOverride: true });
     assertRunInvariants(state, `init ${characterId} seed ${seed}`);
 
