@@ -2075,9 +2075,30 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 47 enemy SVGs have unique hero-tier gradients & all 233 cards resolve valid vector card art', () => {
+test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients & all 233 cards resolve valid, richly de-duplicated vector art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
-  const seenEnemyGradIds = new Set();
+  const seenUnitGradIds = new Set();
+
+  // Verify 3 playable hero portraits
+  for (const heroId of ['ironclad', 'silent', 'watcher']) {
+    const svg = getCharacterSvg(heroId);
+    assert.notEqual(svg, fallbackSvg, `Hero ${heroId} must not fall back to generic SVG`);
+    assert.ok(svg.includes('class="unit-svg hero-svg"'), `Hero ${heroId} must use hero-tier SVG class`);
+    assert.ok(svg.includes('radialGradient') && svg.includes('linearGradient'), `Hero ${heroId} must use multi-layer shading & aura`);
+    for (const m of svg.matchAll(/id="([^"]+)"/g)) {
+      assert.equal(seenUnitGradIds.has(m[1]), false, `Duplicate hero SVG gradient id: ${m[1]} (${heroId})`);
+      seenUnitGradIds.add(m[1]);
+    }
+    const tabSvg = getCharacterSvg(heroId, 'normal', 'tab');
+    for (const m of tabSvg.matchAll(/id="([^"]+)"/g)) {
+      assert.ok(m[1].endsWith('-tab'), `Scoped hero SVG gradient id must end with -tab: ${m[1]}`);
+      assert.equal(seenUnitGradIds.has(m[1]), false, `Scoped hero SVG id must not collide with base id: ${m[1]}`);
+    }
+    for (const m of tabSvg.matchAll(/url\(#([^)]+)\)/g)) {
+      assert.ok(m[1].endsWith('-tab'), `Scoped hero SVG url() reference must end with -tab: ${m[1]}`);
+    }
+  }
+
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
   assert.equal(enemyEntries.length, 47);
 
@@ -2090,23 +2111,42 @@ test('Art Integrity: all 47 enemy SVGs have unique hero-tier gradients & all 233
       `Enemy ${id} SVG must use hero-tier gradient shading`
     );
     for (const m of svg.matchAll(/id="([^"]+)"/g)) {
-      assert.equal(seenEnemyGradIds.has(m[1]), false, `Duplicate enemy SVG gradient id: ${m[1]} (${id})`);
-      seenEnemyGradIds.add(m[1]);
+      assert.equal(seenUnitGradIds.has(m[1]), false, `Duplicate unit SVG gradient id: ${m[1]} (${id})`);
+      seenUnitGradIds.add(m[1]);
     }
   }
   const guardianDefSvg = getCharacterSvg('the_guardian', 'defensive');
   assert.ok(guardianDefSvg.includes('ea-gd-orb') && guardianDefSvg.includes('radialGradient'));
+  for (const m of guardianDefSvg.matchAll(/id="([^"]+)"/g)) {
+    assert.equal(seenUnitGradIds.has(m[1]), false, `Duplicate Guardian defensive gradient id: ${m[1]}`);
+    seenUnitGradIds.add(m[1]);
+  }
 
   const cardEntries = Object.entries(CARD_LIBRARY);
   assert.equal(cardEntries.length, 233);
-  for (const sigId of Object.keys(SIGNATURE_CARD_ART)) {
+  const sigKeys = Object.keys(SIGNATURE_CARD_ART);
+  assert.ok(sigKeys.length >= 200, `Expected >=200 bespoke signature card arts, got ${sigKeys.length}`);
+  const seenCardGradIds = new Set();
+  for (const sigId of sigKeys) {
     assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
+    for (const m of SIGNATURE_CARD_ART[sigId].matchAll(/id="([^"]+)"/g)) {
+      assert.equal(seenCardGradIds.has(m[1]), false, `Duplicate card SVG gradient id: ${m[1]} (${sigId})`);
+      seenCardGradIds.add(m[1]);
+    }
   }
-  for (const [cid] of cardEntries) {
+  const artBucketCounts = {};
+  for (const [cid, cardDef] of cardEntries) {
+    if (cardDef.rarity === 'rare' || cardDef.type === 'status' || cardDef.type === 'curse') {
+      assert.ok(SIGNATURE_CARD_ART[cid], `Card ${cid} (${cardDef.rarity}/${cardDef.type}) must have bespoke signature art`);
+    }
     const stats = getCardStats({ instanceId: `art_${cid}`, cardId: cid, upgraded: false });
+    const key = getCardArtKey(cid, stats, cardDef.character);
+    artBucketCounts[key] = (artBucketCounts[key] || 0) + 1;
     const svg = getCardArtSvg(cid, stats);
     assert.ok(svg.includes('class="card-art-svg"') && svg.includes('</svg>'), `Card ${cid} must render valid vector art`);
   }
+  const maxSharedCount = Math.max(...Object.values(artBucketCounts));
+  assert.ok(maxSharedCount <= 8, `No card art template should be shared by >8 cards (got max=${maxSharedCount})`);
 
   // Shared Strike/Defend tint dynamically by active hero
   const strikeStats = getCardStats({ instanceId: 's', cardId: 'strike', upgraded: false });

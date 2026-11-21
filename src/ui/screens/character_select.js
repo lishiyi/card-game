@@ -265,7 +265,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
         data-action="select-character"
         data-character-id="${escapeHtml(def.id)}"
       >
-        <span class="mobile-char-tab-portrait">${getCharacterSvg(def.artKey)}</span>
+        <span class="mobile-char-tab-portrait">${getCharacterSvg(def.artKey, 'normal', 'tab')}</span>
         <span class="mobile-char-tab-name">${escapeHtml(def.name)}</span>
         <span class="mobile-char-tab-meta">A${escapeHtml(charMaxAsc)}</span>
       </button>

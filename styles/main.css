@@ -1304,14 +1304,18 @@ button:disabled {
 
 .card-art-frame {
   width: 100%;
-  height: 46px;
+  height: 52px;
   margin-bottom: 7px;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid hsla(38, 30%, 62%, 0.24);
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.52);
+  border: 1px solid hsla(38, 34%, 64%, 0.28);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.56);
   background: hsl(24, 14%, 11%);
   flex-shrink: 0;
+}
+
+.card-showcase .card-art-frame {
+  height: 56px;
 }
 
 .game-card.rarity-uncommon .card-art-frame {
@@ -4527,7 +4531,7 @@ body.spire-dragging {
   }
 
   .card-art-frame {
-    height: 36px;
+    height: 40px;
     margin-bottom: 5px;
   }
 
@@ -5402,7 +5406,7 @@ body.spire-dragging {
   }
 
   .hand-tray .game-card .card-art-frame {
-    height: 30px;
+    height: 34px;
     margin-bottom: 4px;
   }
 
@@ -5436,7 +5440,7 @@ body.spire-dragging {
   }
 
   .card-showcase .card-art-frame {
-    height: 34px;
+    height: 42px;
     margin-bottom: 5px;
   }
 
@@ -6610,6 +6614,96 @@ body.spire-dragging {
     font-size: 0.64rem;
   }
 }
+
+/* === Hero, Boss & Enemy Vector Art Micro-Animations === */
+.unit-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.42));
+}
+
+.unit-svg.boss-svg {
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.56));
+}
+
+.unit-svg .svg-breathe {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: spireSvgBreathe 3.4s ease-in-out infinite;
+}
+
+.unit-svg .svg-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spireSvgFloat 3.8s ease-in-out infinite;
+}
+
+.unit-svg .svg-pulse {
+  animation: spireSvgPulse 2.6s ease-in-out infinite;
+}
+
+.unit-svg .svg-spin-slow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spireSvgSpin 22s linear infinite;
+}
+
+@keyframes spireSvgBreathe {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(-1.5px) scaleY(1.014);
+  }
+}
+
+@keyframes spireSvgFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes spireSvgPulse {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spireSvgSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[data-anim-speed='off'] .unit-svg .svg-breathe,
+[data-anim-speed='off'] .unit-svg .svg-float,
+[data-anim-speed='off'] .unit-svg .svg-pulse,
+[data-anim-speed='off'] .unit-svg .svg-spin-slow,
+.fighter-unit.dead .unit-svg *,
+.fighter-unit.regrowing .unit-svg *,
+.mobile-char-tab-portrait .unit-svg * {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unit-svg .svg-breathe,
+  .unit-svg .svg-float,
+  .unit-svg .svg-pulse,
+  .unit-svg .svg-spin-slow {
+    animation: none !important;
+  }
+}
+
 
 
 
