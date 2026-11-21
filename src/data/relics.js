@@ -1310,7 +1310,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   infiniteBlades: {
     id: 'infiniteBlades',
-    name: '无尽刀刃',
+    name: '无限刀刃',
     polarity: 'buff',
     describe: (v) => `每回合开始时，将 ${v} 张【小刀】加入手牌。`,
   },
@@ -1346,7 +1346,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   toolsOfTheTrade: {
     id: 'toolsOfTheTrade',
-    name: '独门秘技',
+    name: '必备工具',
     polarity: 'buff',
     describe: (v) => `每回合开始时，额外抽 ${v} 张牌并选择弃掉 ${v} 张手牌。`,
   },
@@ -1394,7 +1394,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   sadisticNature: {
     id: 'sadisticNature',
-    name: '残虐本性',
+    name: '残虐天性',
     polarity: 'buff',
     describe: (v) => `每当你对敌人施加 1 个负面状态（中毒/虚弱/易伤/尸爆）时，对其造成 ${v} 点固定伤害。`,
   },
@@ -1486,7 +1486,7 @@ export const STATUS_METADATA = deepFreeze({
     id: 'gainStrengthEndTurn',
     name: '力量恢复',
     polarity: 'buff',
-    describe: (v) => `受【刺耳尖啸】临时压制的力量：本回合结束时将恢复 ${v} 点力量。`,
+    describe: (v) => `受【尖啸】或【黑暗镣铐】临时压制的力量：本回合结束时将恢复 ${v} 点力量。`,
   },
   evolve: {
     id: 'evolve',
@@ -1621,13 +1621,13 @@ export const STATUS_METADATA = deepFreeze({
   },
   talkToTheHand: {
     id: 'talkToTheHand',
-    name: '别烦我',
+    name: '以手拒之',
     polarity: 'debuff',
     describe: (v) => `每当玩家对该敌人造成一次攻击伤害时，玩家立即获得 ${v} 点格挡。`,
   },
   likeWater: {
     id: 'likeWater',
-    name: '上善若水',
+    name: '如水',
     polarity: 'buff',
     describe: (v) => `回合结束时，若你处于【平静】姿态，自动获得 ${v} 点格挡。`,
   },
@@ -1639,7 +1639,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   rushdown: {
     id: 'rushdown',
-    name: '猛冲',
+    name: '猛虎下山',
     polarity: 'buff',
     describe: (v) => `每当你进入【愤怒】姿态时，立即抽 ${v} 张牌（无单回合次数上限）。`,
   },
@@ -1657,13 +1657,13 @@ export const STATUS_METADATA = deepFreeze({
   },
   devotion: {
     id: 'devotion',
-    name: '虔诚',
+    name: '虔信',
     polarity: 'buff',
     describe: (v) => `每回合开始时，自动获得 ${v} 点【真言】。`,
   },
   establishment: {
     id: 'establishment',
-    name: '确立',
+    name: '确立基础',
     polarity: 'buff',
     describe: (v) => `每回合结束时，所有被【保留】在手牌中的卡牌本场战斗费用永久减少 ${v} 点。`,
   },
@@ -1675,7 +1675,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   omega: {
     id: 'omega',
-    name: '终焉',
+    name: '欧米伽',
     polarity: 'buff',
     describe: (v) => `每回合结束时，对所有敌人造成 ${v} 点毁灭性固定伤害。`,
   },
@@ -1687,7 +1687,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   simmeringFury: {
     id: 'simmeringFury',
-    name: '暗涌之怒',
+    name: '怒火中烧',
     polarity: 'buff',
     describe: (v) => `下回合开始时，自动进入【愤怒】姿态并额外抽 ${v} 张牌。`,
   },
@@ -1747,13 +1747,13 @@ export const STATUS_METADATA = deepFreeze({
   },
   wellLaidPlans: {
     id: 'wellLaidPlans',
-    name: '深谋远虑',
+    name: '计划妥当',
     polarity: 'buff',
     describe: (v) => `回合结束时，你可以选择保留手中最多 ${v} 张牌至下回合。`,
   },
   choke: {
     id: 'choke',
-    name: '锁喉',
+    name: '勒脖',
     polarity: 'debuff',
     describe: (v) => `本回合你每打出 1 张卡牌，该敌人额外失去 ${v} 点生命。`,
   },
@@ -1777,7 +1777,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   waveOfTheHand: {
     id: 'waveOfTheHand',
-    name: '挥手如潮',
+    name: '摆手',
     polarity: 'buff',
     describe: (v) => `本回合每获得 1 次格挡，立即给予所有敌人 ${v} 层【虚弱】。`,
   },
@@ -1785,23 +1785,23 @@ export const STATUS_METADATA = deepFreeze({
     id: 'battleHymn',
     name: '战歌',
     polarity: 'buff',
-    describe: (v) => `每回合开始时，将 ${v} 张【惩戒】（1 费保留消耗，12 伤害）加入手牌。`,
+    describe: (v) => `每回合开始时，将 ${v} 张【惩恶】（1 费保留消耗，12 伤害）加入手牌。`,
   },
   masterReality: {
     id: 'masterReality',
-    name: '掌控现实',
+    name: '操控现实',
     polarity: 'buff',
-    describe: () => '战斗中新生成的卡牌（奇迹、惩戒、破空一击、洞见等）自动以升级状态（+）生成。',
+    describe: () => '战斗中新生成的卡牌（奇迹、惩恶、以暴易暴、洞见等）自动以升级状态（+）生成。',
   },
   panache: {
     id: 'panache',
-    name: '优雅',
+    name: '神气制胜',
     polarity: 'buff',
     describe: (v) => `本回合每累计打出 5 张卡牌，立即对所有敌人造成 ${v} 点固定伤害。`,
   },
   theBomb: {
     id: 'theBomb',
-    name: '定时炸弹',
+    name: '炸弹',
     polarity: 'buff',
     describe: (v) => `还有 ${v} 回合引爆，倒计时归零时在回合结束对所有敌人造成巨额伤害！`,
   },

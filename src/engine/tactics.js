@@ -566,7 +566,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     pushPlayerStatus('sadisticNature', 'buff');
     result.callouts.push({
       tone: 'buff',
-      text: `✦ 【残虐本性】触发：每次施加负面状态附加 ${player.statuses.sadisticNature} 点伤害`,
+      text: `✦ 【残虐天性】触发：每次施加负面状态附加 ${player.statuses.sadisticNature} 点伤害`,
     });
   }
 
@@ -880,7 +880,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
         pushPlayerStatus('rushdown', 'buff');
         result.callouts.push({
           tone: 'buff',
-          text: `✦ 【猛冲】触发：进入愤怒立即抽 ${player.statuses.rushdown} 张牌！`,
+          text: `✦ 【猛虎下山】触发：进入愤怒立即抽 ${player.statuses.rushdown} 张牌！`,
         });
       }
       const wrathProxyPlayer = { ...player, stance: 'wrath' };
@@ -911,14 +911,14 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
   if (stats.ifInCalmDrawElseCalm && curStance === 'calm') {
     result.callouts.push({
       tone: 'buff',
-      text: `✦ 处于【平静】：【内心平静】将直接抽 ${stats.ifInCalmDrawElseCalm} 张牌！`,
+      text: `✦ 处于【平静】：【内心宁静】将直接抽 ${stats.ifInCalmDrawElseCalm} 张牌！`,
     });
   }
 
   if (stats.ifTargetAttackingEnterStance && !targetStance && targetedEnemies.length > 0) {
     result.callouts.push({
       tone: 'warn',
-      text: '⚠ 目标当前未意图攻击，【无惧邪恶】不会进入平静',
+      text: '⚠ 目标当前未意图攻击，【不惧妖邪】不会进入平静',
     });
   }
 
@@ -926,7 +926,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     if (curStance === 'wrath') {
       result.callouts.push({
         tone: 'buff',
-        text: `✦ 处于【愤怒】：【停步】触发额外 +${stats.wrathBonusBlock} 基础格挡！`,
+        text: `✦ 处于【愤怒】：【停顿】触发额外 +${stats.wrathBonusBlock} 基础格挡！`,
       });
     }
   }
@@ -1006,7 +1006,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       const maxTth = Math.max(...tthTargets.map((e) => e.statuses.talkToTheHand ?? 0));
       result.callouts.push({
         tone: 'buff',
-        text: `✦ 【别烦我】生效：本张攻击每次命中获得 +${maxTth} 格挡`,
+        text: `✦ 【以手拒之】生效：本张攻击每次命中获得 +${maxTth} 格挡`,
       });
     }
   }

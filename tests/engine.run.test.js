@@ -9,11 +9,13 @@ import {
   CARD_LIBRARY,
   COLORLESS_CARD_POOLS,
   createCardInstance,
+  formatCardDescription,
   getCardCharacter,
   getCardStats,
 } from '../src/data/cards.js';
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
+import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg } from '../src/ui/icons.js';
 import {
   EVENT_IDS,
@@ -2405,4 +2407,157 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
     false
   );
 });
+
+test('Official Simplified Chinese card names (233 unique) & concise card keyword descriptions/extraction', () => {
+  const allCards = Object.values(CARD_LIBRARY);
+  assert.equal(allCards.length, 233);
+
+  // Zero duplicate Chinese names across all 233 cards
+  const seenNames = new Map();
+  for (const c of allCards) {
+    assert.equal(
+      seenNames.has(c.name),
+      false,
+      `Duplicate card name "${c.name}" shared by ${seenNames.get(c.name)} and ${c.id}`
+    );
+    seenNames.set(c.name, c.id);
+  }
+
+  // Spot-check official Simplified Chinese names across Ironclad, Silent, Watcher, Colorless & Tokens
+  const expectedNames = {
+    cleave: '顺劈斩',
+    thunderclap: '闪电霹雳',
+    sword_boomerang: '飞剑回旋镖',
+    immolate: '燔祭',
+    reaper: '死亡收割',
+    headbutt: '头槌',
+    reckless_charge: '无谋冲锋',
+    havoc: '破灭',
+    blood_for_blood: '以血换血',
+    sentinel: '哨位',
+    survivor: '生存者',
+    poisoned_stab: '带毒刺击',
+    dagger_throw: '投掷匕首',
+    dagger_spray: '匕首雨',
+    slice: '切割',
+    sucker_punch: '突然一拳',
+    piercing_wail: '尖啸',
+    bouncing_flask: '弹跳毒瓶',
+    infinite_blades: '无限刀刃',
+    skewer: '穿刺',
+    tools_of_the_trade: '必备工具',
+    alchemize: '炼制药水',
+    outmaneuver: '抢占先机',
+    heel_hook: '足跟勾',
+    flechettes: '飞镖',
+    choke: '勒脖',
+    expertise: '独门技术',
+    riddle_with_holes: '千穿百刺',
+    well_laid_plans: '计划妥当',
+    die_die_die: '死吧死吧死吧',
+    eruption: '暴怒',
+    smite: '惩恶',
+    safety: '平安',
+    insight: '洞见',
+    omega: '欧米伽',
+    through_violence: '以暴易暴',
+    bowling_bash: '碰撞连击',
+    consecrate: '供奉',
+    cut_through_fate: '斩破命运',
+    empty_fist: '化拳为空',
+    empty_body: '化体为空',
+    empty_mind: '化智为空',
+    flying_sleeves: '流云飞袖',
+    just_lucky: '幸运一击',
+    sash_whip: '腰带抽打',
+    halt: '停顿',
+    prostrate: '五体投地',
+    protect: '护身',
+    third_eye: '天眼',
+    tranquility: '安宁',
+    carve_reality: '改造现实',
+    conclude: '结末',
+    fear_no_evil: '不惧妖邪',
+    sands_of_time: '时之沙',
+    talk_to_the_hand: '以手拒之',
+    wallop: '当头棒喝',
+    weave: '迂回',
+    wheel_kick: '回环踢',
+    deceive_reality: '欺瞒现实',
+    inner_peace: '内心宁静',
+    perseverance: '坚韧',
+    simmering_fury: '怒火中烧',
+    worship: '敬拜',
+    like_water: '如水',
+    rushdown: '猛虎下山',
+    devotion: '虔信',
+    establishment: '确立基础',
+    lesson_learned: '勤学奋进',
+    ragnarok: '诸神之黄昏',
+    spirit_shield: '精神护盾',
+    indignation: '义愤填膺',
+    swivel: '旋身',
+    windmill_strike: '旋转打击',
+    reach_heaven: '立地升天',
+    wave_of_the_hand: '摆手',
+    master_reality: '操控现实',
+    flash_of_steel: '亮剑',
+    finesse: '妙计',
+    dramatic_entrance: '闪亮登场',
+    sadistic_nature: '残虐天性',
+    apparition: '灵体',
+    good_instincts: '优秀直觉',
+    panacea: '万能药',
+    panache: '神气制胜',
+    thinking_ahead: '深谋远虑',
+    the_bomb: '炸弹',
+  };
+  for (const [id, name] of Object.entries(expectedNames)) {
+    assert.equal(CARD_LIBRARY[id]?.name, name, `Expected ${id} to be named "${name}", got "${CARD_LIBRARY[id]?.name}"`);
+  }
+
+  // Concise keyword descriptions (no inline parenthetical explanations for Ethereal/Scry/Mantra/Intangible/Artifact/Wound)
+  const checkDesc = (cardId) => {
+    const inst = { instanceId: `t_${cardId}`, cardId, upgraded: false };
+    const stats = getCardStats(inst);
+    const desc = formatCardDescription(inst, null);
+    return { stats, text: desc.text, kws: extractCardKeywords(stats, desc.text) };
+  };
+
+  const ghost = checkDesc('ghostly_armor');
+  assert.ok(ghost.text.startsWith('虚无。'));
+  assert.equal(ghost.text.includes('虚无（'), false);
+  assert.ok(ghost.kws.some((k) => k.key === '虚无' && k.desc.includes('自动消耗')));
+
+  const app = checkDesc('apparition');
+  assert.equal(app.text.includes('虚无（'), false);
+  assert.equal(app.text.includes('无实体】（'), false);
+  assert.deepEqual(
+    app.kws.map((k) => k.key),
+    ['虚无', '消耗', '无实体']
+  );
+
+  const eye = checkDesc('third_eye');
+  assert.ok(eye.text.includes('预见 3。'));
+  assert.equal(eye.text.includes('检视抽牌堆顶'), false);
+  assert.ok(eye.kws.some((k) => k.key === '预见'));
+
+  const pray = checkDesc('pray');
+  assert.equal(pray.text.includes('满 10 点进入神格'), false);
+  assert.ok(pray.kws.some((k) => k.key === '真言'));
+  assert.ok(pray.kws.some((k) => k.key === '洞见'));
+
+  const pan = checkDesc('panacea');
+  assert.equal(pan.text.includes('免疫负面状态'), false);
+  assert.ok(pan.kws.some((k) => k.key === '人工制品'));
+
+  const wound = checkDesc('wound');
+  assert.equal(wound.text, '不能被打出。');
+  assert.ok(wound.kws.some((k) => k.key === '不能被打出'));
+
+  const html = formatCardDescHtml(app.text);
+  assert.ok(html.includes('<span class="card-kw-inline">虚无</span>'));
+  assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
+});
+
 

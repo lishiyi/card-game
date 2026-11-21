@@ -79,7 +79,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   cleave: {
     id: 'cleave',
-    name: '顺势斩',
+    name: '顺劈斩',
     type: 'attack',
     rarity: 'common',
     target: 'all_enemies',
@@ -119,7 +119,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   thunderclap: {
     id: 'thunderclap',
-    name: '霹雳',
+    name: '闪电霹雳',
     type: 'attack',
     rarity: 'common',
     target: 'all_enemies',
@@ -200,7 +200,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sword_boomerang: {
     id: 'sword_boomerang',
-    name: '飞剑回旋',
+    name: '飞剑回旋镖',
     type: 'attack',
     rarity: 'common',
     target: 'all_enemies',
@@ -547,7 +547,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   reaper: {
     id: 'reaper',
-    name: '死神收割',
+    name: '死亡收割',
     type: 'attack',
     rarity: 'rare',
     target: 'all_enemies',
@@ -577,7 +577,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   immolate: {
     id: 'immolate',
-    name: '献祭',
+    name: '燔祭',
     type: 'attack',
     rarity: 'rare',
     target: 'all_enemies',
@@ -620,7 +620,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   survivor: {
     id: 'survivor',
-    name: '幸存者',
+    name: '生存者',
     character: 'silent',
     type: 'skill',
     rarity: 'starter',
@@ -656,7 +656,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   poisoned_stab: {
     id: 'poisoned_stab',
-    name: '涂毒匕首',
+    name: '带毒刺击',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -700,7 +700,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   dagger_throw: {
     id: 'dagger_throw',
-    name: '飞刀投掷',
+    name: '投掷匕首',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -744,7 +744,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   dagger_spray: {
     id: 'dagger_spray',
-    name: '飞刀齐射',
+    name: '匕首雨',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -755,7 +755,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   slice: {
     id: 'slice',
-    name: '割裂',
+    name: '切割',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -799,7 +799,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sucker_punch: {
     id: 'sucker_punch',
-    name: '偷袭',
+    name: '突然一拳',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -821,7 +821,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   piercing_wail: {
     id: 'piercing_wail',
-    name: '刺耳尖啸',
+    name: '尖啸',
     character: 'silent',
     type: 'skill',
     rarity: 'common',
@@ -845,7 +845,7 @@ export const CARD_LIBRARY = deepFreeze({
   // --- Silent Uncommon (22) ---
   bouncing_flask: {
     id: 'bouncing_flask',
-    name: '弹跳药瓶',
+    name: '弹跳毒瓶',
     character: 'silent',
     type: 'skill',
     rarity: 'uncommon',
@@ -900,7 +900,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   infinite_blades: {
     id: 'infinite_blades',
-    name: '无尽刀刃',
+    name: '无限刀刃',
     character: 'silent',
     type: 'power',
     rarity: 'uncommon',
@@ -1013,7 +1013,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   skewer: {
     id: 'skewer',
-    name: '串烧',
+    name: '穿刺',
     character: 'silent',
     type: 'attack',
     rarity: 'uncommon',
@@ -1169,7 +1169,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   tools_of_the_trade: {
     id: 'tools_of_the_trade',
-    name: '独门秘技',
+    name: '必备工具',
     character: 'silent',
     type: 'power',
     rarity: 'rare',
@@ -1227,7 +1227,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   alchemize: {
     id: 'alchemize',
-    name: '炼金术',
+    name: '炼制药水',
     character: 'silent',
     type: 'skill',
     rarity: 'rare',
@@ -1240,7 +1240,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === The Watcher Starter (2) & Special Generated (6) ===
   eruption: {
     id: 'eruption',
-    name: '爆发',
+    name: '暴怒',
     character: 'watcher',
     type: 'attack',
     rarity: 'starter',
@@ -1273,7 +1273,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   smite: {
     id: 'smite',
-    name: '惩戒',
+    name: '惩恶',
     character: 'watcher',
     type: 'attack',
     rarity: 'special',
@@ -1295,7 +1295,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   insight: {
     id: 'insight',
-    name: '洞察',
+    name: '洞见',
     character: 'watcher',
     type: 'skill',
     rarity: 'special',
@@ -1317,7 +1317,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   omega: {
     id: 'omega',
-    name: '终焉',
+    name: '欧米伽',
     character: 'watcher',
     type: 'power',
     rarity: 'special',
@@ -1330,7 +1330,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === The Watcher Common Cards (18) ===
   bowling_bash: {
     id: 'bowling_bash',
-    name: '保龄重击',
+    name: '碰撞连击',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1341,7 +1341,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   consecrate: {
     id: 'consecrate',
-    name: '祝圣',
+    name: '供奉',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1373,7 +1373,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   cut_through_fate: {
     id: 'cut_through_fate',
-    name: '斩断命运',
+    name: '斩破命运',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1384,7 +1384,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   empty_fist: {
     id: 'empty_fist',
-    name: '空拳',
+    name: '化拳为空',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1406,7 +1406,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   flying_sleeves: {
     id: 'flying_sleeves',
-    name: '飞袖',
+    name: '流云飞袖',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1438,7 +1438,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   just_lucky: {
     id: 'just_lucky',
-    name: '纯属运气',
+    name: '幸运一击',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1449,7 +1449,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sash_whip: {
     id: 'sash_whip',
-    name: '腰带鞭',
+    name: '腰带抽打',
     character: 'watcher',
     type: 'attack',
     rarity: 'common',
@@ -1481,7 +1481,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   empty_body: {
     id: 'empty_body',
-    name: '空身',
+    name: '化体为空',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1503,7 +1503,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   halt: {
     id: 'halt',
-    name: '停步',
+    name: '停顿',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1514,7 +1514,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   prostrate: {
     id: 'prostrate',
-    name: '顶礼膜拜',
+    name: '五体投地',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1525,7 +1525,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   protect: {
     id: 'protect',
-    name: '守护',
+    name: '护身',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1536,7 +1536,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   third_eye: {
     id: 'third_eye',
-    name: '第三只眼',
+    name: '天眼',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1547,7 +1547,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   tranquility: {
     id: 'tranquility',
-    name: '宁静',
+    name: '安宁',
     character: 'watcher',
     type: 'skill',
     rarity: 'common',
@@ -1560,7 +1560,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === The Watcher Uncommon Cards (23) ===
   carve_reality: {
     id: 'carve_reality',
-    name: '刻画现实',
+    name: '改造现实',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1571,7 +1571,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   conclude: {
     id: 'conclude',
-    name: '终结',
+    name: '结末',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1582,7 +1582,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   fear_no_evil: {
     id: 'fear_no_evil',
-    name: '无惧邪恶',
+    name: '不惧妖邪',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1593,7 +1593,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sands_of_time: {
     id: 'sands_of_time',
-    name: '时间之沙',
+    name: '时之沙',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1604,7 +1604,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   talk_to_the_hand: {
     id: 'talk_to_the_hand',
-    name: '别烦我',
+    name: '以手拒之',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1638,7 +1638,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   wallop: {
     id: 'wallop',
-    name: '重锤',
+    name: '当头棒喝',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1649,7 +1649,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   weave: {
     id: 'weave',
-    name: '编织',
+    name: '迂回',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1660,7 +1660,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   wheel_kick: {
     id: 'wheel_kick',
-    name: '回旋踢',
+    name: '回环踢',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -1671,7 +1671,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   deceive_reality: {
     id: 'deceive_reality',
-    name: '欺骗现实',
+    name: '欺瞒现实',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1682,7 +1682,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   empty_mind: {
     id: 'empty_mind',
-    name: '空心',
+    name: '化智为空',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1693,7 +1693,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   inner_peace: {
     id: 'inner_peace',
-    name: '内心平静',
+    name: '内心宁静',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1704,7 +1704,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   perseverance: {
     id: 'perseverance',
-    name: '坚韧不拔',
+    name: '坚韧',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1737,7 +1737,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   simmering_fury: {
     id: 'simmering_fury',
-    name: '暗涌之怒',
+    name: '怒火中烧',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1748,7 +1748,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   worship: {
     id: 'worship',
-    name: '崇拜',
+    name: '敬拜',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -1781,7 +1781,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   like_water: {
     id: 'like_water',
-    name: '上善若水',
+    name: '如水',
     character: 'watcher',
     type: 'power',
     rarity: 'uncommon',
@@ -1814,7 +1814,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   rushdown: {
     id: 'rushdown',
-    name: '猛冲',
+    name: '猛虎下山',
     character: 'watcher',
     type: 'power',
     rarity: 'uncommon',
@@ -1877,7 +1877,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   devotion: {
     id: 'devotion',
-    name: '虔诚',
+    name: '虔信',
     character: 'watcher',
     type: 'power',
     rarity: 'rare',
@@ -1888,7 +1888,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   establishment: {
     id: 'establishment',
-    name: '确立',
+    name: '确立基础',
     character: 'watcher',
     type: 'power',
     rarity: 'rare',
@@ -1910,7 +1910,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   lesson_learned: {
     id: 'lesson_learned',
-    name: '汲取教训',
+    name: '勤学奋进',
     character: 'watcher',
     type: 'attack',
     rarity: 'rare',
@@ -1921,7 +1921,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   ragnarok: {
     id: 'ragnarok',
-    name: '诸神黄昏',
+    name: '诸神之黄昏',
     character: 'watcher',
     type: 'attack',
     rarity: 'rare',
@@ -1943,7 +1943,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   spirit_shield: {
     id: 'spirit_shield',
-    name: '灵魂护盾',
+    name: '精神护盾',
     character: 'watcher',
     type: 'skill',
     rarity: 'rare',
@@ -1967,7 +1967,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === Shop-Exclusive Colorless Cards (Uncommon: 6, Rare: 4) ===
   flash_of_steel: {
     id: 'flash_of_steel',
-    name: '寒光一闪',
+    name: '亮剑',
     character: 'colorless',
     shopOnly: true,
     type: 'attack',
@@ -1979,7 +1979,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   finesse: {
     id: 'finesse',
-    name: '技巧',
+    name: '妙计',
     character: 'colorless',
     shopOnly: true,
     type: 'skill',
@@ -1991,7 +1991,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   dramatic_entrance: {
     id: 'dramatic_entrance',
-    name: '华丽登场',
+    name: '闪亮登场',
     character: 'colorless',
     shopOnly: true,
     type: 'attack',
@@ -2076,7 +2076,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sadistic_nature: {
     id: 'sadistic_nature',
-    name: '残虐本性',
+    name: '残虐天性',
     character: 'colorless',
     shopOnly: true,
     type: 'power',
@@ -2088,7 +2088,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   apparition: {
     id: 'apparition',
-    name: '幽灵化',
+    name: '灵体',
     character: 'colorless',
     type: 'skill',
     rarity: 'special',
@@ -2202,7 +2202,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === P1 Expansion: Ironclad (+10) ===
   headbutt: {
     id: 'headbutt',
-    name: '铁头功',
+    name: '头槌',
     character: 'ironclad',
     type: 'attack',
     rarity: 'common',
@@ -2213,7 +2213,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   reckless_charge: {
     id: 'reckless_charge',
-    name: '鲁莽冲锋',
+    name: '无谋冲锋',
     character: 'ironclad',
     type: 'attack',
     rarity: 'common',
@@ -2224,7 +2224,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   havoc: {
     id: 'havoc',
-    name: '浩劫',
+    name: '破灭',
     character: 'ironclad',
     type: 'skill',
     rarity: 'common',
@@ -2235,7 +2235,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   blood_for_blood: {
     id: 'blood_for_blood',
-    name: '以血还血',
+    name: '以血换血',
     character: 'ironclad',
     type: 'attack',
     rarity: 'uncommon',
@@ -2257,7 +2257,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   sentinel: {
     id: 'sentinel',
-    name: '哨兵',
+    name: '哨位',
     character: 'ironclad',
     type: 'skill',
     rarity: 'uncommon',
@@ -2314,7 +2314,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === P1 Expansion: Silent (+10) ===
   outmaneuver: {
     id: 'outmaneuver',
-    name: '先手制敌',
+    name: '抢占先机',
     character: 'silent',
     type: 'skill',
     rarity: 'common',
@@ -2325,7 +2325,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   heel_hook: {
     id: 'heel_hook',
-    name: '跟钩踢',
+    name: '足跟勾',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -2336,7 +2336,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   flechettes: {
     id: 'flechettes',
-    name: '飞镖雨',
+    name: '飞镖',
     character: 'silent',
     type: 'attack',
     rarity: 'common',
@@ -2358,7 +2358,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   choke: {
     id: 'choke',
-    name: '锁喉',
+    name: '勒脖',
     character: 'silent',
     type: 'attack',
     rarity: 'uncommon',
@@ -2369,7 +2369,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   expertise: {
     id: 'expertise',
-    name: '专精',
+    name: '独门技术',
     character: 'silent',
     type: 'skill',
     rarity: 'uncommon',
@@ -2380,7 +2380,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   riddle_with_holes: {
     id: 'riddle_with_holes',
-    name: '千疮百孔',
+    name: '千穿百刺',
     character: 'silent',
     type: 'attack',
     rarity: 'uncommon',
@@ -2391,7 +2391,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   well_laid_plans: {
     id: 'well_laid_plans',
-    name: '深谋远虑',
+    name: '计划妥当',
     character: 'silent',
     type: 'power',
     rarity: 'uncommon',
@@ -2413,7 +2413,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   die_die_die: {
     id: 'die_die_die',
-    name: '去死吧！',
+    name: '死吧死吧死吧',
     character: 'silent',
     type: 'attack',
     rarity: 'rare',
@@ -2426,7 +2426,7 @@ export const CARD_LIBRARY = deepFreeze({
   // === P1 Expansion: Watcher (+10 + 1 Special Token) ===
   indignation: {
     id: 'indignation',
-    name: '愤慨',
+    name: '义愤填膺',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -2448,7 +2448,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   swivel: {
     id: 'swivel',
-    name: '旋转',
+    name: '旋身',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -2459,7 +2459,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   windmill_strike: {
     id: 'windmill_strike',
-    name: '风车打击',
+    name: '旋转打击',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -2470,7 +2470,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   reach_heaven: {
     id: 'reach_heaven',
-    name: '通天',
+    name: '立地升天',
     character: 'watcher',
     type: 'attack',
     rarity: 'uncommon',
@@ -2481,7 +2481,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   wave_of_the_hand: {
     id: 'wave_of_the_hand',
-    name: '挥手如潮',
+    name: '摆手',
     character: 'watcher',
     type: 'skill',
     rarity: 'uncommon',
@@ -2526,7 +2526,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   master_reality: {
     id: 'master_reality',
-    name: '掌控现实',
+    name: '操控现实',
     character: 'watcher',
     type: 'power',
     rarity: 'rare',
@@ -2537,7 +2537,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   through_violence: {
     id: 'through_violence',
-    name: '破空一击',
+    name: '以暴易暴',
     character: 'watcher',
     type: 'attack',
     rarity: 'special',
@@ -2574,7 +2574,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   good_instincts: {
     id: 'good_instincts',
-    name: '良好直觉',
+    name: '优秀直觉',
     character: 'colorless',
     type: 'skill',
     rarity: 'uncommon',
@@ -2598,7 +2598,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   panacea: {
     id: 'panacea',
-    name: '万灵药',
+    name: '万能药',
     character: 'colorless',
     type: 'skill',
     rarity: 'uncommon',
@@ -2622,7 +2622,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   panache: {
     id: 'panache',
-    name: '优雅',
+    name: '神气制胜',
     character: 'colorless',
     type: 'power',
     rarity: 'rare',
@@ -2634,7 +2634,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   thinking_ahead: {
     id: 'thinking_ahead',
-    name: '未雨绸缪',
+    name: '深谋远虑',
     character: 'colorless',
     type: 'skill',
     rarity: 'rare',
@@ -2658,7 +2658,7 @@ export const CARD_LIBRARY = deepFreeze({
   },
   the_bomb: {
     id: 'the_bomb',
-    name: '定时炸弹',
+    name: '炸弹',
     character: 'colorless',
     type: 'skill',
     rarity: 'rare',
@@ -2947,15 +2947,6 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push('【医疗箱】可 0 费打出并消耗。');
     } else {
       parts.push('不能被打出。');
-      if (
-        stats.type === 'status' &&
-        !stats.ethereal &&
-        !stats.endOfTurnSelfDamage &&
-        !stats.endOfTurnLoseHp &&
-        !stats.endOfTurnWeak
-      ) {
-        parts.push('滞留牌堆直到被消耗或战斗结束。');
-      }
     }
   }
   if (stats.onDiscardGainEnergy) {
@@ -2965,7 +2956,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push(`每当你主动弃掉本牌时，抽 ${stats.onDiscardDraw} 张牌。`);
   }
   if (stats.ethereal) {
-    parts.push('虚无（回合结束时若仍在手牌则消耗）。');
+    parts.push('虚无。');
   }
   if (stats.endOfTurnSelfDamage) {
     parts.push(`回合结束时若仍在手牌，受到 ${stats.endOfTurnSelfDamage} 点伤害。`);
@@ -3074,7 +3065,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push(`本场战斗中随机升级 ${stats.upgradeHandRandom} 张手牌。`);
   }
   if (stats.scry && stats.cardId !== 'just_lucky' && stats.type !== 'attack') {
-    parts.push(`预见 ${stats.scry}（检视抽牌堆顶 ${stats.scry} 张牌并任意弃置）。`);
+    parts.push(`预见 ${stats.scry}。`);
   }
   if (stats.exhaustAllHandDamageEach) {
     parts.push(`消耗所有手牌，每张对目标造成 ${displayDamage} 点伤害。`);
@@ -3198,7 +3189,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push('退出当前姿态。');
   }
   if (stats.gainMantra) {
-    parts.push(`获得 ${stats.gainMantra} 点【真言】（满 10 点进入神格）。`);
+    parts.push(`获得 ${stats.gainMantra} 点【真言】。`);
   }
   if (stats.returnOnStanceChange) {
     parts.push('每当你切换姿态时，将弃牌堆中的本牌返回手牌。');
@@ -3415,7 +3406,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`每当你打出一张牌时，对所有敌人造成 ${stats.applySelfStatuses.thousandCuts} 点伤害。`);
     }
     if (stats.applySelfStatuses.intangible) {
-      parts.push(`获得 ${stats.applySelfStatuses.intangible} 层【无实体】（受到的所有伤害降至 1 点）。`);
+      parts.push(`获得 ${stats.applySelfStatuses.intangible} 层【无实体】。`);
     }
     if (stats.applySelfStatuses.wraithForm) {
       parts.push(`每回合开始时，失去 ${stats.applySelfStatuses.wraithForm} 点敏捷。`);
@@ -3459,7 +3450,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`下回合开始时进入【愤怒】姿态并额外抽 ${stats.applySelfStatuses.simmeringFury} 张牌。`);
     }
     if (stats.applySelfStatuses.artifact) {
-      parts.push(`获得 ${stats.applySelfStatuses.artifact} 层【人工制品】（免疫负面状态）。`);
+      parts.push(`获得 ${stats.applySelfStatuses.artifact} 层【人工制品】。`);
     }
     if (stats.applySelfStatuses.vulnerable) {
       parts.push(`自身获得 ${stats.applySelfStatuses.vulnerable} 层【易伤】。`);
@@ -3489,7 +3480,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`本回合你每获得 1 次格挡，给予所有敌人 ${stats.applySelfStatuses.waveOfTheHand} 层虚弱。`);
     }
     if (stats.applySelfStatuses.battleHymn) {
-      parts.push(`每回合开始时将 ${stats.applySelfStatuses.battleHymn} 张【惩戒】加入手牌。`);
+      parts.push(`每回合开始时将 ${stats.applySelfStatuses.battleHymn} 张【惩恶】加入手牌。`);
     }
     if (stats.applySelfStatuses.masterReality) {
       parts.push('战斗中新生成的卡牌将自动升级！');

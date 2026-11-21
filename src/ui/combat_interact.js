@@ -498,6 +498,7 @@ export function createCombatDragController({
     }
 
     const targetEl = event.target instanceof Element ? event.target : null;
+    if (targetEl?.closest('.card-kw-trigger')) return;
     const cardEl = targetEl ? targetEl.closest('#hand-tray .game-card.playable[data-instance-id]') : null;
     if (!cardEl) return;
 

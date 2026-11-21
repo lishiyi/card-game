@@ -56,6 +56,53 @@ function computeReachableGraph(state) {
   return { reachableNodes, reachableEdges };
 }
 
+const MAP_FILTER_TYPES = Object.freeze([
+  { type: 'combat', label: '普通战斗' },
+  { type: 'elite', label: '精英' },
+  { type: 'rest', label: '篝火' },
+  { type: 'shop', label: '商店' },
+  { type: 'event', label: '事件' },
+  { type: 'treasure', label: '宝箱' },
+  { type: 'boss', label: '首领' },
+]);
+
+export function renderMapTypeFilterBar(state, activeType = null) {
+  const counts = {};
+  for (const row of state?.map || []) {
+    for (const node of row) {
+      counts[node.type] = (counts[node.type] || 0) + 1;
+    }
+  }
+
+  const chipsHtml = MAP_FILTER_TYPES.filter((item) => (counts[item.type] || 0) > 0)
+    .map((item) => {
+      const isActive = activeType === item.type;
+      const metaInfo = NODE_TYPE_META[item.type] || { label: item.label };
+      return `
+        <button
+          type="button"
+          class="map-type-filter-btn filter-type-${escapeHtml(item.type)} ${isActive ? 'active' : ''}"
+          data-action="toggle-map-type-filter"
+          data-filter-node-type="${escapeHtml(item.type)}"
+          aria-pressed="${isActive ? 'true' : 'false'}"
+          title="${escapeHtml(`高亮显示全部【${metaInfo.label}】房间（再次点击取消）`)}"
+        >
+          <span class="map-type-filter-icon node-type-${escapeHtml(item.type)}" aria-hidden="true">${getNodeIconSvg(item.type)}</span>
+          <span class="map-type-filter-label">${escapeHtml(item.label)}</span>
+          <span class="map-type-filter-count">${counts[item.type]}</span>
+        </button>
+      `;
+    })
+    .join('');
+
+  return `
+    <div class="map-type-filter-bar" role="toolbar" aria-label="按房间类型高亮地图节点">
+      <span class="map-type-filter-heading">图例筛选：</span>
+      <div class="map-type-filter-chips">${chipsHtml}</div>
+    </div>
+  `;
+}
+
 export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-node' } = {}) {
   const availableIds = new Set(getAvailableNodeIds(state));
   const totalRows = state.map.length;
@@ -201,7 +248,7 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
               class="${cls}"
               style="left: ${coord.xPct}%;"
               data-node-type="${escapeHtml(node.type)}"
-              data-action="${interactive ? 'select-node' : 'noop'}"
+              data-action="${interactive ? 'select-node' : 'inspect-map-node'}"
               data-node-id="${escapeHtml(node.id)}"
               ${bossTooltip}
               aria-disabled="${interactive && isAvailable ? 'false' : 'true'}"
@@ -342,7 +389,7 @@ export function renderMapScreen({ state, settings, ui }) {
       <div class="stage-header">
         <div>
           <h2 id="map-heading" class="stage-heading">${actHeading}</h2>
-          <p class="stage-subtitle">自下而上沿连线攀登（悬停任意节点可高亮其上下游路线）：第 1–5 层无精英稳步发育，第 9 层必遇远古宝箱，第 ${escapeHtml(TOTAL_FLOORS)} 层迎战首领【${escapeHtml(bossName)}】。</p>
+          <p class="stage-subtitle">自下而上沿连线攀登（点击或悬停任意房间可高亮其直接相连房间；点选下方图例可高亮全部同类房间）：第 1–5 层无精英稳步发育，第 9 层必遇远古宝箱，第 ${escapeHtml(TOTAL_FLOORS)} 层迎战首领【${escapeHtml(bossName)}】。</p>
         </div>
         ${
           state.restState?.lastAction
@@ -385,6 +432,8 @@ export function renderMapScreen({ state, settings, ui }) {
         <span class="map-legend-item"><i class="legend-swatch swatch-traveled"></i>已攀登足迹</span>
         <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
       </div>
+
+      ${renderMapTypeFilterBar(state, ui?.mapTypeFilter || null)}
 
       ${renderMapBoardHtml(state, { interactive: true, idPrefix: 'map-node' })}
 

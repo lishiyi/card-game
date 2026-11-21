@@ -39,6 +39,89 @@ export function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+export const CARD_KEYWORD_DEFS = Object.freeze({
+  固有: '战斗第 1 回合必定出现在起手手牌中。',
+  保留: '回合结束时若仍在手牌，不会进入弃牌堆，直接保留至下回合。',
+  虚无: '回合结束时若仍在手牌，将自动消耗移出本场战斗。',
+  消耗: '打出或触发消耗后移入消耗堆，本场战斗不再洗回抽牌堆。',
+  不能被打出: '无法正常打出，仅能被弃置、消耗或由特定遗物处理。',
+  预见: '检视抽牌堆顶对应张数的牌，并可任意勾选弃置。',
+  真言: '每累计达到 10 点，立即消耗 10 点并进入【神格】姿态。',
+  愤怒: '姿态：造成与受到的攻击伤害均变为双倍（×2）。',
+  平静: '姿态：退出平静姿态时立即获得 2 点能量（紫莲花为 3 点）。',
+  神格: '姿态：进入时 +3 能量，本回合攻击伤害 ×3，下回合开始自动退出。',
+  印记: '打出【点穴】时，所有带印记敌人无视格挡失去等同于印记层数的生命。',
+  无实体: '受到的所有伤害降至 1 点（每回合结束减少 1 层）。',
+  人工制品: '免疫接下来对应次数的负面状态。',
+  中毒: '敌人回合开始时无视格挡失去等同于层数的生命，随后层数 -1。',
+  易伤: '受到的攻击伤害提高 50%（每回合结束减少 1 层）。',
+  虚弱: '造成的攻击伤害降低 25%（每回合结束减少 1 层）。',
+  力量: '每 1 点力量使每次攻击伤害 +1（负值则减伤）。',
+  敏捷: '每 1 点敏捷使卡牌提供的格挡 +1（负值则减甲）。',
+  小刀: '衍生攻击（0费）：造成 4 点伤害，消耗。',
+  奇迹: '衍生技能（0费）：保留，获得 1 点能量，消耗。',
+  惩恶: '衍生攻击（1费）：保留，造成 12 点伤害，消耗。',
+  平安: '衍生技能（1费）：保留，获得 12 点格挡，消耗。',
+  洞见: '衍生技能（0费）：保留，抽 2 张牌，消耗。',
+  以暴易暴: '衍生攻击（0费）：保留，造成 20 点伤害，消耗。',
+  贝塔: '衍生技能（2费）：将 1 张【欧米伽】洗入抽牌堆，消耗。',
+  欧米伽: '衍生能力（3费）：每回合结束时对所有敌人造成 50 点伤害。',
+});
+
+const INLINE_KW_REGEX =
+  /(不能被打出|人工制品|无实体|固有|保留|虚无|消耗|预见|真言|愤怒|平静|神格|印记|中毒|易伤|虚弱|力量|敏捷)/g;
+
+export function formatCardDescHtml(text) {
+  return escapeHtml(text).replace(
+    INLINE_KW_REGEX,
+    '<span class="card-kw-inline">$1</span>'
+  );
+}
+
+export function extractCardKeywords(stats, descText = '') {
+  const found = [];
+  const seen = new Set();
+  const add = (key, isTrait = false) => {
+    if (!key || seen.has(key) || !CARD_KEYWORD_DEFS[key]) return;
+    seen.add(key);
+    found.push({ key, desc: CARD_KEYWORD_DEFS[key], isTrait });
+  };
+
+  if (stats?.innate) add('固有', true);
+  if (stats?.retain) add('保留', true);
+  if (stats?.ethereal) add('虚无', true);
+  if (stats?.exhaust || descText.includes('消耗。')) add('消耗', true);
+  if (stats?.unplayable && descText.includes('不能被打出')) add('不能被打出', true);
+
+  const mechanicChecks = [
+    ['预见', () => Boolean(stats?.scry || stats?.applySelfStatuses?.foresight || descText.includes('预见'))],
+    ['真言', () => descText.includes('真言')],
+    ['愤怒', () => descText.includes('【愤怒】')],
+    ['平静', () => descText.includes('【平静】')],
+    ['神格', () => descText.includes('【神格】')],
+    ['印记', () => descText.includes('【印记】')],
+    ['无实体', () => descText.includes('无实体')],
+    ['人工制品', () => descText.includes('人工制品')],
+    ['中毒', () => descText.includes('中毒')],
+    ['易伤', () => descText.includes('易伤')],
+    ['虚弱', () => descText.includes('虚弱')],
+    ['力量', () => descText.includes('力量')],
+    ['敏捷', () => descText.includes('敏捷')],
+  ];
+  for (const [kw, testFn] of mechanicChecks) {
+    if (testFn()) add(kw, false);
+  }
+
+  const tokenChecks = ['小刀', '奇迹', '惩恶', '平安', '洞见', '以暴易暴', '贝塔', '欧米伽'];
+  for (const tok of tokenChecks) {
+    if (descText.includes(`【${tok}`)) {
+      add(tok, false);
+    }
+  }
+
+  return found;
+}
+
 export function renderCardHtml(cardInstance, options = {}) {
   const stats = getCardStats(cardInstance);
   const combatCtx = options.combatContext ?? null;
@@ -102,14 +185,29 @@ export function renderCardHtml(cardInstance, options = {}) {
     costTooltipAttrs = `data-tooltip-title="临时减费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】或本回合弃牌减费影响，当前费用已降至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
   }
 
-  const keywords = [
-    stats.innate ? '固有' : '',
-    stats.retain ? '保留' : '',
-    stats.ethereal ? '虚无' : '',
-    stats.exhaust ? '消耗' : '',
-  ]
-    .filter(Boolean)
-    .join('·');
+  const extractedKeywords = extractCardKeywords(stats, desc.text);
+  const traitKeys = extractedKeywords.filter((k) => k.isTrait && k.key !== '不能被打出').map((k) => k.key);
+  let kwBadgeText = '';
+  if (traitKeys.length > 0) {
+    kwBadgeText = traitKeys.join('·');
+  } else if (extractedKeywords.length === 1) {
+    kwBadgeText = extractedKeywords[0].key === '不能被打出' ? '词条' : extractedKeywords[0].key;
+  } else if (extractedKeywords.length > 1) {
+    kwBadgeText = `词条(${extractedKeywords.length})`;
+  }
+  const kwTooltipDesc = extractedKeywords.map((k) => `• ${k.key}：${k.desc}`).join('\n');
+  const kwTriggerHtml =
+    extractedKeywords.length > 0
+      ? `<span
+          class="card-kw-trigger"
+          tabindex="0"
+          role="button"
+          aria-label="${escapeHtml(`查看【${stats.name}】词条说明`)}"
+          data-tooltip-title="${escapeHtml(`${stats.name} · 词条说明`)}"
+          data-tooltip-tag="${escapeHtml(`共 ${extractedKeywords.length} 项`)}"
+          data-tooltip-desc="${escapeHtml(kwTooltipDesc)}"
+        ><span class="card-kw-trigger-text">${escapeHtml(kwBadgeText)}</span><span class="card-kw-qmark" aria-hidden="true">?</span></span>`
+      : '';
 
   const medKitActive =
     stats.unplayable &&
@@ -159,19 +257,28 @@ export function renderCardHtml(cardInstance, options = {}) {
     ? `无色·${RARITY_LABELS[stats.rarity] || ''}`
     : RARITY_LABELS[stats.rarity] || '';
 
+  const actionName = options.action || 'noop';
+  const isPassiveCard = actionName === 'noop';
+  const disabledAttr =
+    options.disabled && !isPassiveCard
+      ? 'disabled'
+      : options.disabled && isPassiveCard
+        ? 'aria-disabled="true"'
+        : '';
+
   return `
     <button
       type="button"
       id="${escapeHtml(`${idPrefix}-${cardInstance.instanceId}`)}"
-      class="${extraClasses}"
+      class="${extraClasses}${isPassiveCard ? ' card-passive' : ''}"
       ${styleAttr}
       data-rarity="${escapeHtml(stats.rarity)}"
       data-character="${escapeHtml(stats.character)}"
-      data-action="${escapeHtml(options.action || 'noop')}"
+      data-action="${escapeHtml(actionName)}"
       data-instance-id="${escapeHtml(cardInstance.instanceId)}"
       ${options.unplayableReason ? `data-unplayable-reason="${escapeHtml(options.unplayableReason)}"` : ''}
       ${options.offerIndex !== undefined ? `data-offer-index="${options.offerIndex}"` : ''}
-      ${options.disabled ? 'disabled' : ''}
+      ${disabledAttr}
     >
       <div>
         <div class="card-top">
@@ -193,14 +300,16 @@ export function renderCardHtml(cardInstance, options = {}) {
           <span class="rarity-badge rarity-${escapeHtml(stats.rarity)} ${isColorless ? 'badge-colorless' : ''}">${escapeHtml(rarityText)}</span>
         </div>
         <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}</div>
-        <div class="card-desc ${descToneClass}">${escapeHtml(desc.text)}</div>
+        <div class="card-desc ${descToneClass}">${formatCardDescHtml(desc.text)}</div>
       </div>
+      ${upgradePreviewNote}
       ${
-        upgradePreviewNote ||
-        `<div class="card-footer">
-          <span>${escapeHtml(targetLabel)}</span>
-          <span>${escapeHtml(keywords)}</span>
-        </div>`
+        upgradePreviewNote && !kwTriggerHtml
+          ? ''
+          : `<div class="card-footer">
+              <span>${escapeHtml(targetLabel)}</span>
+              ${kwTriggerHtml}
+            </div>`
       }
     </button>
   `;

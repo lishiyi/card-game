@@ -74,7 +74,7 @@ function addPlayerBlock(state, amount) {
             triggerSadisticNature(state, enemy);
           }
         }
-        pushCombatLog(combat, `【挥手如潮】触发：给予所有敌人 ${waveWeak} 层【虚弱】！`, 'status');
+        pushCombatLog(combat, `【摆手】触发：给予所有敌人 ${waveWeak} 层【虚弱】！`, 'status');
       } finally {
         delete state._resolvingWaveOfTheHand;
       }
@@ -107,7 +107,7 @@ function triggerSadisticNature(state, enemy) {
   const combat = state?.combat;
   const dmg = state?.player?.statuses?.sadisticNature ?? 0;
   if (!combat || !enemy || enemy.hp <= 0 || dmg <= 0) return;
-  pushCombatLog(combat, `【残虐本性】触发：对【${enemy.name}】造成 ${dmg} 点伤害！`, 'attack');
+  pushCombatLog(combat, `【残虐天性】触发：对【${enemy.name}】造成 ${dmg} 点伤害！`, 'attack');
   dealDamageToEnemy(state, enemy, dmg, { isAttack: false });
 }
 
@@ -610,7 +610,7 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
   ) {
     const ttthBlock = enemy.statuses.talkToTheHand;
     addPlayerBlock(state, ttthBlock);
-    pushCombatLog(combat, `【别烦我】触发：获得 ${ttthBlock} 点格挡！`, 'block');
+    pushCombatLog(combat, `【以手拒之】触发：获得 ${ttthBlock} 点格挡！`, 'block');
   }
 
   // Spiker Thorns passive: triggers per attack hit (before lethal return)
@@ -1165,7 +1165,7 @@ function requestDiscardPileChoice(
   return false;
 }
 
-function requestEndTurnRetainChoice(state, quota, sourceName = '深谋远虑') {
+function requestEndTurnRetainChoice(state, quota, sourceName = '计划妥当') {
   const combat = state?.combat;
   if (
     !combat ||
@@ -1380,7 +1380,7 @@ export function changeStance(state, nextStance = 'neutral', options = {}) {
     const drawAmt = state.player.statuses.rushdown;
     pushCombatLog(
       combat,
-      `【猛冲】触发（本回合第 ${combat.rushdownTriggersThisTurn} 次）：抽 ${drawAmt} 张牌！`,
+      `【猛虎下山】触发（本回合第 ${combat.rushdownTriggersThisTurn} 次）：抽 ${drawAmt} 张牌！`,
       'info'
     );
     drawCards(state, drawAmt);
@@ -1911,7 +1911,7 @@ export function exhaustCardsBatch(state, cardInstances) {
 
   if (sentinelEnergy > 0 && combat.status === 'ongoing') {
     state.player.energy += sentinelEnergy;
-    pushCombatLog(combat, `【哨兵】被消耗，立即获得 ${sentinelEnergy} 点能量！`, 'info');
+    pushCombatLog(combat, `【哨位】被消耗，立即获得 ${sentinelEnergy} 点能量！`, 'info');
   }
 
   const count = valid.length;
@@ -2278,7 +2278,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   if ((state.player.statuses.simmeringFury ?? 0) > 0) {
     simmeringDraw = state.player.statuses.simmeringFury;
     delete state.player.statuses.simmeringFury;
-    pushCombatLog(combat, `【暗涌之怒】爆发：进入【愤怒】并额外抽 ${simmeringDraw} 张牌！`, 'status');
+    pushCombatLog(combat, `【怒火中烧】爆发：进入【愤怒】并额外抽 ${simmeringDraw} 张牌！`, 'status');
     changeStance(state, 'wrath');
   }
 
@@ -2394,7 +2394,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   }
 
   if (toolsDraw > 0) {
-    requestManualDiscard(state, toolsDraw, '独门秘技', onVictoryCallback);
+    requestManualDiscard(state, toolsDraw, '必备工具', onVictoryCallback);
   }
 }
 
@@ -3770,7 +3770,7 @@ export function playCard(
         const pDmg = state.player.statuses.panache;
         const alive = getAliveEnemies(combat);
         if (alive.length > 0) {
-          pushCombatLog(combat, `【优雅】触发（连出 5 牌）：对所有敌人造成 ${pDmg} 点伤害！`, 'attack');
+          pushCombatLog(combat, `【神气制胜】触发（连出 5 牌）：对所有敌人造成 ${pDmg} 点伤害！`, 'attack');
           for (const enemy of alive) {
             dealDamageToEnemy(state, enemy, pDmg, { isAttack: false });
           }
@@ -3788,7 +3788,7 @@ export function playCard(
           state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + loss;
           state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, loss);
         }
-        pushCombatLog(combat, `【锁喉】触发：【${chokedEnemy.name}】失去 ${chokeDmg} 点生命！`, 'attack');
+        pushCombatLog(combat, `【勒脖】触发：【${chokedEnemy.name}】失去 ${chokeDmg} 点生命！`, 'attack');
         if (chokedEnemy.hp <= 0 && !handleEnemyZeroHp(state, chokedEnemy)) {
           chokedEnemy.block = 0;
           chokedEnemy.intent = null;
@@ -4244,7 +4244,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     getAliveEnemies(combat).length > 0 &&
     state.player.hp > 0
   ) {
-    if (requestEndTurnRetainChoice(state, wellLaidPlansQuota, '深谋远虑')) {
+    if (requestEndTurnRetainChoice(state, wellLaidPlansQuota, '计划妥当')) {
       return { ok: true, awaitingRetainChoice: true, outcome: state.combat?.status ?? combat.status };
     }
   }
@@ -4390,7 +4390,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   if ((state.player.statuses.likeWater ?? 0) > 0 && combat.stance === 'calm') {
     const lw = state.player.statuses.likeWater;
     addPlayerBlock(state, lw);
-    pushCombatLog(combat, `【上善若水】生效（平静姿态）：获得 ${lw} 点格挡！`, 'block');
+    pushCombatLog(combat, `【如水】生效（平静姿态）：获得 ${lw} 点格挡！`, 'block');
   }
   if ((state.player.statuses.combust ?? 0) > 0 && state.player.hp > 0) {
     const combustDmg = state.player.statuses.combust;
@@ -4413,7 +4413,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       if (bomb.turns <= 0) {
         const alive = getAliveEnemies(combat);
         if (alive.length > 0) {
-          pushCombatLog(combat, `【定时炸弹】轰然引爆：对所有敌人造成 ${bomb.damage} 点巨额伤害！`, 'attack');
+          pushCombatLog(combat, `【炸弹】轰然引爆：对所有敌人造成 ${bomb.damage} 点巨额伤害！`, 'attack');
           for (const enemy of alive) {
             dealDamageToEnemy(state, enemy, bomb.damage, { isAttack: false });
           }
@@ -4433,7 +4433,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     const omegaDmg = state.player.statuses.omega;
     const alive = getAliveEnemies(combat);
     if (alive.length > 0) {
-      pushCombatLog(combat, `【终焉】降临：对所有敌人造成 ${omegaDmg} 点毁灭性伤害！`, 'attack');
+      pushCombatLog(combat, `【欧米伽】降临：对所有敌人造成 ${omegaDmg} 点毁灭性伤害！`, 'attack');
       for (const enemy of alive) {
         dealDamageToEnemy(state, enemy, omegaDmg, { isAttack: false });
       }

@@ -2042,7 +2042,7 @@ export function chooseEventOption(state, choiceId) {
         }
         state.eventState.addedCardIds = addedIds;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = `幽灵议会汲取了你的凡胎生机（最大生命 -${actualLoss}，上限 ${state.player.maxHp}），赐予 3 张【幽灵化】加入牌组！`;
+        state.eventState.outcomeText = `幽灵议会汲取了你的凡胎生机（最大生命 -${actualLoss}，上限 ${state.player.maxHp}），赐予 3 张【灵体】加入牌组！`;
         return { ok: true };
       }
       if (choiceId === 'refuse_ghosts') {
@@ -3075,9 +3075,9 @@ export function generateNeowState(state) {
   const charName = charDef.name;
   const upgradeHint =
     charDef.id === 'silent'
-      ? '如中和+ 或 幸存者+'
+      ? '如中和+ 或 生存者+'
       : charDef.id === 'watcher'
-        ? '如爆发+ 或 警惕+'
+        ? '如暴怒+ 或 警惕+'
         : '如痛击+ 或 防御+';
   const swapPoolCount = getRelicPoolsForCharacter(charDef.id).boss.filter(
     (id) => !RELIC_LIBRARY[id]?.requiresRelic

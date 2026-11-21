@@ -97,7 +97,7 @@ import {
   createCombatDragController,
 } from './combat_interact.js';
 import { createFxManager } from './fx.js';
-import { escapeHtml } from './helpers.js';
+import { escapeHtml, formatCardDescHtml } from './helpers.js';
 import {
   renderCharacterSelectHeader,
   renderCharacterSelectScreen,
@@ -420,6 +420,8 @@ export function mountSpireApp(rootEl) {
     compendiumShowUpgraded: false,
     deckSort: 'order',
     deckStack: true,
+    inspectedMapNodeId: null,
+    mapTypeFilter: null,
     backupFeedback: '',
     backupFeedbackTone: 'ok',
     backupJsonDraft: '',
@@ -430,6 +432,85 @@ export function mountSpireApp(rootEl) {
 
   let lastRenderedScreen = null;
   let lastRenderedModal = null;
+  let hoveredMapNodeId = null;
+  let hoveredMapTypeFilter = null;
+
+  function clearMapInspectState({ clearTypeFilter = false } = {}) {
+    hoveredMapNodeId = null;
+    ui.inspectedMapNodeId = null;
+    if (clearTypeFilter) {
+      hoveredMapTypeFilter = null;
+      ui.mapTypeFilter = null;
+    }
+  }
+
+  function syncMapHighlights() {
+    if (!state || ui.showCharacterSelect) return;
+    const isMapVisible = state.screen === 'map' || ui.modal === 'map';
+    if (!isMapVisible) return;
+
+    const scopeEl =
+      ui.modal === 'map'
+        ? rootEl.querySelector('#map-inspector-modal') || rootEl
+        : rootEl;
+    const boardEl = scopeEl.querySelector('.map-board');
+    if (!boardEl) return;
+
+    const activeNodeId = hoveredMapNodeId || ui.inspectedMapNodeId || null;
+    const connectedNodeIds = new Set();
+    if (activeNodeId && Array.isArray(state.map)) {
+      for (const row of state.map) {
+        for (const node of row) {
+          if (node.id === activeNodeId) {
+            for (const nextId of node.nextIds || []) {
+              connectedNodeIds.add(nextId);
+            }
+          } else if (Array.isArray(node.nextIds) && node.nextIds.includes(activeNodeId)) {
+            connectedNodeIds.add(node.id);
+          }
+        }
+      }
+    }
+
+    boardEl.classList.toggle('has-node-inspect', Boolean(activeNodeId));
+
+    const edgePaths = boardEl.querySelectorAll('.map-edge-path');
+    edgePaths.forEach((pathEl) => {
+      const match =
+        Boolean(activeNodeId) &&
+        (pathEl.dataset.fromNode === activeNodeId || pathEl.dataset.toNode === activeNodeId);
+      pathEl.classList.toggle('edge-hover-highlight', match);
+    });
+
+    const effectiveType = hoveredMapTypeFilter || ui.mapTypeFilter || null;
+    boardEl.classList.toggle('has-type-filter', Boolean(effectiveType));
+
+    const nodeBtns = boardEl.querySelectorAll('.map-node-btn[data-node-id]');
+    nodeBtns.forEach((btn) => {
+      const nid = btn.dataset.nodeId;
+      btn.classList.toggle('map-node-inspected', Boolean(activeNodeId) && nid === activeNodeId);
+      btn.classList.toggle(
+        'map-node-connected',
+        Boolean(activeNodeId) && connectedNodeIds.has(nid)
+      );
+      btn.classList.toggle(
+        'map-node-type-match',
+        Boolean(effectiveType) && btn.dataset.nodeType === effectiveType
+      );
+    });
+
+    const filterBtns = scopeEl.querySelectorAll('.map-type-filter-btn[data-filter-node-type]');
+    filterBtns.forEach((btn) => {
+      const t = btn.dataset.filterNodeType;
+      const locked = ui.mapTypeFilter === t;
+      btn.classList.toggle('active', locked);
+      btn.classList.toggle(
+        'hover-preview',
+        Boolean(hoveredMapTypeFilter) && hoveredMapTypeFilter === t && !locked
+      );
+      btn.setAttribute('aria-pressed', locked ? 'true' : 'false');
+    });
+  }
 
   function clearCombatSelection() {
     ui.selectedCardId = null;
@@ -674,6 +755,13 @@ export function mountSpireApp(rootEl) {
 
     if (state.screen !== 'map') {
       ui.lastMapAutoScrollKey = '';
+      if (ui.modal !== 'map') {
+        clearMapInspectState({ clearTypeFilter: true });
+      }
+    }
+
+    if (state.screen === 'map' || ui.modal === 'map') {
+      syncMapHighlights();
     }
 
     if (state.screen === 'combat') {
@@ -1138,6 +1226,9 @@ export function mountSpireApp(rootEl) {
     if (ui.modal === 'confirm_challenge') {
       ui.pendingChallenge = null;
     }
+    if (ui.modal === 'map') {
+      clearMapInspectState({ clearTypeFilter: true });
+    }
     ui.modal = null;
     soundEngine.play('ui_click');
     render();
@@ -1164,15 +1255,16 @@ export function mountSpireApp(rootEl) {
     const target = isBackdropInnerClick ? null : rawTarget;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
 
-    // Nested inspect chips (relic, potion, starter-deck badges, enemy next-intent trigger) inspect cleanly without triggering parent action
+    // Nested inspect chips (relic, potion, starter-deck badges, enemy next-intent trigger, card keyword chip) inspect cleanly without triggering parent action
     const isNestedInspectChip =
       Boolean(tipAnchor) &&
       Boolean(target) &&
       tipAnchor !== target &&
       (target.dataset.action === 'select-character' ||
-        tipAnchor.classList.contains('next-intent-trigger'));
+        tipAnchor.classList.contains('next-intent-trigger') ||
+        tipAnchor.classList.contains('card-kw-trigger'));
 
-    // Mobile / touch tap-to-inspect support for passive badges (relics, potions, daily chips, locked Ascension pills, statuses, intents)
+    // Mobile / touch tap-to-inspect support for passive badges (relics, potions, daily chips, locked Ascension pills, statuses, intents, card keywords)
     const isPassiveClick =
       !target ||
       target.dataset.action === 'noop' ||
@@ -1188,6 +1280,11 @@ export function mountSpireApp(rootEl) {
         }
       } else {
         hideTooltip();
+        if (ui.inspectedMapNodeId && (state?.screen === 'map' || ui.modal === 'map')) {
+          ui.inspectedMapNodeId = null;
+          hoveredMapNodeId = null;
+          syncMapHighlights();
+        }
       }
       return;
     }
@@ -1637,20 +1734,63 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'select-node': {
+        const nodeId = target.dataset.nodeId;
         if (target.getAttribute('aria-disabled') === 'true') {
+          const isTogglingOff = ui.inspectedMapNodeId === nodeId;
+          ui.inspectedMapNodeId = isTogglingOff ? null : nodeId;
+          hoveredMapNodeId = null;
+          soundEngine.play('ui_click');
+          if (target.dataset.tooltipDesc) {
+            if (isTogglingOff || (activeTooltipAnchor === target && !tooltipEl.hidden && tooltipPinnedByTap)) {
+              hideTooltip();
+            } else {
+              showTooltip(target, { pinned: true });
+            }
+          } else {
+            hideTooltip();
+          }
           if (
             hasPendingNeowBlessing(state) &&
-            state.map[0]?.some((n) => n.id === target.dataset.nodeId)
+            state.map[0]?.some((n) => n.id === nodeId)
           ) {
             setNotice('请先在上方【第 0 层 · 涅奥的鲸鱼赐福】中 4 选 1，选定后立即解锁第 1 层起点！', 'warn');
             render();
+          } else {
+            syncMapHighlights();
           }
           break;
         }
-        const res = selectMapNode(state, target.dataset.nodeId);
+        clearMapInspectState({ clearTypeFilter: true });
+        const res = selectMapNode(state, nodeId);
         if (res.ok) soundEngine.play('ui_click');
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
         render();
+        break;
+      }
+      case 'inspect-map-node': {
+        const nodeId = target.dataset.nodeId;
+        const isTogglingOff = ui.inspectedMapNodeId === nodeId;
+        ui.inspectedMapNodeId = isTogglingOff ? null : nodeId;
+        hoveredMapNodeId = null;
+        soundEngine.play('ui_click');
+        if (target.dataset.tooltipDesc) {
+          if (isTogglingOff || (activeTooltipAnchor === target && !tooltipEl.hidden && tooltipPinnedByTap)) {
+            hideTooltip();
+          } else {
+            showTooltip(target, { pinned: true });
+          }
+        } else {
+          hideTooltip();
+        }
+        syncMapHighlights();
+        break;
+      }
+      case 'toggle-map-type-filter': {
+        const filterType = target.dataset.filterNodeType || null;
+        ui.mapTypeFilter = ui.mapTypeFilter === filterType ? null : filterType;
+        hoveredMapTypeFilter = null;
+        soundEngine.play('ui_click');
+        syncMapHighlights();
         break;
       }
       case 'click-hand-card': {
@@ -2072,19 +2212,6 @@ export function mountSpireApp(rootEl) {
     }
   });
 
-  let hoveredMapNodeId = null;
-  function updateHoveredMapEdges(nextNodeId) {
-    if (nextNodeId === hoveredMapNodeId) return;
-    hoveredMapNodeId = nextNodeId;
-    const edgePaths = rootEl.querySelectorAll('.map-edge-path');
-    edgePaths.forEach((pathEl) => {
-      const match =
-        Boolean(nextNodeId) &&
-        (pathEl.dataset.fromNode === nextNodeId || pathEl.dataset.toNode === nextNodeId);
-      pathEl.classList.toggle('edge-hover-highlight', match);
-    });
-  }
-
   window.addEventListener('touchstart', markTouchInteraction, { capture: true, passive: true });
   window.addEventListener(
     'pointerdown',
@@ -2096,7 +2223,7 @@ export function mountSpireApp(rootEl) {
     { capture: true, passive: true }
   );
 
-  // Instant hover tooltips + map route highlight + live combat Lethal/Shield-Break & Synergy previews in-place
+  // Instant hover tooltips + map route/type highlight + live combat Lethal/Shield-Break & Synergy previews in-place
   rootEl.addEventListener('mouseover', (event) => {
     if (dragController.isDragging() || isRecentTouchInteraction()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
@@ -2112,13 +2239,24 @@ export function mountSpireApp(rootEl) {
     if (!state || ui.showCharacterSelect) return;
 
     if (state.screen === 'map' || ui.modal === 'map') {
+      const filterBtn = targetEl
+        ? targetEl.closest('.map-type-filter-btn[data-filter-node-type]')
+        : null;
       const mapBtn = targetEl ? targetEl.closest('.map-node-btn[data-node-id]') : null;
-      updateHoveredMapEdges(mapBtn ? mapBtn.dataset.nodeId : null);
+      const nextFilter = filterBtn ? filterBtn.dataset.filterNodeType : null;
+      const nextNode = mapBtn ? mapBtn.dataset.nodeId : null;
+      if (nextFilter !== hoveredMapTypeFilter || nextNode !== hoveredMapNodeId) {
+        hoveredMapTypeFilter = nextFilter;
+        hoveredMapNodeId = nextNode;
+        syncMapHighlights();
+      }
       return;
     }
 
-    if (hoveredMapNodeId) {
-      updateHoveredMapEdges(null);
+    if (hoveredMapNodeId || hoveredMapTypeFilter) {
+      hoveredMapNodeId = null;
+      hoveredMapTypeFilter = null;
+      syncMapHighlights();
     }
 
     if (state.screen !== 'combat' || !state.combat) return;
@@ -2149,7 +2287,7 @@ export function mountSpireApp(rootEl) {
           targetEnemy: getPreviewTargetEnemy(),
           combat: state.combat,
         });
-        cardEl.textContent = desc.text;
+        cardEl.innerHTML = formatCardDescHtml(desc.text);
         cardEl.classList.toggle('boosted', desc.damageState === 'boosted' || desc.blockState === 'boosted');
         cardEl.classList.toggle('reduced', desc.damageState === 'reduced' || desc.blockState === 'reduced');
       }
@@ -2162,7 +2300,11 @@ export function mountSpireApp(rootEl) {
     if (!tooltipPinnedByTap) {
       hideTooltip();
     }
-    updateHoveredMapEdges(null);
+    if (hoveredMapNodeId || hoveredMapTypeFilter) {
+      hoveredMapNodeId = null;
+      hoveredMapTypeFilter = null;
+      syncMapHighlights();
+    }
     if (
       ui.hoveredCardId !== null ||
       ui.hoveredPotionSlot !== null ||

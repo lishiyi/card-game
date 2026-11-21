@@ -1283,7 +1283,7 @@ test('The Silent Discard archetype: pendingDiscard selection, Tactician, Reflex,
   assert.equal(endPlayerTurn(state).ok, true);
   assert.equal(enemy.hp, enemyHpBeforeEnd, 'Natural end-of-turn discard must NOT trigger Tingsha');
   assert.equal(state.player.energy, state.player.maxEnergy, 'Natural end-of-turn discard must NOT trigger Tactician');
-  assert.equal(state.combat.pendingDiscard?.sourceName, '独门秘技', 'Tools of the Trade must prompt 1 discard at turn start');
+  assert.equal(state.combat.pendingDiscard?.sourceName, '必备工具', 'Tools of the Trade must prompt 1 discard at turn start');
 });
 
 test('Shop-exclusive Colorless Cards (20): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
@@ -2274,7 +2274,7 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   const drawPileBeforeR3 = wState.combat.drawPile.length;
   playCard(wState, tranq2.instanceId);
   const synR3 = computeCardSynergies(wState, cresc2);
-  assert.ok(synR3.callouts.some((c) => c.tone === 'buff' && c.text.includes('猛冲')));
+  assert.ok(synR3.callouts.some((c) => c.tone === 'buff' && c.text.includes('猛虎下山')));
   playCard(wState, cresc2.instanceId);
   assert.equal(wState.combat.rushdownTriggersThisTurn, 3);
   assert.equal(wState.combat.drawPile.length, drawPileBeforeR3 - 2, 'Uncapped Rushdown draws 2 on 3rd Wrath entry');

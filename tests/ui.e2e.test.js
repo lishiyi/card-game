@@ -5332,3 +5332,338 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
   }
 });
 
+test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click direct-connection highlight (main + modal), Map room-type filter legend (Desktop + 390px Mobile), and Official Chinese card names', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    // === 1. Desktop (1280x900): Main Map direct-connection click + room-type filter legend ===
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'watcher');
+    await cdp.evaluate(`(() => {
+      document.getElementById('neow-choice-0')?.click();
+      const neowCard = document.querySelector('#modal-backdrop .game-card');
+      if (neowCard) neowCard.click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 120));
+
+    // Pick a non-available middle-floor node (e.g. Floor 6 or 7) and click it to highlight direct upstream + downstream connections
+    const mapClickAudit = await cdp.evaluate(`(() => {
+      const st = window.__SPIRE_APP__.getState();
+      const targetNode = st.map[6]?.[0];
+      const expectedParents = st.map[5].filter((n) => n.nextIds.includes(targetNode.id)).map((n) => n.id);
+      const expectedChildren = [...targetNode.nextIds];
+      const expectedConnected = [...new Set([...expectedParents, ...expectedChildren])];
+
+      const btn = document.getElementById('map-node-' + targetNode.id);
+      btn.scrollIntoView({ block: 'center', behavior: 'instant' });
+      btn.click();
+
+      const board = document.querySelector('.map-board');
+      const inspectedIds = [...board.querySelectorAll('.map-node-btn.map-node-inspected')].map((el) => el.dataset.nodeId);
+      const connectedIds = [...board.querySelectorAll('.map-node-btn.map-node-connected')].map((el) => el.dataset.nodeId);
+      const highlightedEdges = board.querySelectorAll('.map-edge-path.edge-hover-highlight').length;
+      const hasInspectClass = board.classList.contains('has-node-inspect');
+
+      // Clicking the same node again toggles highlight off cleanly
+      btn.click();
+      const clearedInspect = !board.classList.contains('has-node-inspect') &&
+        board.querySelectorAll('.map-node-btn.map-node-connected').length === 0;
+
+      // Re-click a higher-floor node near the top of the map so both filter bar + connected rooms appear together in screenshot
+      const topTarget = st.map[12]?.[0] || targetNode;
+      document.getElementById('map-node-' + topTarget.id)?.click();
+
+      return {
+        targetId: targetNode.id,
+        expectedConnected: expectedConnected.sort(),
+        inspectedIds,
+        connectedIds: connectedIds.sort(),
+        highlightedEdges,
+        hasInspectClass,
+        clearedInspect,
+      };
+    })()`);
+
+    assert.equal(mapClickAudit.hasInspectClass, true, 'Clicking a non-available map room must activate .has-node-inspect');
+    assert.deepEqual(mapClickAudit.inspectedIds, [mapClickAudit.targetId]);
+    assert.deepEqual(
+      mapClickAudit.connectedIds,
+      mapClickAudit.expectedConnected,
+      'Clicking a map room must highlight every direct upstream parent and direct downstream child room'
+    );
+    assert.equal(
+      mapClickAudit.highlightedEdges,
+      mapClickAudit.expectedConnected.length,
+      'Highlighted edge count must match direct upstream + downstream room connections'
+    );
+    assert.equal(mapClickAudit.clearedInspect, true, 'Clicking inspected room a second time must clear highlight');
+
+    // Room-type highlight filter bar (campfire / elite / combat)
+    const mapFilterAudit = await cdp.evaluate(`(() => {
+      const restBtn = document.querySelector('.map-type-filter-btn[data-filter-node-type="rest"]');
+      const eliteBtn = document.querySelector('.map-type-filter-btn[data-filter-node-type="elite"]');
+      const combatBtn = document.querySelector('.map-type-filter-btn[data-filter-node-type="combat"]');
+      const board = document.querySelector('.map-board');
+
+      restBtn.click();
+      const totalRestNodes = board.querySelectorAll('.map-node-btn[data-node-type="rest"]').length;
+      const matchedRestNodes = board.querySelectorAll('.map-node-btn.map-node-type-match[data-node-type="rest"]').length;
+      const wrongMatches = board.querySelectorAll('.map-node-btn.map-node-type-match:not([data-node-type="rest"])').length;
+      const restActive = restBtn.classList.contains('active') && restBtn.getAttribute('aria-pressed') === 'true';
+      const boardHasFilter = board.classList.contains('has-type-filter');
+
+      // Switch to Elite
+      eliteBtn.click();
+      const totalElite = board.querySelectorAll('.map-node-btn[data-node-type="elite"]').length;
+      const matchedElite = board.querySelectorAll('.map-node-btn.map-node-type-match[data-node-type="elite"]').length;
+      const restDeactivated = !restBtn.classList.contains('active');
+
+      // Toggle off by clicking Elite again, then switch back to Rest for visual screenshot
+      eliteBtn.click();
+      const filterCleared = !board.classList.contains('has-type-filter') &&
+        board.querySelectorAll('.map-node-btn.map-node-type-match').length === 0;
+      restBtn.click();
+      document.querySelector('.map-type-filter-bar')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+
+      return {
+        hasRestBtn: Boolean(restBtn),
+        hasEliteBtn: Boolean(eliteBtn),
+        hasCombatBtn: Boolean(combatBtn),
+        totalRestNodes,
+        matchedRestNodes,
+        wrongMatches,
+        restActive,
+        boardHasFilter,
+        totalElite,
+        matchedElite,
+        restDeactivated,
+        filterCleared,
+      };
+    })()`);
+
+    assert.equal(mapFilterAudit.hasRestBtn, true);
+    assert.equal(mapFilterAudit.hasEliteBtn, true);
+    assert.equal(mapFilterAudit.hasCombatBtn, true);
+    assert.ok(mapFilterAudit.totalRestNodes > 0, 'Map must contain campfire rooms');
+    assert.equal(mapFilterAudit.matchedRestNodes, mapFilterAudit.totalRestNodes, 'All campfire rooms must be highlighted');
+    assert.equal(mapFilterAudit.wrongMatches, 0, 'Non-campfire rooms must not match rest filter');
+    assert.equal(mapFilterAudit.restActive, true);
+    assert.equal(mapFilterAudit.boardHasFilter, true);
+    assert.equal(mapFilterAudit.matchedElite, mapFilterAudit.totalElite);
+    assert.equal(mapFilterAudit.restDeactivated, true);
+    assert.equal(mapFilterAudit.filterCleared, true);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotDesktopMap = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'desktop_map_filter_inspect.png'),
+        Buffer.from(shotDesktopMap.data, 'base64')
+      );
+    }
+
+    // === 2. Enter combat -> Verify concise card descriptions, interactive keyword tooltip (NO card play!), Official Chinese card names, and Read-Only Map Modal ===
+    await cdp.evaluate(`document.querySelector('.map-node-btn.available').click()`);
+    await new Promise((r) => setTimeout(r, 120));
+
+    const cardKeywordAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.combat.hand = [
+        { instanceId: 'kw_app', cardId: 'apparition', upgraded: false },
+        { instanceId: 'kw_eye', cardId: 'third_eye', upgraded: false },
+        { instanceId: 'kw_rush', cardId: 'rushdown', upgraded: false },
+        { instanceId: 'kw_erup', cardId: 'eruption', upgraded: false },
+        { instanceId: 'kw_pan', cardId: 'panacea', upgraded: false },
+      ];
+      st.player.energy = 3;
+      app.render();
+
+      const appCard = document.getElementById('hand-card-kw_app');
+      const eyeCard = document.getElementById('hand-card-kw_eye');
+      const rushCard = document.getElementById('hand-card-kw_rush');
+      const erupCard = document.getElementById('hand-card-kw_erup');
+      const panCard = document.getElementById('hand-card-kw_pan');
+
+      const appDesc = appCard.querySelector('.card-desc').textContent.trim();
+      const eyeDesc = eyeCard.querySelector('.card-desc').textContent.trim();
+      const panDesc = panCard.querySelector('.card-desc').textContent.trim();
+      const appInlineKws = [...appCard.querySelectorAll('.card-kw-inline')].map((el) => el.textContent);
+
+      // Click the keyword trigger on playable Apparition -> tooltip opens, card is NOT played!
+      const energyBefore = st.player.energy;
+      const handLenBefore = st.combat.hand.length;
+      const kwTrigger = appCard.querySelector('.card-kw-trigger');
+      kwTrigger.click();
+      const tip = document.getElementById('spire-tooltip');
+      const tipOpen = Boolean(tip && !tip.hidden);
+      const tipTitle = tip?.querySelector('.spire-tooltip-title')?.textContent?.trim() || '';
+      const tipDesc = tip?.querySelector('.spire-tooltip-desc')?.textContent?.trim() || '';
+
+      return {
+        appName: appCard.querySelector('.card-name').textContent.trim(),
+        eyeName: eyeCard.querySelector('.card-name').textContent.trim(),
+        rushName: rushCard.querySelector('.card-name').textContent.trim(),
+        erupName: erupCard.querySelector('.card-name').textContent.trim(),
+        panName: panCard.querySelector('.card-name').textContent.trim(),
+        appDesc,
+        eyeDesc,
+        panDesc,
+        appInlineKws,
+        tipOpen,
+        tipTitle,
+        tipDesc,
+        cardNotPlayed: st.player.energy === energyBefore && st.combat.hand.length === handLenBefore,
+      };
+    })()`);
+
+    assert.equal(cardKeywordAudit.appName, '灵体');
+    assert.equal(cardKeywordAudit.eyeName, '天眼');
+    assert.equal(cardKeywordAudit.rushName, '猛虎下山');
+    assert.equal(cardKeywordAudit.erupName, '暴怒');
+    assert.equal(cardKeywordAudit.panName, '万能药');
+    assert.equal(cardKeywordAudit.appDesc.includes('虚无（'), false, 'Ethereal must not show verbose inline parenthetical');
+    assert.equal(cardKeywordAudit.appDesc.includes('无实体】（'), false, 'Intangible must not show verbose inline parenthetical');
+    assert.equal(cardKeywordAudit.eyeDesc.includes('预见 3（'), false, 'Scry must not show verbose inline parenthetical');
+    assert.equal(cardKeywordAudit.panDesc.includes('人工制品】（'), false, 'Artifact must not show verbose inline parenthetical');
+    assert.ok(cardKeywordAudit.appInlineKws.includes('虚无'), 'Keyword 虚无 must be highlighted inline');
+    assert.equal(cardKeywordAudit.tipOpen, true, 'Clicking .card-kw-trigger must open keyword tooltip');
+    assert.ok(cardKeywordAudit.tipTitle.includes('灵体'));
+    assert.ok(cardKeywordAudit.tipDesc.includes('虚无：'), 'Tooltip must explain 虚无');
+    assert.ok(cardKeywordAudit.tipDesc.includes('无实体：'), 'Tooltip must explain 无实体');
+    assert.ok(cardKeywordAudit.tipDesc.includes('消耗：'), 'Tooltip must explain 消耗');
+    assert.equal(cardKeywordAudit.cardNotPlayed, true, 'Clicking .card-kw-trigger must NEVER play the card');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      await new Promise((r) => setTimeout(r, 340));
+      const shotCardKw = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'desktop_card_keyword_tooltip.png'),
+        Buffer.from(shotCardKw.data, 'base64')
+      );
+    }
+
+    // Also verify Deck modal passive cards still allow tapping .card-kw-trigger
+    const deckKwAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-deck').click();
+      const deckTrigger = document.querySelector('#modal-backdrop .card-kw-trigger');
+      deckTrigger?.click();
+      const tip = document.getElementById('spire-tooltip');
+      const opened = Boolean(tip && !tip.hidden);
+      const desc = tip?.querySelector('.spire-tooltip-desc')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal')?.click();
+      return { hasTrigger: Boolean(deckTrigger), opened, desc };
+    })()`);
+    assert.equal(deckKwAudit.hasTrigger, true, 'Deck modal cards must expose keyword triggers');
+    assert.equal(deckKwAudit.opened, true, 'Passive cards in Deck modal must open keyword tooltip on click');
+    assert.ok(deckKwAudit.desc.length > 0);
+
+    // === 3. Read-Only Map Modal during combat: direct-connection click + room-type filter ===
+    const modalMapAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-map').click();
+      const modal = document.getElementById('map-inspector-modal');
+      const st = window.__SPIRE_APP__.getState();
+      const midNode = st.map[7][0];
+      const modalNodeBtn = document.getElementById('map-modal-node-' + midNode.id);
+      modalNodeBtn.click();
+      const connectedCount = modal.querySelectorAll('.map-node-btn.map-node-connected').length;
+      const edgeCount = modal.querySelectorAll('.map-edge-path.edge-hover-highlight').length;
+      const eliteBtn = modal.querySelector('.map-type-filter-btn[data-filter-node-type="elite"]');
+      eliteBtn.click();
+      const eliteMatched = modal.querySelectorAll('.map-node-btn.map-node-type-match[data-node-type="elite"]').length;
+      document.getElementById('btn-close-modal').click();
+      return {
+        isInspected: modalNodeBtn.classList.contains('map-node-inspected'),
+        connectedCount,
+        edgeCount,
+        eliteMatched,
+      };
+    })()`);
+    assert.equal(modalMapAudit.isInspected, true, 'Clicking room inside read-only Map modal must inspect it');
+    assert.ok(modalMapAudit.connectedCount >= 2, 'Read-only Map modal click must highlight upstream + downstream rooms');
+    assert.equal(modalMapAudit.edgeCount, modalMapAudit.connectedCount);
+    assert.ok(modalMapAudit.eliteMatched > 0, 'Read-only Map modal room-type filter must highlight all elites');
+
+    // === 4. Mobile 390x844 touch viewport: Map filter + click direct connection + zero overflow ===
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileMapAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      st.combat = null;
+      app.render();
+
+      const restBtn = document.querySelector('.map-type-filter-btn[data-filter-node-type="rest"]');
+      restBtn.click();
+      const midNode = st.map[6][0];
+      const midBtn = document.getElementById('map-node-' + midNode.id);
+      midBtn.scrollIntoView({ block: 'center', behavior: 'instant' });
+      // Simulate touch mark then click on mobile
+      window.dispatchEvent(new Event('touchstart'));
+      midBtn.click();
+
+      const board = document.querySelector('.map-board');
+      const filterBar = document.querySelector('.map-type-filter-bar');
+      return {
+        docOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+        filterBarVisible: Boolean(filterBar && filterBar.getBoundingClientRect().height > 0),
+        restMatched: board.querySelectorAll('.map-node-btn.map-node-type-match[data-node-type="rest"]').length,
+        inspected: midBtn.classList.contains('map-node-inspected'),
+        connectedCount: board.querySelectorAll('.map-node-btn.map-node-connected').length,
+      };
+    })()`);
+
+    assert.equal(mobileMapAudit.docOverflow, false, 'Mobile 390px map with filter bar must not overflow horizontally');
+    assert.equal(mobileMapAudit.filterBarVisible, true);
+    assert.ok(mobileMapAudit.restMatched > 0, 'Mobile campfire filter highlights all campfire rooms');
+    assert.equal(mobileMapAudit.inspected, true, 'Mobile touch tap on non-available room must highlight it');
+    assert.ok(mobileMapAudit.connectedCount >= 2, 'Mobile touch tap must highlight directly connected upstream/downstream rooms');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotMobileMap = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_map_filter_inspect.png'),
+        Buffer.from(shotMobileMap.data, 'base64')
+      );
+    }
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+

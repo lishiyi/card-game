@@ -312,7 +312,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'accept_ghosts',
         label: '接受幽灵赐福',
-        detail: '永久失去 35% 最大生命（最低保留 20 点），获得 3 张【幽灵化】（1 费虚无消耗，获得 1 层无实体）！',
+        detail: '永久失去 35% 最大生命（最低保留 20 点），获得 3 张【灵体】（1 费虚无消耗，获得 1 层无实体）！',
       },
       {
         id: 'refuse_ghosts',
@@ -962,7 +962,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
       fight_bandits: `击败强盗团后固定获得 ${t.banditsFightGold} 金币与事件遗物【红面具】（战斗开场使全体敌人获得 1 层虚弱）。`,
     },
     council_of_ghosts: {
-      accept_ghosts: `永久失去 ${t.ghostsMaxHpLossPct}% 最大生命（最低保留 20 点），获得 3 张【幽灵化】（1 费虚无消耗，获得 1 层无实体）！`,
+      accept_ghosts: `永久失去 ${t.ghostsMaxHpLossPct}% 最大生命（最低保留 20 点），获得 3 张【灵体】（1 费虚无消耗，获得 1 层无实体）！`,
     },
     forgotten_altar: {
       shed_blood_altar: `失去 ${t.altarShedHpPct}% 最大生命的当前生命，永久获得 +${t.altarShedMaxHpGain} 最大生命并随机升级 1 张卡牌。`,

@@ -31,7 +31,7 @@ import { getEnemySvg } from '../enemy_art.js';
 import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
-import { renderMapBoardHtml } from './map.js';
+import { renderMapBoardHtml, renderMapTypeFilterBar } from './map.js';
 
 function formatRunDate(ts) {
   if (!Number.isFinite(ts)) return '';
@@ -810,7 +810,7 @@ function renderHelpModal({ ui }) {
           type="search"
           id="input-glossary-search"
           class="spire-input"
-          placeholder="搜索关键词（例如：力量、易伤、消耗、无色、每日、残虐本性...）"
+          placeholder="搜索关键词（例如：力量、易伤、消耗、无色、每日、残虐天性...）"
           value="${escapeHtml(ui.glossaryQuery || '')}"
           aria-label="搜索关键词词典"
         />
@@ -862,7 +862,7 @@ function renderHelpModal({ ui }) {
   `;
 }
 
-function renderMapModal({ state }) {
+function renderMapModal({ state, ui }) {
   const act = state.act ?? 1;
   const actLabel =
     act >= 3 ? '第三幕 · 深渊圣殿地图' : act >= 2 ? '第二幕 · 钢铁城邦地图' : '第一幕 · 尖塔攀登地图';
@@ -878,7 +878,7 @@ function renderMapModal({ state }) {
               ${actLabel}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(TOTAL_FLOORS)} 层）
             </h2>
             <p class="stage-subtitle">
-              只读路线预览：随时查看当前所在位置、已攀登足迹与后续分支，第 ${escapeHtml(TOTAL_FLOORS)} 层首领为【${escapeHtml(bossName)}】。关闭后直接返回当前房间。
+              只读路线预览：点击任意房间可高亮其直接相连房间，点选下方图例可按类型高亮全图房间，第 ${escapeHtml(TOTAL_FLOORS)} 层首领为【${escapeHtml(bossName)}】。
             </p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc / M)</button>
@@ -889,6 +889,7 @@ function renderMapModal({ state }) {
             <span class="map-legend-item"><i class="legend-swatch swatch-traveled"></i>已攀登足迹</span>
             <span class="map-legend-item"><i class="legend-swatch swatch-reachable"></i>后续可达分支</span>
           </div>
+          ${renderMapTypeFilterBar(state, ui?.mapTypeFilter || null)}
           ${renderMapBoardHtml(state, { interactive: false, idPrefix: 'map-modal-node' })}
         </div>
       </div>
@@ -1436,7 +1437,7 @@ export function renderModal({ state, meta, settings, ui }) {
   }
 
   if (ui.modal === 'map') {
-    return renderMapModal({ state });
+    return renderMapModal({ state, ui });
   }
 
   if (ui.modal === 'neow_action') {
