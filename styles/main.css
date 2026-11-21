@@ -47,6 +47,10 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  touch-action: manipulation;
   background-color: var(--bg-abyss);
   background-image:
     radial-gradient(ellipse 80% 55% at 50% 18%, hsla(28, 38%, 18%, 0.45), transparent 70%),
@@ -62,6 +66,7 @@ button {
   font-family: inherit;
   color: inherit;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 button:disabled {
@@ -72,7 +77,9 @@ button:disabled {
 /* === App Shell === */
 .spire-shell {
   min-height: 100vh;
+  width: 100%;
   max-width: 1240px;
+  min-width: 0;
   margin: 0 auto;
   padding: 12px 18px 20px;
   display: flex;
@@ -320,6 +327,9 @@ button:disabled {
 /* === Main Stage === */
 .stage-viewport {
   flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -665,6 +675,8 @@ button:disabled {
 /* === Combat Arena === */
 .combat-arena {
   position: relative;
+  max-width: 100%;
+  overflow-x: clip;
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.55fr);
   gap: 20px;
@@ -928,6 +940,9 @@ button:disabled {
 
 /* === Hand & Deck Control Dock === */
 .combat-dock {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -4927,14 +4942,18 @@ body.spire-dragging {
   }
 
   .hand-tray {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     flex-wrap: nowrap;
-    justify-content: safe center;
+    justify-content: flex-start;
     overflow-x: auto;
     overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
     scrollbar-width: thin;
     scrollbar-color: hsl(30, 14%, 28%) transparent;
     -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
     padding: 16px 8px 10px;
     gap: 10px;
     touch-action: pan-x;
@@ -4944,7 +4963,15 @@ body.spire-dragging {
     flex: 0 0 142px;
     width: 142px;
     min-height: 190px;
-    scroll-snap-align: center;
+    touch-action: pan-x;
+  }
+
+  .hand-tray .game-card:first-child {
+    margin-left: auto;
+  }
+
+  .hand-tray .game-card:last-child {
+    margin-right: auto;
   }
 
   .modal-backdrop {
@@ -5342,8 +5369,8 @@ body.spire-dragging {
   }
 
   .hand-tray {
-    padding: 10px 4px 6px;
-    gap: 7px;
+    padding: 14px 8px 10px;
+    gap: 8px;
   }
 
   .hand-tray .game-card {

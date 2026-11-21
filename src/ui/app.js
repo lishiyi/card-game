@@ -720,6 +720,17 @@ export function mountSpireApp(rootEl) {
         mainHtml = renderMapScreen({ state, settings, ui });
     }
 
+    const prevHandTray = rootEl.querySelector('#hand-tray');
+    const currentCombatKey =
+      state.screen === 'combat' && state.combat
+        ? `${state.runId}:${state.floor}:${state.combat.turn}`
+        : '';
+    const shouldKeepHandScroll =
+      Boolean(prevHandTray) &&
+      Boolean(currentCombatKey) &&
+      ui.lastCombatScrollKey === currentCombatKey;
+    const savedHandScrollLeft = shouldKeepHandScroll ? prevHandTray.scrollLeft : 0;
+
     const shellCharId = normalizeCharacterId(state.characterId);
     stageRoot.innerHTML = `
       <div class="spire-shell" data-character="${escapeHtml(shellCharId)}">
@@ -730,6 +741,14 @@ export function mountSpireApp(rootEl) {
       </div>
       ${renderModal({ state, meta, settings, ui })}
     `;
+    ui.lastCombatScrollKey = currentCombatKey;
+    if (shouldKeepHandScroll && savedHandScrollLeft > 0) {
+      const nextHandTray = rootEl.querySelector('#hand-tray');
+      if (nextHandTray) {
+        const maxHandScroll = Math.max(0, nextHandTray.scrollWidth - nextHandTray.clientWidth);
+        nextHandTray.scrollLeft = Math.min(savedHandScrollLeft, maxHandScroll);
+      }
+    }
     lastRenderedModal = ui.modal;
     syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
       restoreScroll: !screenChanged,

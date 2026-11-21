@@ -525,6 +525,34 @@ export function createCombatDragController({
     };
   });
 
+  let trayTouch = null;
+
+  rootEl.addEventListener(
+    'touchstart',
+    (event) => {
+      if (event.touches.length !== 1) {
+        trayTouch = null;
+        return;
+      }
+      const t = event.touches[0];
+      const targetEl = event.target instanceof Element ? event.target : null;
+      const tray = targetEl ? targetEl.closest('#hand-tray') : null;
+      if (!tray) {
+        trayTouch = null;
+        return;
+      }
+      trayTouch = {
+        tray,
+        startX: t.clientX,
+        startY: t.clientY,
+        lastX: t.clientX,
+        lastY: t.clientY,
+        lockedAxis: null,
+      };
+    },
+    { passive: true }
+  );
+
   window.addEventListener('pointermove', (event) => {
     if (!drag || event.pointerId !== drag.pointerId) return;
     if (!drag.active) {
@@ -533,8 +561,8 @@ export function createCombatDragController({
       if (drag.isTouch) {
         const absDx = Math.abs(dx);
         const absDy = Math.abs(dy);
-        // Horizontal swipe -> hand-out to native horizontal hand-tray scrolling!
-        if (absDx >= 10 && absDx >= absDy * 0.9) {
+        // Horizontal swipe -> hand-out immediately to native horizontal hand-tray scrolling!
+        if (absDx >= 7 && absDx >= absDy * 0.75) {
           drag = null;
           return;
         }
@@ -552,16 +580,45 @@ export function createCombatDragController({
     updateDragPosition(event.clientX, event.clientY);
   });
 
-  // Prevent browser pull-to-refresh / vertical scroll while actively dragging a card by touch
+  // 1) Prevent browser pull-to-refresh / vertical scroll while actively dragging a card by touch
+  // 2) Prevent horizontal page panning / iOS Safari rubber-band overscroll when swiping #hand-tray past its edges
   window.addEventListener(
     'touchmove',
     (event) => {
       if (drag && drag.active && drag.isTouch) {
         event.preventDefault();
+        return;
+      }
+      if (!trayTouch || event.touches.length !== 1) return;
+      const t = event.touches[0];
+      const totalDx = t.clientX - trayTouch.startX;
+      const totalDy = t.clientY - trayTouch.startY;
+      const stepDx = t.clientX - trayTouch.lastX;
+      trayTouch.lastX = t.clientX;
+      trayTouch.lastY = t.clientY;
+
+      if (!trayTouch.lockedAxis && (Math.abs(totalDx) >= 5 || Math.abs(totalDy) >= 5)) {
+        trayTouch.lockedAxis = Math.abs(totalDx) >= Math.abs(totalDy) ? 'x' : 'y';
+      }
+
+      if (trayTouch.lockedAxis === 'x') {
+        const tray = trayTouch.tray;
+        const maxScroll = Math.max(0, tray.scrollWidth - tray.clientWidth);
+        const atLeftEdge = tray.scrollLeft <= 0 && stepDx >= 1;
+        const atRightEdge = tray.scrollLeft >= maxScroll - 1 && stepDx <= -1;
+        if (maxScroll <= 0 || atLeftEdge || atRightEdge) {
+          event.preventDefault();
+        }
       }
     },
     { passive: false }
   );
+
+  const clearTrayTouch = () => {
+    trayTouch = null;
+  };
+  window.addEventListener('touchend', clearTrayTouch, { passive: true });
+  window.addEventListener('touchcancel', clearTrayTouch, { passive: true });
 
   function finishDrag(event, cancelled = false) {
     if (!drag) return;

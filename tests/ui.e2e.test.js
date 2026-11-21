@@ -5752,6 +5752,112 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       );
     }
 
+    // === 5. Mobile 390x844 Combat: Horizontal hand-tray touch swipe scrolls cards cleanly without panning page & preserves scrollLeft ===
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+    const mobileSwipeSetup = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.currentNodeId = null;
+      st.map[0].forEach((n) => { n.visited = false; });
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+      st.combat.hand = Array.from({ length: 8 }, (_, i) => ({
+        instanceId: 'ms_' + i,
+        cardId: i % 2 === 0 ? 'sash_whip' : 'defend',
+        upgraded: false,
+      }));
+      st.combat.lastCardTypePlayed = 'attack';
+      st.player.energy = 3;
+      app.render();
+
+      const tray = document.getElementById('hand-tray');
+      tray.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const rect = tray.getBoundingClientRect();
+      const cardEl = tray.querySelector('.game-card');
+      const docStyle = getComputedStyle(document.documentElement);
+      const trayStyle = getComputedStyle(tray);
+      const cardStyle = getComputedStyle(cardEl);
+      const endTurnStyle = getComputedStyle(document.getElementById('btn-end-turn'));
+      return {
+        xStart: Math.round(rect.right - 30),
+        xEnd: Math.round(rect.left + 30),
+        yMid: Math.round(rect.top + rect.height / 2),
+        docOverflowX: docStyle.overflowX,
+        docOverscrollX: docStyle.overscrollBehaviorX,
+        docTouchAction: docStyle.touchAction,
+        btnTouchAction: endTurnStyle.touchAction,
+        trayOverscrollX: trayStyle.overscrollBehaviorX,
+        trayTouchAction: trayStyle.touchAction,
+        cardTouchAction: cardStyle.touchAction,
+        traySnap: trayStyle.scrollSnapType,
+        trayMaxScroll: Math.max(0, tray.scrollWidth - tray.clientWidth),
+      };
+    })()`);
+
+    assert.equal(mobileSwipeSetup.docOverflowX, 'clip', 'html must clip horizontal page overflow without breaking sticky');
+    assert.equal(mobileSwipeSetup.docOverscrollX, 'none', 'html must disable horizontal page overscroll');
+    assert.equal(mobileSwipeSetup.docTouchAction, 'manipulation', 'html must disable double-tap zoom via touch-action: manipulation');
+    assert.equal(mobileSwipeSetup.btnTouchAction, 'manipulation', 'Buttons must disable double-tap zoom via touch-action: manipulation');
+    assert.equal(mobileSwipeSetup.trayOverscrollX, 'contain', '#hand-tray must contain horizontal overscroll');
+    assert.equal(mobileSwipeSetup.trayTouchAction, 'pan-x', '#hand-tray must allow pan-x');
+    assert.equal(mobileSwipeSetup.cardTouchAction, 'pan-x', 'Cards inside #hand-tray must explicitly set touch-action: pan-x');
+    assert.equal(mobileSwipeSetup.traySnap, 'none', '#hand-tray must not fight horizontal swipes with scroll-snap');
+    assert.ok(mobileSwipeSetup.trayMaxScroll > 300, '8-card mobile hand must be horizontally scrollable');
+
+    // Perform real touch swipe (slightly diagonal, starting on a card) across #hand-tray -> scrolls cards, NOT the page!
+    const swipeSteps = 10;
+    for (let i = 0; i <= swipeSteps; i++) {
+      const tx = Math.round(
+        mobileSwipeSetup.xStart + ((mobileSwipeSetup.xEnd - mobileSwipeSetup.xStart) * i) / swipeSteps
+      );
+      const ty = Math.round(mobileSwipeSetup.yMid + i * 2);
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: i === 0 ? 'touchStart' : i === swipeSteps ? 'touchEnd' : 'touchMove',
+        touchPoints: i === swipeSteps ? [] : [{ x: tx, y: ty, id: 1 }],
+      });
+      await new Promise((r) => setTimeout(r, 12));
+    }
+    await new Promise((r) => setTimeout(r, 140));
+
+    // Also test selecting a card on the right half preserves scrollLeft across re-render
+    const afterMobileSwipe = await cdp.evaluate(`(() => {
+      const tray = document.getElementById('hand-tray');
+      const scrollAfterSwipe = Math.round(tray.scrollLeft);
+      const winXAfterSwipe = Math.round(window.scrollX);
+
+      // Tap card #4 (mobile 2-tap confirm selects card and triggers render())
+      document.getElementById('hand-card-ms_4')?.click();
+      const scrollAfterSelect = Math.round(document.getElementById('hand-tray')?.scrollLeft ?? 0);
+
+      // Verify boundary touchmove guard prevents overscroll at left edge (scrollLeft === 0, swiping right)
+      const tray2 = document.getElementById('hand-tray');
+      tray2.scrollLeft = 0;
+      const card0 = document.getElementById('hand-card-ms_0');
+      const r0 = card0.getBoundingClientRect();
+      const mkTouch = (x, y) => new Touch({ identifier: 1, target: card0, clientX: x, clientY: y });
+      card0.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [mkTouch(r0.left + 20, r0.top + 30)] }));
+      const moveRightAtLeftEdge = new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [mkTouch(r0.left + 55, r0.top + 32)] });
+      card0.dispatchEvent(moveRightAtLeftEdge);
+      card0.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [] }));
+
+      return {
+        scrollAfterSwipe,
+        winXAfterSwipe,
+        scrollAfterSelect,
+        leftEdgeGuardPrevented: moveRightAtLeftEdge.defaultPrevented,
+        docOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    })()`);
+
+    assert.ok(afterMobileSwipe.scrollAfterSwipe > 80, `Horizontal touch swipe must scroll #hand-tray cards, got scrollLeft=${afterMobileSwipe.scrollAfterSwipe}`);
+    assert.equal(afterMobileSwipe.winXAfterSwipe, 0, 'Horizontal swipe on cards must NEVER move window.scrollX');
+    assert.ok(
+      Math.abs(afterMobileSwipe.scrollAfterSelect - afterMobileSwipe.scrollAfterSwipe) <= 4,
+      `Selecting a scrolled card must preserve #hand-tray scrollLeft (${afterMobileSwipe.scrollAfterSwipe} -> ${afterMobileSwipe.scrollAfterSelect})`
+    );
+    assert.equal(afterMobileSwipe.leftEdgeGuardPrevented, true, 'Swiping right at left edge of #hand-tray must call preventDefault to block page overscroll');
+    assert.equal(afterMobileSwipe.docOverflow, false, 'Mobile combat must never overflow horizontally');
+
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
       (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
