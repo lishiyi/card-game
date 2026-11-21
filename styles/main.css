@@ -5060,6 +5060,13 @@ body.spire-dragging {
     gap: 3px;
   }
 
+  .stance-pill {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+  }
+
   .unit-name-row {
     font-size: 0.74rem;
   }

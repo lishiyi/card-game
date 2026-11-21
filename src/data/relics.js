@@ -1169,7 +1169,7 @@ export const STANCE_METADATA = deepFreeze({
     name: '无姿态',
     shortLabel: '无姿态',
     tone: 'neutral',
-    description: '处于常态，攻防伤害均为 1 倍。',
+    description: '处于常态，造成与受到的攻击伤害均为 1 倍。',
   },
   calm: {
     id: 'calm',
@@ -1181,9 +1181,9 @@ export const STANCE_METADATA = deepFreeze({
   wrath: {
     id: 'wrath',
     name: '愤怒',
-    shortLabel: '愤怒 · 攻防 ×2',
+    shortLabel: '愤怒 · 敌我攻击 ×2',
     tone: 'wrath',
-    description: '双刃爆发：你造成的攻击伤害翻倍（×2），同时敌人对你造成的攻击伤害也翻倍（×2）！回合结束前务必注意切换或叠足格挡。',
+    description: '双刃爆发：你造成的攻击伤害翻倍（×2），敌人对你造成的攻击伤害也翻倍（×2），格挡牌收益不变！回合结束前务必注意切态或备足格挡。',
   },
   divinity: {
     id: 'divinity',

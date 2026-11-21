@@ -265,11 +265,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const stancePillText =
     currentStance === 'calm'
       ? `平静 · 出态 +${calmExitEnergy}能`
-      : currentStance === 'wrath'
-        ? '愤怒 · 攻防 ×2'
-        : currentStance === 'divinity'
-          ? '神格 · 伤害 ×3'
-          : '';
+      : currentStance === 'wrath' || currentStance === 'divinity'
+        ? stanceMeta.shortLabel
+        : '';
   const totalEnemyAttackIncoming = aliveEnemies.reduce((sum, enemy) => {
     const preview = getEnemyIntentPreview(enemy, state.player);
     return sum + (preview.isAttack ? preview.totalDamage : 0);

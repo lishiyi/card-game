@@ -67,7 +67,7 @@ function launchHeadlessChromium() {
     const proc = spawn(
       browserBin,
       [
-        '--headless',
+        '--headless=new',
         '--no-sandbox',
         '--disable-gpu',
         '--disable-dev-shm-usage',
@@ -4281,7 +4281,8 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     assert.equal(stanceUiAudit.intentBefore, '10');
     assert.ok(stanceUiAudit.calmPillText.includes('平静'));
     assert.equal(stanceUiAudit.hasCalmAura, true);
-    assert.ok(stanceUiAudit.wrathPillText.includes('愤怒'));
+    assert.ok(stanceUiAudit.wrathPillText.includes('愤怒') && stanceUiAudit.wrathPillText.includes('敌我攻击 ×2'));
+    assert.equal(stanceUiAudit.wrathPillText.includes('攻防'), false, 'Wrath pill must not misleadingly say 攻防');
     assert.equal(stanceUiAudit.hasWrathAura, true);
     assert.equal(stanceUiAudit.intentInWrath, '20', 'Enemy attack intent must double to 20 in Wrath');
     assert.equal(stanceUiAudit.hasWrathBanner, true, 'Wrath Danger banner must appear when incoming exceeds block');

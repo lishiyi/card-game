@@ -598,6 +598,8 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
       STATUS_METADATA.blasphemer
   );
   assert.ok(STANCE_METADATA.calm && STANCE_METADATA.wrath && STANCE_METADATA.divinity);
+  assert.equal(STANCE_METADATA.wrath.shortLabel, '愤怒 · 敌我攻击 ×2');
+  assert.equal(STANCE_METADATA.wrath.shortLabel.includes('攻防'), false);
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
