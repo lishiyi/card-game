@@ -7,7 +7,7 @@ import {
   getEventChoicesForAscension,
   getEventTuning,
 } from '../../data/events.js';
-import { getUpgradableDeckCards } from '../../engine/game.js';
+import { getUpgradableDeckCards, playerHasHeavyAttackCard } from '../../engine/game.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 
 export function renderEventScreen({ state, ui }) {
@@ -27,13 +27,17 @@ export function renderEventScreen({ state, ui }) {
       )
       .join('');
 
+    const hpNote =
+      (evState.purgeHpCost ?? 0) > 0 ? `（确认移除后将失去 ${evState.purgeHpCost} 点生命）` : '';
+
     bodyHtml = `
-      <p class="stage-subtitle" style="margin-bottom:12px;">请选择要从牌组中永久移除的 1 张卡牌：</p>
+      <p class="stage-subtitle" style="margin-bottom:12px;">请选择要从牌组中永久移除的 1 张卡牌${escapeHtml(hpNote)}：</p>
       <div class="card-showcase">${deckHtml}</div>
       <button type="button" id="btn-cancel-event-purge" class="btn-stone" data-action="cancel-event-purge">返回重选</button>
     `;
   } else if (evState.pendingCardAction) {
     const isUpgrade = evState.pendingCardAction === 'upgrade';
+    const isRareTransform = evState.pendingCardAction === 'transform_rare';
     const candidateCards = isUpgrade ? getUpgradableDeckCards(state) : state.player.deck;
     const cardsHtml = candidateCards
       .map((c) =>
@@ -48,7 +52,13 @@ export function renderEventScreen({ state, ui }) {
 
     bodyHtml = `
       <p class="stage-subtitle" style="margin-bottom:12px;">
-        ${isUpgrade ? '请选择牌组中要永久强化的 1 张卡牌：' : '请选择牌组中要进行随机蜕变重塑的 1 张卡牌：'}
+        ${
+          isUpgrade
+            ? '请选择牌组中要永久强化的 1 张卡牌：'
+            : isRareTransform
+              ? '请选择牌组中要定向蜕变为金色【稀有】牌的 1 张卡牌：'
+              : '请选择牌组中要进行随机蜕变重塑的 1 张卡牌：'
+        }
       </p>
       <div class="card-showcase">${cardsHtml}</div>
       <button type="button" id="btn-cancel-event-purge" class="btn-stone" data-action="cancel-event-purge">返回重选</button>
@@ -65,7 +75,7 @@ export function renderEventScreen({ state, ui }) {
       .join('');
 
     bodyHtml = `
-      <p class="stage-subtitle" style="margin-bottom:12px;">请从以下 3 卷武学手札中挑选 1 张加入你的牌组：</p>
+      <p class="stage-subtitle" style="margin-bottom:12px;">请从以下 3 张卡牌中挑选 1 张加入你的牌组：</p>
       <div class="card-showcase" id="event-library-choices">${libHtml}</div>
     `;
   } else if (evState.resolved) {
@@ -111,11 +121,27 @@ export function renderEventScreen({ state, ui }) {
   } else {
     const hasEmptyPotion = state.player.potions.some((p) => p === null);
     const upgradableCount = getUpgradableDeckCards(state).length;
+    const hasHeavyAttack = playerHasHeavyAttackCard(state);
+    const hasGoldenIdol = state.player.relics.includes('golden_idol_relic');
     const evTune = getEventTuning(state.ascension ?? 0);
     const choicesList = getEventChoicesForAscension(evDef.id, state.ascension ?? 0);
+    const oozeAttempts = evState.oozeAttempts ?? 0;
+    const oozeHpCost = evTune.oozeBaseHpLoss + oozeAttempts;
+    const oozeChancePct = Math.min(100, evTune.oozeBaseChancePct + oozeAttempts * 15);
+    const altarShedCost = Math.max(
+      1,
+      Math.floor(state.player.maxHp * (evTune.altarShedHpPct / 100))
+    );
 
     const choicesHtml = choicesList
       .map((ch) => {
+        let detailText = ch.detail;
+        if (evDef.id === 'scrap_ooze' && ch.id === 'reach_ooze') {
+          detailText = `失去 ${oozeHpCost} 点生命，有 ${oozeChancePct}% 概率掏出 1 件随机遗物（失败可继续尝试，每次代价 +1 生命、成功率 +15%）。`;
+        } else if (evDef.id === 'forgotten_altar' && ch.id === 'shed_blood_altar') {
+          detailText = `失去 ${altarShedCost} 点当前生命（${evTune.altarShedHpPct}% 最大生命），永久获得 +${evTune.altarShedMaxHpGain} 最大生命并随机升级 1 张卡牌。`;
+        }
+
         let blockedReason = '';
         if (
           (evDef.id === 'shining_light' && ch.id === 'enter_light' && state.player.hp <= evTune.shiningLightHpLoss) ||
@@ -124,7 +150,14 @@ export function renderEventScreen({ state, ui }) {
           (evDef.id === 'golden_idol' && ch.id === 'smash_trap' && state.player.hp <= evTune.idolSmashHpLoss) ||
           (evDef.id === 'cursed_tome' && ch.id === 'read_final_chapter' && state.player.hp <= evTune.tomeFinalHpLoss) ||
           (evDef.id === 'cursed_tome' && ch.id === 'skim_preface' && state.player.hp <= evTune.tomeSkimHpLoss) ||
-          (evDef.id === 'mushroom_grotto' && ch.id === 'refine_red_spore' && state.player.hp <= evTune.grottoRedHpLoss)
+          (evDef.id === 'mushroom_grotto' && ch.id === 'refine_red_spore' && state.player.hp <= evTune.grottoRedHpLoss) ||
+          (evDef.id === 'scrap_ooze' && ch.id === 'reach_ooze' && state.player.hp <= oozeHpCost) ||
+          (evDef.id === 'wing_statue' && ch.id === 'pray_wing' && state.player.hp <= evTune.wingPrayHpLoss) ||
+          (evDef.id === 'forgotten_altar' && ch.id === 'shed_blood_altar' && state.player.hp <= altarShedCost) ||
+          (evDef.id === 'augmenter' && ch.id === 'augment_serum' && state.player.hp <= evTune.augmentSerumHpLoss) ||
+          (evDef.id === 'sensory_stone' && ch.id === 'recall_2' && state.player.hp <= evTune.sensoryRecall2HpLoss) ||
+          (evDef.id === 'sensory_stone' && ch.id === 'recall_3' && state.player.hp <= evTune.sensoryRecall3HpLoss) ||
+          (evDef.id === 'winding_halls' && ch.id === 'embrace_madness' && state.player.hp <= evTune.windingMadnessHpLoss)
         ) {
           blockedReason = '（生命不足）';
         } else if (
@@ -136,12 +169,17 @@ export function renderEventScreen({ state, ui }) {
           blockedReason = '（药水栏已满）';
         } else if (
           ((evDef.id === 'ancient_shrine' && ch.id === 'pray_purge') ||
-            (evDef.id === 'living_wall' && ch.id === 'wall_forget')) &&
+            (evDef.id === 'living_wall' && ch.id === 'wall_forget') ||
+            (evDef.id === 'wing_statue' && ch.id === 'pray_wing')) &&
           state.player.deck.length <= 1
         ) {
           blockedReason = '（牌组过少）';
         } else if (evDef.id === 'living_wall' && ch.id === 'wall_grow' && upgradableCount === 0) {
           blockedReason = '（无可升级牌）';
+        } else if (evDef.id === 'wing_statue' && ch.id === 'destroy_wing' && !hasHeavyAttack) {
+          blockedReason = '（需基础伤害≥10攻击牌）';
+        } else if (evDef.id === 'forgotten_altar' && ch.id === 'offer_golden_idol' && !hasGoldenIdol) {
+          blockedReason = '（需持有黄金神像）';
         }
 
         const isBlocked = Boolean(blockedReason);
@@ -155,13 +193,16 @@ export function renderEventScreen({ state, ui }) {
             ${isBlocked ? 'disabled' : ''}
           >
             <span class="choice-title">${escapeHtml(ch.label)}${escapeHtml(blockedReason)}</span>
-            <span class="choice-detail">${escapeHtml(ch.detail)}</span>
+            <span class="choice-detail">${escapeHtml(detailText)}</span>
           </button>
         `;
       })
       .join('');
 
-    bodyHtml = `<div class="choice-stack">${choicesHtml}</div>`;
+    const retryNoteHtml = evState.lastAttemptNote
+      ? `<div class="toast-banner warn" style="margin-bottom:10px;">${escapeHtml(evState.lastAttemptNote)}</div>`
+      : '';
+    bodyHtml = `${retryNoteHtml}<div class="choice-stack">${choicesHtml}</div>`;
   }
 
   return `

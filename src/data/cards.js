@@ -145,7 +145,7 @@ export const CARD_LIBRARY = deepFreeze({
     target: 'self',
     price: 54,
     base: { cost: 1, block: 7, exhaustHandRandom: 1 },
-    upgraded: { cost: 1, block: 9, exhaustHandRandom: 1, exhaustHandSmart: true },
+    upgraded: { cost: 1, block: 9, exhaustHandRandom: 0, exhaustHandChoice: 1 },
   },
   anger: {
     id: 'anger',
@@ -174,8 +174,8 @@ export const CARD_LIBRARY = deepFreeze({
     rarity: 'common',
     target: 'self',
     price: 55,
-    base: { cost: 1, block: 5, upgradeHandRandom: 1 },
-    upgraded: { cost: 1, block: 5, upgradeHandRandom: 0, upgradeAllHand: true },
+    base: { cost: 1, block: 5, upgradeHandChoice: 1 },
+    upgraded: { cost: 1, block: 5, upgradeHandChoice: 0, upgradeAllHand: true },
   },
   steadfast_guard: {
     id: 'steadfast_guard',
@@ -1359,6 +1359,17 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: 0, applySelfStatuses: { sadisticNature: 5 } },
     upgraded: { cost: 0, applySelfStatuses: { sadisticNature: 7 } },
   },
+  apparition: {
+    id: 'apparition',
+    name: '幽灵化',
+    character: 'colorless',
+    type: 'skill',
+    rarity: 'special',
+    target: 'self',
+    price: 0,
+    base: { cost: 1, ethereal: true, exhaust: true, applySelfStatuses: { intangible: 1 } },
+    upgraded: { cost: 1, ethereal: false, exhaust: true, applySelfStatuses: { intangible: 1 } },
+  },
 
   // === Status Cards ===
   slimed: {
@@ -1752,7 +1763,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.doubleStrength) {
     parts.push('将你当前的【力量】翻倍。');
   }
-  if (stats.exhaustHandRandom) {
+  if (stats.exhaustHandChoice) {
+    parts.push(`从手牌中自选消耗 ${stats.exhaustHandChoice} 张牌。`);
+  } else if (stats.exhaustHandRandom) {
     parts.push(
       stats.exhaustHandSmart
         ? '消耗 1 张手牌（优先状态或诅咒牌）。'
@@ -1766,8 +1779,13 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push('本场战斗中升级你的所有卡牌（手牌、抽牌堆与弃牌堆）。');
   } else if (stats.upgradeAllHand) {
     parts.push('本场战斗中升级所有手牌。');
+  } else if (stats.upgradeHandChoice) {
+    parts.push(`本场战斗中从手牌中自选升级 ${stats.upgradeHandChoice} 张牌。`);
   } else if (stats.upgradeHandRandom) {
     parts.push(`本场战斗中随机升级 ${stats.upgradeHandRandom} 张手牌。`);
+  }
+  if (stats.scry) {
+    parts.push(`预见 ${stats.scry}（检视抽牌堆顶 ${stats.scry} 张牌并任意弃置）。`);
   }
   if (stats.exhaustAllHandDamageEach) {
     parts.push(`消耗所有手牌，每张对目标造成 ${displayDamage} 点伤害。`);
@@ -2146,6 +2164,9 @@ export function formatUpgradePreview(cardInstance, combatContext = null) {
   }
   if (baseStats.exhaust && !nextStats.exhaust) {
     prefixParts.push('不再消耗。');
+  }
+  if (baseStats.ethereal && !nextStats.ethereal) {
+    prefixParts.push('不再虚无。');
   }
   const prefixText = prefixParts.join(' ');
 

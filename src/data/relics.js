@@ -352,6 +352,14 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 220,
     description: '事件专属：每场战斗第 1 回合开始时，随机将 1 张本回合 0 费的【能力牌】加入手牌。',
   },
+  bloody_idol: {
+    id: 'bloody_idol',
+    name: '染血神像',
+    tier: 'event',
+    price: 240,
+    replacesRelic: 'golden_idol_relic',
+    description: '事件专属（替代黄金神像）：每当你获得金币时，回复 5 点生命值。',
+  },
 
   // === Boss (10) ===
   black_blood: {
@@ -591,6 +599,25 @@ export const POTION_LIBRARY = deepFreeze({
     price: 56,
     addCardsToHand: { cardId: 'shiv', count: 3, upgraded: true },
     description: '将 3 张【小刀+】加入手牌。',
+  },
+  heart_of_iron: {
+    id: 'heart_of_iron',
+    name: '钢铁之心药水',
+    character: 'ironclad',
+    target: 'self',
+    price: 58,
+    metallicize: 6,
+    description: '本场战斗获得 6 层【金属化】（每回合结束自动获得格挡）。',
+  },
+  fury_potion: {
+    id: 'fury_potion',
+    name: '狂怒药水',
+    character: 'ironclad',
+    target: 'self',
+    price: 54,
+    tempStrength: 5,
+    draw: 1,
+    description: '本回合临时获得 5 点【力量】并抽 1 张牌。',
   },
 });
 
@@ -947,5 +974,19 @@ export const STATUS_METADATA = deepFreeze({
     name: '再生',
     polarity: 'buff',
     describe: (v) => `每回合结束时，回复 ${v} 点生命值。`,
+  },
+  flight: {
+    id: 'flight',
+    name: '飞行',
+    polarity: 'buff',
+    describe: (v) =>
+      `处于空中飞行状态（${v} 层）：受到的攻击伤害减半（向下取整）。每受到 1 次攻击伤害失去 1 层，归零时坠落并【眩晕】 1 回合！`,
+  },
+  malleable: {
+    id: 'malleable',
+    name: '可塑护甲',
+    polarity: 'buff',
+    describe: (v) =>
+      `每当受到玩家攻击伤害，立即获得 ${v} 点格挡并使本层数 +1（敌方回合开始时重置为 3）。`,
   },
 });

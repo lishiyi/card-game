@@ -3052,6 +3052,94 @@ body.spire-dragging {
   font-weight: 800;
 }
 
+.toast-banner.exhaust-prompt {
+  border-color: hsl(14, 82%, 56%);
+  background: linear-gradient(90deg, hsla(10, 48%, 18%, 0.96), hsla(22, 42%, 15%, 0.96));
+  color: hsl(26, 96%, 86%);
+  font-weight: 700;
+  box-shadow: 0 0 16px hsla(14, 82%, 52%, 0.34);
+}
+
+.toast-banner.upgrade-prompt {
+  border-color: hsl(152, 72%, 50%);
+  background: linear-gradient(90deg, hsla(154, 42%, 16%, 0.96), hsla(168, 38%, 14%, 0.96));
+  color: hsl(148, 92%, 84%);
+  font-weight: 700;
+  box-shadow: 0 0 16px hsla(152, 72%, 46%, 0.34);
+}
+
+.toast-banner.scry-prompt {
+  border-color: hsl(212, 82%, 62%);
+  background: linear-gradient(90deg, hsla(216, 46%, 18%, 0.96), hsla(246, 38%, 18%, 0.96));
+  color: hsl(210, 96%, 88%);
+  font-weight: 700;
+  box-shadow: 0 0 16px hsla(212, 82%, 56%, 0.34);
+}
+
+#hand-tray.exhaust-selecting .game-card.exhaust-selectable {
+  cursor: pointer;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px hsla(14, 84%, 56%, 0.68);
+}
+
+#hand-tray.exhaust-selecting .game-card.exhaust-selectable:hover {
+  transform: translateY(-12px) scale(1.03);
+  box-shadow:
+    0 14px 26px hsla(0, 0%, 0%, 0.8),
+    0 0 0 2px hsl(16, 92%, 62%);
+}
+
+#hand-tray.exhaust-selecting .game-card.exhaust-selectable .card-footer {
+  color: hsl(18, 94%, 72%);
+  font-weight: 800;
+}
+
+#hand-tray.upgrade-selecting .game-card.upgrade-selectable {
+  cursor: pointer;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px hsla(152, 74%, 52%, 0.7);
+}
+
+#hand-tray.upgrade-selecting .game-card.upgrade-selectable:hover {
+  transform: translateY(-12px) scale(1.03);
+  box-shadow:
+    0 14px 26px hsla(0, 0%, 0%, 0.8),
+    0 0 0 2px hsl(150, 86%, 58%);
+}
+
+#hand-tray.upgrade-selecting .game-card.upgrade-selectable .card-footer {
+  color: hsl(148, 90%, 70%);
+  font-weight: 800;
+}
+
+.game-card.scry-selectable {
+  cursor: pointer;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px hsla(212, 76%, 60%, 0.65);
+}
+
+.game-card.scry-selectable .card-footer {
+  color: hsl(204, 92%, 78%);
+  font-weight: 800;
+}
+
+.game-card.scry-selectable.scry-marked-discard {
+  opacity: 0.72;
+  transform: translateY(4px) scale(0.97);
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px hsl(4, 84%, 58%),
+    0 0 18px hsla(4, 84%, 50%, 0.45);
+}
+
+.game-card.scry-selectable.scry-marked-discard .card-footer {
+  color: hsl(6, 96%, 72%);
+  font-weight: 800;
+}
+
 /* === Character Select Screen === */
 .character-select-stage {
   display: flex;
@@ -3241,6 +3329,67 @@ body.spire-dragging {
   font-size: 0.96rem;
   font-weight: 800;
   color: var(--text-ivory);
+}
+
+.char-career-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  background: hsla(26, 20%, 10%, 0.72);
+  border: 1px dashed hsla(38, 34%, 44%, 0.36);
+  font-size: 0.76rem;
+  color: var(--text-sand);
+}
+
+.char-career-item strong {
+  color: var(--accent-brass);
+  font-family: var(--font-mono);
+}
+
+.meta-char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.meta-char-card {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: hsla(24, 18%, 12%, 0.85);
+  border: 1px solid var(--border-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta-char-card.active {
+  border-color: hsla(40, 74%, 56%, 0.65);
+  box-shadow: 0 0 12px hsla(40, 74%, 50%, 0.16);
+}
+
+.meta-char-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-char-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.8rem;
+  color: var(--text-sand);
+}
+
+.meta-char-stats strong {
+  color: var(--text-ivory);
+  font-family: var(--font-mono);
 }
 
 .character-gear-row {

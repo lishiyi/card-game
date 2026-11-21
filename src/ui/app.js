@@ -7,7 +7,12 @@ import { formatCardDescription, getCardStats } from '../data/cards.js';
 import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY } from '../data/relics.js';
-import { canPlayCard, getAliveEnemies } from '../engine/combat.js';
+import {
+  canPlayCard,
+  getActivePendingCardChoice,
+  getAliveEnemies,
+  hasPendingCardChoice,
+} from '../engine/combat.js';
 import { getDailyChallengeSpec, getLocalDateKey } from '../engine/daily.js';
 import {
   buyShopCard,
@@ -43,10 +48,14 @@ import {
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runConfirmScry,
   runDiscardHandCard,
   runEndTurn,
+  runInitiateScry,
   runPlayCard,
+  runResolveCardChoice,
   runRestartCombat,
+  runToggleScryCard,
   runUsePotion,
   selectMapNode,
   settleVictory,
@@ -55,7 +64,9 @@ import {
 } from '../engine/game.js';
 import {
   buildRunReportFromState,
+  ensureCharacterProgress,
   formatShareableBattleReport,
+  getMaxAscensionForCharacter,
   getRunRecordKey,
   loadSavedMeta,
   MAX_ASCENSION,
@@ -196,9 +207,12 @@ export function mountSpireApp(rootEl) {
   let settings = loadSettings();
 
   function buildNewRunOptions(overrides = {}) {
+    const charId = normalizeCharacterId(overrides.characterId ?? meta.selectedCharacterId);
+    const charMaxAsc = getMaxAscensionForCharacter(meta, charId);
+    const defaultAsc = Math.max(0, Math.min(charMaxAsc, meta.selectedAscension ?? 0));
     return {
-      characterId: normalizeCharacterId(overrides.characterId ?? meta.selectedCharacterId),
-      ascension: overrides.ascension ?? meta.selectedAscension ?? 0,
+      characterId: charId,
+      ascension: overrides.ascension ?? defaultAsc,
       unlockedTier: meta.unlockedTier ?? 0,
       unlockAllOverride: Boolean(meta.unlockAllOverride),
       ...overrides,
@@ -650,10 +664,40 @@ export function mountSpireApp(rootEl) {
     }
   }
 
-  function executeDiscardHandCardWithFx(instanceId) {
-    if (!state || state.screen !== 'combat' || !state.combat?.pendingDiscard) return;
+  function executeResolveCardChoiceWithFx(instanceId) {
+    if (!state || state.screen !== 'combat' || !hasPendingCardChoice(state.combat)) return;
+    const pending = getActivePendingCardChoice(state.combat);
     const prevSnap = fxManager.captureCombatSnapshot(state);
-    const res = runDiscardHandCard(state, instanceId);
+    const res =
+      pending?.mode === 'discard'
+        ? runDiscardHandCard(state, instanceId)
+        : runResolveCardChoice(state, instanceId);
+    clearCombatSelection();
+    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    render();
+    if (res.ok) {
+      soundEngine.play(pending?.mode === 'upgrade' ? 'upgrade' : 'card_skill');
+      fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
+    }
+  }
+
+  function executeToggleScryWithFx(instanceId) {
+    if (!state || state.screen !== 'combat' || state.combat?.pendingCardChoice?.mode !== 'scry') {
+      return;
+    }
+    const res = runToggleScryCard(state, instanceId);
+    if (res.ok) {
+      soundEngine.play('ui_click');
+      render();
+    }
+  }
+
+  function executeConfirmScryWithFx() {
+    if (!state || state.screen !== 'combat' || state.combat?.pendingCardChoice?.mode !== 'scry') {
+      return;
+    }
+    const prevSnap = fxManager.captureCombatSnapshot(state);
+    const res = runConfirmScry(state);
     clearCombatSelection();
     setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
     render();
@@ -689,8 +733,10 @@ export function mountSpireApp(rootEl) {
 
   function handleHandCardInteraction(instanceId) {
     if (!state || state.screen !== 'combat' || !state.combat) return;
-    if (state.combat.pendingDiscard) {
-      executeDiscardHandCardWithFx(instanceId);
+    if (hasPendingCardChoice(state.combat)) {
+      const pending = getActivePendingCardChoice(state.combat);
+      if (pending?.mode === 'scry') return;
+      executeResolveCardChoiceWithFx(instanceId);
       return;
     }
     const card = state.combat.hand.find((c) => c.instanceId === instanceId);
@@ -729,7 +775,14 @@ export function mountSpireApp(rootEl) {
   }
 
   function handleEnemyClick(enemyId) {
-    if (!state || state.screen !== 'combat' || !state.combat || state.combat.pendingDiscard) return;
+    if (
+      !state ||
+      state.screen !== 'combat' ||
+      !state.combat ||
+      hasPendingCardChoice(state.combat)
+    ) {
+      return;
+    }
 
     if (ui.selectedCardId) {
       executeCardPlayWithFx(ui.selectedCardId, enemyId);
@@ -986,6 +1039,10 @@ export function mountSpireApp(rootEl) {
         const nextChar = normalizeCharacterId(target.dataset.characterId);
         ui.selectedCharacterId = nextChar;
         meta.selectedCharacterId = nextChar;
+        const maxForChar = getMaxAscensionForCharacter(meta, nextChar);
+        if ((meta.selectedAscension ?? 0) > maxForChar) {
+          meta.selectedAscension = maxForChar;
+        }
         saveMeta(meta);
         soundEngine.play('ui_click');
         render();
@@ -1064,12 +1121,12 @@ export function mountSpireApp(rootEl) {
       }
       case 'replay-history-seed': {
         const seedVal = parseSeedInput(target.dataset.seed);
-        const maxAllowed = meta.unlockAllOverride ? MAX_ASCENSION : meta.maxAscensionUnlocked ?? 0;
+        const reqChar = normalizeCharacterId(target.dataset.characterId || state?.characterId);
+        const maxAllowed = getMaxAscensionForCharacter(meta, reqChar);
         const reqAsc = Number(target.dataset.ascension ?? 0);
         const safeAsc = Number.isFinite(reqAsc)
           ? Math.max(0, Math.min(maxAllowed, Math.floor(reqAsc)))
           : 0;
-        const reqChar = normalizeCharacterId(target.dataset.characterId || state?.characterId);
         meta.selectedAscension = safeAsc;
         saveMeta(meta);
         launchRunForCharacter(reqChar, {
@@ -1182,7 +1239,10 @@ export function mountSpireApp(rootEl) {
       }
       case 'select-ascension': {
         const lvl = Number(target.dataset.ascension);
-        const maxAllowed = meta.unlockAllOverride ? MAX_ASCENSION : meta.maxAscensionUnlocked ?? 0;
+        const activeChar = ui.showCharacterSelect
+          ? ui.selectedCharacterId || meta.selectedCharacterId
+          : state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId;
+        const maxAllowed = getMaxAscensionForCharacter(meta, activeChar);
         if (Number.isInteger(lvl) && lvl >= 0 && lvl <= maxAllowed) {
           meta.selectedAscension = lvl;
           saveMeta(meta);
@@ -1195,6 +1255,10 @@ export function mountSpireApp(rootEl) {
         meta.unlockAllOverride = true;
         meta.unlockedTier = UNLOCK_TIERS.length;
         meta.maxAscensionUnlocked = MAX_ASCENSION;
+        const progMap = ensureCharacterProgress(meta);
+        for (const entry of Object.values(progMap)) {
+          entry.maxAscensionUnlocked = MAX_ASCENSION;
+        }
         saveMeta(meta);
         soundEngine.play('upgrade');
         render();
@@ -1322,8 +1386,17 @@ export function mountSpireApp(rootEl) {
         handleHandCardInteraction(target.dataset.instanceId);
         break;
       }
-      case 'discard-hand-card': {
-        executeDiscardHandCardWithFx(target.dataset.instanceId);
+      case 'discard-hand-card':
+      case 'resolve-card-choice': {
+        executeResolveCardChoiceWithFx(target.dataset.instanceId);
+        break;
+      }
+      case 'toggle-scry-card': {
+        executeToggleScryWithFx(target.dataset.instanceId);
+        break;
+      }
+      case 'confirm-scry-choice': {
+        executeConfirmScryWithFx();
         break;
       }
       case 'click-enemy': {
@@ -1749,7 +1822,7 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener(
     'touchstart',
     (event) => {
-      if (!ui.modal || event.touches.length !== 1) return;
+      if (!(ui.modal || rootEl.querySelector('#modal-backdrop')) || event.touches.length !== 1) return;
       modalTouchLastY = event.touches[0].clientY;
       modalTouchLastX = event.touches[0].clientX;
     },
@@ -1759,7 +1832,7 @@ export function mountSpireApp(rootEl) {
   rootEl.addEventListener(
     'touchmove',
     (event) => {
-      if (!ui.modal || event.touches.length !== 1) return;
+      if (!(ui.modal || rootEl.querySelector('#modal-backdrop')) || event.touches.length !== 1) return;
       const targetEl = event.target instanceof Element ? event.target : null;
       if (targetEl?.closest('input[type="range"]')) return;
 
@@ -1837,6 +1910,10 @@ export function mountSpireApp(rootEl) {
       const nextChar = normalizeCharacterId(event.target.dataset.characterId);
       ui.selectedCharacterId = nextChar;
       meta.selectedCharacterId = nextChar;
+      const maxForChar = getMaxAscensionForCharacter(meta, nextChar);
+      if ((meta.selectedAscension ?? 0) > maxForChar) {
+        meta.selectedAscension = maxForChar;
+      }
       saveMeta(meta);
       soundEngine.play('ui_click');
       render();
@@ -1911,7 +1988,24 @@ export function mountSpireApp(rootEl) {
     }
 
     if (state && !ui.showCharacterSelect && state.screen === 'combat' && state.combat?.phase === 'player') {
-      if ((event.key === 'e' || event.key === 'E') && !state.combat.pendingDiscard) {
+      const activeChoice = getActivePendingCardChoice(state.combat);
+      if (activeChoice?.mode === 'scry') {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          executeConfirmScryWithFx();
+          return;
+        }
+        const scryNum = Number(event.key);
+        if (scryNum >= 1 && scryNum <= 9) {
+          const cand = activeChoice.candidates?.[scryNum - 1];
+          if (cand) {
+            executeToggleScryWithFx(cand.instanceId);
+          }
+        }
+        return;
+      }
+
+      if ((event.key === 'e' || event.key === 'E') && !hasPendingCardChoice(state.combat)) {
         event.preventDefault();
         executeEndTurnWithFx();
         return;
@@ -1938,6 +2032,11 @@ export function mountSpireApp(rootEl) {
     openModal: (modalName) => {
       ui.modal = modalName;
       render();
+    },
+    initiateScry: (count = 3, sourceName = '预见') => {
+      const res = runInitiateScry(state, count, sourceName);
+      render();
+      return res;
     },
   };
 }

@@ -2,10 +2,15 @@
  * Combat arena, enemy current & next-turn intent prediction badges, hand tray, and log strip.
  */
 
-import { getCardStats } from '../../data/cards.js';
+import { canUpgradeCard, getCardStats } from '../../data/cards.js';
 import { predictNextTurnIntents } from '../../data/enemies.js';
 import { POTION_LIBRARY } from '../../data/relics.js';
-import { canPlayCard, getAliveEnemies } from '../../engine/combat.js';
+import {
+  canPlayCard,
+  getActivePendingCardChoice,
+  getAliveEnemies,
+  hasPendingCardChoice,
+} from '../../engine/combat.js';
 import { getEnemyIntentPreview } from '../../engine/math.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
 import { getCharacterSvg, getIntentIconSvg } from '../icons.js';
@@ -34,7 +39,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       const intentPreview = getEnemyIntentPreview(enemy, state.player);
       const nextPred =
         enemy.hp > 0
-          ? predictNextTurnIntents(enemy, state.player, state.ascension ?? 0)
+          ? predictNextTurnIntents(enemy, state.player, state.ascension ?? 0, combat)
           : { summaryText: '', tooltipLines: [] };
 
       const intentClass = intentPreview.isAttack
@@ -96,7 +101,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             <span class="unit-name-text">${escapeHtml(enemy.name)}</span>
             ${
               enemy.block > 0
-                ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${enemy.block})`)}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="优先抵消受到的攻击伤害，下回合开始时清零。">盾 ${escapeHtml(enemy.block)}</span>`
+                ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${enemy.block})`)}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="优先抵消受到的攻击伤害，下回合开始时清零（拥有壁垒时保留）。">盾 ${escapeHtml(enemy.block)}</span>`
                 : ''
             }
           </div>
@@ -111,28 +116,69 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     })
     .join('');
 
-  const isPendingDiscard = Boolean(combat.pendingDiscard);
+  const pendingChoice = getActivePendingCardChoice(combat);
+  const isAnyPendingChoice = hasPendingCardChoice(combat);
+  const pendingMode = pendingChoice?.mode || null;
+  const isHandChoiceMode =
+    pendingMode === 'discard' || pendingMode === 'exhaust' || pendingMode === 'upgrade';
   const previewTarget = getPreviewTargetEnemy();
   const handHtml = combat.hand
     .map((card, idx) => {
-      if (isPendingDiscard) {
-        const cStats = getCardStats(card);
-        const isDiscardSynergy = Boolean(cStats.onDiscardGainEnergy || cStats.onDiscardDraw);
-        return renderCardHtml(card, {
-          idPrefix: 'hand-card',
-          action: 'discard-hand-card',
-          playable: true,
-          selected: false,
-          dimmed: false,
-          discardSelectable: true,
-          discardSynergy: isDiscardSynergy,
-          hotkey: idx < 9 ? idx + 1 : undefined,
-          combatContext: {
-            player: state.player,
-            targetEnemy: previewTarget,
-            combat,
-          },
-        });
+      if (isHandChoiceMode) {
+        if (pendingMode === 'discard') {
+          const cStats = getCardStats(card);
+          const isDiscardSynergy = Boolean(cStats.onDiscardGainEnergy || cStats.onDiscardDraw);
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: 'discard-hand-card',
+            playable: true,
+            selected: false,
+            dimmed: false,
+            discardSelectable: true,
+            discardSynergy: isDiscardSynergy,
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'exhaust') {
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: 'resolve-card-choice',
+            playable: true,
+            selected: false,
+            dimmed: false,
+            exhaustSelectable: true,
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'upgrade') {
+          const upgradable = canUpgradeCard(card);
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: upgradable ? 'resolve-card-choice' : 'noop',
+            playable: upgradable,
+            selected: false,
+            dimmed: !upgradable,
+            disabled: !upgradable,
+            upgradeSelectable: upgradable,
+            showUpgradePreview: upgradable,
+            hotkey: upgradable && idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
       }
 
       const check = canPlayCard(state, card.instanceId);
@@ -173,9 +219,18 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
   let bannerText = ui.notice;
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
-  if (isPendingDiscard) {
-    bannerText = `【${combat.pendingDiscard.sourceName}】请选择 ${combat.pendingDiscard.remaining} 张手牌弃置（点击手牌或按数字键 1–9）`;
+  if (pendingMode === 'discard') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌弃置（点击手牌或按数字键 1–9）`;
     bannerClass = 'discard-prompt';
+  } else if (pendingMode === 'exhaust') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌消耗（点击手牌或按数字键 1–9）`;
+    bannerClass = 'exhaust-prompt';
+  } else if (pendingMode === 'upgrade') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌本场战斗升级（点击手牌或按数字键 1–9）`;
+    bannerClass = 'upgrade-prompt';
+  } else if (pendingMode === 'scry') {
+    bannerText = `【${pendingChoice.sourceName}】正在预见抽牌堆顶 ${pendingChoice.count} 张卡牌……`;
+    bannerClass = 'scry-prompt';
   } else if (isTargetingEnemy) {
     const itemName = selectedCardStats
       ? selectedCardStats.name
@@ -195,6 +250,28 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
   const playerArtKey = state.player.artKey || state.characterId || 'ironclad';
   const mobileLogExpanded = Boolean(ui.mobileLogExpanded);
+
+  const mobileChoiceHint =
+    pendingMode === 'discard'
+      ? '点击下方手牌弃置'
+      : pendingMode === 'exhaust'
+        ? '点击下方手牌消耗'
+        : pendingMode === 'upgrade'
+          ? '点击下方手牌升级'
+          : pendingMode === 'scry'
+            ? '请在弹窗完成预见'
+            : settings?.mobileTapConfirm
+              ? '点选预览 · 再点/上滑出牌'
+              : '左右滑选牌 · 上滑拖出牌';
+
+  const handTrayChoiceClass =
+    pendingMode === 'discard'
+      ? 'discard-selecting'
+      : pendingMode === 'exhaust'
+        ? 'exhaust-selecting'
+        : pendingMode === 'upgrade'
+          ? 'upgrade-selecting'
+          : '';
 
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}</div>
@@ -263,7 +340,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             id="btn-end-turn"
             class="btn-brass"
             data-action="end-turn"
-            ${combat.phase !== 'player' || aliveEnemies.length === 0 || isPendingDiscard ? 'disabled' : ''}
+            ${combat.phase !== 'player' || aliveEnemies.length === 0 || isAnyPendingChoice ? 'disabled' : ''}
           >
             结束回合 (E)
           </button>
@@ -278,13 +355,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
       <div class="mobile-hand-bar" id="mobile-hand-bar">
         <span class="mobile-hand-meta">手牌 ${escapeHtml(combat.hand.length)} / 10</span>
-        <span class="mobile-hand-hint">${
-          isPendingDiscard
-            ? '点击下方手牌弃置'
-            : settings?.mobileTapConfirm
-              ? '点选预览 · 再点/上滑出牌'
-              : '左右滑选牌 · 上滑拖出牌'
-        }</span>
+        <span class="mobile-hand-hint">${mobileChoiceHint}</span>
         <button
           type="button"
           id="btn-toggle-mobile-log"
@@ -296,7 +367,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         </button>
       </div>
 
-      <div class="hand-tray ${isPendingDiscard ? 'discard-selecting' : ''}" id="hand-tray">
+      <div class="hand-tray ${handTrayChoiceClass}" id="hand-tray">
         ${handHtml || '<p class="stage-subtitle">当前无手牌，请点击“结束回合”。</p>'}
       </div>
 

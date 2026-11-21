@@ -18,6 +18,7 @@ export const EVENT_LIBRARY = deepFreeze({
   shining_light: {
     id: 'shining_light',
     title: '闪耀圣光',
+    maxAct: 2,
     description:
       '你踏入一间悬浮着炽白光束的古老回廊。光束中蕴含着淬炼兵刃的力量，但靠近它亦会灼伤血肉。',
     choices: [
@@ -36,6 +37,7 @@ export const EVENT_LIBRARY = deepFreeze({
   ancient_forge: {
     id: 'ancient_forge',
     title: '遗落锻炉',
+    maxAct: 2,
     description:
       '石室深处伫立着一座尚未熄灭的矮人锻炉，暗红余烬与残存的风箱仍能为你淬炼随身武具。',
     choices: [
@@ -82,6 +84,7 @@ export const EVENT_LIBRARY = deepFreeze({
   thorn_reliquary: {
     id: 'thorn_reliquary',
     title: '荆棘秘匣',
+    maxAct: 2,
     description:
       '铁荆棘缠绕的青铜秘匣中散发着远古遗物的共鸣。唯有以鲜血浸染铁刺，方能取出匣中之物。',
     choices: [
@@ -100,6 +103,7 @@ export const EVENT_LIBRARY = deepFreeze({
   golden_idol: {
     id: 'golden_idol',
     title: '黄金神像',
+    maxAct: 1,
     description:
       '机关基座上供奉着一尊璀璨纯金神像。四周岩壁布满暗孔与咒文，强行取走必会触发古老禁制。',
     choices: [
@@ -123,6 +127,7 @@ export const EVENT_LIBRARY = deepFreeze({
   living_wall: {
     id: 'living_wall',
     title: '活体石墙',
+    maxAct: 2,
     description:
       '走廊尽头矗立着一堵镶嵌三张石雕面孔的高墙，低沉的声音在甬道回荡：“遗忘、蜕变、或是成长——做出你的抉择。”',
     choices: [
@@ -134,7 +139,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'wall_change',
         label: '蜕变（变化卡牌）',
-        detail: '从牌组中自选 1 张牌，将其变化为 1 张随机非基础铁甲战士卡牌。',
+        detail: '从牌组中自选 1 张牌，将其变化为 1 张随机非基础职业卡牌。',
       },
       {
         id: 'wall_grow',
@@ -192,6 +197,7 @@ export const EVENT_LIBRARY = deepFreeze({
   mushroom_grotto: {
     id: 'mushroom_grotto',
     title: '荧光蘑菇窟',
+    maxAct: 1,
     description:
       '潮湿洞窟中生长着散发幽蓝与赤红荧光的奇异菌群，空气中弥漫着令人精神振奋却又隐含麻痹的孢子香气。',
     choices: [
@@ -230,6 +236,51 @@ export const EVENT_LIBRARY = deepFreeze({
       },
     ],
   },
+  scrap_ooze: {
+    id: 'scrap_ooze',
+    title: '废料软泥',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '角落里盘踞着一团冒着酸泡的巨型金属软泥，半透明的胶质体内隐约闪烁着一件远古遗物的金属微光。',
+    choices: [
+      {
+        id: 'reach_ooze',
+        label: '伸手探入软泥',
+        detail: '失去 5 点生命，有 45% 概率掏出 1 件随机遗物（失败可继续尝试，每次生命代价 +1、成功率 +15%）。',
+      },
+      {
+        id: 'leave_ooze',
+        label: '转身离开',
+        detail: '放弃冒险，毫发无伤离开。',
+      },
+    ],
+  },
+  wing_statue: {
+    id: 'wing_statue',
+    title: '翼龙石像',
+    minAct: 1,
+    maxAct: 2,
+    description:
+      '一座展翼欲飞的古铜翼龙石像矗立在圣坛中央，基座暗格中嵌满金币，而翼尖散发着洗涤杂念的微光。',
+    choices: [
+      {
+        id: 'pray_wing',
+        label: '虔诚祈祷',
+        detail: '失去 7 点生命，自选并永久移除牌组中的 1 张卡牌。',
+      },
+      {
+        id: 'destroy_wing',
+        label: '全力震碎石像',
+        detail: '需要牌组中有基础伤害 ≥ 10 的攻击牌：震碎石像，安全获得 65 金币。',
+      },
+      {
+        id: 'leave_wing',
+        label: '径直离开',
+        detail: '不打扰石像的沉眠。',
+      },
+    ],
+  },
   masked_bandits: {
     id: 'masked_bandits',
     title: '蒙面强盗团',
@@ -249,10 +300,81 @@ export const EVENT_LIBRARY = deepFreeze({
       },
     ],
   },
+  council_of_ghosts: {
+    id: 'council_of_ghosts',
+    title: '幽灵议会',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '数道苍白半透明的身影浮现在城邦废墟上空，齐声向你发出邀约：“献出凡胎生机，换取穿越刀剑的幽冥之躯吧。”',
+    choices: [
+      {
+        id: 'accept_ghosts',
+        label: '接受幽灵赐福',
+        detail: '永久失去 35% 最大生命（最低保留 20 点），获得 3 张【幽灵化】（1 费虚无消耗，获得 1 层无实体）！',
+      },
+      {
+        id: 'refuse_ghosts',
+        label: '谢绝邀约',
+        detail: '守住生者之躯，安全离开。',
+      },
+    ],
+  },
+  forgotten_altar: {
+    id: 'forgotten_altar',
+    title: '遗忘祭坛',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '被藤蔓吞噬的暗红祭坛中央刻着一尊缺损神像的凹槽，干涸的血迹仍在石纹间隐隐脉动。',
+    choices: [
+      {
+        id: 'offer_golden_idol',
+        label: '献祭【黄金神像】',
+        detail: '需要持有【黄金神像】：将其升华为事件遗物【染血神像】（每次获得金币回复 5 点生命）并立即回满生命！',
+      },
+      {
+        id: 'shed_blood_altar',
+        label: '割腕滴血献祭',
+        detail: '失去 25% 最大生命的当前生命，永久获得 +6 最大生命并随机升级 1 张卡牌。',
+      },
+      {
+        id: 'desecrate_altar',
+        label: '亵渎祭坛掠金',
+        detail: '搜刮 105 金币，但将 1 张诅咒【悔恨】加入你的牌组。',
+      },
+    ],
+  },
+  augmenter: {
+    id: 'augmenter',
+    title: '炼体改造师',
+    minAct: 2,
+    maxAct: 3,
+    description:
+      '一名背负炼金药箱的怪异医者拦住去路：“想让你的武技发生脱胎换骨的质变吗？只需一点小小的代价……”',
+    choices: [
+      {
+        id: 'augment_rare_transform',
+        label: '接受秘术蜕变',
+        detail: '从牌组中自选 1 张卡牌，将其定向重塑为 1 张随机金色【稀有】职业卡牌！',
+      },
+      {
+        id: 'augment_serum',
+        label: '注射强化血清',
+        detail: '失去 12 点生命，永久提升 7 点最大生命，并随机获得 1 张罕见/稀有职业卡牌。',
+      },
+      {
+        id: 'augment_leave',
+        label: '谢绝实验',
+        detail: '不信任未知药剂，转身离开。',
+      },
+    ],
+  },
   mind_bloom: {
     id: 'mind_bloom',
     title: '心花怒放',
     minAct: 3,
+    maxAct: 3,
     description:
       '深渊圣殿的腐朽壁画前，一朵洁白却令人不安的幻象之花悄然绽放，向你低语三种扭曲的愿景。',
     options: [
@@ -273,13 +395,68 @@ export const EVENT_LIBRARY = deepFreeze({
       },
     ],
   },
+  sensory_stone: {
+    id: 'sensory_stone',
+    title: '记忆晶石',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '一块悬浮在虚空中的多面体水晶不断折射出尖塔昔日英雄的记忆碎片，触碰越深，涌来的秘传越耀眼。',
+    choices: [
+      {
+        id: 'recall_1',
+        label: '轻触表层残忆',
+        detail: '无损免费：从 3 张跨职业【无色牌】中任选 1 张加入牌组。',
+      },
+      {
+        id: 'recall_2',
+        label: '潜入深层幻境',
+        detail: '失去 5 点生命：从 3 张已升级的【无色牌+】中任选 1 张加入牌组！',
+      },
+      {
+        id: 'recall_3',
+        label: '直面尖塔真相',
+        detail: '失去 12 点生命：直接获得 1 张金色【无色稀有牌+】与 1 件随机遗物！',
+      },
+    ],
+  },
+  winding_halls: {
+    id: 'winding_halls',
+    title: '曲折回廊',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '深渊圣殿的走廊忽然开始无限扭曲折叠，低语在耳畔回响，每一条岔路都要求你付出不同的神智或体魄代价。',
+    choices: [
+      {
+        id: 'embrace_madness',
+        label: '拥抱疯狂灵感',
+        detail: '失去 12 点生命，获得 2 张随机 0 费【无色罕见牌】加入牌组！',
+      },
+      {
+        id: 'retrace_steps',
+        label: '驻足回溯心神',
+        detail: '回复 25% 最大生命值，但将 1 张诅咒【疑虑】加入牌组。',
+      },
+      {
+        id: 'push_through_halls',
+        label: '强行破壁前行',
+        detail: '永久失去 6% 最大生命（最低保留 25 点），不带任何诅咒安全脱身。',
+      },
+    ],
+  },
 });
 
 export const EVENT_IDS = Object.freeze(Object.keys(EVENT_LIBRARY));
 
 export function getEventIdsForAct(act = 1) {
   const safeAct = Math.max(1, Number(act) || 1);
-  return EVENT_IDS.filter((id) => (EVENT_LIBRARY[id]?.minAct ?? 1) <= safeAct);
+  return EVENT_IDS.filter((id) => {
+    const ev = EVENT_LIBRARY[id];
+    const minAct = ev?.minAct ?? 1;
+    const maxAct = ev?.maxAct ?? 3;
+    return safeAct >= minAct && safeAct <= maxAct;
+  });
 }
 
 export function getEventTuning(ascension = 0) {
@@ -306,10 +483,25 @@ export function getEventTuning(ascension = 0) {
     grottoRedHpLoss: isA8 ? 10 : 7,
     grottoRedMaxHp: isA8 ? 4 : 5,
     libraryNapHeal: isA8 ? 15 : 20,
+    oozeBaseHpLoss: isA8 ? 7 : 5,
+    oozeBaseChancePct: isA8 ? 35 : 45,
+    wingPrayHpLoss: isA8 ? 10 : 7,
+    wingDestroyGold: isA8 ? 50 : 65,
     banditsFightGold: isA8 ? 60 : 75,
+    ghostsMaxHpLossPct: isA8 ? 42 : 35,
+    altarShedHpPct: isA8 ? 30 : 25,
+    altarShedMaxHpGain: isA8 ? 5 : 6,
+    altarDesecrateGold: isA8 ? 85 : 105,
+    augmentSerumHpLoss: isA8 ? 16 : 12,
+    augmentSerumMaxHpGain: isA8 ? 5 : 7,
     mindBloomWarGold: isA8 ? 80 : 100,
     mindBloomAwakeMaxHpPct: isA8 ? 22 : 15,
     mindBloomRichGold: isA8 ? 360 : 450,
+    sensoryRecall2HpLoss: isA8 ? 8 : 5,
+    sensoryRecall3HpLoss: isA8 ? 16 : 12,
+    windingMadnessHpLoss: isA8 ? 16 : 12,
+    windingRetraceHealPct: isA8 ? 20 : 25,
+    windingPushMaxHpPct: isA8 ? 9 : 6,
   };
 }
 
@@ -362,13 +554,39 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     library_sanctum: {
       nap_in_library: `放松紧绷的神经，回复 ${t.libraryNapHeal} 点生命。`,
     },
+    scrap_ooze: {
+      reach_ooze: `失去 ${t.oozeBaseHpLoss} 点生命，有 ${t.oozeBaseChancePct}% 概率掏出 1 件随机遗物（失败可继续尝试，每次生命代价 +1、成功率 +15%）。`,
+    },
+    wing_statue: {
+      pray_wing: `失去 ${t.wingPrayHpLoss} 点生命，自选并永久移除牌组中的 1 张卡牌。`,
+      destroy_wing: `需要牌组中有基础伤害 ≥ 10 的攻击牌：震碎石像，安全获得 ${t.wingDestroyGold} 金币。`,
+    },
     masked_bandits: {
       fight_bandits: `击败强盗团后固定获得 ${t.banditsFightGold} 金币与事件遗物【红面具】（战斗开场使全体敌人获得 1 层虚弱）。`,
+    },
+    council_of_ghosts: {
+      accept_ghosts: `永久失去 ${t.ghostsMaxHpLossPct}% 最大生命（最低保留 20 点），获得 3 张【幽灵化】（1 费虚无消耗，获得 1 层无实体）！`,
+    },
+    forgotten_altar: {
+      shed_blood_altar: `失去 ${t.altarShedHpPct}% 最大生命的当前生命，永久获得 +${t.altarShedMaxHpGain} 最大生命并随机升级 1 张卡牌。`,
+      desecrate_altar: `搜刮 ${t.altarDesecrateGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
+    },
+    augmenter: {
+      augment_serum: `失去 ${t.augmentSerumHpLoss} 点生命，永久提升 ${t.augmentSerumMaxHpGain} 点最大生命，并随机获得 1 张罕见/稀有职业卡牌。`,
     },
     mind_bloom: {
       war_memory: `立即与一位第 1 幕首领展开死斗，获胜固定奖励 ${t.mindBloomWarGold} 金币与 1 件稀有遗物。`,
       awake_memory: `升级牌组中全部可升级的卡牌，但永久失去 ${t.mindBloomAwakeMaxHpPct}% 最大生命（最低保留 25 点）。`,
       rich_memory: `获得 ${t.mindBloomRichGold} 金币，但将 2 张【疑虑】诅咒加入你的牌组。`,
+    },
+    sensory_stone: {
+      recall_2: `失去 ${t.sensoryRecall2HpLoss} 点生命：从 3 张已升级的【无色牌+】中任选 1 张加入牌组！`,
+      recall_3: `失去 ${t.sensoryRecall3HpLoss} 点生命：直接获得 1 张金色【无色稀有牌+】与 1 件随机遗物！`,
+    },
+    winding_halls: {
+      embrace_madness: `失去 ${t.windingMadnessHpLoss} 点生命，获得 2 张随机 0 费【无色罕见牌】加入牌组！`,
+      retrace_steps: `回复 ${t.windingRetraceHealPct}% 最大生命值，但将 1 张诅咒【疑虑】加入牌组。`,
+      push_through_halls: `永久失去 ${t.windingPushMaxHpPct}% 最大生命（最低保留 25 点），不带任何诅咒安全脱身。`,
     },
   }[eventId];
 

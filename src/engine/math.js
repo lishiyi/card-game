@@ -32,6 +32,10 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     raw *= 2;
   }
 
+  if (!options.ignoreFlight && defender && (defender?.statuses?.flight ?? 0) > 0) {
+    raw *= 0.5;
+  }
+
   return Math.max(0, Math.floor(raw));
 }
 

@@ -7,7 +7,7 @@
 
 import { getCardStats } from '../data/cards.js';
 import { POTION_LIBRARY } from '../data/relics.js';
-import { canPlayCard, getAliveEnemies } from '../engine/combat.js';
+import { canPlayCard, getAliveEnemies, hasPendingCardChoice } from '../engine/combat.js';
 import {
   computeCardSynergies,
   previewCardDamageOnEnemy,
@@ -144,7 +144,7 @@ export function applyCombatTacticsUI(
   clearCombatTacticsUI(rootEl);
   if (!rootEl || !state || state.screen !== 'combat' || !state.combat) return;
   if (state.combat.status !== 'ongoing' || state.combat.phase !== 'player') return;
-  if (state.combat.pendingDiscard) return;
+  if (hasPendingCardChoice(state.combat)) return;
 
   const aliveEnemies = getAliveEnemies(state.combat);
   if (aliveEnemies.length === 0) return;
@@ -491,7 +491,7 @@ export function createCombatDragController({
       state.screen !== 'combat' ||
       !state.combat ||
       state.combat.phase !== 'player' ||
-      state.combat.pendingDiscard
+      hasPendingCardChoice(state.combat)
     ) {
       return;
     }

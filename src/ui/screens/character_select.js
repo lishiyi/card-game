@@ -8,7 +8,12 @@ import { CARD_LIBRARY, formatCardDescription } from '../../data/cards.js';
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec } from '../../engine/daily.js';
-import { ASCENSION_DEFS, MAX_ASCENSION } from '../../engine/meta.js';
+import {
+  ASCENSION_DEFS,
+  getCharacterProgress,
+  getMaxAscensionForCharacter,
+  MAX_ASCENSION,
+} from '../../engine/meta.js';
 import { escapeHtml } from '../helpers.js';
 import { getCharacterSvg } from '../icons.js';
 
@@ -62,7 +67,7 @@ export function renderCharacterSelectHeader({ hasActiveRun }) {
 export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
   const selectedId = ui.selectedCharacterId || meta.selectedCharacterId || 'ironclad';
   const selectedDef = getCharacterDef(selectedId);
-  const maxAscAllowed = meta.unlockAllOverride ? MAX_ASCENSION : meta.maxAscensionUnlocked ?? 0;
+  const maxAscAllowed = getMaxAscensionForCharacter(meta, selectedDef.id);
   const selectedAsc = Math.min(maxAscAllowed, meta.selectedAscension ?? 0);
 
   const cardsHtml = CHARACTER_IDS.map((charId) => {
@@ -70,6 +75,12 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
     const isSelected = def.id === selectedDef.id;
     const starterRelic = RELIC_LIBRARY[def.starterRelic];
     const starterPotion = POTION_LIBRARY[def.starterPotion];
+    const charProg = getCharacterProgress(meta, def.id);
+    const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
+    const winRate =
+      charProg.runsPlayed > 0
+        ? Math.round((charProg.victories / charProg.runsPlayed) * 100)
+        : 0;
     const hpVal = selectedAsc >= 4 ? def.asc4MaxHp : def.maxHp;
     const startHp = selectedAsc >= 6 ? Math.max(1, hpVal - Math.floor(hpVal * 0.1)) : hpVal;
     const deckSummary = summarizeStarterDeck(def.starterDeck);
@@ -132,6 +143,12 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
             <span class="char-stat-label">初始牌组</span>
             <strong class="char-stat-val">${escapeHtml(def.starterDeck.length)} 张</strong>
           </div>
+        </div>
+
+        <div class="char-career-strip" id="char-career-${escapeHtml(def.id)}">
+          <span class="char-career-item">进阶解锁 <strong>A${escapeHtml(charMaxAsc)}</strong></span>
+          <span class="char-career-item">胜/场 <strong>${escapeHtml(charProg.victories)}/${escapeHtml(charProg.runsPlayed)}</strong>${charProg.runsPlayed > 0 ? ` (${winRate}%)` : ''}</span>
+          <span class="char-career-item">最高分 <strong>${escapeHtml((charProg.bestScore ?? 0).toLocaleString())}</strong></span>
         </div>
 
         <div class="character-gear-row">

@@ -3762,6 +3762,288 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
   }
 });
 
+test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive Armaments/True Grit+/Scry modal, Act 2 new enemies SVG/statuses, and new Event UI', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 880,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+
+    // 1. Seed per-character Meta progress (Ironclad A3 vs Silent A0) -> reload -> verify Character Select & Meta Modal isolation
+    await cdp.evaluate(`(() => {
+      localStorage.setItem('sts_lite_meta_v1', JSON.stringify({
+        xp: 520,
+        unlockedTier: 2,
+        maxAscensionUnlocked: 3,
+        selectedAscension: 3,
+        selectedCharacterId: 'ironclad',
+        runsPlayed: 4,
+        victories: 2,
+        bestFloor: 48,
+        bestScore: 1240,
+        characterProgress: {
+          ironclad: { runsPlayed: 3, victories: 2, maxAscensionUnlocked: 3, bestFloor: 48, bestScore: 1240 },
+          silent: { runsPlayed: 1, victories: 0, maxAscensionUnlocked: 0, bestFloor: 12, bestScore: 340 },
+        },
+        runHistory: [],
+        dailyRecords: {},
+      }));
+    })()`);
+    await cdp.send('Page.reload', { ignoreCache: true });
+    await new Promise((r) => setTimeout(r, 350));
+
+    const charSelectAudit = await cdp.evaluate(`(() => {
+      const ironCareer = document.getElementById('char-career-ironclad')?.textContent?.trim() || '';
+      const silentCareer = document.getElementById('char-career-silent')?.textContent?.trim() || '';
+      const ironAsc3Enabled = !document.getElementById('btn-char-asc-3')?.disabled;
+      const ironAsc3Active = document.getElementById('btn-char-asc-3')?.classList.contains('active') ?? false;
+
+      // Switch to Silent -> Ascension must clamp from A3 down to A0 and disable A1..A3
+      document.getElementById('char-card-silent').click();
+      const silentAsc1Disabled = document.getElementById('btn-char-asc-1')?.disabled ?? false;
+      const silentAsc0Active = document.getElementById('btn-char-asc-0')?.classList.contains('active') ?? false;
+
+      // Open Meta modal and verify per-character archive cards
+      document.getElementById('btn-open-meta').click();
+      const metaIronText = document.getElementById('meta-char-card-ironclad')?.textContent?.trim() || '';
+      const metaSilentText = document.getElementById('meta-char-card-silent')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal').click();
+
+      // Switch back to Ironclad and launch run at A0 for combat testing
+      document.getElementById('char-card-ironclad').click();
+      document.getElementById('btn-char-asc-0').click();
+      document.getElementById('btn-start-character-run').click();
+
+      return {
+        ironCareer,
+        silentCareer,
+        ironAsc3Enabled,
+        ironAsc3Active,
+        silentAsc1Disabled,
+        silentAsc0Active,
+        metaIronText,
+        metaSilentText,
+      };
+    })()`);
+
+    assert.ok(charSelectAudit.ironCareer.includes('A3'), `Expected Ironclad career strip A3, got ${charSelectAudit.ironCareer}`);
+    assert.ok(charSelectAudit.ironCareer.includes('2/3'), `Expected Ironclad 2/3 W/R, got ${charSelectAudit.ironCareer}`);
+    assert.ok(charSelectAudit.silentCareer.includes('A0'), `Expected Silent career strip A0, got ${charSelectAudit.silentCareer}`);
+    assert.equal(charSelectAudit.ironAsc3Enabled, true);
+    assert.equal(charSelectAudit.ironAsc3Active, true);
+    assert.equal(charSelectAudit.silentAsc1Disabled, true, 'Silent A1 must remain locked when only Ironclad unlocked A3');
+    assert.equal(charSelectAudit.silentAsc0Active, true, 'Switching to Silent must clamp selected Ascension to A0');
+    assert.ok(charSelectAudit.metaIronText.includes('最高进阶 A3'));
+    assert.ok(charSelectAudit.metaSilentText.includes('最高进阶 A0'));
+
+    // 2. Enter combat -> test interactive Armaments (upgrade), True Grit+ (exhaust), and Scry modal workflow
+    const choiceAudit = await cdp.evaluate(`(async () => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+
+      // Stage deterministic hand & draw pile
+      st.player.energy = 5;
+      st.combat.hand = [
+        { instanceId: 's1_arm', cardId: 'armaments', upgraded: false },
+        { instanceId: 's1_tg', cardId: 'true_grit', upgraded: true },
+        { instanceId: 's1_str', cardId: 'strike', upgraded: false },
+        { instanceId: 's1_def', cardId: 'defend', upgraded: false },
+      ];
+      st.combat.drawPile = [
+        { instanceId: 'scry_top_1', cardId: 'bash', upgraded: false },
+        { instanceId: 'scry_top_2', cardId: 'cleave', upgraded: false },
+        { instanceId: 'scry_top_3', cardId: 'shrug_it_off', upgraded: false },
+        { instanceId: 'scry_rest_4', cardId: 'strike', upgraded: false },
+      ];
+      st.combat.discardPile = [];
+      st.combat.exhaustPile = [];
+      app.render();
+
+      // A) Play base Armaments -> upgrade-selecting mode -> click Strike to upgrade
+      document.getElementById('hand-card-s1_arm').click();
+      const armBanner = document.getElementById('combat-banner')?.textContent?.trim() || '';
+      const armHasUpgradeTray = document.getElementById('hand-tray')?.classList.contains('upgrade-selecting') ?? false;
+      const armEndDisabled = document.getElementById('btn-end-turn')?.disabled ?? false;
+      const strikeUpgradeSelectable =
+        document.getElementById('hand-card-s1_str')?.classList.contains('upgrade-selectable') ?? false;
+      document.getElementById('hand-card-s1_str').click();
+      const strikeUpgradedAfter = st.combat.hand.find((c) => c.instanceId === 's1_str')?.upgraded ?? false;
+      const pendingAfterArm = st.combat.pendingCardChoice;
+
+      // B) Play True Grit+ -> exhaust-selecting mode -> click Defend to exhaust
+      document.getElementById('hand-card-s1_tg').click();
+      const tgHasExhaustTray = document.getElementById('hand-tray')?.classList.contains('exhaust-selecting') ?? false;
+      const defExhaustSelectable =
+        document.getElementById('hand-card-s1_def')?.classList.contains('exhaust-selectable') ?? false;
+      document.getElementById('hand-card-s1_def').click();
+      const defInExhaust = st.combat.exhaustPile.some((c) => c.instanceId === 's1_def');
+      const pendingAfterTg = st.combat.pendingCardChoice;
+
+      // C) Trigger Scry 3 -> verify #scry-choice-modal opens -> toggle 1st & 3rd -> confirm
+      const scryInit = app.initiateScry(3, '预见测试');
+      const hasScryModal = Boolean(document.getElementById('scry-choice-modal'));
+      const scryCardCount = document.querySelectorAll('#scry-card-list .game-card').length;
+      document.getElementById('scry-card-scry_top_1').click();
+      document.getElementById('scry-card-scry_top_3').click();
+      const marked1 = document.getElementById('scry-card-scry_top_1')?.classList.contains('scry-marked-discard') ?? false;
+      const marked3 = document.getElementById('scry-card-scry_top_3')?.classList.contains('scry-marked-discard') ?? false;
+      const confirmBtnText = document.getElementById('btn-confirm-scry')?.textContent?.trim() || '';
+      document.getElementById('btn-confirm-scry').click();
+      const scryModalClosed = !document.getElementById('scry-choice-modal');
+      const drawTopIds = st.combat.drawPile.map((c) => c.instanceId);
+      const discardHas1And3 =
+        st.combat.discardPile.some((c) => c.instanceId === 'scry_top_1') &&
+        st.combat.discardPile.some((c) => c.instanceId === 'scry_top_3');
+
+      return {
+        armBanner,
+        armHasUpgradeTray,
+        armEndDisabled,
+        strikeUpgradeSelectable,
+        strikeUpgradedAfter,
+        pendingAfterArm,
+        tgHasExhaustTray,
+        defExhaustSelectable,
+        defInExhaust,
+        pendingAfterTg,
+        scryOk: scryInit.ok,
+        hasScryModal,
+        scryCardCount,
+        marked1,
+        marked3,
+        confirmBtnText,
+        scryModalClosed,
+        drawTopIds,
+        discardHas1And3,
+      };
+    })()`);
+
+    assert.equal(choiceAudit.armHasUpgradeTray, true);
+    assert.equal(choiceAudit.armEndDisabled, true, 'End Turn must be locked during interactive card choice');
+    assert.equal(choiceAudit.strikeUpgradeSelectable, true);
+    assert.equal(choiceAudit.strikeUpgradedAfter, true, 'Clicking Strike during Armaments must upgrade it');
+    assert.equal(choiceAudit.pendingAfterArm, null);
+    assert.equal(choiceAudit.tgHasExhaustTray, true);
+    assert.equal(choiceAudit.defExhaustSelectable, true);
+    assert.equal(choiceAudit.defInExhaust, true, 'Clicking Defend during True Grit+ must exhaust it');
+    assert.equal(choiceAudit.pendingAfterTg, null);
+    assert.equal(choiceAudit.scryOk, true);
+    assert.equal(choiceAudit.hasScryModal, true);
+    assert.equal(choiceAudit.scryCardCount, 3);
+    assert.equal(choiceAudit.marked1, true);
+    assert.equal(choiceAudit.marked3, true);
+    assert.ok(choiceAudit.confirmBtnText.includes('弃置 2 · 保留 1'), `Unexpected confirm text: ${choiceAudit.confirmBtnText}`);
+    assert.equal(choiceAudit.scryModalClosed, true);
+    assert.deepEqual(choiceAudit.drawTopIds, ['scry_top_2', 'scry_rest_4']);
+    assert.equal(choiceAudit.discardHas1And3, true);
+
+    // 3. Render all 4 new Act 2 enemies (Byrd, Spheric Guardian, Snake Plant, Gremlin Leader) and verify bespoke SVG + status chips + next-turn hints
+    const act2EnemiesAudit = await cdp.evaluate(`(async () => {
+      const { createEnemyInstance, rollEnemyIntent } = await import('/src/data/enemies.js');
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const byrd = createEnemyInstance(st, { templateId: 'byrd', customName: '异鸟 A' });
+      const spheric = createEnemyInstance(st, { templateId: 'spheric_guardian' });
+      const snake = createEnemyInstance(st, { templateId: 'snake_plant' });
+      const leader = createEnemyInstance(st, { templateId: 'gremlin_leader' });
+      for (const e of [byrd, spheric, snake, leader]) {
+        rollEnemyIntent(st, e, st.player, st.combat);
+      }
+      st.combat.enemies = [byrd, spheric, snake];
+      app.render();
+      const svgCount3 = document.querySelectorAll('.enemy-side .unit-figure svg').length;
+      const statusTexts = [...document.querySelectorAll('.enemy-side .status-chip')].map((el) => el.textContent.trim());
+      const nextHintCount3 = document.querySelectorAll('.enemy-side .next-intent-hint').length;
+
+      st.combat.enemies = [leader];
+      app.render();
+      const leaderSvg = Boolean(document.querySelector('.enemy-side .unit-figure svg'));
+      const leaderNextHint = document.querySelector('.enemy-side .next-intent-hint')?.textContent?.trim() || '';
+
+      return { svgCount3, statusTexts, nextHintCount3, leaderSvg, leaderNextHint };
+    })()`);
+
+    assert.equal(act2EnemiesAudit.svgCount3, 3);
+    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('飞行')), `Expected Flight badge, got ${act2EnemiesAudit.statusTexts}`);
+    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('壁垒')), `Expected Barricade badge, got ${act2EnemiesAudit.statusTexts}`);
+    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('可塑护甲')), `Expected Malleable badge, got ${act2EnemiesAudit.statusTexts}`);
+    assert.equal(act2EnemiesAudit.nextHintCount3, 3);
+    assert.equal(act2EnemiesAudit.leaderSvg, true);
+    assert.ok(act2EnemiesAudit.leaderNextHint.startsWith('下回合：'));
+
+    // 4. Render new Event UI (Forgotten Altar & Scrap Ooze) and verify dynamic gating + live retry banner
+    const newEventUiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'event';
+      st.player.hp = 60;
+      st.eventState = {
+        eventId: 'forgotten_altar',
+        resolved: false,
+        pendingPurge: false,
+        pendingCardAction: null,
+        libraryChoices: null,
+        outcomeText: '',
+        upgradedCardIds: [],
+        addedCardIds: [],
+      };
+      app.render();
+      const offerDisabledWithoutIdol = document.getElementById('event-choice-offer_golden_idol')?.disabled ?? false;
+      st.player.relics.push('golden_idol_relic');
+      app.render();
+      const offerEnabledWithIdol = !(document.getElementById('event-choice-offer_golden_idol')?.disabled ?? true);
+      document.getElementById('event-choice-offer_golden_idol').click();
+      const hasBloodyIdol = st.player.relics.includes('bloody_idol');
+      const healedToFull = st.player.hp === st.player.maxHp;
+
+      return { offerDisabledWithoutIdol, offerEnabledWithIdol, hasBloodyIdol, healedToFull };
+    })()`);
+
+    assert.equal(newEventUiAudit.offerDisabledWithoutIdol, true);
+    assert.equal(newEventUiAudit.offerEnabledWithIdol, true);
+    assert.equal(newEventUiAudit.hasBloodyIdol, true);
+    assert.equal(newEventUiAudit.healedToFull, true);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+
 
 
 

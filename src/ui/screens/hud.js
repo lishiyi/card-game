@@ -69,6 +69,7 @@ export function renderTopHud({ state, ui }) {
         state.screen === 'combat' &&
         state.combat?.status === 'ongoing' &&
         state.combat?.phase === 'player' &&
+        !state.combat?.pendingCardChoice &&
         !state.combat?.pendingDiscard;
       const showDiscard =
         (state.screen === 'reward' && state.reward?.potionId && !state.reward.potionClaimed) ||

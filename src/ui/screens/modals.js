@@ -7,7 +7,7 @@
  */
 
 import { CARD_LIBRARY, getCardStats } from '../../data/cards.js';
-import { getCharacterDef } from '../../data/characters.js';
+import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
 import { RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
@@ -18,6 +18,8 @@ import {
 } from '../../engine/game.js';
 import {
   ASCENSION_DEFS,
+  getCharacterProgress,
+  getMaxAscensionForCharacter,
   getScoreGrade,
   MAX_ASCENSION,
   UNLOCK_TIERS,
@@ -93,13 +95,36 @@ function getRankCssClass(grade) {
 function renderMetaModal({ state, meta, ui }) {
   const maxTierXp = UNLOCK_TIERS[UNLOCK_TIERS.length - 1].xpRequired;
   const effectiveTier = meta.unlockAllOverride ? UNLOCK_TIERS.length : meta.unlockedTier ?? 0;
-  const maxAscAllowed = meta.unlockAllOverride ? MAX_ASCENSION : meta.maxAscensionUnlocked ?? 0;
   const xpPct = meta.unlockAllOverride
     ? 100
     : Math.min(100, Math.round(((meta.xp ?? 0) / maxTierXp) * 100));
   const currentSeedCode = state ? formatSeedCode(state.seed) : '';
   const activeCharId = state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId || 'ironclad';
   const activeCharDef = getCharacterDef(activeCharId);
+  const maxAscAllowed = getMaxAscensionForCharacter(meta, activeCharId);
+  const effectiveSelectedAsc = Math.min(maxAscAllowed, meta.selectedAscension ?? 0);
+
+  const charArchiveHtml = CHARACTER_IDS.map((cid) => {
+    const cDef = CHARACTER_LIBRARY[cid];
+    const prog = getCharacterProgress(meta, cid);
+    const cMaxAsc = getMaxAscensionForCharacter(meta, cid);
+    const winRate =
+      prog.runsPlayed > 0 ? Math.round((prog.victories / prog.runsPlayed) * 100) : 0;
+    const isActive = cid === activeCharId;
+    return `
+      <div class="meta-char-card ${isActive ? 'active' : ''}" id="meta-char-card-${escapeHtml(cid)}">
+        <div class="meta-char-card-head">
+          <span class="character-hud-pill char-${escapeHtml(cid)}">${escapeHtml(cDef.name)}</span>
+          <span class="ascension-pill">最高进阶 A${escapeHtml(cMaxAsc)}</span>
+        </div>
+        <div class="meta-char-stats">
+          <span>胜/场：<strong>${escapeHtml(prog.victories)}/${escapeHtml(prog.runsPlayed)}</strong>${prog.runsPlayed > 0 ? ` (${winRate}%)` : ''}</span>
+          <span>最高层：<strong>${escapeHtml(prog.bestFloor ?? 0)}</strong></span>
+          <span>最高分：<strong style="color:var(--accent-brass);">${escapeHtml((prog.bestScore ?? 0).toLocaleString())}</strong></span>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   const dailySpec = getDailyChallengeSpec();
   const dailyBest = meta.dailyRecords?.[dailySpec.dateKey] || null;
@@ -120,7 +145,7 @@ function renderMetaModal({ state, meta, ui }) {
 
   const ascensionButtonsHtml = ASCENSION_DEFS.map((def) => {
     const unlocked = def.level <= maxAscAllowed;
-    const isSelected = (meta.selectedAscension ?? 0) === def.level;
+    const isSelected = effectiveSelectedAsc === def.level;
     return `
       <button
         type="button"
@@ -243,6 +268,11 @@ function renderMetaModal({ state, meta, ui }) {
           </div>
 
           <div class="meta-section">
+            <h3 style="margin:0 0 8px;">分角色攀登档案（独立进阶进度）</h3>
+            <div class="meta-char-grid" id="meta-char-archive">${charArchiveHtml}</div>
+          </div>
+
+          <div class="meta-section">
             <div class="daily-challenge-banner compact" id="meta-daily-banner">
               <div class="daily-banner-main">
                 <div class="daily-banner-top">
@@ -299,22 +329,22 @@ function renderMetaModal({ state, meta, ui }) {
                 aria-label="指定种子代码或挑战链接"
               />
               <button type="button" id="btn-start-seeded-run" class="btn-brass" data-action="start-seeded-run">
-                以此种子开启【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】
+                以此种子开启【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(effectiveSelectedAsc)}】
               </button>
             </div>
           </div>
 
           <div class="meta-section">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-              <h3 style="margin:0;">选择下局【进阶难度】${state ? `（当前本局：进阶 ${escapeHtml(state.ascension ?? 0)}）` : ''}</h3>
+              <h3 style="margin:0;">选择【${escapeHtml(activeCharDef.name)}】下局进阶难度（已解锁至 A${escapeHtml(maxAscAllowed)}${state ? ` · 本局进阶 ${escapeHtml(state.ascension ?? 0)}` : ''}）</h3>
               <button type="button" id="btn-start-ascension-run" class="btn-brass" data-action="start-ascension-run">
-                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
+                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(effectiveSelectedAsc)}】开启新局
               </button>
             </div>
             <div class="ascension-grid">${ascensionButtonsHtml}</div>
             <div style="display:flex;justify-content:flex-end;margin-top:10px;">
               <button type="button" id="btn-start-ascension-run-bottom" class="btn-brass" data-action="start-ascension-run">
-                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(meta.selectedAscension ?? 0)}】开启新局
+                以【${escapeHtml(activeCharDef.name)} · 进阶 ${escapeHtml(effectiveSelectedAsc)}】开启新局
               </button>
             </div>
           </div>
@@ -800,8 +830,67 @@ function renderMapModal({ state }) {
   `;
 }
 
+function renderScryChoiceModal({ state }) {
+  const pending = state?.combat?.pendingCardChoice;
+  if (!pending || pending.mode !== 'scry') return '';
+  const candidates = Array.isArray(pending.candidates) ? pending.candidates : [];
+  const selectedSet = new Set(pending.selectedIds || []);
+  const discardCount = selectedSet.size;
+  const keepCount = Math.max(0, candidates.length - discardCount);
+
+  const cardsHtml = candidates
+    .map((c, idx) =>
+      renderCardHtml(c, {
+        idPrefix: 'scry-card',
+        action: 'toggle-scry-card',
+        playable: true,
+        scrySelectable: true,
+        scryMarkedDiscard: selectedSet.has(c.instanceId),
+        hotkey: idx < 9 ? idx + 1 : undefined,
+        combatContext: {
+          player: state.player,
+          combat: state.combat,
+        },
+      })
+    )
+    .join('');
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop" data-action="noop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-sheet" id="scry-choice-modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="modal-title" class="stage-heading">预见（Scry）· ${escapeHtml(pending.sourceName)}</h2>
+            <p class="stage-subtitle">以下为抽牌堆顶部的 ${escapeHtml(candidates.length)} 张牌（从左至右依次抽取）。点击卡牌可标记弃置，未标记的卡牌将按原顺序保留在牌堆顶。</p>
+          </div>
+          <button type="button" id="btn-confirm-scry" class="btn-brass" data-action="confirm-scry-choice">
+            确认预见（弃置 ${escapeHtml(discardCount)} · 保留 ${escapeHtml(keepCount)}）
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="card-showcase scry-showcase" id="scry-card-list">${cardsHtml}</div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+            <button type="button" id="btn-confirm-scry-bottom" class="btn-brass" data-action="confirm-scry-choice">
+              确认预见（弃置 ${escapeHtml(discardCount)} · 保留 ${escapeHtml(keepCount)}）
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderModal({ state, meta, settings, ui }) {
-  if (!ui.modal) return '';
+  if (!ui.modal) {
+    if (
+      state?.screen === 'combat' &&
+      state?.combat?.status === 'ongoing' &&
+      state?.combat?.pendingCardChoice?.mode === 'scry'
+    ) {
+      return renderScryChoiceModal({ state });
+    }
+    return '';
+  }
 
   if (ui.modal === 'meta') {
     return renderMetaModal({ state, meta, ui });

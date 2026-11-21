@@ -164,6 +164,32 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [40, 46],
     initialStatuses: {},
   },
+  byrd: {
+    id: 'byrd',
+    name: '尖塔飞鸟',
+    role: 'normal',
+    artKey: 'byrd',
+    hpRange: [26, 31],
+    initialStatuses: { flight: 3 },
+  },
+  spheric_guardian: {
+    id: 'spheric_guardian',
+    name: '圆球守护者',
+    role: 'normal',
+    artKey: 'spheric_guardian',
+    hpRange: [22, 26],
+    initialBlock: 32,
+    initialStatuses: { barricade: 1 },
+  },
+  snake_plant: {
+    id: 'snake_plant',
+    name: '食人蛇花',
+    role: 'normal',
+    artKey: 'snake_plant',
+    hpRange: [74, 80],
+    malleableBase: 3,
+    initialStatuses: { malleable: 3 },
+  },
   book_of_stabbing: {
     id: 'book_of_stabbing',
     name: '刺击魔典',
@@ -178,6 +204,14 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'elite',
     artKey: 'slaver_taskmaster',
     hpRange: [62, 66],
+    initialStatuses: {},
+  },
+  gremlin_leader: {
+    id: 'gremlin_leader',
+    name: '地精首领',
+    role: 'elite',
+    artKey: 'gremlin_leader',
+    hpRange: [128, 136],
     initialStatuses: {},
   },
   bronze_automaton: {
@@ -447,19 +481,21 @@ export const ENCOUNTERS = deepFreeze({
       enemies: [{ templateId: 'centurion' }],
     },
     {
+      id: 'byrd_flock',
+      name: '尖塔飞鸟双翼',
+      enemies: [{ templateId: 'byrd' }, { templateId: 'byrd' }],
+    },
+    {
+      id: 'spheric_guardian_solo',
+      name: '圆球守护者',
+      enemies: [{ templateId: 'spheric_guardian' }],
+    },
+    {
       id: 'mystic_and_looter',
       name: '暗巷秘教',
       enemies: [
         { templateId: 'mystic', customHp: 35 },
         { templateId: 'looter', customHp: 35 },
-      ],
-    },
-    {
-      id: 'act2_fungi_pack',
-      name: '变异菌群',
-      enemies: [
-        { templateId: 'fungi_beast' },
-        { templateId: 'spike_slime', customHp: 22, customName: '小型尖刺史莱姆' },
       ],
     },
   ],
@@ -473,19 +509,21 @@ export const ENCOUNTERS = deepFreeze({
       ],
     },
     {
-      id: 'twin_slavers',
-      name: '双煞捕奴队',
-      enemies: [
-        { templateId: 'slaver_blue', customHp: 37 },
-        { templateId: 'slaver_blue', customHp: 37 },
-      ],
+      id: 'snake_plant_solo',
+      name: '食人蛇花',
+      enemies: [{ templateId: 'snake_plant' }],
     },
     {
-      id: 'cultist_and_centurion',
-      name: '狂热圣殿卫',
+      id: 'byrd_swarm',
+      name: '尖塔飞鸟群',
+      enemies: [{ templateId: 'byrd' }, { templateId: 'byrd' }, { templateId: 'byrd' }],
+    },
+    {
+      id: 'spheric_and_cultist',
+      name: '球盾与狂热者',
       enemies: [
+        { templateId: 'spheric_guardian', customHp: 22 },
         { templateId: 'cultist', customHp: 42 },
-        { templateId: 'centurion', customHp: 54 },
       ],
     },
   ],
@@ -501,12 +539,12 @@ export const ENCOUNTERS = deepFreeze({
       enemies: [{ templateId: 'slaver_blue' }, { templateId: 'slaver_taskmaster' }],
     },
     {
-      id: 'tri_sentries_elite',
-      name: '精英：三连远古哨卫',
+      id: 'gremlin_leader_elite',
+      name: '精英：地精首领',
       enemies: [
-        { templateId: 'sentry', variantIndex: 0 },
-        { templateId: 'sentry', variantIndex: 1 },
-        { templateId: 'sentry', variantIndex: 0 },
+        { templateId: 'mad_gremlin', customHp: 20, isMinion: true },
+        { templateId: 'gremlin_leader' },
+        { templateId: 'mad_gremlin', customHp: 20, isMinion: true },
       ],
     },
   ],
@@ -681,6 +719,7 @@ const SWARM_NORMAL_IDS = new Set([
   'spike_slime',
   'fungi_beast',
   'mad_gremlin',
+  'byrd',
   'spiker',
   'exploder',
   'repulsor',
@@ -823,6 +862,7 @@ export function createEnemyInstance(state, spec) {
     if (tpl.id === 'louse_red' || tpl.id === 'louse_green') statuses.curlUp = 5;
     if (tpl.id === 'fungi_beast') statuses.sporeCloud = 3;
     if (tpl.id === 'red_slaver' || tpl.id === 'gremlin_angry') statuses.angry = 2;
+    if (tpl.id === 'byrd') statuses.flight = 4;
     if (tpl.id === 'orb_walker') statuses.ritual = 3;
     if (tpl.id === 'spiker') statuses.thorns = 4;
     if (tpl.id === 'awakened_one') {
@@ -831,7 +871,10 @@ export function createEnemyInstance(state, spec) {
     }
   }
 
-  const initialBlock = statuses.metallicize ? statuses.metallicize : 0;
+  let initialBlock = statuses.metallicize ? statuses.metallicize : 0;
+  if (typeof tpl.initialBlock === 'number' && tpl.initialBlock > 0) {
+    initialBlock += tpl.initialBlock + (asc >= 9 ? 6 : 0);
+  }
 
   const enemy = {
     id: `enemy_${state.nextUid}`,
@@ -851,6 +894,10 @@ export function createEnemyInstance(state, spec) {
     variantIndex: spec.variantIndex ?? 0,
     mode: tpl.id === 'the_guardian' ? 'offensive' : 'normal',
     modeShiftMax: tpl.id === 'the_guardian' ? (asc >= 9 ? 28 : 25) : 0,
+    malleableBase: tpl.malleableBase ?? 0,
+    flightBase: tpl.id === 'byrd' ? (asc >= 9 ? 4 : 3) : 0,
+    grounded: false,
+    byrdGroundStep: 0,
     offensiveStep: 0,
     defensiveStep: 0,
     awakeTurnIndex: 0,
@@ -930,7 +977,7 @@ export function getGuardianOffensiveIntent(step) {
   }
 }
 
-export function getEnemyIntentCandidates(enemy, player = null) {
+export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
   switch (enemy.templateId) {
     case 'cultist': {
       if (enemy.turnIndex === 0) {
@@ -1656,6 +1703,252 @@ export function getEnemyIntentCandidates(enemy, player = null) {
       ];
     }
 
+    case 'byrd': {
+      if (enemy.grounded || (enemy.statuses?.flight ?? 0) <= 0) {
+        if ((enemy.byrdGroundStep ?? 0) === 0) {
+          return [
+            {
+              probability: 1,
+              intent: {
+                id: 'byrd_headbutt',
+                name: '落地头槌',
+                type: 'attack',
+                damage: 3,
+                hits: 1,
+              },
+            },
+          ];
+        }
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'byrd_fly_up',
+              name: '振翅升空',
+              type: 'buff',
+              restoreFlight: enemy.flightBase || 3,
+              summary: `意图：重新起飞，恢复 ${enemy.flightBase || 3} 层【飞行】（攻击伤害减半）！`,
+            },
+          },
+        ];
+      }
+
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 0.65,
+            intent: { id: 'byrd_peck', name: '迅捷啄击', type: 'attack', damage: 1, hits: 4 },
+          },
+          {
+            probability: 0.35,
+            intent: {
+              id: 'byrd_caw',
+              name: '刺耳鸣叫',
+              type: 'buff',
+              applySelfStatuses: { strength: 1 },
+              summary: '意图：鸣叫鼓舞自身，获得 1 点力量',
+            },
+          },
+        ];
+      }
+
+      const pool = [
+        {
+          weight: 0.5,
+          intent: { id: 'byrd_peck', name: '迅捷啄击', type: 'attack', damage: 1, hits: 4 },
+        },
+        {
+          weight: 0.3,
+          intent: { id: 'byrd_swoop', name: '俯冲突袭', type: 'attack', damage: 11, hits: 1 },
+        },
+        {
+          weight: 0.2,
+          intent: {
+            id: 'byrd_caw',
+            name: '刺耳鸣叫',
+            type: 'buff',
+            applySelfStatuses: { strength: 1 },
+            summary: '意图：鸣叫鼓舞自身，获得 1 点力量',
+          },
+        },
+      ].filter((x) => !(enemy.lastMoveId === 'byrd_caw' && x.intent.id === 'byrd_caw'));
+      const total = pool.reduce((s, x) => s + x.weight, 0) || 1;
+      return pool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+    }
+
+    case 'spheric_guardian': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'sphere_activate',
+              name: '激活壁垒',
+              type: 'defend',
+              block: 18,
+              summary: '意图：叠加 18 点永久【格挡】（拥有壁垒，格挡不会清零）',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'sphere_frail_beam',
+              name: '脆弱脉冲',
+              type: 'attack_debuff',
+              damage: 10,
+              hits: 1,
+              applyPlayerStatuses: { frail: 3 },
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'sphere_slam',
+              name: '双重碾压',
+              type: 'attack',
+              damage: 10,
+              hits: 2,
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'sphere_harden',
+            name: '硬化冲撞',
+            type: 'attack_block',
+            damage: 10,
+            hits: 1,
+            block: 12,
+          },
+        },
+      ];
+    }
+
+    case 'snake_plant': {
+      if (enemy.turnIndex % 3 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'enfeebling_spores',
+              name: '致弱孢子',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 2, frail: 2 },
+              summary: '意图：释放麻痹孢子，给予玩家 2 层虚弱与 2 层脆弱',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'snake_chomp',
+            name: '狂暴三连咬',
+            type: 'attack',
+            damage: 7,
+            hits: 3,
+          },
+        },
+      ];
+    }
+
+    case 'gremlin_leader': {
+      const aliveMinions = combat?.enemies
+        ? combat.enemies.filter((e) => e.hp > 0 && e.id !== enemy.id).length
+        : enemy.turnIndex === 0
+          ? 2
+          : (enemy.lastKnownMinions ?? 1);
+
+      if (aliveMinions === 0) {
+        if (enemy.lastMoveId === 'leader_stab') {
+          return [
+            {
+              probability: 1,
+              intent: {
+                id: 'leader_rally',
+                name: '集结号角',
+                type: 'buff',
+                summonMinions: 'mad_gremlin',
+                summonCount: 2,
+                summonMax: 2,
+                summonHp: 20,
+                summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
+              },
+            },
+          ];
+        }
+        return [
+          {
+            probability: 0.75,
+            intent: {
+              id: 'leader_rally',
+              name: '集结号角',
+              type: 'buff',
+              summonMinions: 'mad_gremlin',
+              summonCount: 2,
+              summonMax: 2,
+              summonHp: 20,
+              summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
+            },
+          },
+          {
+            probability: 0.25,
+            intent: { id: 'leader_stab', name: '统领三连斩', type: 'attack', damage: 6, hits: 3 },
+          },
+        ];
+      }
+
+      const pool = [
+        {
+          weight: aliveMinions >= 2 ? 0.55 : 0.45,
+          intent: {
+            id: 'leader_encourage',
+            name: '鼓舞士气',
+            type: 'defend_buff',
+            allEnemiesBlock: 6,
+            block: 6,
+            applyAllEnemiesStatuses: { strength: 3 },
+            summary: '意图：使全体敌方获得 3 点【力量】与 6 点格挡！',
+          },
+        },
+        {
+          weight: aliveMinions >= 2 ? 0.45 : 0.35,
+          intent: { id: 'leader_stab', name: '统领三连斩', type: 'attack', damage: 6, hits: 3 },
+        },
+      ];
+      if (aliveMinions < 2) {
+        pool.push({
+          weight: 0.2,
+          intent: {
+            id: 'leader_rally',
+            name: '集结号角',
+            type: 'buff',
+            summonMinions: 'mad_gremlin',
+            summonCount: 2,
+            summonMax: 2,
+            summonHp: 20,
+            summary: '意图：吹响号角，补齐至多 2 名【狂怒地精】增援！',
+          },
+        });
+      }
+      const filtered = pool.filter((x) => x.intent.id !== enemy.lastMoveId);
+      const activePool = filtered.length > 0 ? filtered : pool;
+      const total = activePool.reduce((s, x) => s + x.weight, 0) || 1;
+      return activePool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+    }
+
     case 'bronze_automaton': {
       const step = enemy.turnIndex % 4;
       if (step === 0) {
@@ -2374,7 +2667,7 @@ export function getEnemyIntentCandidates(enemy, player = null) {
 
 export function rollEnemyIntent(state, enemy) {
   const roll = nextRandom(state);
-  const candidates = getEnemyIntentCandidates(enemy, state?.player ?? null);
+  const candidates = getEnemyIntentCandidates(enemy, state?.player ?? null, state?.combat ?? null);
   let cumulative = 0;
   let chosen = candidates[candidates.length - 1].intent;
   for (const item of candidates) {
@@ -2387,7 +2680,12 @@ export function rollEnemyIntent(state, enemy) {
   return applyAscensionIntentScaling(state, enemy, chosen);
 }
 
-export function predictNextTurnIntents(enemy, player = null, ascensionOverride = undefined) {
+export function predictNextTurnIntents(
+  enemy,
+  player = null,
+  ascensionOverride = undefined,
+  combat = null
+) {
   if (!enemy || enemy.hp <= 0) {
     return {
       summaryText: '',
@@ -2510,6 +2808,22 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
     }
   }
 
+  let nextGrounded = Boolean(enemy.grounded);
+  let nextByrdGroundStep = enemy.byrdGroundStep ?? 0;
+  if (enemy.templateId === 'byrd') {
+    if (curIntent?.id === 'stunned') {
+      delete simEnemyStatuses.stunned;
+      nextGrounded = true;
+      nextByrdGroundStep = 0;
+    } else if (curIntent?.restoreFlight) {
+      simEnemyStatuses.flight = curIntent.restoreFlight;
+      nextGrounded = false;
+      nextByrdGroundStep = 0;
+    } else if (nextGrounded) {
+      nextByrdGroundStep += 1;
+    }
+  }
+
   let nextAwakeTurnIndex = enemy.awakeTurnIndex ?? 0;
   if (enemy.templateId === 'lagavulin') {
     if ((simEnemyStatuses.asleep ?? 0) > 0) {
@@ -2574,6 +2888,8 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
     ascension: asc,
     statuses: simEnemyStatuses,
     turnIndex: (enemy.turnIndex ?? 0) + 1,
+    grounded: nextGrounded,
+    byrdGroundStep: nextByrdGroundStep,
     awakeTurnIndex: nextAwakeTurnIndex,
     multiStabUsed: nextMultiStabUsed,
     champPhase: nextChampPhase,
@@ -2595,7 +2911,7 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
       }
     : null;
 
-  const rawCandidates = getEnemyIntentCandidates(simEnemy, simPlayer);
+  const rawCandidates = getEnemyIntentCandidates(simEnemy, simPlayer, combat);
   const candidates = rawCandidates.map((item) => {
     const scaled = applyAscensionIntentScaling({ ascension: asc }, simEnemy, item.intent);
     const preview = getEnemyIntentPreview({ ...simEnemy, intent: scaled }, simPlayer);
@@ -2620,6 +2936,12 @@ export function predictNextTurnIntents(enemy, player = null, ascensionOverride =
     conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合改为【巨体分裂】`;
   } else if (enemy.templateId === 'lagavulin' && (enemy.statuses?.asleep ?? 0) > 0) {
     conditionalNote = '若本回合造成穿透格挡的生命伤害，将提前惊醒并眩晕 1 回合（跳过下次行动）';
+  } else if (enemy.templateId === 'byrd' && (enemy.statuses?.flight ?? 0) > 0) {
+    conditionalNote = `连续攻击命中 ${enemy.statuses.flight} 次即可击落【飞行】，使其本回合【眩晕】！`;
+  } else if (enemy.templateId === 'snake_plant') {
+    conditionalNote = `每次攻击都会触发【可塑护甲】（当前 +${enemy.statuses?.malleable ?? 3} 格挡且递增），重击或中毒更克制`;
+  } else if (enemy.templateId === 'gremlin_leader') {
+    conditionalNote = '优先清理【狂怒地精】爪牙可迫使其消耗回合吹响【集结号角】而非强化全队！';
   } else if (enemy.templateId === 'hexaghost' && enemy.turnIndex === 0) {
     conditionalNote = '【分裂烈焰】每段伤害 = max(2, ⌊你当前生命 ÷ 14⌋ + 1)（随当前生命动态变化）';
   } else if (enemy.templateId === 'the_champ' && (enemy.champPhase ?? 1) === 1 && enemy.hp > Math.floor(enemy.maxHp / 2)) {

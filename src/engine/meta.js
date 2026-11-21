@@ -5,6 +5,7 @@
  */
 
 import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
+import { CHARACTER_IDS, normalizeCharacterId } from '../data/characters.js';
 import { RELIC_LIBRARY } from '../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
@@ -119,6 +120,62 @@ export const UNLOCK_TIERS = deepFreeze([
   },
 ]);
 
+function createDefaultCharEntry() {
+  return {
+    runsPlayed: 0,
+    victories: 0,
+    maxAscensionUnlocked: 0,
+    bestFloor: 0,
+    bestScore: 0,
+  };
+}
+
+export function createDefaultCharacterProgress() {
+  const map = {};
+  for (const cid of CHARACTER_IDS) {
+    map[cid] = createDefaultCharEntry();
+  }
+  return map;
+}
+
+export function ensureCharacterProgress(meta) {
+  if (!meta) return createDefaultCharacterProgress();
+  if (!meta.characterProgress || typeof meta.characterProgress !== 'object') {
+    meta.characterProgress = createDefaultCharacterProgress();
+  }
+  for (const cid of CHARACTER_IDS) {
+    if (!meta.characterProgress[cid] || typeof meta.characterProgress[cid] !== 'object') {
+      meta.characterProgress[cid] = createDefaultCharEntry();
+    }
+  }
+  return meta.characterProgress;
+}
+
+export function getCharacterProgress(meta, characterId = 'ironclad') {
+  const cid = normalizeCharacterId(characterId);
+  const progressMap = ensureCharacterProgress(meta);
+  if (!progressMap[cid]) {
+    progressMap[cid] = createDefaultCharEntry();
+  }
+  return progressMap[cid];
+}
+
+export function getMaxAscensionForCharacter(meta, characterId = 'ironclad') {
+  if (!meta) return 0;
+  if (meta.unlockAllOverride) return MAX_ASCENSION;
+  const cid = normalizeCharacterId(characterId);
+  const entry = getCharacterProgress(meta, cid);
+  const allCharMax = Math.max(
+    0,
+    ...Object.values(ensureCharacterProgress(meta)).map((p) => p?.maxAscensionUnlocked ?? 0)
+  );
+  // Legacy save/test compat: if meta.maxAscensionUnlocked was set directly without per-char progress
+  if (cid === 'ironclad' && (meta.maxAscensionUnlocked ?? 0) > allCharMax) {
+    return Math.max(0, Math.min(MAX_ASCENSION, Math.floor(meta.maxAscensionUnlocked)));
+  }
+  return Math.max(0, Math.min(MAX_ASCENSION, Math.floor(entry.maxAscensionUnlocked ?? 0)));
+}
+
 export function createDefaultMeta() {
   return {
     xp: 0,
@@ -126,6 +183,7 @@ export function createDefaultMeta() {
     maxAscensionUnlocked: 0,
     selectedAscension: 0,
     selectedCharacterId: 'ironclad',
+    characterProgress: createDefaultCharacterProgress(),
     unlockAllOverride: false,
     runsPlayed: 0,
     victories: 0,
@@ -522,16 +580,38 @@ export function recordCompletedRun(meta, state) {
   meta.bestFloor = Math.max(meta.bestFloor ?? 0, totalFloorReached);
   meta.bestScore = Math.max(meta.bestScore ?? 0, report.score);
 
+  const charId = normalizeCharacterId(state.characterId);
+  const progressMap = ensureCharacterProgress(meta);
+  const charProg = getCharacterProgress(meta, charId);
+  const allCharMaxBefore = Math.max(
+    0,
+    ...Object.values(progressMap).map((p) => p?.maxAscensionUnlocked ?? 0)
+  );
+  if (charId === 'ironclad' && (meta.maxAscensionUnlocked ?? 0) > allCharMaxBefore) {
+    charProg.maxAscensionUnlocked = Math.max(
+      charProg.maxAscensionUnlocked ?? 0,
+      Math.min(MAX_ASCENSION, Math.floor(meta.maxAscensionUnlocked))
+    );
+  }
+  charProg.runsPlayed = (charProg.runsPlayed ?? 0) + 1;
+  charProg.bestFloor = Math.max(charProg.bestFloor ?? 0, totalFloorReached);
+  charProg.bestScore = Math.max(charProg.bestScore ?? 0, report.score);
+
   let unlockedAscension = null;
   if (state.runOutcome === 'victory') {
     meta.victories = (meta.victories ?? 0) + 1;
+    charProg.victories = (charProg.victories ?? 0) + 1;
     const asc = state.ascension ?? 0;
-    const currentMax = meta.maxAscensionUnlocked ?? 0;
+    const currentCharMax = charProg.maxAscensionUnlocked ?? 0;
     const canAdvanceAscension =
-      !state.dailyChallenge && (!state.isChallengeRun || asc <= currentMax);
-    if (canAdvanceAscension && asc >= currentMax && currentMax < MAX_ASCENSION) {
-      meta.maxAscensionUnlocked = Math.min(MAX_ASCENSION, asc + 1);
-      unlockedAscension = meta.maxAscensionUnlocked;
+      !state.dailyChallenge && (!state.isChallengeRun || asc <= currentCharMax);
+    if (canAdvanceAscension && asc >= currentCharMax && currentCharMax < MAX_ASCENSION) {
+      charProg.maxAscensionUnlocked = Math.min(MAX_ASCENSION, asc + 1);
+      unlockedAscension = charProg.maxAscensionUnlocked;
+      meta.maxAscensionUnlocked = Math.max(
+        meta.maxAscensionUnlocked ?? 0,
+        charProg.maxAscensionUnlocked
+      );
     }
   }
 
@@ -587,10 +667,69 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
     const maxAsc = Number.isFinite(parsed.maxAscensionUnlocked)
       ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(parsed.maxAscensionUnlocked)))
       : 0;
+    const selChar = normalizeCharacterId(parsed.selectedCharacterId);
+    const runHistory = Array.isArray(parsed.runHistory)
+      ? parsed.runHistory.slice(0, MAX_RUN_HISTORY)
+      : [];
+    const characterProgress = createDefaultCharacterProgress();
+
+    if (
+      parsed.characterProgress &&
+      typeof parsed.characterProgress === 'object' &&
+      !Array.isArray(parsed.characterProgress)
+    ) {
+      for (const cid of CHARACTER_IDS) {
+        const src = parsed.characterProgress[cid];
+        if (!src || typeof src !== 'object') continue;
+        characterProgress[cid] = {
+          runsPlayed: Number.isFinite(src.runsPlayed) ? Math.max(0, Math.floor(src.runsPlayed)) : 0,
+          victories: Number.isFinite(src.victories) ? Math.max(0, Math.floor(src.victories)) : 0,
+          maxAscensionUnlocked: Number.isFinite(src.maxAscensionUnlocked)
+            ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(src.maxAscensionUnlocked)))
+            : 0,
+          bestFloor: Number.isFinite(src.bestFloor) ? Math.max(0, Math.floor(src.bestFloor)) : 0,
+          bestScore: Number.isFinite(src.bestScore) ? Math.max(0, Math.floor(src.bestScore)) : 0,
+        };
+      }
+    } else {
+      // Migrate legacy save without characterProgress from history + legacy maxAscensionUnlocked
+      for (const rec of runHistory) {
+        const cid = normalizeCharacterId(rec?.characterId);
+        const entry = characterProgress[cid];
+        if (!entry) continue;
+        entry.runsPlayed += 1;
+        const floorReached = ((rec.act ?? 1) - 1) * 16 + (rec.floor ?? 0);
+        entry.bestFloor = Math.max(entry.bestFloor, floorReached);
+        if (Number.isFinite(rec.score)) {
+          entry.bestScore = Math.max(entry.bestScore, rec.score);
+        }
+        if (rec.outcome === 'victory') {
+          entry.victories += 1;
+          if (!rec.dailyDateKey && !rec.isChallenge) {
+            entry.maxAscensionUnlocked = Math.max(
+              entry.maxAscensionUnlocked,
+              Math.min(MAX_ASCENSION, Math.floor((rec.ascension ?? 0) + 1))
+            );
+          }
+        }
+      }
+      characterProgress.ironclad.maxAscensionUnlocked = Math.max(
+        characterProgress.ironclad.maxAscensionUnlocked,
+        maxAsc
+      );
+    }
+
+    const effectiveMaxAsc = Math.max(
+      maxAsc,
+      ...Object.values(characterProgress).map((p) => p.maxAscensionUnlocked ?? 0)
+    );
+    const unlockAllOverride = Boolean(parsed.unlockAllOverride);
+    const selCharMaxAsc = unlockAllOverride
+      ? MAX_ASCENSION
+      : characterProgress[selChar]?.maxAscensionUnlocked ?? 0;
     const selAsc = Number.isFinite(parsed.selectedAscension)
-      ? Math.max(0, Math.min(maxAsc, Math.floor(parsed.selectedAscension)))
+      ? Math.max(0, Math.min(selCharMaxAsc, Math.floor(parsed.selectedAscension)))
       : 0;
-    const selChar = parsed.selectedCharacterId === 'silent' ? 'silent' : 'ironclad';
     const dailyRecords =
       parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
         ? parsed.dailyRecords
@@ -601,10 +740,11 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
         computeUnlockedTierFromXp(xp),
         Number.isFinite(parsed.unlockedTier) ? parsed.unlockedTier : 0
       ),
-      maxAscensionUnlocked: maxAsc,
+      maxAscensionUnlocked: effectiveMaxAsc,
       selectedAscension: selAsc,
       selectedCharacterId: selChar,
-      unlockAllOverride: Boolean(parsed.unlockAllOverride),
+      characterProgress,
+      unlockAllOverride,
       runsPlayed: Number.isFinite(parsed.runsPlayed) ? parsed.runsPlayed : 0,
       victories: Number.isFinite(parsed.victories) ? parsed.victories : 0,
       bestFloor: Number.isFinite(parsed.bestFloor) ? parsed.bestFloor : 0,
@@ -612,7 +752,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       totalEnemiesSlain: Number.isFinite(parsed.totalEnemiesSlain) ? parsed.totalEnemiesSlain : 0,
       recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
       dailyRecords,
-      runHistory: Array.isArray(parsed.runHistory) ? parsed.runHistory.slice(0, MAX_RUN_HISTORY) : [],
+      runHistory,
     };
   } catch {
     return base;

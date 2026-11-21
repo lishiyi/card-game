@@ -14,6 +14,8 @@ import {
 } from '../src/data/cards.js';
 import { createEnemyInstance, ENCOUNTERS, predictNextTurnIntents } from '../src/data/enemies.js';
 import {
+  EVENT_IDS,
+  EVENT_LIBRARY,
   getEventChoicesForAscension,
   getEventIdsForAct,
   getEventTuning,
@@ -62,6 +64,7 @@ import {
   leaveTreasureRoom,
   openTreasureChest,
   pickEventLibraryCard,
+  playerHasHeavyAttackCard,
   proceedFromReward,
   proceedToNextAct,
   restHeal,
@@ -83,10 +86,13 @@ import {
   calculateRunScore,
   createDefaultMeta,
   formatShareableBattleReport,
+  getCharacterProgress,
   getLockedContentSets,
+  getMaxAscensionForCharacter,
   getScoreGrade,
   loadSavedMeta,
   MAX_ASCENSION,
+  META_STORAGE_KEY,
   recordCompletedRun,
   saveMeta,
 } from '../src/engine/meta.js';
@@ -1303,7 +1309,7 @@ test('Relic Pool Tiering, Small/Medium/Large Chests, Dual Shop Relic Slots & Mem
   assert.equal(ironPools.uncommon.includes('red_skull'), true);
   assert.equal(silentPools.uncommon.includes('red_skull'), false);
   assert.equal(ironPools.shop.length, 5);
-  assert.equal(ironPools.event.length, 3);
+  assert.equal(ironPools.event.length, 4);
   assert.equal(ironPools.boss.length, 8); // Ironclad excludes ring_of_the_serpent & wrist_blade
   assert.equal(ironPools.boss.includes('black_blood'), true);
   assert.equal(ironPools.boss.includes('wrist_blade'), false);
@@ -1623,6 +1629,286 @@ test('Ascension 6-10 rules: damaged start & 2 potion slots (A6), gold & upgrade 
   assert.equal(a10MetaRec.unlockedAscension, null);
   assert.equal(metaA9.maxAscensionUnlocked, 10, 'Capped at MAX_ASCENSION 10');
 });
+
+test('Stage 1: Act-scoped 19-event pool, 7 new events + Bloody Idol, Silent neutral copy, and independent per-character Ascension & legacy meta migration', () => {
+  // 1. Act-scoped event pool integrity (19 total events, proper minAct/maxAct filtering)
+  assert.equal(EVENT_IDS.length, 19, 'Expected 19 total events after adding 7 Stage 1 events');
+  const act1Events = getEventIdsForAct(1);
+  const act2Events = getEventIdsForAct(2);
+  const act3Events = getEventIdsForAct(3);
+
+  assert.ok(act1Events.includes('scrap_ooze') && !act2Events.includes('scrap_ooze') && !act3Events.includes('scrap_ooze'));
+  assert.ok(act1Events.includes('golden_idol') && !act2Events.includes('golden_idol') && !act3Events.includes('golden_idol'));
+  assert.ok(act1Events.includes('wing_statue') && act2Events.includes('wing_statue') && !act3Events.includes('wing_statue'));
+  assert.ok(!act1Events.includes('council_of_ghosts') && act2Events.includes('council_of_ghosts') && !act3Events.includes('council_of_ghosts'));
+  assert.ok(!act1Events.includes('forgotten_altar') && act2Events.includes('forgotten_altar') && !act3Events.includes('forgotten_altar'));
+  assert.ok(!act1Events.includes('augmenter') && act2Events.includes('augmenter') && act3Events.includes('augmenter'));
+  assert.ok(!act1Events.includes('sensory_stone') && !act2Events.includes('sensory_stone') && act3Events.includes('sensory_stone'));
+  assert.ok(!act1Events.includes('winding_halls') && !act2Events.includes('winding_halls') && act3Events.includes('winding_halls'));
+  assert.ok(!act1Events.includes('mind_bloom') && !act2Events.includes('mind_bloom') && act3Events.includes('mind_bloom'));
+
+  // Neutral copy check: living_wall & Silent Neow blessings must NOT hardcode "铁甲战士"
+  assert.equal(
+    JSON.stringify(EVENT_LIBRARY.living_wall).includes('铁甲战士'),
+    false,
+    'living_wall copy must be character-neutral'
+  );
+  const silentNeowRun = createNewRun({ seed: 9911, characterId: 'silent', skipNeow: false });
+  assert.equal(
+    JSON.stringify(silentNeowRun.neowState.options).includes('铁甲战士'),
+    false,
+    'Silent Neow options must not reference Ironclad'
+  );
+
+  // Helper to stage an event cleanly
+  const openEvent = (state, eventId) => {
+    state.screen = 'event';
+    state.eventState = {
+      eventId,
+      resolved: false,
+      pendingPurge: false,
+      pendingCardAction: null,
+      libraryChoices: null,
+      outcomeText: '',
+      upgradedCardIds: [],
+      addedCardIds: [],
+      oozeAttempts: 0,
+      lastAttemptNote: '',
+      purgeHpCost: 0,
+    };
+  };
+
+  // 2. Scrap Ooze (Act 1 repeatable escalating risk/chance -> relic)
+  const oozeRun = createNewRun({ seed: 10101, skipNeow: true });
+  oozeRun.player.hp = 70;
+  openEvent(oozeRun, 'scrap_ooze');
+  const relicsBeforeOoze = oozeRun.player.relics.length;
+  let oozeResolved = false;
+  let attempts = 0;
+  while (!oozeResolved && attempts < 10) {
+    attempts += 1;
+    const hpBeforeTry = oozeRun.player.hp;
+    const res = chooseEventOption(oozeRun, 'reach_ooze');
+    assert.equal(res.ok, true);
+    if (oozeRun.eventState.resolved) {
+      oozeResolved = true;
+      const expectedCost = 5 + (attempts - 1);
+      assert.ok(
+        oozeRun.eventState.outcomeText.includes(`-${expectedCost} 生命`),
+        `Expected HP cost note -${expectedCost} in outcomeText: ${oozeRun.eventState.outcomeText}`
+      );
+    } else {
+      assert.equal(oozeRun.player.hp, hpBeforeTry - (5 + (attempts - 1)));
+      assert.equal(oozeRun.eventState.oozeAttempts, attempts);
+      assert.ok(oozeRun.eventState.lastAttemptNote.includes('酸液'));
+    }
+  }
+  assert.equal(oozeResolved, true, 'Scrap Ooze must eventually guarantee relic before 10 tries');
+  assert.equal(oozeRun.player.relics.length, relicsBeforeOoze + 1);
+  // Also guarantee at least one multi-attempt retry path across seeds 10110..10140
+  let sawRetryEscalation = false;
+  for (let s = 10110; s <= 10140; s += 1) {
+    const r = createNewRun({ seed: s, skipNeow: true });
+    r.player.hp = 70;
+    openEvent(r, 'scrap_ooze');
+    chooseEventOption(r, 'reach_ooze');
+    if (!r.eventState.resolved) {
+      assert.equal(r.player.hp, 65, 'First failed Scrap Ooze attempt costs 5 HP');
+      assert.equal(r.eventState.oozeAttempts, 1);
+      assert.ok(r.eventState.lastAttemptNote.includes('代价 6 生命'));
+      assert.ok(r.eventState.lastAttemptNote.includes('60%'));
+      sawRetryEscalation = true;
+      break;
+    }
+  }
+  assert.equal(sawRetryEscalation, true, 'Must verify Scrap Ooze retry HP/chance escalation');
+
+  // 3. Wing Statue: purge HP cost deferred until confirm (cancel stays free) + heavy attack >= 10 check
+  const wingRun = createNewRun({ seed: 10102, characterId: 'silent', skipNeow: true });
+  wingRun.player.hp = 60;
+  assert.equal(playerHasHeavyAttackCard(wingRun), false, 'Silent starter deck has no >=10 base dmg attack');
+  openEvent(wingRun, 'wing_statue');
+  const blockedDestroy = chooseEventOption(wingRun, 'destroy_wing');
+  assert.equal(blockedDestroy.ok, false);
+  // Pray -> cancel must NOT deduct HP
+  const prayRes = chooseEventOption(wingRun, 'pray_wing');
+  assert.equal(prayRes.ok, true);
+  assert.equal(wingRun.eventState.pendingPurge, true);
+  assert.equal(wingRun.eventState.purgeHpCost, 7);
+  assert.equal(wingRun.player.hp, 60);
+  cancelEventPurge(wingRun);
+  assert.equal(wingRun.player.hp, 60, 'Canceling Wing Statue purge must not deduct HP');
+  assert.equal(wingRun.eventState.purgeHpCost, 0);
+  // Pray -> confirm deducts 7 HP and removes card
+  chooseEventOption(wingRun, 'pray_wing');
+  const deckBeforeWing = wingRun.player.deck.length;
+  const purgeRes = completeEventPurge(wingRun, wingRun.player.deck[0].instanceId);
+  assert.equal(purgeRes.ok, true);
+  assert.equal(wingRun.player.hp, 53);
+  assert.equal(wingRun.player.deck.length, deckBeforeWing - 1);
+  // With a >=10 dmg attack (Predator), destroy_wing succeeds for +65 gold
+  wingRun.player.deck.push(createCardInstance(wingRun, 'predator', false));
+  assert.equal(playerHasHeavyAttackCard(wingRun), true);
+  const goldBeforeWing = wingRun.player.gold;
+  openEvent(wingRun, 'wing_statue');
+  const destroyOk = chooseEventOption(wingRun, 'destroy_wing');
+  assert.equal(destroyOk.ok, true);
+  assert.equal(wingRun.player.gold, goldBeforeWing + 65);
+
+  // 4. Council of Ghosts: lose 35% Max HP, gain 3x Apparition (ethereal/exhaust, upgraded removes ethereal)
+  const ghostRun = createNewRun({ seed: 10103, skipNeow: true });
+  ghostRun.player.maxHp = 80;
+  ghostRun.player.hp = 80;
+  openEvent(ghostRun, 'council_of_ghosts');
+  const ghostRes = chooseEventOption(ghostRun, 'accept_ghosts');
+  assert.equal(ghostRes.ok, true);
+  assert.equal(ghostRun.player.maxHp, 52, '80 - floor(80 * 0.35) = 52');
+  assert.equal(ghostRun.player.hp, 52);
+  const apparitions = ghostRun.player.deck.filter((c) => c.cardId === 'apparition');
+  assert.equal(apparitions.length, 3);
+  assert.equal(getCardStats(apparitions[0]).ethereal, true);
+  assert.equal(getCardStats(apparitions[0]).exhaust, true);
+  apparitions[0].upgraded = true;
+  assert.equal(getCardStats(apparitions[0]).ethereal, false, 'Apparition+ loses Ethereal');
+
+  // 5. Forgotten Altar: Golden Idol -> Bloody Idol swap + full heal + +5 HP on subsequent gold gains
+  const altarRun = createNewRun({ seed: 10104, skipNeow: true });
+  altarRun.player.hp = 30;
+  openEvent(altarRun, 'forgotten_altar');
+  assert.equal(chooseEventOption(altarRun, 'offer_golden_idol').ok, false, 'Requires Golden Idol');
+  grantRelicToPlayer(altarRun, 'golden_idol_relic');
+  const altarSwap = chooseEventOption(altarRun, 'offer_golden_idol');
+  assert.equal(altarSwap.ok, true);
+  assert.equal(altarRun.player.relics.includes('golden_idol_relic'), false, 'Golden Idol replaced');
+  assert.equal(altarRun.player.relics.includes('bloody_idol'), true, 'Bloody Idol granted');
+  assert.equal(altarRun.player.hp, altarRun.player.maxHp, 'Full heal on offering Golden Idol');
+  // Test Bloody Idol heals 5 HP when gaining gold (via reward claim & desecrate_altar)
+  altarRun.player.hp = 50;
+  openEvent(altarRun, 'forgotten_altar');
+  assert.equal(chooseEventOption(altarRun, 'desecrate_altar').ok, true);
+  assert.equal(altarRun.player.hp, 55, 'Bloody Idol must heal +5 HP on event gold gain');
+  assert.ok(altarRun.player.deck.some((c) => c.cardId === 'regret'));
+
+  // 6. Augmenter: transform_rare turns chosen card into a Rare class card
+  const augRun = createNewRun({ seed: 10105, characterId: 'silent', skipNeow: true });
+  openEvent(augRun, 'augmenter');
+  const augPick = chooseEventOption(augRun, 'augment_rare_transform');
+  assert.equal(augPick.ok, true);
+  assert.equal(augRun.eventState.pendingCardAction, 'transform_rare');
+  const targetStrike = augRun.player.deck.find((c) => c.cardId === 'strike');
+  const augDone = completeEventCardAction(augRun, targetStrike.instanceId);
+  assert.equal(augDone.ok, true);
+  const transformedCard = augRun.player.deck.find((c) => c.instanceId === augRun.eventState.addedCardIds[0]);
+  assert.ok(transformedCard);
+  assert.equal(CARD_LIBRARY[transformedCard.cardId].rarity, 'rare');
+  assert.equal(getCardCharacter(CARD_LIBRARY[transformedCard.cardId]), 'silent');
+
+  // 7. Sensory Stone: recall_2 gives 3 upgraded Colorless+ choices; recall_3 gives Rare Colorless+ & relic
+  const stoneRun = createNewRun({ seed: 10106, skipNeow: true });
+  stoneRun.player.hp = 70;
+  openEvent(stoneRun, 'sensory_stone');
+  assert.equal(chooseEventOption(stoneRun, 'recall_2').ok, true);
+  assert.equal(stoneRun.player.hp, 65);
+  assert.equal(stoneRun.eventState.libraryChoices.length, 3);
+  assert.equal(
+    stoneRun.eventState.libraryChoices.every((c) => c.upgraded && getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless'),
+    true,
+    'recall_2 must offer 3 upgraded Colorless+ cards'
+  );
+  pickEventLibraryCard(stoneRun, stoneRun.eventState.libraryChoices[0].instanceId);
+  assert.equal(stoneRun.eventState.resolved, true);
+
+  openEvent(stoneRun, 'sensory_stone');
+  const stoneRelicsBefore = stoneRun.player.relics.length;
+  assert.equal(chooseEventOption(stoneRun, 'recall_3').ok, true);
+  assert.equal(stoneRun.player.hp, 53);
+  assert.equal(stoneRun.player.relics.length, stoneRelicsBefore + 1);
+  const addedRareColorless = stoneRun.player.deck.find((c) => c.instanceId === stoneRun.eventState.addedCardIds[0]);
+  assert.equal(addedRareColorless.upgraded, true);
+  assert.equal(CARD_LIBRARY[addedRareColorless.cardId].rarity, 'rare');
+  assert.equal(getCardCharacter(CARD_LIBRARY[addedRareColorless.cardId]), 'colorless');
+
+  // 8. Winding Halls: embrace_madness adds 2x 0-cost Colorless uncommon cards; retrace_steps heals + Doubt; push_through_halls loses 6% Max HP
+  const hallRun = createNewRun({ seed: 10107, skipNeow: true });
+  hallRun.player.hp = 70;
+  openEvent(hallRun, 'winding_halls');
+  assert.equal(chooseEventOption(hallRun, 'embrace_madness').ok, true);
+  assert.equal(hallRun.player.hp, 58);
+  assert.equal(hallRun.eventState.addedCardIds.length, 2);
+  for (const cid of hallRun.eventState.addedCardIds) {
+    const inst = hallRun.player.deck.find((c) => c.instanceId === cid);
+    assert.ok(inst);
+    assert.equal(getCardCharacter(CARD_LIBRARY[inst.cardId]), 'colorless');
+    assert.equal(getCardStats(inst).cost, 0);
+  }
+  openEvent(hallRun, 'winding_halls');
+  assert.equal(chooseEventOption(hallRun, 'retrace_steps').ok, true);
+  assert.equal(hallRun.player.hp, 78, '58 + floor(80 * 0.25) = 78');
+  assert.ok(hallRun.player.deck.some((c) => c.cardId === 'doubt'));
+
+  // A8 tuning check for new events
+  const a8Tune = getEventTuning(8);
+  assert.equal(a8Tune.oozeBaseHpLoss, 7);
+  assert.equal(a8Tune.oozeBaseChancePct, 35);
+  assert.equal(a8Tune.ghostsMaxHpLossPct, 42);
+  const a8GhostsChoices = getEventChoicesForAscension('council_of_ghosts', 8);
+  assert.ok(a8GhostsChoices[0].detail.includes('42%'));
+
+  // 9. Independent per-character Ascension progression & career stats
+  const meta = createDefaultMeta();
+  assert.equal(getMaxAscensionForCharacter(meta, 'ironclad'), 0);
+  assert.equal(getMaxAscensionForCharacter(meta, 'silent'), 0);
+
+  const ironWin = createNewRun({ seed: 10201, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  ironWin.act = 3;
+  ironWin.floor = 16;
+  ironWin.runOutcome = 'victory';
+  const ironRec = recordCompletedRun(meta, ironWin);
+  assert.equal(ironRec.unlockedAscension, 1);
+  assert.equal(getMaxAscensionForCharacter(meta, 'ironclad'), 1, 'Ironclad unlocks A1');
+  assert.equal(getMaxAscensionForCharacter(meta, 'silent'), 0, 'Silent stays at A0 independently');
+  assert.equal(getCharacterProgress(meta, 'ironclad').victories, 1);
+  assert.equal(getCharacterProgress(meta, 'silent').victories, 0);
+
+  const silentWin = createNewRun({ seed: 10202, characterId: 'silent', ascension: 0, skipNeow: true });
+  silentWin.act = 3;
+  silentWin.floor = 16;
+  silentWin.runOutcome = 'victory';
+  const silentRec = recordCompletedRun(meta, silentWin);
+  assert.equal(silentRec.unlockedAscension, 1, 'Silent independently unlocks A1 on her own A0 victory');
+  assert.equal(getMaxAscensionForCharacter(meta, 'silent'), 1);
+  assert.equal(getCharacterProgress(meta, 'silent').victories, 1);
+  assert.equal(getCharacterProgress(meta, 'silent').runsPlayed, 1);
+
+  // 10. Legacy Meta save migration (without characterProgress) migrates cleanly via loadSavedMeta
+  const legacyPayload = {
+    xp: 420,
+    unlockedTier: 2,
+    maxAscensionUnlocked: 3,
+    selectedAscension: 2,
+    runsPlayed: 5,
+    victories: 2,
+    bestFloor: 16,
+    runHistory: [
+      { id: 'h1', characterId: 'ironclad', outcome: 'victory', ascension: 2, floor: 16, score: 880 },
+      { id: 'h2', characterId: 'silent', outcome: 'victory', ascension: 0, floor: 16, score: 740 },
+      { id: 'h3', characterId: 'silent', outcome: 'defeat', ascension: 1, floor: 10, score: 310 },
+    ],
+  };
+  const mockStorage = {
+    getItem(key) {
+      return key === META_STORAGE_KEY ? JSON.stringify(legacyPayload) : null;
+    },
+  };
+  const migrated = loadSavedMeta(mockStorage);
+  assert.equal(getMaxAscensionForCharacter(migrated, 'ironclad'), 3, 'Ironclad inherits legacy maxAscensionUnlocked=3');
+  assert.equal(getMaxAscensionForCharacter(migrated, 'silent'), 1, 'Silent inferred A1 from A0 victory in legacy history');
+  assert.equal(getCharacterProgress(migrated, 'silent').runsPlayed, 2);
+  assert.equal(getCharacterProgress(migrated, 'silent').victories, 1);
+  assert.equal(getCharacterProgress(migrated, 'silent').bestScore, 740);
+  assert.equal(getCharacterProgress(migrated, 'ironclad').bestScore, 880);
+});
+
 
 
 

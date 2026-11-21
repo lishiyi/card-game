@@ -359,6 +359,79 @@ export function getCharacterSvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'byrd':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="28" ry="5" fill="hsla(0,0%,0%,0.35)" />
+          <!-- Sweeping dark wings -->
+          <path d="M56 54 Q26 16 10 38 Q22 50 18 64 Q38 60 56 66 Z" fill="hsl(246, 32%, 28%)" stroke="hsl(274, 52%, 62%)" stroke-width="1.8" />
+          <path d="M64 54 Q94 16 110 38 Q98 50 102 64 Q82 60 64 66 Z" fill="hsl(246, 32%, 28%)" stroke="hsl(274, 52%, 62%)" stroke-width="1.8" />
+          <!-- Plumage body -->
+          <ellipse cx="60" cy="58" rx="18" ry="22" fill="hsl(258, 36%, 22%)" stroke="hsl(38, 62%, 58%)" stroke-width="2" />
+          <path d="M50 76 L46 92 M70 76 L74 92" stroke="hsl(36, 72%, 56%)" stroke-width="2.4" stroke-linecap="round" />
+          <!-- Razor beak & fiery eye -->
+          <polygon points="44,44 26,52 46,54" fill="hsl(38, 86%, 58%)" stroke="hsl(24, 50%, 24%)" stroke-width="1.4" />
+          <circle cx="53" cy="46" r="4.2" fill="hsl(8, 92%, 58%)" />
+          <circle cx="52" cy="46" r="1.8" fill="hsl(48, 100%, 92%)" />
+          <path d="M56 32 L64 20 L66 35 L74 26 L70 39" fill="hsl(278, 56%, 54%)" />
+        </svg>
+      `;
+
+    case 'spheric_guardian':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="34" ry="5.5" fill="hsla(0,0%,0%,0.42)" />
+          <!-- Orbiting barrier ring -->
+          <ellipse cx="60" cy="56" rx="46" ry="16" fill="none" stroke="hsl(192, 86%, 64%)" stroke-width="3" opacity="0.82" transform="rotate(-14 60 56)" />
+          <!-- Armored floating sphere -->
+          <circle cx="60" cy="56" r="30" fill="hsl(214, 26%, 28%)" stroke="hsl(196, 72%, 66%)" stroke-width="2.6" />
+          <path d="M36 42 Q60 54 84 42 M34 68 Q60 56 86 68" fill="none" stroke="hsl(42, 74%, 58%)" stroke-width="2.2" />
+          <circle cx="60" cy="56" r="12" fill="hsl(206, 48%, 16%)" stroke="hsl(42, 80%, 62%)" stroke-width="2" />
+          <circle cx="60" cy="56" r="6" fill="hsl(188, 96%, 68%)" />
+          <circle cx="60" cy="56" r="2.5" fill="hsl(190, 100%, 95%)" />
+        </svg>
+      `;
+
+    case 'snake_plant':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="40" ry="6.5" fill="hsla(0,0%,0%,0.48)" />
+          <!-- Coiled thorny vines -->
+          <path d="M58 104 Q30 92 34 66 Q38 44 62 44 Q86 44 86 70 Q86 94 58 104 Z" fill="hsl(134, 42%, 24%)" stroke="hsl(118, 56%, 48%)" stroke-width="2.4" />
+          <path d="M22 86 Q34 70 46 82 M98 84 Q86 68 74 82" fill="none" stroke="hsl(126, 52%, 44%)" stroke-width="4" stroke-linecap="round" />
+          <!-- Carnivorous serpent blossom head -->
+          <path d="M28 46 Q46 14 78 24 Q96 34 90 58 Q68 68 42 58 Z" fill="hsl(312, 46%, 30%)" stroke="hsl(122, 64%, 54%)" stroke-width="2.2" />
+          <!-- Fangs & glowing eyes -->
+          <path d="M30 48 Q52 40 72 52 Q52 66 30 56 Z" fill="hsl(348, 62%, 20%)" />
+          <polygon points="36,47 41,56 46,46" fill="hsl(44, 52%, 90%)" />
+          <polygon points="50,45 55,55 60,47" fill="hsl(44, 52%, 90%)" />
+          <polygon points="42,60 47,52 52,61" fill="hsl(44, 52%, 90%)" />
+          <circle cx="56" cy="33" r="3.8" fill="hsl(52, 98%, 62%)" />
+          <circle cx="72" cy="36" r="3.4" fill="hsl(52, 98%, 62%)" />
+        </svg>
+      `;
+
+    case 'gremlin_leader':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <ellipse cx="60" cy="108" rx="40" ry="6.5" fill="hsla(0,0%,0%,0.5)" />
+          <!-- War Banner & Cape -->
+          <line x1="22" y1="16" x2="26" y2="104" stroke="hsl(32, 46%, 44%)" stroke-width="3" />
+          <polygon points="24,18 52,24 26,42" fill="hsl(6, 72%, 42%)" stroke="hsl(42, 86%, 62%)" stroke-width="1.6" />
+          <path d="M34 48 Q60 36 86 48 L92 104 L30 104 Z" fill="hsl(14, 56%, 28%)" stroke="hsl(42, 74%, 58%)" stroke-width="2.2" />
+          <!-- Horned Gremlin Commander Head -->
+          <path d="M40 34 L22 24 L38 44 Z" fill="hsl(14, 54%, 44%)" />
+          <path d="M80 34 L98 24 L82 44 Z" fill="hsl(14, 54%, 44%)" />
+          <circle cx="60" cy="38" r="16" fill="hsl(14, 54%, 42%)" stroke="hsl(42, 72%, 58%)" stroke-width="2" />
+          <polygon points="48,24 54,12 60,22 66,12 72,24" fill="hsl(42, 88%, 58%)" />
+          <circle cx="53" cy="37" r="3.2" fill="hsl(48, 98%, 64%)" />
+          <circle cx="67" cy="37" r="3.2" fill="hsl(48, 98%, 64%)" />
+          <!-- Jagged Halberd -->
+          <line x1="94" y1="22" x2="90" y2="102" stroke="hsl(30, 34%, 36%)" stroke-width="3.2" />
+          <path d="M94 22 L110 34 L92 48 Z" fill="hsl(208, 22%, 78%)" stroke="hsl(42, 70%, 56%)" stroke-width="1.6" />
+        </svg>
+      `;
+
     case 'book_of_stabbing':
       return `
         <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">

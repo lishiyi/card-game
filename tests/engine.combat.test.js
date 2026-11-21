@@ -15,12 +15,16 @@ import { ENCOUNTERS } from '../src/data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY, STATUS_METADATA } from '../src/data/relics.js';
 import {
   applyStatus,
+  confirmScryChoice,
   discardHandCard,
   endPlayerTurn,
+  initiateScry,
   MAX_HAND_SIZE,
   playCard,
+  resolveCardChoice,
   restartCombat,
   startCombat,
+  toggleScryChoice,
   usePotion,
 } from '../src/engine/combat.js';
 import { createNewRun, grantRelicToPlayer } from '../src/engine/game.js';
@@ -544,19 +548,19 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 54);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 55);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 2);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 12);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 11);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 11);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 5);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 3);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
     10
   );
-  assert.equal(Object.keys(POTION_LIBRARY).length, 12);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 129);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 14);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 130);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     55
@@ -568,11 +572,13 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
   assert.ok(CARD_LIBRARY.wound, 'CARD_LIBRARY must include Wound status card');
+  assert.ok(CARD_LIBRARY.apparition, 'CARD_LIBRARY must include Apparition event card');
   assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
   assert.ok(STATUS_METADATA.poison, 'STATUS_METADATA must include poison for The Silent');
   assert.ok(STATUS_METADATA.intangible, 'STATUS_METADATA must include intangible for Wraith Form');
   assert.ok(STATUS_METADATA.vigor && STATUS_METADATA.buffer && STATUS_METADATA.slow);
   assert.ok(STATUS_METADATA.timeWarp && STATUS_METADATA.curiosity && STATUS_METADATA.regenerating);
+  assert.ok(STATUS_METADATA.flight && STATUS_METADATA.malleable);
   for (const relic of Object.values(RELIC_LIBRARY)) {
     assert.ok(relic.name && relic.description.length >= 6, `Missing description on relic ${relic.id}`);
   }
@@ -647,11 +653,14 @@ test('Exhaust archetype: Feel No Pain, Dark Embrace, Charons Ashes, Corruption, 
   assert.equal(state.combat.hand.length, 1);
   assert.equal(state.combat.hand[0].instanceId, keepAtk.instanceId);
 
-  // True Grit+ smartly prefers exhausting Status/Curse cards in hand
+  // True Grit+ lets player interactively choose which card in hand to exhaust
   const trueGritPlus = createCardInstance(state, 'true_grit', true);
   const clumsy = createCardInstance(state, 'clumsy', false);
   state.combat.hand = [trueGritPlus, keepAtk, clumsy];
   playCard(state, trueGritPlus.instanceId);
+  assert.equal(state.combat.pendingCardChoice?.mode, 'exhaust');
+  assert.equal(resolveCardChoice(state, clumsy.instanceId).ok, true);
+  assert.equal(state.combat.pendingCardChoice, null);
   assert.equal(state.combat.hand.length, 1);
   assert.equal(state.combat.hand[0].instanceId, keepAtk.instanceId);
 
@@ -2043,6 +2052,154 @@ test('Act 3 Enemies, Elites, and Bosses: Spiker Thorns, Exploder, Repulsor, Gian
   assert.equal(donu.block, 14);
   assert.equal(deca.block, 14, 'Deca must not double-count allEnemiesBlock + block');
 });
+
+test('Stage 1: Act 2 Enemies (Byrd Flight, Spheric Guardian Barricade, Snake Plant Malleable, Gremlin Leader), Ironclad Potions, Interactive Armaments/True Grit+, and Scry', () => {
+  // 1. Byrd Flight 50% attack halving, multi-hit grounding + stun, grounded headbutt -> fly up
+  const byrdState = setupCustomCombat(9101, ENCOUNTERS.act2Early.find((e) => e.id === 'byrd_flock'));
+  const byrd = byrdState.combat.enemies[0];
+  assert.equal(byrd.statuses.flight, 3);
+  byrd.hp = 30;
+  byrd.maxHp = 30;
+  byrdState.player.energy = 10;
+
+  // Tactics preview accurately simulates 3-hit Flight halving then 4th hit full damage
+  const ww = createCardInstance(byrdState, 'whirlwind', false); // 5 dmg x X
+  byrdState.combat.hand = [ww];
+  byrdState.player.energy = 4;
+  const wwPreview = previewCardDamageOnEnemy(byrdState, ww, byrd);
+  // Hits 1-3 halved: floor(5*0.5)=2 each = 6; Hit 4 full: 5 -> total 11
+  assert.equal(wwPreview.totalDamage, 11, 'Flight preview must halve hits 1-3 and deal full dmg on hit 4');
+
+  const strike = createCardInstance(byrdState, 'strike', false); // 6 dmg -> halved to 3
+  const twin = createCardInstance(byrdState, 'twin_strike', false); // 5x2 -> hit 1 halved to 2, hit 2 halved to 2 -> breaks Flight!
+  byrdState.combat.hand = [strike, twin];
+  playCard(byrdState, strike.instanceId, byrd.id);
+  assert.equal(byrd.hp, 27);
+  assert.equal(byrd.statuses.flight, 2);
+  playCard(byrdState, twin.instanceId, byrd.id);
+  assert.equal(byrd.hp, 23);
+  assert.equal(byrd.statuses.flight, undefined, '3rd attack hit grounds Byrd');
+  assert.equal(byrd.grounded, true);
+  assert.equal(byrd.intent.id, 'stunned', 'Grounded Byrd is immediately stunned');
+
+  // After stunned turn -> grounded headbutt -> fly up restores Flight
+  endPlayerTurn(byrdState);
+  assert.equal(byrd.intent.id, 'byrd_headbutt');
+  endPlayerTurn(byrdState);
+  assert.equal(byrd.intent.id, 'byrd_fly_up');
+  endPlayerTurn(byrdState);
+  assert.equal(byrd.statuses.flight, 3, 'Fly Up restores Byrd Flight stacks');
+  assert.equal(byrd.grounded, false);
+
+  // 2. Spheric Guardian initialBlock + Barricade persistence across enemy turns
+  const sgState = setupCustomCombat(9102, ENCOUNTERS.act2Early.find((e) => e.id === 'spheric_guardian_solo'));
+  const sg = sgState.combat.enemies[0];
+  assert.ok(sg.block >= 32, 'Spheric Guardian starts with high initial block');
+  assert.equal(sg.statuses.barricade, 1);
+  const beforeBlock = sg.block;
+  endPlayerTurn(sgState); // Turn 1 Activate adds +18 block without clearing existing block
+  assert.equal(sg.block, beforeBlock + 18, 'Enemy Barricade must preserve block across turns');
+
+  // 3. Snake Plant Malleable escalating block & enemy-turn reset + tactics preview
+  const spState = setupCustomCombat(9103, ENCOUNTERS.act2Hard.find((e) => e.id === 'snake_plant_solo'));
+  const sp = spState.combat.enemies[0];
+  assert.equal(sp.statuses.malleable, 3);
+  sp.hp = 80;
+  sp.maxHp = 80;
+  spState.player.energy = 6;
+  const twinSp = createCardInstance(spState, 'twin_strike', true); // 7 dmg x 2
+  const spPrev = previewCardDamageOnEnemy(spState, twinSp, sp);
+  // Hit 1: 7 HP loss -> gains 3 block (malleable 4). Hit 2: 7 dmg vs 3 block -> 4 HP loss -> gains 4 block. Total HP loss = 11!
+  assert.equal(spPrev.hpLoss, 11, 'Malleable preview must simulate escalating block mid-multi-hit');
+  spState.combat.hand = [twinSp];
+  playCard(spState, twinSp.instanceId, sp.id);
+  assert.equal(sp.hp, 69);
+  assert.equal(sp.block, 4);
+  assert.equal(sp.statuses.malleable, 5);
+  endPlayerTurn(spState);
+  assert.equal(sp.statuses.malleable, 3, 'Malleable resets to 3 at start of enemy turn');
+
+  // 4. Gremlin Leader elite spawns with 2 minions and honors summonMax = 2
+  const glState = setupCustomCombat(9104, ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite'));
+  assert.equal(glState.combat.enemies.length, 3);
+  const leader = glState.combat.enemies.find((e) => e.templateId === 'gremlin_leader');
+  assert.ok(leader);
+  for (const e of glState.combat.enemies) {
+    if (e.id !== leader.id) e.hp = 0;
+  }
+  leader.intent = {
+    id: 'leader_rally',
+    name: '集结号角',
+    type: 'buff',
+    summonMinions: 'mad_gremlin',
+    summonCount: 2,
+    summonMax: 2,
+    summonHp: 20,
+  };
+  endPlayerTurn(glState);
+  const aliveGremlins = glState.combat.enemies.filter((e) => e.hp > 0 && e.templateId === 'mad_gremlin');
+  assert.equal(aliveGremlins.length, 2, 'Gremlin Leader Rally summons up to summonMax=2 Mad Gremlins');
+
+  // 5. Ironclad exclusive potions: Heart of Iron (+6 Metallicize) & Fury Potion (+5 temp Str & draw 1) with Sacred Bark
+  const potState = setupCustomCombat(9105, ENCOUNTERS.floor1[0]);
+  potState.player.relics.push('sacred_bark');
+  potState.player.potions = ['heart_of_iron', 'fury_potion', null];
+  potState.combat.drawPile = [
+    createCardInstance(potState, 'strike', false),
+    createCardInstance(potState, 'defend', false),
+    createCardInstance(potState, 'strike', false),
+  ];
+  potState.combat.hand = [];
+  assert.equal(usePotion(potState, 0).ok, true);
+  assert.equal(potState.player.statuses.metallicize, 12, 'Sacred Bark doubles Heart of Iron Metallicize (6 -> 12)');
+  assert.equal(usePotion(potState, 1).ok, true);
+  assert.equal(potState.player.statuses.strength, 10, 'Sacred Bark doubles Fury Potion temp Strength (5 -> 10)');
+  assert.equal(potState.player.statuses.tempStrengthDown, 10);
+  assert.equal(potState.combat.hand.length, 2, 'Sacred Bark doubles Fury Potion draw (1 -> 2)');
+  endPlayerTurn(potState);
+  assert.equal(potState.player.statuses.strength, undefined, 'Fury Potion temporary Strength decays at end of turn');
+
+  // 6. Interactive Armaments (base) upgrade choice & Scry (draw-pile top preview + discard + order preservation)
+  const choiceState = setupCustomCombat(9106, ENCOUNTERS.floor1[0]);
+  choiceState.player.energy = 5;
+  const arm = createCardInstance(choiceState, 'armaments', false);
+  const c1 = createCardInstance(choiceState, 'strike', false);
+  const c2 = createCardInstance(choiceState, 'bash', false);
+  const c3 = createCardInstance(choiceState, 'defend', true); // already upgraded
+  choiceState.combat.hand = [arm, c1, c2, c3];
+  playCard(choiceState, arm.instanceId);
+  assert.equal(choiceState.combat.pendingCardChoice?.mode, 'upgrade');
+  assert.equal(resolveCardChoice(choiceState, c3.instanceId).ok, false, 'Cannot pick already-upgraded card');
+  assert.equal(resolveCardChoice(choiceState, c2.instanceId).ok, true);
+  assert.equal(c2.upgraded, true);
+  assert.equal(c1.upgraded, false);
+  assert.equal(choiceState.combat.pendingCardChoice, null);
+
+  // Scry top 3 cards of draw pile: discard middle card, keep 1st and 3rd in exact draw order!
+  const dTop1 = createCardInstance(choiceState, 'strike', false);
+  const dTop2 = createCardInstance(choiceState, 'wound', false);
+  const dTop3 = createCardInstance(choiceState, 'bash', false);
+  const dRest = createCardInstance(choiceState, 'defend', false);
+  choiceState.combat.drawPile = [dTop1, dTop2, dTop3, dRest];
+  choiceState.combat.discardPile = [];
+  const scryStart = initiateScry(choiceState, 3, '预见测试');
+  assert.equal(scryStart.ok, true);
+  assert.equal(choiceState.combat.pendingCardChoice?.mode, 'scry');
+  assert.equal(choiceState.combat.pendingCardChoice.candidates.length, 3);
+  assert.equal(toggleScryChoice(choiceState, dTop2.instanceId).ok, true);
+  const scryRes = confirmScryChoice(choiceState);
+  assert.equal(scryRes.ok, true);
+  assert.equal(scryRes.discardedCount, 1);
+  assert.equal(scryRes.keptCount, 2);
+  assert.equal(choiceState.combat.pendingCardChoice, null);
+  assert.deepEqual(
+    choiceState.combat.drawPile.map((c) => c.instanceId),
+    [dTop1.instanceId, dTop3.instanceId, dRest.instanceId],
+    'Unmarked scried cards must preserve draw order at top of drawPile'
+  );
+  assert.equal(choiceState.combat.discardPile.some((c) => c.instanceId === dTop2.instanceId), true);
+});
+
 
 
 

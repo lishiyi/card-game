@@ -53,6 +53,10 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.dimmed ? 'unplayable-dim' : '',
     options.discardSelectable ? 'discard-selectable' : '',
     options.discardSynergy ? 'discard-synergy-card' : '',
+    options.exhaustSelectable ? 'exhaust-selectable' : '',
+    options.upgradeSelectable ? 'upgrade-selectable' : '',
+    options.scrySelectable ? 'scry-selectable' : '',
+    options.scryMarkedDiscard ? 'scry-marked-discard' : '',
     typeof options.dealIndex === 'number' ? 'card-deal-in' : '',
   ]
     .filter(Boolean)
@@ -107,19 +111,27 @@ export function renderCardHtml(cardInstance, options = {}) {
     stats.type === 'status' &&
     Boolean(combatCtx?.player?.relics?.includes('medical_kit'));
 
-  const targetLabel = options.discardSelectable
-    ? options.discardSynergy
-      ? '✦ 弃置触发'
-      : '点击弃置'
-    : medKitActive
-      ? '消耗打出'
-      : stats.unplayable
-        ? '不可打出'
-        : stats.target === 'all_enemies'
-          ? '全体目标'
-          : stats.target === 'enemy'
-            ? '单体目标'
-            : '自身';
+  const targetLabel = options.scrySelectable
+    ? options.scryMarkedDiscard
+      ? '✕ 将弃置'
+      : '✓ 留在牌堆顶'
+    : options.exhaustSelectable
+      ? '点击消耗'
+      : options.upgradeSelectable
+        ? '点击升级'
+        : options.discardSelectable
+          ? options.discardSynergy
+            ? '✦ 弃置触发'
+            : '点击弃置'
+          : medKitActive
+            ? '消耗打出'
+            : stats.unplayable
+              ? '不可打出'
+              : stats.target === 'all_enemies'
+                ? '全体目标'
+                : stats.target === 'enemy'
+                  ? '单体目标'
+                  : '自身';
 
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';

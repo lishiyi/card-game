@@ -24,12 +24,16 @@ import {
   RELIC_LIBRARY,
 } from '../data/relics.js';
 import {
+  confirmScryChoice,
   discardHandCard,
   endPlayerTurn,
   hasRelic,
+  initiateScry,
   playCard,
+  resolveCardChoice,
   restartCombat,
   startCombat,
+  toggleScryChoice,
   usePotion,
 } from './combat.js';
 import { getDailyChallengeSpec, hasDailyModifier } from './daily.js';
@@ -51,7 +55,18 @@ function addPlayerGold(state, amount) {
   if (state.stats) {
     state.stats.goldEarned = (state.stats.goldEarned ?? 0) + gain;
   }
+  if (hasRelic(state, 'bloody_idol') && state.player.hp > 0) {
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 5);
+  }
   return gain;
+}
+
+export function playerHasHeavyAttackCard(state) {
+  if (!Array.isArray(state?.player?.deck)) return false;
+  return state.player.deck.some((c) => {
+    const st = getCardStats(c);
+    return st.type === 'attack' && typeof st.damage === 'number' && st.damage >= 10;
+  });
 }
 
 export function getCurrentPurgeCost(state) {
@@ -864,6 +879,22 @@ export function runDiscardHandCard(state, instanceId) {
   return discardHandCard(state, instanceId, transitionCombatVictory);
 }
 
+export function runResolveCardChoice(state, instanceId) {
+  return resolveCardChoice(state, instanceId, transitionCombatVictory);
+}
+
+export function runInitiateScry(state, amount, sourceName = '预见') {
+  return initiateScry(state, amount, sourceName);
+}
+
+export function runToggleScryCard(state, instanceId) {
+  return toggleScryChoice(state, instanceId);
+}
+
+export function runConfirmScry(state, explicitDiscardIds = null) {
+  return confirmScryChoice(state, explicitDiscardIds, transitionCombatVictory);
+}
+
 export function runUsePotion(state, slotIndex, targetEnemyId = null) {
   return usePotion(state, slotIndex, targetEnemyId, transitionCombatVictory);
 }
@@ -1402,7 +1433,7 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'scavenge_slag') {
-        state.player.gold += tune.forgeScavengeGold;
+        addPlayerGold(state, tune.forgeScavengeGold);
         state.eventState.resolved = true;
         state.eventState.outcomeText = `你拾取了锻台旁的精铁锭，获得 ${tune.forgeScavengeGold} 金币。`;
         return { ok: true };
@@ -1427,7 +1458,7 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'gather_gold') {
-        state.player.gold += tune.shrineGatherGold;
+        addPlayerGold(state, tune.shrineGatherGold);
         state.eventState.resolved = true;
         state.eventState.outcomeText = `你将石盘中的金砂收入囊中，获得 ${tune.shrineGatherGold} 金币。`;
         return { ok: true };
@@ -1446,14 +1477,14 @@ export function chooseEventOption(state, choiceId) {
           grantRelicToPlayer(state, relicId);
           state.eventState.outcomeText = `你忍痛扯断铁刺（-${tune.thornOpenHpLoss} 生命），获得了遗物【${RELIC_LIBRARY[relicId].name}】！`;
         } else {
-          state.player.gold += 80;
+          addPlayerGold(state, 80);
           state.eventState.outcomeText = `秘匣中已无新遗物，你取出了底层封存的 80 金币（-${tune.thornOpenHpLoss} 生命）。`;
         }
         state.eventState.resolved = true;
         return { ok: true };
       }
       if (choiceId === 'take_coins') {
-        state.player.gold += tune.thornCoinsGold;
+        addPlayerGold(state, tune.thornCoinsGold);
         state.eventState.resolved = true;
         state.eventState.outcomeText = `你拾取了石台周围散落的古币，获得 ${tune.thornCoinsGold} 金币。`;
         return { ok: true };
@@ -1467,7 +1498,7 @@ export function chooseEventOption(state, choiceId) {
           return { ok: false, reason: `当前生命值不足（需大于 ${tune.idolSmashHpLoss} 点）` };
         }
         state.player.hp -= tune.idolSmashHpLoss;
-        state.player.gold += tune.idolSmashGold;
+        addPlayerGold(state, tune.idolSmashGold);
         const gotIdol = grantRelicToPlayer(state, 'golden_idol_relic');
         state.eventState.resolved = true;
         state.eventState.outcomeText = gotIdol
@@ -1476,7 +1507,7 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'accept_curse_gold') {
-        state.player.gold += tune.idolCurseGold;
+        addPlayerGold(state, tune.idolCurseGold);
         const curse = createCardInstance(state, 'regret', false);
         state.player.deck.push(curse);
         state.eventState.addedCardIds = [curse.instanceId];
@@ -1583,7 +1614,7 @@ export function chooseEventOption(state, choiceId) {
         return { ok: true };
       }
       if (choiceId === 'rob_alchemist') {
-        state.player.gold += tune.alchemistRobGold;
+        addPlayerGold(state, tune.alchemistRobGold);
         const curse = createCardInstance(state, 'doubt', false);
         state.player.deck.push(curse);
         state.eventState.addedCardIds = [curse.instanceId];
@@ -1721,6 +1752,270 @@ export function chooseEventOption(state, choiceId) {
       return { ok: false, reason: '无效的事件选项' };
     }
 
+    case 'scrap_ooze': {
+      if (choiceId === 'reach_ooze') {
+        const attempts = state.eventState.oozeAttempts ?? 0;
+        const hpCost = tune.oozeBaseHpLoss + attempts;
+        const chancePct = Math.min(100, tune.oozeBaseChancePct + attempts * 15);
+        if (state.player.hp <= hpCost) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${hpCost} 点）` };
+        }
+        state.player.hp -= hpCost;
+        const roll = nextRandom(state) * 100;
+        if (roll < chancePct) {
+          const relicId = rollUnownedRelicId(state, 'event');
+          state.eventState.resolved = true;
+          if (relicId) {
+            grantRelicToPlayer(state, relicId);
+            state.eventState.outcomeText = `忍住酸液灼烧（-${hpCost} 生命），你终于从软泥深处掏出了遗物【${RELIC_LIBRARY[relicId].name}】！`;
+          } else {
+            addPlayerGold(state, 90);
+            state.eventState.outcomeText = `你从软泥深处掏出了一袋亮晶晶的金币（+90 金币，-${hpCost} 生命）！`;
+          }
+          return { ok: true, foundRelic: Boolean(relicId) };
+        }
+        state.eventState.oozeAttempts = attempts + 1;
+        state.eventState.lastAttemptNote = `酸液灼痛了你的手臂（-${hpCost} 生命），但尚未触到宝物！下次尝试代价 ${hpCost + 1} 生命，成功率升至 ${Math.min(100, chancePct + 15)}%。`;
+        return { ok: true, foundRelic: false, retryAvailable: true };
+      }
+      if (choiceId === 'leave_ooze') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你收回手掌，果断远离了冒着气泡的废料软泥。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'wing_statue': {
+      if (choiceId === 'pray_wing') {
+        if (state.player.hp <= tune.wingPrayHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.wingPrayHpLoss} 点）` };
+        }
+        if (state.player.deck.length <= 1) {
+          return { ok: false, reason: '牌组中仅剩 1 张卡牌，无法继续移除' };
+        }
+        state.eventState.pendingPurge = true;
+        state.eventState.purgeHpCost = tune.wingPrayHpLoss;
+        return { ok: true, pendingPurge: true };
+      }
+      if (choiceId === 'destroy_wing') {
+        if (!playerHasHeavyAttackCard(state)) {
+          return { ok: false, reason: '需要牌组中有基础伤害 ≥ 10 的攻击牌' };
+        }
+        addPlayerGold(state, tune.wingDestroyGold);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你以重击震碎翼龙石像，暗格中滚出 ${tune.wingDestroyGold} 枚金币！`;
+        return { ok: true };
+      }
+      if (choiceId === 'leave_wing') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你向翼龙石像颔首致意后径直离开。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'council_of_ghosts': {
+      if (choiceId === 'accept_ghosts') {
+        const lostMaxHp = Math.max(
+          1,
+          Math.floor(state.player.maxHp * (tune.ghostsMaxHpLossPct / 100))
+        );
+        const nextMaxHp = Math.max(20, state.player.maxHp - lostMaxHp);
+        const actualLoss = Math.max(0, state.player.maxHp - nextMaxHp);
+        state.player.maxHp = nextMaxHp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp);
+        const addedIds = [];
+        for (let i = 0; i < 3; i += 1) {
+          const card = createCardInstance(state, 'apparition', false);
+          state.player.deck.push(card);
+          addedIds.push(card.instanceId);
+        }
+        state.eventState.addedCardIds = addedIds;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `幽灵议会汲取了你的凡胎生机（最大生命 -${actualLoss}，上限 ${state.player.maxHp}），赐予 3 张【幽灵化】加入牌组！`;
+        return { ok: true };
+      }
+      if (choiceId === 'refuse_ghosts') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你婉拒了幽灵们的邀约，它们化作轻雾消散在废墟之间。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'forgotten_altar': {
+      if (choiceId === 'offer_golden_idol') {
+        if (!hasRelic(state, 'golden_idol_relic')) {
+          return { ok: false, reason: '需要持有事件遗物【黄金神像】' };
+        }
+        grantRelicToPlayer(state, 'bloody_idol');
+        const before = state.player.hp;
+        state.player.hp = state.player.maxHp;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `【黄金神像】在鲜血祭坛上升华为【染血神像】（每次获金回复 5 点生命），并为你回满生命（+${state.player.hp - before}）！`;
+        return { ok: true };
+      }
+      if (choiceId === 'shed_blood_altar') {
+        const hpCost = Math.max(1, Math.floor(state.player.maxHp * (tune.altarShedHpPct / 100)));
+        if (state.player.hp <= hpCost) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${hpCost} 点）` };
+        }
+        state.player.hp -= hpCost;
+        state.player.maxHp += tune.altarShedMaxHpGain;
+        const upgradable = getUpgradableDeckCards(state);
+        const chosen = pickRandom(state, upgradable);
+        const upgradedIds = [];
+        if (chosen) {
+          chosen.upgraded = true;
+          upgradedIds.push(chosen.instanceId);
+        }
+        state.eventState.upgradedCardIds = upgradedIds;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = chosen
+          ? `祭坛畅饮你的鲜血（-${hpCost} 生命），回报以最大生命 +${tune.altarShedMaxHpGain}，并淬炼升级了【${getCardStats(chosen).name}】！`
+          : `祭坛畅饮你的鲜血（-${hpCost} 生命），回报以最大生命 +${tune.altarShedMaxHpGain}！`;
+        return { ok: true };
+      }
+      if (choiceId === 'desecrate_altar') {
+        addPlayerGold(state, tune.altarDesecrateGold);
+        const curse = createCardInstance(state, 'regret', false);
+        state.player.deck.push(curse);
+        state.eventState.addedCardIds = [curse.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你撬走了祭坛供奉的 ${tune.altarDesecrateGold} 枚金币，但阴冷诅咒【悔恨】缠上了你！`;
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'augmenter': {
+      if (choiceId === 'augment_rare_transform') {
+        if (state.player.deck.length === 0) {
+          return { ok: false, reason: '当前牌组为空' };
+        }
+        state.eventState.pendingCardAction = 'transform_rare';
+        return { ok: true, pendingCardAction: 'transform_rare' };
+      }
+      if (choiceId === 'augment_serum') {
+        if (state.player.hp <= tune.augmentSerumHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.augmentSerumHpLoss} 点）` };
+        }
+        state.player.hp -= tune.augmentSerumHpLoss;
+        state.player.maxHp += tune.augmentSerumMaxHpGain;
+        const { cards } = getUnlockedPools(state);
+        const pool = [...cards.uncommon, ...cards.rare];
+        const cardId = pickRandom(state, pool.length > 0 ? pool : cards.common);
+        const added = createCardInstance(state, cardId, false);
+        state.player.deck.push(added);
+        state.eventState.addedCardIds = [added.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `血清在血脉中沸腾（-${tune.augmentSerumHpLoss} 生命，最大生命 +${tune.augmentSerumMaxHpGain}），并激发领悟了【${getCardStats(added).name}】！`;
+        return { ok: true };
+      }
+      if (choiceId === 'augment_leave') {
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = '你摆手谢绝了改造师的实验邀请，继续前进。';
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'sensory_stone': {
+      const colorless = getColorlessCardPools();
+      const allColorless = [...colorless.uncommon, ...colorless.rare];
+      if (choiceId === 'recall_1') {
+        const pickedIds = pickDistinct(state, allColorless, 3);
+        state.eventState.libraryChoices = pickedIds.map((cid) =>
+          createCardInstance(state, cid, false)
+        );
+        return { ok: true, pendingLibrary: true };
+      }
+      if (choiceId === 'recall_2') {
+        if (state.player.hp <= tune.sensoryRecall2HpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.sensoryRecall2HpLoss} 点）` };
+        }
+        state.player.hp -= tune.sensoryRecall2HpLoss;
+        const pickedIds = pickDistinct(state, allColorless, 3);
+        state.eventState.libraryChoices = pickedIds.map((cid) =>
+          createCardInstance(state, cid, true)
+        );
+        return { ok: true, pendingLibrary: true };
+      }
+      if (choiceId === 'recall_3') {
+        if (state.player.hp <= tune.sensoryRecall3HpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.sensoryRecall3HpLoss} 点）` };
+        }
+        state.player.hp -= tune.sensoryRecall3HpLoss;
+        const rareCid = pickRandom(state, colorless.rare);
+        const added = createCardInstance(state, rareCid, true);
+        state.player.deck.push(added);
+        state.eventState.addedCardIds = [added.instanceId];
+        const relicId = rollUnownedRelicId(state, 'event');
+        if (relicId) {
+          grantRelicToPlayer(state, relicId);
+        }
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = relicId
+          ? `真相的冲击令你失去 ${tune.sensoryRecall3HpLoss} 点生命，但你收获了无色稀有牌【${getCardStats(added).name}】与遗物【${RELIC_LIBRARY[relicId].name}】！`
+          : `真相的冲击令你失去 ${tune.sensoryRecall3HpLoss} 点生命，但你收获了无色稀有牌【${getCardStats(added).name}】！`;
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
+    case 'winding_halls': {
+      if (choiceId === 'embrace_madness') {
+        if (state.player.hp <= tune.windingMadnessHpLoss) {
+          return { ok: false, reason: `当前生命值不足（需大于 ${tune.windingMadnessHpLoss} 点）` };
+        }
+        state.player.hp -= tune.windingMadnessHpLoss;
+        const colorless = getColorlessCardPools();
+        const zeroCostPool = colorless.uncommon.filter(
+          (cid) => CARD_LIBRARY[cid]?.base?.cost === 0
+        );
+        const sourcePool = zeroCostPool.length > 0 ? zeroCostPool : colorless.uncommon;
+        const chosenIds = pickDistinct(state, sourcePool, 2);
+        const addedIds = [];
+        const names = [];
+        for (const cid of chosenIds) {
+          const card = createCardInstance(state, cid, false);
+          state.player.deck.push(card);
+          addedIds.push(card.instanceId);
+          names.push(`【${getCardStats(card).name}】`);
+        }
+        state.eventState.addedCardIds = addedIds;
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `回廊低语刺痛双耳（-${tune.windingMadnessHpLoss} 生命），灵光乍现间你习得了 ${names.join('、')}！`;
+        return { ok: true };
+      }
+      if (choiceId === 'retrace_steps') {
+        const heal = Math.max(1, Math.floor(state.player.maxHp * (tune.windingRetraceHealPct / 100)));
+        const before = state.player.hp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + heal);
+        const curse = createCardInstance(state, 'doubt', false);
+        state.player.deck.push(curse);
+        state.eventState.addedCardIds = [curse.instanceId];
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `暂歇片刻回复了 ${state.player.hp - before} 点生命，但迷茫化作诅咒【疑虑】渗入了牌组。`;
+        return { ok: true };
+      }
+      if (choiceId === 'push_through_halls') {
+        const lostMaxHp = Math.max(
+          1,
+          Math.floor(state.player.maxHp * (tune.windingPushMaxHpPct / 100))
+        );
+        const nextMaxHp = Math.max(25, state.player.maxHp - lostMaxHp);
+        const actualLoss = Math.max(0, state.player.maxHp - nextMaxHp);
+        state.player.maxHp = nextMaxHp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp);
+        state.eventState.resolved = true;
+        state.eventState.outcomeText = `你强行破开扭曲石壁冲出回廊，永久失去 ${actualLoss} 点最大生命（上限 ${state.player.maxHp}），未沾染任何诅咒。`;
+        return { ok: true };
+      }
+      return { ok: false, reason: '无效的事件选项' };
+    }
+
     default:
       return { ok: false, reason: '未知事件处理' };
   }
@@ -1737,11 +2032,22 @@ export function completeEventPurge(state, instanceId) {
   if (idx === -1) {
     return { ok: false, reason: '未在牌组中找到该卡牌' };
   }
+  const hpCost = state.eventState.purgeHpCost ?? 0;
+  if (hpCost > 0) {
+    if (state.player.hp <= hpCost) {
+      return { ok: false, reason: `当前生命值不足（需大于 ${hpCost} 点）` };
+    }
+    state.player.hp -= hpCost;
+  }
   const [removed] = state.player.deck.splice(idx, 1);
   const removedStats = getCardStats(removed);
   state.eventState.pendingPurge = false;
+  state.eventState.purgeHpCost = 0;
   state.eventState.resolved = true;
-  state.eventState.outcomeText = `古老秘力化去了【${removedStats.name}】，你的牌组更加精炼了。`;
+  state.eventState.outcomeText =
+    hpCost > 0
+      ? `虔诚献出 ${hpCost} 点生命，石像微光净化移除了【${removedStats.name}】！`
+      : `古老秘力化去了【${removedStats.name}】，你的牌组更加精炼了。`;
   return { ok: true, removed };
 }
 
@@ -1753,6 +2059,7 @@ export function cancelEventPurge(state) {
     return { ok: false, reason: '当前没有待取消的操作' };
   }
   state.eventState.pendingPurge = false;
+  state.eventState.purgeHpCost = 0;
   state.eventState.pendingCardAction = null;
   return { ok: true };
 }
@@ -1780,20 +2087,28 @@ export function completeEventCardAction(state, instanceId) {
     return { ok: true, card: target };
   }
 
-  if (mode === 'transform') {
+  if (mode === 'transform' || mode === 'transform_rare') {
     const oldCard = state.player.deck[idx];
     const oldName = getCardStats(oldCard).name;
     const { cards } = getUnlockedPools(state);
-    const pool = [...cards.common, ...cards.uncommon, ...cards.rare].filter(
-      (cid) => cid !== oldCard.cardId
+    const rawPool =
+      mode === 'transform_rare'
+        ? [...cards.rare]
+        : [...cards.common, ...cards.uncommon, ...cards.rare];
+    const pool = rawPool.filter((cid) => cid !== oldCard.cardId);
+    const nextCardId = pickRandom(
+      state,
+      pool.length > 0 ? pool : mode === 'transform_rare' ? cards.rare : cards.common
     );
-    const nextCardId = pickRandom(state, pool.length > 0 ? pool : cards.common);
     const created = createCardInstance(state, nextCardId, false);
     state.player.deck.splice(idx, 1, created);
     state.eventState.pendingCardAction = null;
     state.eventState.addedCardIds = [created.instanceId];
     state.eventState.resolved = true;
-    state.eventState.outcomeText = `石墙秘力重塑了【${oldName}】，蜕变为全新卡牌【${getCardStats(created).name}】！`;
+    state.eventState.outcomeText =
+      mode === 'transform_rare'
+        ? `秘术改造重塑了【${oldName}】，定向蜕变为金色稀有牌【${getCardStats(created).name}】！`
+        : `石墙秘力重塑了【${oldName}】，蜕变为全新卡牌【${getCardStats(created).name}】！`;
     return { ok: true, card: created };
   }
 
@@ -1803,18 +2118,18 @@ export function completeEventCardAction(state, instanceId) {
 export function pickEventLibraryCard(state, instanceId) {
   const choices = state?.eventState?.libraryChoices;
   if (state.screen !== 'event' || !Array.isArray(choices)) {
-    return { ok: false, reason: '当前不在藏书阁选牌阶段' };
+    return { ok: false, reason: '当前不在选牌阶段' };
   }
   const chosen = choices.find((c) => c.instanceId === instanceId);
   if (!chosen) {
-    return { ok: false, reason: '未找到所选书卷卡牌' };
+    return { ok: false, reason: '未找到所选卡牌' };
   }
   const added = createCardInstance(state, chosen.cardId, chosen.upgraded);
   state.player.deck.push(added);
   state.eventState.libraryChoices = null;
   state.eventState.addedCardIds = [added.instanceId];
   state.eventState.resolved = true;
-  state.eventState.outcomeText = `你将武学手札【${getCardStats(added).name}】收入了牌组！`;
+  state.eventState.outcomeText = `你将【${getCardStats(added).name}】收入了牌组！`;
   return { ok: true, addedCard: added };
 }
 
@@ -1855,14 +2170,14 @@ const NEOW_SMALL_POOL = Object.freeze([
     tier: 'small',
     badge: '稳健增益',
     title: '锻造升级 1 张牌',
-    detail: '从初始牌组中自选 1 张卡牌永久强化（如痛击+ 或 防御+）。',
+    detail: '从初始牌组中自选 1 张卡牌永久强化（如初始核心牌或防御+）。',
   }),
   Object.freeze({
     id: 'choose_card',
     tier: 'small',
     badge: '稳健增益',
     title: '3 选 1 奖励卡牌',
-    detail: '从 3 张随机铁甲战士卡牌中挑选 1 张加入牌组。',
+    detail: '从 3 张随机职业卡牌中挑选 1 张加入牌组。',
   }),
 ]);
 
@@ -1886,7 +2201,7 @@ const NEOW_MEDIUM_POOL = Object.freeze([
     tier: 'medium',
     badge: '实用增益',
     title: '变化 1 张卡牌',
-    detail: '从牌组中自选 1 张卡牌，将其随机变化为 1 张非基础铁甲战士卡牌。',
+    detail: '从牌组中自选 1 张卡牌，将其随机变化为 1 张非基础职业卡牌。',
   }),
   Object.freeze({
     id: 'choose_rare_card',

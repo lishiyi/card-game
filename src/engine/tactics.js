@@ -20,16 +20,26 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   const initialHp = Math.max(0, enemy.hp ?? 0);
   let remBlock = initialBlock;
   let remHp = initialHp;
-  let curlUpAvailable = options.isAttack !== false ? (enemy.statuses?.curlUp ?? 0) : 0;
+  const isAttack = options.isAttack !== false;
+  let curlUpAvailable = isAttack ? (enemy.statuses?.curlUp ?? 0) : 0;
+  let flightRemaining = isAttack ? (enemy.statuses?.flight ?? 0) : 0;
+  let malleableStacks = isAttack ? (enemy.statuses?.malleable ?? 0) : 0;
   let totalDealt = 0;
   let initialBlockRemaining = initialBlock;
   let unblockedHits = 0;
+  let firstHitEffective = Math.max(0, Math.floor(perHitDamage));
 
   for (let i = 0; i < hits; i += 1) {
     if (remHp <= 0) break;
     let dmg = Math.max(0, Math.floor(perHitDamage));
+    if (isAttack && flightRemaining > 0) {
+      dmg = Math.floor(dmg * 0.5);
+    }
     if (dmg > 1 && (enemy.statuses?.intangible ?? 0) > 0) {
       dmg = 1;
+    }
+    if (i === 0) {
+      firstHitEffective = dmg;
     }
     totalDealt += dmg;
 
@@ -47,6 +57,13 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
         remBlock += curlUpAvailable;
         curlUpAvailable = 0;
       }
+      if (remHp > 0 && flightRemaining > 0) {
+        flightRemaining -= 1;
+      }
+      if (remHp > 0 && malleableStacks > 0) {
+        remBlock += malleableStacks;
+        malleableStacks += 1;
+      }
     }
   }
 
@@ -56,7 +73,7 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
 
   return {
     hits,
-    perHitDamage: Math.max(0, Math.floor(perHitDamage)),
+    perHitDamage: firstHitEffective,
     totalDamage: totalDealt,
     hpLoss: totalHpLoss,
     unblockedHits,
@@ -127,6 +144,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     const perHitDamage = calculateAttackDamage(basePerHit, state.player, enemy, {
       strengthMultiplier: stats.strengthMultiplier ?? 1,
       flatBonus,
+      ignoreFlight: true,
     });
     sim = simulateSequentialHits(enemy, perHitDamage, hits, { isAttack: true });
   }
@@ -268,7 +286,8 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
   const corruptionExhaust = isSkill && (player.statuses?.corruption ?? 0) > 0;
   const triggersSelfExhaust = Boolean(stats.exhaust) || corruptionExhaust || canMedKitPlay;
   const triggersHandExhaust = Boolean(
-    stats.exhaustHandRandom ||
+    stats.exhaustHandChoice ||
+      stats.exhaustHandRandom ||
       stats.exhaustNonAttacksBlockEach ||
       stats.exhaustAllHandDamageEach
   );
@@ -306,6 +325,8 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
   const sharpHideEnemies = [];
   const curiosityEnemies = [];
   const thornsTargets = [];
+  const flightTargets = [];
+  const malleableTargets = [];
   const slowTargets = [];
   const vulnerableTargets = [];
   const poisonedTargets = [];
@@ -347,6 +368,14 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'thorns', tone: 'warn' });
       thornsTargets.push(enemy);
     }
+    if (isAttack && (enemy.statuses?.flight ?? 0) > 0) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'flight', tone: 'warn' });
+      flightTargets.push(enemy);
+    }
+    if (isAttack && (enemy.statuses?.malleable ?? 0) > 0) {
+      result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'malleable', tone: 'warn' });
+      malleableTargets.push(enemy);
+    }
     if (isAttack && (enemy.statuses?.angry ?? 0) > 0) {
       result.enemyTriggers.push({ enemyId: enemy.id, statusKey: 'angry', tone: 'warn' });
     }
@@ -374,6 +403,20 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     result.callouts.push({
       tone: 'warn',
       text: `⚠ 目标拥有【荆棘】：每次打击受到 ${maxThorns} 点反伤`,
+    });
+  }
+  if (flightTargets.length > 0) {
+    const minFlight = Math.min(...flightTargets.map((e) => e.statuses.flight ?? 0));
+    result.callouts.push({
+      tone: 'warn',
+      text: `⚠ 目标处于【飞行】（伤害减半）：再命中 ${minFlight} 次攻击即可将其击落眩晕`,
+    });
+  }
+  if (malleableTargets.length > 0) {
+    const sample = malleableTargets[0];
+    result.callouts.push({
+      tone: 'warn',
+      text: `⚠ 目标拥有【可塑护甲】：每次破甲攻击将使其获得 +${sample.statuses.malleable} 递增格挡`,
     });
   }
   if (curiosityEnemies.length > 0) {
@@ -762,7 +805,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       if (c.instanceId === cardInstance.instanceId) continue;
       result.affectedHandCards.push({ instanceId: c.instanceId, tone: 'exhaust' });
     }
-  } else if (stats.upgradeAllHand || stats.upgradeAllCombatCards) {
+  } else if (stats.upgradeAllHand || stats.upgradeAllCombatCards || stats.upgradeHandChoice) {
     for (const c of combat.hand) {
       if (c.instanceId === cardInstance.instanceId) continue;
       if (canUpgradeCard(c)) {

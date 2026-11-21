@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
+import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
 import { CHARACTER_LIBRARY } from '../src/data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../src/data/enemies.js';
 import { EVENT_LIBRARY } from '../src/data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../src/data/relics.js';
-import { canPlayCard, MAX_HAND_SIZE, startCombat } from '../src/engine/combat.js';
+import { canPlayCard, hasPendingCardChoice, MAX_HAND_SIZE, startCombat } from '../src/engine/combat.js';
 import {
   buyShopCard,
   buyShopPotion,
@@ -34,13 +34,16 @@ import {
   leaveTreasureRoom,
   openTreasureChest,
   pickEventLibraryCard,
+  playerHasHeavyAttackCard,
   proceedFromReward,
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runConfirmScry,
   runDiscardHandCard,
   runEndTurn,
   runPlayCard,
+  runResolveCardChoice,
   runRestartCombat,
   runUsePotion,
   selectMapNode,
@@ -266,8 +269,32 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
       } else if (state.screen === 'combat') {
         const resolvePendingDiscards = () => {
           let guard = 0;
-          while (state.screen === 'combat' && state.combat?.pendingDiscard && guard < 20) {
+          while (state.screen === 'combat' && hasPendingCardChoice(state.combat) && guard < 20) {
             guard += 1;
+            const choice = state.combat.pendingCardChoice || { mode: 'discard' };
+            if (choice.mode === 'scry') {
+              assert.equal(runConfirmScry(state, []).ok, true);
+              assertRunInvariants(state, `after confirmScry seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'upgrade') {
+              const target = state.combat.hand.find((c) => canUpgradeCard(c));
+              assert.ok(target, `Pending upgrade with no upgradable card on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
+              assertRunInvariants(state, `after upgrade choice seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'exhaust') {
+              const target =
+                state.combat.hand.find((c) => {
+                  const t = getCardStats(c).type;
+                  return t === 'status' || t === 'curse';
+                }) || state.combat.hand[0];
+              assert.ok(target, `Pending exhaust with empty hand on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
+              assertRunInvariants(state, `after exhaust choice seed ${seed}`);
+              continue;
+            }
             const preferred =
               state.combat.hand.find((c) => {
                 const st = getCardStats(c);
@@ -474,10 +501,77 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad 
                 ? 'war_memory'
                 : 'rich_memory';
           assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'scrap_ooze') {
+          const hpCost = ((state.ascension ?? 0) >= 8 ? 7 : 5) + (state.eventState.oozeAttempts ?? 0);
+          const choice = state.player.hp > hpCost + 12 ? 'reach_ooze' : 'leave_ooze';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'wing_statue') {
+          const prayCost = (state.ascension ?? 0) >= 8 ? 10 : 7;
+          if (playerHasHeavyAttackCard(state)) {
+            assert.equal(chooseEventOption(state, 'destroy_wing').ok, true);
+          } else if (state.player.hp > prayCost + 8 && state.player.deck.length > 3) {
+            assert.equal(chooseEventOption(state, 'pray_wing').ok, true);
+            if (state.eventState.pendingPurge) {
+              assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            }
+          } else {
+            assert.equal(chooseEventOption(state, 'leave_wing').ok, true);
+          }
+        } else if (eventId === 'council_of_ghosts') {
+          const choice = state.player.maxHp >= 55 && seed % 2 === 0 ? 'accept_ghosts' : 'refuse_ghosts';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'forgotten_altar') {
+          const shedCost = Math.max(
+            1,
+            Math.floor(state.player.maxHp * (((state.ascension ?? 0) >= 8 ? 30 : 25) / 100))
+          );
+          const choice = state.player.relics.includes('golden_idol_relic')
+            ? 'offer_golden_idol'
+            : state.player.hp > shedCost + 10
+              ? 'shed_blood_altar'
+              : 'desecrate_altar';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'augmenter') {
+          const serumCost = (state.ascension ?? 0) >= 8 ? 16 : 12;
+          if (seed % 2 === 0 && state.player.deck.length > 0) {
+            assert.equal(chooseEventOption(state, 'augment_rare_transform').ok, true);
+            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+          } else if (state.player.hp > serumCost + 10) {
+            assert.equal(chooseEventOption(state, 'augment_serum').ok, true);
+          } else {
+            assert.equal(chooseEventOption(state, 'augment_leave').ok, true);
+          }
+        } else if (eventId === 'sensory_stone') {
+          const c3 = (state.ascension ?? 0) >= 8 ? 16 : 12;
+          const c2 = (state.ascension ?? 0) >= 8 ? 8 : 5;
+          if (state.player.hp > c3 + 10 && seed % 3 === 0) {
+            assert.equal(chooseEventOption(state, 'recall_3').ok, true);
+          } else if (state.player.hp > c2 + 8 && seed % 2 === 0) {
+            assert.equal(chooseEventOption(state, 'recall_2').ok, true);
+            assert.equal(
+              pickEventLibraryCard(state, state.eventState.libraryChoices[0].instanceId).ok,
+              true
+            );
+          } else {
+            assert.equal(chooseEventOption(state, 'recall_1').ok, true);
+            assert.equal(
+              pickEventLibraryCard(state, state.eventState.libraryChoices[0].instanceId).ok,
+              true
+            );
+          }
+        } else if (eventId === 'winding_halls') {
+          const madCost = (state.ascension ?? 0) >= 8 ? 16 : 12;
+          const choice =
+            state.player.hp > madCost + 12
+              ? 'embrace_madness'
+              : state.player.hp < state.player.maxHp * 0.5
+                ? 'retrace_steps'
+                : 'push_through_halls';
+          assert.equal(chooseEventOption(state, choice).ok, true);
         } else {
           assert.fail(`Unhandled event in fuzz test: ${eventId}`);
         }
-        if (state.screen === 'event') {
+        if (state.screen === 'event' && state.eventState?.resolved) {
           assert.equal(continueFromEvent(state).ok, true);
         }
       }

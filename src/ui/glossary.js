@@ -69,6 +69,13 @@ const CORE_MECHANIC_ENTRIES = [
     description: '打出或触发消耗后移入【消耗堆】，本场战斗内不再进入洗牌循环，战斗结束后恢复。可触发【无惧疼痛】叠甲、【黑暗之拥】抽牌与【卡戎之灰】全体轰炸。',
   },
   {
+    id: 'kw_card_choice',
+    name: '自选消耗 / 自选升级 / 预见 (Scry)',
+    category: 'mechanics',
+    tag: '交互选牌',
+    description: '【坚毅+】可从手牌中精准指定消耗 1 张牌（如清理伤口或诅咒），【武装】可自选升级 1 张手牌；【预见】可检视抽牌堆顶若干张牌并勾选弃置不需要的牌，大幅提升牌序掌控力。',
+  },
+  {
     id: 'kw_innate',
     name: '固有 (Innate)',
     category: 'mechanics',
