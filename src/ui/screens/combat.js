@@ -231,6 +231,23 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     <section class="combat-dock" aria-label="手牌与能量控制区">
       <div class="dock-controls">
         <div class="pile-group dock-left-group">
+          ${
+            combat.status === 'ongoing'
+              ? `<button
+                  type="button"
+                  id="btn-restart-combat"
+                  class="btn-stone"
+                  data-action="restart-combat"
+                  ${
+                    state.combatSnapshot
+                      ? 'data-tooltip-title="重启本场战斗" data-tooltip-tag="战斗操作" data-tooltip-desc="放弃当前回合进度，恢复到本场战斗第 1 回合初始状态。"'
+                      : 'disabled'
+                  }
+                >
+                  重启本场战斗
+                </button>`
+              : ''
+          }
           <button type="button" id="btn-draw-pile" class="btn-stone" data-action="open-modal" data-modal="draw">
             抽牌堆 (${escapeHtml(combat.drawPile.length)})
           </button>

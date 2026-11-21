@@ -3399,9 +3399,7 @@ body.spire-dragging {
 /* === HUD Containers & Mobile Helper Bars (Desktop Defaults) === */
 .vitals-top-row,
 .vitals-numbers-row,
-.hud-gear-scroll,
-.top-nav-actions,
-.top-run-actions {
+.hud-gear-scroll {
   display: contents;
 }
 
@@ -3981,28 +3979,11 @@ body.spire-dragging {
     padding: 7px 10px;
   }
 
-  .top-hud:not(.character-select-hud) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 5px 6px;
-  }
-
   .brand-cluster,
   .vitals-cluster,
   .top-actions {
     width: 100%;
     justify-content: flex-start;
-  }
-
-  .top-hud:not(.character-select-hud) .vitals-cluster,
-  .top-hud:not(.character-select-hud) .top-actions {
-    display: contents;
-  }
-
-  .top-hud:not(.character-select-hud) .brand-cluster {
-    grid-column: 1 / -1;
-    grid-row: 1;
   }
 
   .brand-cluster {
@@ -4020,15 +4001,21 @@ body.spire-dragging {
     flex-shrink: 0;
   }
 
-  /* Mobile vitals: HP/Gold + Relic carousel on row 2; Potions + Restart/New-Run pinned on row 3 */
+  /* Mobile vitals: HP/Gold + Relic carousel on row 2; Potions pinned exclusively on row 3 */
+  .vitals-cluster {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 6px;
+    overflow: hidden;
+  }
+
   .vitals-top-row {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    flex: 0 0 100%;
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
-    width: 100%;
     overflow: hidden;
   }
 
@@ -4055,8 +4042,7 @@ body.spire-dragging {
   .brand-cluster::-webkit-scrollbar,
   .hud-gear-scroll::-webkit-scrollbar,
   .potion-strip::-webkit-scrollbar,
-  .top-actions::-webkit-scrollbar,
-  .top-nav-actions::-webkit-scrollbar {
+  .top-actions::-webkit-scrollbar {
     display: none;
   }
 
@@ -4066,42 +4052,14 @@ body.spire-dragging {
     gap: 4px;
   }
 
-  .top-hud:not(.character-select-hud) .potion-strip {
-    grid-column: 1;
-    grid-row: 3;
-    min-width: 0;
-    width: auto;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    gap: 4px;
-  }
-
-  .top-hud:not(.character-select-hud) .top-run-actions {
-    grid-column: 2;
-    grid-row: 3;
-    justify-self: end;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 5px;
-    flex-shrink: 0;
-  }
-
-  .top-hud:not(.character-select-hud) .top-nav-actions {
-    grid-column: 1 / -1;
-    grid-row: 4;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .potion-strip {
+    flex: 0 0 100%;
     width: 100%;
-    min-width: 0;
-    overflow-x: auto;
     flex-wrap: nowrap;
-    padding-bottom: 1px;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    gap: 5px;
   }
 
   .relic-badge,
@@ -4111,6 +4069,7 @@ body.spire-dragging {
   }
 
   .top-actions {
+    gap: 6px;
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 1px;
@@ -4118,20 +4077,12 @@ body.spire-dragging {
     scrollbar-width: none;
   }
 
-  .top-actions button,
-  .top-nav-actions button {
+  .top-actions button {
     flex-shrink: 0;
+    white-space: nowrap;
     min-height: 31px;
     padding: 5px 9px;
     font-size: 0.77rem;
-  }
-
-  .top-hud:not(.character-select-hud) .top-run-actions button {
-    flex-shrink: 0;
-    white-space: nowrap;
-    min-height: 28px;
-    padding: 4px 8px;
-    font-size: 0.74rem;
   }
 
   .panel-stage {
@@ -4259,16 +4210,56 @@ body.spire-dragging {
   }
 
   .dock-controls {
-    gap: 8px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 8px 6px;
   }
 
+  .dock-left-group,
   .dock-right-group {
-    margin-left: auto;
-    justify-content: flex-end;
+    display: contents;
   }
 
-  .dock-right-group #btn-end-turn {
-    order: 10;
+  #btn-restart-combat {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  #btn-draw-pile {
+    grid-row: 1;
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  #btn-discard-pile {
+    grid-row: 1;
+    grid-column: 4;
+    justify-self: end;
+  }
+
+  #btn-exhaust-pile {
+    grid-row: 1;
+    grid-column: 5;
+    justify-self: end;
+  }
+
+  .energy-orb {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .pile-group button {
+    white-space: nowrap;
+  }
+
+  #btn-end-turn {
+    grid-row: 2;
+    grid-column: 2 / -1;
+    justify-self: end;
   }
 
   .stage-header > button {
@@ -4373,32 +4364,13 @@ body.spire-dragging {
     gap: 8px;
   }
 
-  .top-hud:not(.character-select-hud) {
-    padding: 7px 8px;
-    gap: 5px 5px;
-  }
-
-  .top-hud:not(.character-select-hud) .potion-strip {
-    gap: 3px;
-  }
-
-  .top-hud:not(.character-select-hud) .top-run-actions {
+  .top-actions {
     gap: 4px;
   }
 
-  .top-hud:not(.character-select-hud) .top-run-actions button {
-    min-height: 28px;
-    padding: 4px 6px;
-    font-size: 0.68rem;
-  }
-
-  .top-hud:not(.character-select-hud) .top-nav-actions {
-    gap: 5px;
-  }
-
-  .top-hud:not(.character-select-hud) .top-nav-actions button {
-    padding: 5px 8px;
-    font-size: 0.75rem;
+  .top-actions button {
+    padding: 5px 6px;
+    font-size: 0.7rem;
   }
 
   .stage-viewport {
@@ -4433,8 +4405,8 @@ body.spire-dragging {
   }
 
   .potion-slot {
-    font-size: 0.68rem;
-    padding: 4px 5px;
+    font-size: 0.7rem;
+    padding: 4px 7px;
     min-height: 28px;
   }
 
@@ -4650,57 +4622,27 @@ body.spire-dragging {
   }
 
   .dock-controls {
-    display: grid;
-    grid-template-columns: auto auto auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .dock-left-group,
-  .dock-right-group {
-    display: contents;
-  }
-
-  #btn-draw-pile {
-    grid-row: 1;
-    grid-column: 1;
-  }
-
-  #btn-discard-pile {
-    grid-row: 1;
-    grid-column: 2;
-  }
-
-  #btn-exhaust-pile {
-    grid-row: 1;
-    grid-column: 3;
+    gap: 6px 4px;
   }
 
   .energy-orb {
-    grid-row: 2;
-    grid-column: 1;
-    justify-self: start;
     width: 44px;
     height: 44px;
     font-size: 0.86rem;
   }
 
   .pile-group {
-    gap: 5px;
+    gap: 4px;
   }
 
   .pile-group button {
-    min-height: 36px;
-    padding: 5px 8px;
-    font-size: 0.73rem;
+    min-height: 34px;
+    padding: 4px 6px;
+    font-size: 0.69rem;
     white-space: nowrap;
   }
 
   #btn-end-turn {
-    grid-row: 2;
-    grid-column: 2 / -1;
-    justify-self: end;
     min-height: 40px;
     padding: 7px 14px;
     font-size: 0.84rem;

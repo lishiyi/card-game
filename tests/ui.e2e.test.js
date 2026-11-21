@@ -1803,7 +1803,19 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
       app.render();
     })()`);
     // Wait for .card-deal-in (240ms + stagger) to complete before reading settled styles
-    await new Promise((r) => setTimeout(r, 420));
+    await cdp.evaluate(`(async () => {
+      const el = document.getElementById('hand-card-ux_strike');
+      if (!el) return;
+      const anims = typeof el.getAnimations === 'function' ? el.getAnimations() : [];
+      if (anims.length > 0) {
+        await Promise.race([
+          Promise.allSettled(anims.map((a) => a.finished)),
+          new Promise((r) => setTimeout(r, 1500)),
+        ]);
+      } else {
+        await new Promise((r) => setTimeout(r, 450));
+      }
+    })()`);
     const setupAudit = await cdp.evaluate(`(() => {
       const playableStyle = getComputedStyle(document.getElementById('hand-card-ux_strike'));
       const unplayableEl = document.getElementById('hand-card-ux_bludgeon');
@@ -3490,14 +3502,19 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     })()`);
     await new Promise((r) => setTimeout(r, 120));
 
-    // 1. 390px Combat HUD Row 3 (Potions + Restart Combat + New Run) & Right-Side End Turn Dock
+    // 1. 390px Combat HUD (Potion-only row + New Run in Deck/Map row) & Combat Dock (Restart far-left above Energy, Piles right-aligned, End Turn right-aligned)
     const combat390 = await cdp.evaluate(`(() => {
       const hud = document.querySelector('.top-hud').getBoundingClientRect();
-      const potionStrip = document.querySelector('.potion-strip').getBoundingClientRect();
+      const potionStripEl = document.querySelector('.potion-strip');
+      const potionStrip = potionStripEl.getBoundingClientRect();
       const potions = [...document.querySelectorAll('.potion-strip .potion-slot')].map((el) => el.getBoundingClientRect());
-      const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
+      const topActionsEl = document.querySelector('.top-actions');
+      const topActions = topActionsEl.getBoundingClientRect();
+      const deckBtn = document.getElementById('btn-open-deck').getBoundingClientRect();
+      const mapBtn = document.getElementById('btn-open-map').getBoundingClientRect();
       const newRunBtn = document.getElementById('btn-new-run')?.getBoundingClientRect();
       const dock = document.querySelector('.dock-controls').getBoundingClientRect();
+      const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
       const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
       const energy = document.getElementById('energy-orb').getBoundingClientRect();
       const drawBtn = document.getElementById('btn-draw-pile').getBoundingClientRect();
@@ -3508,29 +3525,51 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
         innerWidth: window.innerWidth,
         hudHeight: Math.round(hud.height),
         potionCount: potions.length,
+        potionStripOnlyPotions: [...potionStripEl.children].every(
+          (el) => el.classList.contains('potion-tooltip-anchor') || el.classList.contains('potion-slot-group')
+        ),
         allPotionsFitStrip: potions.every((p) => p.left >= potionStrip.left - 1 && p.right <= potionStrip.right + 1),
-        restartSameRow: Boolean(restartBtn) && Math.abs((restartBtn.top + restartBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
-        newRunSameRow: Boolean(newRunBtn) && Math.abs((newRunBtn.top + newRunBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
-        restartRightOfPotions: Boolean(restartBtn) && restartBtn.left >= potionStrip.right - 1,
-        newRunRightOfRestart: Boolean(restartBtn && newRunBtn) && newRunBtn.left >= restartBtn.right - 1,
-        newRunInsideHud: Boolean(newRunBtn) && newRunBtn.right <= hud.right + 1,
+        newRunInTopActions: Boolean(topActionsEl.querySelector('#btn-new-run')),
+        newRunSameRowAsDeckMap:
+          Boolean(newRunBtn) &&
+          Math.abs(newRunBtn.top - deckBtn.top) <= 2 &&
+          Math.abs(newRunBtn.top - mapBtn.top) <= 2,
+        newRunVisibleWithoutScroll: Boolean(newRunBtn) && newRunBtn.right <= topActions.right + 1 && newRunBtn.right <= hud.right + 1,
+        restartInCombatDock: Boolean(document.querySelector('.combat-dock #btn-restart-combat')),
+        restartNotInHud: !document.querySelector('.top-hud #btn-restart-combat'),
+        restartLeftAlignedDock: Boolean(restartBtn) && Math.abs(restartBtn.left - dock.left) <= 2,
+        restartAboveEnergy: Boolean(restartBtn) && restartBtn.bottom <= energy.top + 1 && Math.abs(restartBtn.left - energy.left) <= 2,
+        restartLeftOfDraw: Boolean(restartBtn) && restartBtn.right <= drawBtn.left,
+        pilesSameRowAsRestart:
+          Boolean(restartBtn) &&
+          Math.abs((drawBtn.top + drawBtn.height / 2) - (restartBtn.top + restartBtn.height / 2)) <= 3 &&
+          Math.abs(drawBtn.top - discardBtn.top) <= 2 &&
+          Math.abs(discardBtn.top - exhaustBtn.top) <= 2,
+        pilesRightAligned:
+          Math.abs(exhaustBtn.right - dock.right) <= 2 &&
+          drawBtn.right <= discardBtn.left &&
+          discardBtn.right <= exhaustBtn.left,
         endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
         endTurnRightOfEnergy: endTurn.left > energy.right,
-        pilesOnRow1: Math.abs(drawBtn.top - discardBtn.top) <= 2 && Math.abs(discardBtn.top - exhaustBtn.top) <= 2,
       };
     })()`);
     assert.ok(combat390.docScrollWidth <= combat390.innerWidth, `390px combat overflowed: ${combat390.docScrollWidth} > ${combat390.innerWidth}`);
     assert.ok(combat390.hudHeight <= 170, `390px HUD too tall: ${combat390.hudHeight}px`);
     assert.equal(combat390.potionCount, 3);
+    assert.equal(combat390.potionStripOnlyPotions, true, 'Potion row must contain only potion slots');
     assert.equal(combat390.allPotionsFitStrip, true, 'All 3 potion slots must fit inside potion strip at 390px');
-    assert.equal(combat390.restartSameRow, true, 'Restart combat button must share the potion row');
-    assert.equal(combat390.newRunSameRow, true, 'New run button must share the potion row');
-    assert.equal(combat390.restartRightOfPotions, true, 'Restart combat button must be to the right of potions');
-    assert.equal(combat390.newRunRightOfRestart, true, 'New run button must be to the right of restart button');
-    assert.equal(combat390.newRunInsideHud, true, 'New run button must stay inside HUD bounds');
+    assert.equal(combat390.newRunInTopActions, true, 'New run button must sit in .top-actions');
+    assert.equal(combat390.newRunSameRowAsDeckMap, true, 'New run button must share the Deck/Map row');
+    assert.equal(combat390.newRunVisibleWithoutScroll, true, 'New run button must stay visible inside top-actions at 390px');
+    assert.equal(combat390.restartInCombatDock, true, 'Restart combat button must live inside .combat-dock');
+    assert.equal(combat390.restartNotInHud, true, 'Restart combat button must not be inside .top-hud');
+    assert.equal(combat390.restartLeftAlignedDock, true, 'Restart combat button must align to far left of combat dock');
+    assert.equal(combat390.restartAboveEnergy, true, 'Restart combat button must sit above the Energy orb');
+    assert.equal(combat390.restartLeftOfDraw, true, 'Restart combat button must sit to the left of Draw Pile');
+    assert.equal(combat390.pilesSameRowAsRestart, true, 'Draw/Discard/Exhaust pile buttons should share Row 1 with Restart Combat');
+    assert.equal(combat390.pilesRightAligned, true, 'Draw/Discard/Exhaust pile buttons must align to the right edge at 390px');
     assert.equal(combat390.endTurnRightAligned, true, 'End Turn button must be aligned to the right edge at 390px');
     assert.equal(combat390.endTurnRightOfEnergy, true, 'End Turn button must sit to the right of Energy orb');
-    assert.equal(combat390.pilesOnRow1, true, 'Draw/Discard/Exhaust pile buttons should share top dock row at 390px');
 
     // 2. Deck & Map Modals during combat: top-row clearance, non-scrolling header, body scroll lock, and overscroll touch guard
     const deckModalAudit = await cdp.evaluate(`(() => {
@@ -3646,7 +3685,7 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     assert.equal(mapModalAudit.legendBelowHeader, true, 'Map modal legend must not be occluded by header');
     assert.equal(mapModalAudit.bossRowBelowHeader, true, 'Map modal top boss row must not be occluded by header');
 
-    // 3. 640px (tablet/wide portrait <=768px) check: End Turn right-aligned + Potion-row restart button
+    // 3. 640px (tablet/wide portrait <=768px) check: End Turn right-aligned + Restart above Energy + Piles right-aligned
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 640,
       height: 800,
@@ -3656,19 +3695,24 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     const combat640 = await cdp.evaluate(`(() => {
       const dock = document.querySelector('.dock-controls').getBoundingClientRect();
       const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
+      const draw = document.getElementById('btn-draw-pile').getBoundingClientRect();
       const discard = document.getElementById('btn-discard-pile').getBoundingClientRect();
       const exhaust = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
-      const potionStrip = document.querySelector('.potion-strip').getBoundingClientRect();
+      const energy = document.getElementById('energy-orb').getBoundingClientRect();
       const restartBtn = document.getElementById('btn-restart-combat').getBoundingClientRect();
+      const deckBtn = document.getElementById('btn-open-deck').getBoundingClientRect();
+      const newRunBtn = document.getElementById('btn-new-run').getBoundingClientRect();
       return {
         endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
-        endTurnRightOfPiles: endTurn.left >= discard.right && endTurn.left >= exhaust.right,
-        restartSameRow: Math.abs((restartBtn.top + restartBtn.height / 2) - (potionStrip.top + potionStrip.height / 2)) <= 4,
+        pilesRightAligned: Math.abs(dock.right - exhaust.right) <= 2 && draw.right <= discard.left && discard.right <= exhaust.left,
+        restartAboveEnergy: restartBtn.bottom <= energy.top + 1 && Math.abs(restartBtn.left - dock.left) <= 2,
+        newRunSameRowAsDeck: Math.abs(newRunBtn.top - deckBtn.top) <= 2,
       };
     })()`);
     assert.equal(combat640.endTurnRightAligned, true, '640px End Turn button must align to right edge');
-    assert.equal(combat640.endTurnRightOfPiles, true, '640px End Turn button must sit to the right of Discard/Exhaust piles');
-    assert.equal(combat640.restartSameRow, true, '640px Restart Combat button must sit on the potion row');
+    assert.equal(combat640.pilesRightAligned, true, '640px Draw/Discard/Exhaust pile buttons must align to right edge');
+    assert.equal(combat640.restartAboveEnergy, true, '640px Restart Combat button must sit far-left above Energy');
+    assert.equal(combat640.newRunSameRowAsDeck, true, '640px New Run button must share the Deck/Map row');
 
     // 4. Post-combat Reward screen ("继续前进 →") aligned right at both 640px and 390px
     await cdp.evaluate(`(() => {
