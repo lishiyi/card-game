@@ -322,6 +322,49 @@ function handleEnemyZeroHp(state, enemy) {
     );
     return true;
   }
+  if ((enemy.statuses?.lifeLink ?? 0) > 0) {
+    const otherAlive = combat.enemies.some((e) => e.id !== enemy.id && e.hp > 0);
+    if (otherAlive) {
+      enemy.hp = 0;
+      enemy.block = 0;
+      enemy.darklingRegrowTurns = 2;
+      if (enemy.statuses) {
+        for (const debuffKey of [
+          'vulnerable',
+          'weak',
+          'frail',
+          'poison',
+          'corpseExplosion',
+          'choke',
+          'mark',
+          'talkToTheHand',
+          'gainStrengthEndTurn',
+        ]) {
+          delete enemy.statuses[debuffKey];
+          if (enemy.skipStatusTick) delete enemy.skipStatusTick[debuffKey];
+        }
+      }
+      enemy.intent = {
+        id: 'regrow_wait',
+        name: '暗影凝聚 (2回合)',
+        type: 'buff',
+        summary: '生命链接生效！正在凝聚暗影（2 回合后恢复 50% 生命复活），请尽快击倒其余暗影虫！',
+      };
+      pushCombatLog(
+        combat,
+        `【${enemy.name}】倒下但触发【生命链接】：开始凝聚暗影，将在 2 回合后复苏！`,
+        'status'
+      );
+      return true;
+    }
+    // Last living enemy fell — permanently extinguish all regrowing Darklings
+    for (const ally of combat.enemies) {
+      if ((ally.darklingRegrowTurns ?? 0) > 0) {
+        ally.darklingRegrowTurns = 0;
+        ally.intent = null;
+      }
+    }
+  }
   return false;
 }
 
@@ -628,7 +671,7 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
     }
   }
 
-  // Snake Plant Malleable trigger: unblocked attack damage grants escalating block until next enemy turn
+  // Snake Plant / Writhing Mass Malleable trigger: unblocked attack damage grants escalating block until next enemy turn
   if (options.isAttack && hpLoss > 0 && (enemy.statuses.malleable ?? 0) > 0) {
     const mBlock = enemy.statuses.malleable;
     enemy.block += mBlock;
@@ -637,6 +680,53 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
       combat,
       `【${enemy.name}】触发【可塑护甲】，获得 ${mBlock} 点格挡（下次 +${mBlock + 1}）！`,
       'block'
+    );
+  }
+
+  // Shelled Parasite Plated Armor break trigger: unblocked attack damage strips 1 layer; hitting 0 stuns it
+  if (options.isAttack && hpLoss > 0 && (enemy.statuses.platedArmor ?? 0) > 0) {
+    enemy.statuses.platedArmor -= 1;
+    if (enemy.statuses.platedArmor <= 0) {
+      delete enemy.statuses.platedArmor;
+      if (enemy.templateId === 'shelled_parasite') {
+        enemy.statuses.stunned = 1;
+        enemy.intent = {
+          id: 'stunned',
+          name: '硬壳碎裂 · 眩晕',
+          type: 'debuff',
+          summary: '多层护甲已被击碎！本回合陷入眩晕无法行动。',
+        };
+        pushCombatLog(
+          combat,
+          `【${enemy.name}】的【多层护甲】彻底碎裂，陷入【眩晕】！`,
+          'status'
+        );
+      } else {
+        pushCombatLog(combat, `【${enemy.name}】的【多层护甲】已耗尽！`, 'status');
+      }
+    }
+  }
+
+  // Transient Shifting trigger: losing HP reduces Strength for the rest of the turn
+  if (hpLoss > 0 && enemy.hp > 0 && (enemy.statuses.shifting ?? 0) > 0) {
+    enemy.statuses.strength = (enemy.statuses.strength ?? 0) - hpLoss;
+    if (enemy.statuses.strength === 0) delete enemy.statuses.strength;
+    enemy.tempStrengthRestore = (enemy.tempStrengthRestore ?? 0) + hpLoss;
+    pushCombatLog(
+      combat,
+      `【${enemy.name}】触发【游移】，本回合力量降低 ${hpLoss} 点！`,
+      'status'
+    );
+  }
+
+  // Writhing Mass Reactive trigger: unblocked attack damage re-rolls its intent immediately
+  if (options.isAttack && hpLoss > 0 && enemy.hp > 0 && (enemy.statuses.reactive ?? 0) > 0) {
+    const prevId = enemy.intent?.id ?? null;
+    enemy.intent = rollEnemyIntent(state, enemy, { forceDifferentFromId: prevId });
+    pushCombatLog(
+      combat,
+      `【${enemy.name}】触发【应激反应】，意图立即切换为【${enemy.intent?.name || '新行动'}】！`,
+      'status'
     );
   }
 
@@ -1003,9 +1093,111 @@ function getPendingChoiceBlockReason(combat) {
       return '请先选择要升级的手牌';
     case 'scry':
       return '请先完成预见选择';
+    case 'discard_to_draw':
+      return '请先从弃牌堆选择要置顶的卡牌';
+    case 'retrieve_discard_retain':
+      return '请先从弃牌堆选择要取回并保留的卡牌';
+    case 'retain':
+      return '请先选择本回合要保留的手牌并确认结束回合';
     default:
       return '请先选择要弃置的手牌';
   }
+}
+
+function requestDiscardPileChoice(
+  state,
+  mode,
+  count,
+  sourceName = '选牌',
+  options = {}
+) {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    count <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const excludeId = options.excludeInstanceId || null;
+  const eligible = (combat.discardPile || []).filter((c) => c.instanceId !== excludeId);
+  if (eligible.length === 0) {
+    pushCombatLog(combat, `【${sourceName}】弃牌堆中没有可选卡牌。`, 'info');
+    return false;
+  }
+
+  if (mode === 'retrieve_discard_retain') {
+    const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
+    const maxPick = Math.min(count, handRoom, eligible.length);
+    if (maxPick <= 0) {
+      pushCombatLog(combat, `【${sourceName}】手牌已满，无法从弃牌堆取回卡牌。`, 'info');
+      return false;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'retrieve_discard_retain',
+      sourceName,
+      count: maxPick,
+      remaining: maxPick,
+      optional: true,
+      candidates: [...eligible],
+      selectedIds: [],
+      endTurnAfter: Boolean(options.endTurnAfter),
+    });
+    return true;
+  }
+
+  if (mode === 'discard_to_draw') {
+    const maxPick = Math.min(count, eligible.length);
+    setPendingCardChoice(combat, {
+      mode: 'discard_to_draw',
+      sourceName,
+      count: maxPick,
+      remaining: maxPick,
+      optional: false,
+      candidates: [...eligible],
+      selectedIds: [],
+    });
+    return true;
+  }
+
+  return false;
+}
+
+function requestEndTurnRetainChoice(state, quota, sourceName = '深谋远虑') {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    quota <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const eligible = (combat.hand || []).filter((c) => {
+    const st = getCardStats(c);
+    return !st.ethereal && !st.retain && !c.tempRetainTurn;
+  });
+  const meaningful = eligible.filter((c) => {
+    const t = getCardStats(c).type;
+    return t !== 'curse' && t !== 'status';
+  });
+  if (eligible.length === 0 || meaningful.length === 0) {
+    return false;
+  }
+  const maxPick = Math.min(quota, eligible.length);
+  setPendingCardChoice(combat, {
+    mode: 'retain',
+    sourceName,
+    count: maxPick,
+    remaining: maxPick,
+    optional: true,
+    candidates: [...eligible],
+    selectedIds: [],
+  });
+  return true;
 }
 
 function requestHandCardChoice(
@@ -1374,6 +1566,171 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
   };
 }
 
+export function togglePendingCardChoice(state, instanceId) {
+  const combat = state?.combat;
+  const pending = getActivePendingCardChoice(combat);
+  if (
+    !combat ||
+    state.screen !== 'combat' ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    !pending
+  ) {
+    return { ok: false, reason: '当前不在选牌阶段' };
+  }
+  if (pending.mode === 'scry') {
+    return toggleScryChoice(state, instanceId);
+  }
+  if (pending.mode !== 'retrieve_discard_retain' && pending.mode !== 'retain') {
+    return { ok: false, reason: '当前选牌模式不支持多选切换' };
+  }
+  const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+  if (!valid) {
+    return { ok: false, reason: '该卡牌不在可选范围内' };
+  }
+  if (!Array.isArray(pending.selectedIds)) {
+    pending.selectedIds = [];
+  }
+  const idx = pending.selectedIds.indexOf(instanceId);
+  if (idx !== -1) {
+    pending.selectedIds.splice(idx, 1);
+  } else if (pending.selectedIds.length < pending.count) {
+    pending.selectedIds.push(instanceId);
+  } else if (pending.count === 1) {
+    pending.selectedIds = [instanceId];
+  } else {
+    return { ok: false, reason: `最多只能选择 ${pending.count} 张卡牌（再次点击已选卡牌可取消）` };
+  }
+  pending.remaining = Math.max(0, pending.count - pending.selectedIds.length);
+  return {
+    ok: true,
+    mode: pending.mode,
+    selectedIds: [...pending.selectedIds],
+    remaining: pending.remaining,
+  };
+}
+
+export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
+  const combat = state?.combat;
+  const pending = getActivePendingCardChoice(combat);
+  if (
+    !combat ||
+    state.screen !== 'combat' ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    !pending
+  ) {
+    return { ok: false, reason: '当前没有待确认的选牌操作' };
+  }
+
+  if (pending.mode === 'scry') {
+    return confirmScryChoice(state, explicitIds, onVictoryCallback);
+  }
+
+  const candidateIds = new Set((pending.candidates || []).map((c) => c.instanceId));
+  const rawIds = Array.isArray(explicitIds) ? explicitIds : pending.selectedIds || [];
+  const uniqueValidIds = [];
+  for (const id of rawIds) {
+    if (candidateIds.has(id) && !uniqueValidIds.includes(id)) {
+      uniqueValidIds.push(id);
+      if (uniqueValidIds.length >= pending.count) break;
+    }
+  }
+
+  if (pending.mode === 'retrieve_discard_retain') {
+    const pickedNames = [];
+    for (const id of uniqueValidIds) {
+      if (combat.hand.length >= MAX_HAND_SIZE) break;
+      const dIdx = combat.discardPile.findIndex((c) => c.instanceId === id);
+      if (dIdx === -1) continue;
+      const [card] = combat.discardPile.splice(dIdx, 1);
+      if (card) {
+        card.tempRetainTurn = true;
+        combat.hand.push(card);
+        pickedNames.push(getCardStats(card).name);
+      }
+    }
+    const shouldEndTurn = Boolean(pending.endTurnAfter);
+    const sourceName = pending.sourceName;
+    setPendingCardChoice(combat, null);
+
+    if (pickedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】从弃牌堆取回并保留：${pickedNames.map((n) => `【${n}】`).join('、')}。`,
+        'info'
+      );
+    } else {
+      pushCombatLog(combat, `【${sourceName}】未从弃牌堆取回卡牌。`, 'info');
+    }
+
+    if (shouldEndTurn && getAliveEnemies(combat).length > 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+      pushCombatLog(combat, `【${sourceName}】落下终章，自动结束本回合。`, 'info');
+      return endPlayerTurn(state, onVictoryCallback);
+    }
+
+    return {
+      ok: true,
+      mode: 'retrieve_discard_retain',
+      retrievedCount: pickedNames.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
+  if (pending.mode === 'retain') {
+    const retainedNames = [];
+    for (const id of uniqueValidIds) {
+      const card = combat.hand.find((c) => c.instanceId === id);
+      if (card) {
+        card.tempRetainTurn = true;
+        retainedNames.push(getCardStats(card).name);
+      }
+    }
+    const sourceName = pending.sourceName;
+    setPendingCardChoice(combat, null);
+
+    if (retainedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】选择保留至下回合：${retainedNames.map((n) => `【${n}】`).join('、')}。`,
+        'info'
+      );
+    }
+
+    return endPlayerTurn(state, onVictoryCallback, { skipWellLaidPlansPrompt: true });
+  }
+
+  if (pending.mode === 'discard_to_draw') {
+    const movedNames = [];
+    for (const id of uniqueValidIds) {
+      const dIdx = combat.discardPile.findIndex((c) => c.instanceId === id);
+      if (dIdx === -1) continue;
+      const [card] = combat.discardPile.splice(dIdx, 1);
+      if (card) {
+        combat.drawPile.unshift(card);
+        movedNames.push(getCardStats(card).name);
+      }
+    }
+    const sourceName = pending.sourceName;
+    setPendingCardChoice(combat, null);
+    if (movedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】将弃牌堆中的${movedNames.map((n) => `【${n}】`).join('、')}置于抽牌堆顶。`,
+        'info'
+      );
+    }
+    return {
+      ok: true,
+      mode: 'discard_to_draw',
+      movedCount: movedNames.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
+  return { ok: false, reason: '当前选牌模式不支持统一确认' };
+}
+
 export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
   const combat = state?.combat;
   const pending = getActivePendingCardChoice(combat);
@@ -1387,8 +1744,38 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
     return { ok: false, reason: '当前不需要进行手牌选择' };
   }
 
-  if (pending.mode === 'scry') {
-    return toggleScryChoice(state, instanceId);
+  if (
+    pending.mode === 'scry' ||
+    pending.mode === 'retrieve_discard_retain' ||
+    pending.mode === 'retain'
+  ) {
+    return togglePendingCardChoice(state, instanceId);
+  }
+
+  if (pending.mode === 'discard_to_draw') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const dIdx = combat.discardPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || dIdx === -1) {
+      return { ok: false, reason: '未在弃牌堆中找到该卡牌' };
+    }
+    const [card] = combat.discardPile.splice(dIdx, 1);
+    combat.drawPile.unshift(card);
+    pending.candidates = (pending.candidates || []).filter((c) => c.instanceId !== instanceId);
+    pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
+    pushCombatLog(
+      combat,
+      `【${pending.sourceName}】将弃牌堆中的【${getCardStats(card).name}】置于抽牌堆顶。`,
+      'info'
+    );
+    if (pending.remaining <= 0 || pending.candidates.length === 0) {
+      setPendingCardChoice(combat, null);
+    }
+    return {
+      ok: true,
+      mode: 'discard_to_draw',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+    };
   }
 
   const idx = combat.hand.findIndex((c) => c.instanceId === instanceId);
@@ -2121,6 +2508,15 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     applyStatus(state.player, 'strength', 1);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.vajra.name}】生效：获得 1 点力量。`, 'status');
   }
+  if (hasRelic(state, 'girya') && (state.relicCounters?.girya ?? 0) > 0) {
+    const lifts = state.relicCounters.girya;
+    applyStatus(state.player, 'strength', lifts);
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.girya.name}】生效（已举重 ${lifts}/3 次）：获得 ${lifts} 点力量！`,
+      'status'
+    );
+  }
   if (hasRelic(state, 'oddly_smooth_stone')) {
     applyStatus(state.player, 'dexterity', 1);
     pushCombatLog(
@@ -2236,18 +2632,23 @@ export function restartCombat(state) {
     return { ok: false, reason: '当前没有可重启的战斗' };
   }
 
+  const nextRestarts = (state.stats?.combatRestarts ?? 0) + 1;
   const snap = structuredClone(state.combatSnapshot);
   state.rngState = snap.rngState;
   state.nextUid = snap.nextUid;
   state.player = snap.player;
   state.combat = snap.combat;
-  state.stats = snap.stats;
+  state.stats = snap.stats || {};
+  state.stats.combatRestarts = nextRestarts;
+  if (state.combatSnapshot.stats) {
+    state.combatSnapshot.stats.combatRestarts = nextRestarts;
+  }
   if (snap.relicCounters) state.relicCounters = snap.relicCounters;
   if (snap.relicFlags) state.relicFlags = snap.relicFlags;
   state.screen = 'combat';
   state.runOutcome = null;
 
-  return { ok: true };
+  return { ok: true, combatRestarts: nextRestarts };
 }
 
 function resolveEnemyTarget(combat, targetMode, targetEnemyId) {
@@ -2425,6 +2826,8 @@ export function playCard(
   let totalManualUpgrade = 0;
   let totalScry = 0;
   let totalDrawAfterScry = 0;
+  let totalDiscardToDraw = 0;
+  let totalRetrieveDiscardRetain = 0;
 
   for (let pass = 0; pass < repeatTimes; pass += 1) {
     if (pass > 0) {
@@ -2884,61 +3287,16 @@ export function playCard(
       delete state.player.statuses.vigor;
     }
 
-    if (stats.putTopDiscardToDraw && combat.discardPile.length > 0) {
-      const moved = combat.discardPile.pop();
-      if (moved) {
-        combat.drawPile.unshift(moved);
-        pushCombatLog(
-          combat,
-          `【${stats.name}】将弃牌堆顶的【${getCardStats(moved).name}】放回抽牌堆顶。`,
-          'info'
-        );
-      }
+    if (stats.putTopDiscardToDraw) {
+      totalDiscardToDraw += stats.putTopDiscardToDraw;
     }
 
     if (stats.shuffleDiscardIntoDraw) {
       reshuffleDiscardIntoDraw(state);
     }
 
-    if (stats.retrieveDiscardRetain && combat.discardPile.length > 0) {
-      const want = stats.retrieveDiscardRetain;
-      const retrievedNames = [];
-      const rankMeditateCandidate = (cardInst) => {
-        const cs = getCardStats(cardInst);
-        if (cs.type === 'curse' || cs.type === 'status' || cs.unplayable) return -100;
-        let sc = cs.rarity === 'rare' ? 35 : cs.rarity === 'uncommon' ? 24 : cs.rarity === 'special' ? 22 : 12;
-        if (cardInst.upgraded) sc += 8;
-        if (cs.enterStance === 'wrath' || cs.ifInWrathVulnAllElseWrath) sc += 26;
-        if (cs.enterStance === 'divinity' || cs.exitStance || cs.ifInCalmDrawElseCalm || cs.ifTargetAttackingEnterStance) sc += 16;
-        if (cs.blockEqualUnblockedDamage || cs.wrathBonusBlock || cs.draw || cs.type === 'power') sc += 14;
-        if (cardInst.cardId === 'strike' || cardInst.cardId === 'defend') sc -= 20;
-        return sc;
-      };
-      for (let r = 0; r < want; r += 1) {
-        if (combat.hand.length >= MAX_HAND_SIZE || combat.discardPile.length === 0) break;
-        let pickIdx = 0;
-        let bestScore = -Infinity;
-        for (let k = combat.discardPile.length - 1; k >= 0; k -= 1) {
-          const sc = rankMeditateCandidate(combat.discardPile[k]);
-          if (sc > bestScore) {
-            bestScore = sc;
-            pickIdx = k;
-          }
-        }
-        const [card] = combat.discardPile.splice(pickIdx, 1);
-        if (card) {
-          card.tempRetainTurn = true;
-          combat.hand.push(card);
-          retrievedNames.push(getCardStats(card).name);
-        }
-      }
-      if (retrievedNames.length > 0) {
-        pushCombatLog(
-          combat,
-          `【${stats.name}】从弃牌堆取回并保留：${retrievedNames.map((n) => `【${n}】`).join('、')}。`,
-          'info'
-        );
-      }
+    if (stats.retrieveDiscardRetain) {
+      totalRetrieveDiscardRetain += stats.retrieveDiscardRetain;
     }
 
     if (stats.copySelfToDiscard) {
@@ -3562,6 +3920,21 @@ export function playCard(
     }
   }
 
+  // Hex debuff (Chosen): playing any non-Attack card shuffles Dazed into draw pile
+  if (stats.type !== 'attack' && (state.player.statuses?.hex ?? 0) > 0) {
+    const hexCount = state.player.statuses.hex;
+    for (let h = 0; h < hexCount; h += 1) {
+      const dazed = createCardInstance(state, 'dazed', false);
+      const insertIdx = randomInt(state, 0, combat.drawPile.length);
+      combat.drawPile.splice(insertIdx, 0, dazed);
+    }
+    pushCombatLog(
+      combat,
+      `【妖术】触发：打出非攻击牌，将 ${hexCount} 张【晕眩】洗入抽牌堆！`,
+      'status'
+    );
+  }
+
   for (const enemy of getAliveEnemies(combat)) {
     if ((enemy.statuses?.slow ?? 0) > 0) {
       enemy.slowStacks = (enemy.slowStacks ?? 0) + 1;
@@ -3604,7 +3977,7 @@ export function playCard(
     return endPlayerTurn(state, onVictoryCallback);
   }
 
-  // 11b. Request interactive hand/draw card choices (Discard / Exhaust / Upgrade / Scry)
+  // 11b. Request interactive hand/draw/discard card choices (Discard / Exhaust / Upgrade / Scry / Discard-Pile)
   if (getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
     if (totalManualDiscard > 0) {
       requestHandCardChoice(state, 'discard', totalManualDiscard, stats.name, onVictoryCallback);
@@ -3614,6 +3987,21 @@ export function playCard(
       requestHandCardChoice(state, 'upgrade', totalManualUpgrade, stats.name, onVictoryCallback);
     } else if (totalScry > 0) {
       initiateScry(state, totalScry, stats.name, { drawAfterScry: totalDrawAfterScry });
+    } else if (totalDiscardToDraw > 0) {
+      requestDiscardPileChoice(state, 'discard_to_draw', totalDiscardToDraw, stats.name, {
+        excludeInstanceId: cardInstance.instanceId,
+      });
+    } else if (totalRetrieveDiscardRetain > 0) {
+      requestDiscardPileChoice(
+        state,
+        'retrieve_discard_retain',
+        totalRetrieveDiscardRetain,
+        stats.name,
+        {
+          excludeInstanceId: cardInstance.instanceId,
+          endTurnAfter: Boolean(stats.endTurnAfter),
+        }
+      );
     }
   }
 
@@ -3839,13 +4227,26 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   return { ok: true, outcome: state.combat?.status ?? combat.status };
 }
 
-export function endPlayerTurn(state, onVictoryCallback = null) {
+export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   const combat = state?.combat;
   if (!combat || state.screen !== 'combat' || combat.status !== 'ongoing' || combat.phase !== 'player') {
     return { ok: false, reason: '当前不能结束回合' };
   }
   if (hasPendingCardChoice(combat)) {
     return { ok: false, reason: `${getPendingChoiceBlockReason(combat)}再结束回合` };
+  }
+
+  const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
+  const wellLaidPlansQuota = keepHandByPyramid ? 0 : (state.player.statuses.wellLaidPlans ?? 0);
+  if (
+    !options.skipWellLaidPlansPrompt &&
+    wellLaidPlansQuota > 0 &&
+    getAliveEnemies(combat).length > 0 &&
+    state.player.hp > 0
+  ) {
+    if (requestEndTurnRetainChoice(state, wellLaidPlansQuota, '深谋远虑')) {
+      return { ok: true, awaitingRetainChoice: true, outcome: state.combat?.status ?? combat.status };
+    }
   }
 
   combat.phase = 'enemy';
@@ -3887,7 +4288,7 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     }
   }
 
-  // 1. Resolve end-of-turn hand curses/statuses (Burn, Regret, Doubt), then Ethereal / Retain / Well-Laid Plans / Discard
+  // 1. Resolve end-of-turn hand curses/statuses (Burn, Regret, Doubt) + Constricted, then Ethereal / Retain / Discard
   for (const cardInstance of combat.hand) {
     if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
     const stats = getCardStats(cardInstance);
@@ -3909,45 +4310,28 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
     }
   }
 
+  if (state.player.hp > 0 && combat.status === 'ongoing' && (state.player.statuses.constricted ?? 0) > 0) {
+    dealDamageToPlayer(state, state.player.statuses.constricted, '状态【缠绕】', {
+      isAttack: false,
+      fromCard: false,
+    });
+  }
+
   if (state.player.hp <= 0 || combat.status !== 'ongoing') {
     return { ok: true, outcome: state.combat?.status ?? combat.status };
   }
 
   const handCountBeforeDiscard = combat.hand.length;
-  const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
-  const wellLaidPlansQuota = keepHandByPyramid ? 0 : (state.player.statuses.wellLaidPlans ?? 0);
-  const wlpKeepIds = new Set();
-  if (wellLaidPlansQuota > 0) {
-    const candidates = combat.hand
-      .filter((c) => {
-        const st = getCardStats(c);
-        return !st.ethereal && !st.retain && !c.tempRetainTurn && st.type !== 'curse' && st.type !== 'status';
-      })
-      .sort((a, b) => {
-        const sa = getCardStats(a);
-        const sb = getCardStats(b);
-        const rank = (s) =>
-          (s.rarity === 'rare' ? 30 : s.rarity === 'uncommon' ? 20 : s.rarity === 'common' ? 10 : 0) +
-          (s.type === 'power' ? 12 : 0) +
-          (s.multiplyPoison || s.doubleBlock || s.doubleStrength || s.applySelfStatuses?.burst ? 25 : 0);
-        return rank(sb) - rank(sa);
-      });
-    for (const kept of candidates.slice(0, wellLaidPlansQuota)) {
-      wlpKeepIds.add(kept.instanceId);
-    }
-  }
-
   const establishmentDiscount = state.player.statuses.establishment ?? 0;
   const etherealToExhaust = [];
   const retainedHand = [];
   for (const cardInstance of combat.hand) {
     const stats = getCardStats(cardInstance);
-    const keepByMeditate = Boolean(cardInstance.tempRetainTurn);
-    const keepByWlp = wlpKeepIds.has(cardInstance.instanceId);
+    const keepByTempRetain = Boolean(cardInstance.tempRetainTurn);
     delete cardInstance.tempRetainTurn;
     if (stats.ethereal) {
       etherealToExhaust.push(cardInstance);
-    } else if (stats.retain || keepHandByPyramid || keepByMeditate || keepByWlp) {
+    } else if (stats.retain || keepHandByPyramid || keepByTempRetain) {
       retainedHand.push(cardInstance);
       if (stats.retainCostReduce) {
         cardInstance.retainedCostDiscount =
@@ -4080,8 +4464,37 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
 
   const actingEnemies = [...combat.enemies];
   for (const enemy of actingEnemies) {
-    if (enemy.hp <= 0) continue;
     if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+    if (enemy.hp <= 0) {
+      if ((enemy.darklingRegrowTurns ?? 0) > 0 && getAliveEnemies(combat).length > 0) {
+        enemy.darklingRegrowTurns -= 1;
+        if (enemy.darklingRegrowTurns <= 0) {
+          const reviveHp = Math.max(1, Math.floor(enemy.maxHp / 2));
+          enemy.hp = reviveHp;
+          enemy.darklingRegrowTurns = 0;
+          enemy.turnIndex += 1;
+          enemy.intent = rollEnemyIntent(state, enemy);
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】触发【暗影复苏】，以 ${reviveHp}/${enemy.maxHp} 生命重新复活！`,
+            'status'
+          );
+        } else {
+          enemy.intent = {
+            id: 'reincarnate',
+            name: '暗影复苏 (下回合复活)',
+            type: 'buff',
+            summary: `生命链接生效！下回合将恢复 ${Math.max(1, Math.floor(enemy.maxHp / 2))} 点生命复活！`,
+          };
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】正在凝聚暗影，下回合即将复活！`,
+            'status'
+          );
+        }
+      }
+      continue;
+    }
 
     // Poison ticks at the start of the enemy's turn (bypasses block, decrements by 1; lethal Poison skips enemy intent!)
     if ((enemy.statuses?.poison ?? 0) > 0) {
@@ -4189,6 +4602,18 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
             if (state.player.hp <= 0 || enemy.hp <= 0 || combat.status !== 'ongoing') break;
             const dmg = calculateAttackDamage(intent.damage, enemy, state.player);
             const hpLost = dealDamageToPlayer(state, dmg, `【${enemy.name}】的${intent.name || '攻击'}`);
+            if (hpLost > 0 && intent.lifesteal && enemy.hp > 0) {
+              const prevHp = enemy.hp;
+              enemy.hp = Math.min(enemy.maxHp, enemy.hp + hpLost);
+              const healed = enemy.hp - prevHp;
+              if (healed > 0) {
+                pushCombatLog(
+                  combat,
+                  `【${enemy.name}】吸血回复了 ${healed} 点生命（${enemy.hp}/${enemy.maxHp}）！`,
+                  'status'
+                );
+              }
+            }
             if (
               hpLost > 0 &&
               state.player.hp > 0 &&
@@ -4347,6 +4772,30 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
           }
         }
 
+        if (intent.addCurseToDeck && CARD_LIBRARY[intent.addCurseToDeck]) {
+          enemy.implantUsed = true;
+          const curseMaster = createCardInstance(state, intent.addCurseToDeck, false);
+          state.player.deck.push(curseMaster);
+          const curseCombat = createCardInstance(state, intent.addCurseToDeck, false);
+          combat.discardPile.push(curseCombat);
+          const cName = CARD_LIBRARY[intent.addCurseToDeck]?.name ?? intent.addCurseToDeck;
+          if (hasRelic(state, 'darkstone_periapt')) {
+            state.player.maxHp += 6;
+            state.player.hp += 6;
+            pushCombatLog(
+              combat,
+              `【${enemy.name}】将永久诅咒【${cName}】植入了你的牌组！（【黑石护符】触发：最大生命 +6）`,
+              'status'
+            );
+          } else {
+            pushCombatLog(
+              combat,
+              `【${enemy.name}】将永久诅咒【${cName}】植入了你的牌组与弃牌堆！`,
+              'status'
+            );
+          }
+        }
+
         if (intent.summonMinions) {
           const currentMinions = getAliveEnemies(combat).filter(
             (e) => e.templateId === intent.summonMinions
@@ -4442,6 +4891,11 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
       enemy.block += m;
       pushCombatLog(combat, `【${enemy.name}】的【金属化】生效，获得 ${m} 点格挡。`, 'block');
     }
+    if (enemy.hp > 0 && (enemy.statuses.platedArmor ?? 0) > 0) {
+      const pa = enemy.statuses.platedArmor;
+      enemy.block += pa;
+      pushCombatLog(combat, `【${enemy.name}】的【多层护甲】生效，获得 ${pa} 点格挡。`, 'block');
+    }
     if (enemy.hp > 0 && (enemy.statuses?.regenerating ?? 0) > 0) {
       const regen = enemy.statuses.regenerating;
       const before = enemy.hp;
@@ -4488,6 +4942,25 @@ export function endPlayerTurn(state, onVictoryCallback = null) {
       delete enemy.statuses.gainStrengthEndTurn;
       applyStatus(enemy, 'strength', restore);
       pushCombatLog(combat, `【${enemy.name}】在回合结束恢复了 ${restore} 点力量。`, 'status');
+    }
+
+    if ((enemy.tempStrengthRestore ?? 0) > 0) {
+      const restore = enemy.tempStrengthRestore;
+      enemy.tempStrengthRestore = 0;
+      enemy.statuses.strength = (enemy.statuses.strength ?? 0) + restore;
+      if (enemy.statuses.strength === 0) delete enemy.statuses.strength;
+    }
+
+    if (enemy.hp > 0 && (enemy.statuses?.fading ?? 0) > 0) {
+      enemy.statuses.fading -= 1;
+      if (enemy.statuses.fading <= 0) {
+        delete enemy.statuses.fading;
+        enemy.hp = 0;
+        enemy.block = 0;
+        enemy.intent = null;
+        pushCombatLog(combat, `【消逝】倒计时归零，【${enemy.name}】化作虚无消散了！`, 'victory');
+        continue;
+      }
     }
 
     enemy.turnIndex += 1;

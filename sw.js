@@ -4,7 +4,8 @@
  * falling back seamlessly to cached resources when offline.
  */
 
-const CACHE_NAME = 'sts-lite-pwa-v1';
+const CACHE_VERSION = '__SW_CACHE_VERSION__';
+const CACHE_NAME = `sts-lite-pwa-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
   './',
@@ -51,8 +52,20 @@ self.addEventListener('install', (event) => {
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+      .then(() => {
+        // Activate immediately on first install; on updates, wait for user confirmation via SKIP_WAITING
+        if (!self.registration.active) {
+          return self.skipWaiting();
+        }
+        return undefined;
+      })
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {

@@ -6,7 +6,7 @@
 
 import { CARD_LIBRARY, formatCardDescription } from '../../data/cards.js';
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
-import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec } from '../../engine/daily.js';
 import {
   ASCENSION_DEFS,
@@ -47,20 +47,20 @@ export function renderCharacterSelectHeader({ hasActiveRun }) {
       <nav class="top-actions" aria-label="全局操作">
         ${
           hasActiveRun
-            ? `<button type="button" id="btn-resume-active-run" class="btn-brass" data-action="resume-active-run">← 返回当前对局</button>`
+            ? `<button type="button" id="btn-resume-active-run" class="btn-brass" data-action="resume-active-run"><span class="nav-btn-emoji" aria-hidden="true">↩️</span> 返回当前对局</button>`
             : ''
         }
         <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
-          进阶/生涯
+          <span class="nav-btn-emoji" aria-hidden="true">🏆</span> 进阶/生涯
         </button>
         <button type="button" id="btn-open-compendium" class="btn-stone" data-action="open-modal" data-modal="compendium">
-          图鉴
+          <span class="nav-btn-emoji" aria-hidden="true">📖</span> 图鉴
         </button>
         <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
-          词典/引导
+          <span class="nav-btn-emoji" aria-hidden="true">💡</span> 词典/引导
         </button>
         <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
-          设置
+          <span class="nav-btn-emoji" aria-hidden="true">⚙️</span> 设置
         </button>
       </nav>
     </header>
@@ -164,7 +164,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
                   data-tooltip-tag="${escapeHtml(RELIC_TIER_LABELS.starter)}"
                   data-tooltip-desc="${escapeHtml(starterRelic.description)}"
                   data-tooltip-tone="relic"
-                >遗物 · ${escapeHtml(starterRelic.name)}</span>`
+                >遗物 · ${escapeHtml(getRelicIcon(starterRelic.id))} ${escapeHtml(starterRelic.name)}</span>`
               : ''
           }
           ${

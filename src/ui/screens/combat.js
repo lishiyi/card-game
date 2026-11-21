@@ -37,17 +37,20 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const enemiesHtml = combat.enemies
     .map((enemy) => {
       const hpPct = Math.max(0, Math.min(100, Math.round((enemy.hp / enemy.maxHp) * 100)));
+      const isRegrowing = enemy.hp <= 0 && (enemy.darklingRegrowTurns ?? 0) > 0;
       const intentPreview = getEnemyIntentPreview(enemy, state.player);
       const nextPred =
         enemy.hp > 0
           ? predictNextTurnIntents(enemy, state.player, state.ascension ?? 0, combat)
           : { summaryText: '', tooltipLines: [] };
 
-      const intentClass = intentPreview.isAttack
-        ? 'attack'
-        : intentPreview.type.startsWith('defend')
-          ? 'defend'
-          : 'buff';
+      const intentClass = isRegrowing
+        ? 'buff'
+        : intentPreview.isAttack
+          ? 'attack'
+          : intentPreview.type.startsWith('defend')
+            ? 'defend'
+            : 'buff';
       const targetable = enemy.hp > 0 && isTargetingEnemy;
 
       const combinedTooltipDesc =
@@ -55,12 +58,21 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           ? nextPred.tooltipLines.length > 0
             ? `${intentPreview.detail}\n────────────\n下回合可能行动：\n${nextPred.tooltipLines.join('\n')}`
             : intentPreview.detail
-          : '';
+          : isRegrowing && enemy.intent?.summary
+            ? enemy.intent.summary
+            : '';
+
+      const intentLabelText =
+        enemy.hp > 0
+          ? intentPreview.label
+          : isRegrowing
+            ? enemy.intent?.name || `复苏中 (${enemy.darklingRegrowTurns}回合)`
+            : '已击败';
 
       return `
         <div
           id="enemy-unit-${escapeHtml(enemy.id)}"
-          class="fighter-unit ${enemy.hp <= 0 ? 'dead' : ''} ${targetable ? 'enemy-targetable' : ''}"
+          class="fighter-unit ${enemy.hp <= 0 ? (isRegrowing ? 'regrowing' : 'dead') : ''} ${targetable ? 'enemy-targetable' : ''}"
           data-action="${enemy.hp > 0 ? 'click-enemy' : 'noop'}"
           data-enemy-id="${escapeHtml(enemy.id)}"
           role="${targetable ? 'button' : 'group'}"
@@ -68,17 +80,31 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           aria-label="${escapeHtml(`${enemy.name} 生命 ${enemy.hp}/${enemy.maxHp}`)}"
         >
           <div class="intent-stack">
-            <div
-              class="intent-badge ${intentClass}"
-              tabindex="0"
+            <div class="intent-primary-row">
+              <div
+                class="intent-badge ${intentClass}"
+                tabindex="0"
+                ${
+                  combinedTooltipDesc
+                    ? `data-tooltip-title="${escapeHtml(enemy.intent?.name ? `行动意图：${enemy.intent.name}` : '敌方行动意图')}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="${escapeHtml(combinedTooltipDesc)}"`
+                    : ''
+                }
+              >
+                ${enemy.hp > 0 || isRegrowing ? getIntentIconSvg(isRegrowing ? 'buff' : intentPreview.type) : ''}
+                <span>${escapeHtml(intentLabelText)}</span>
+              </div>
               ${
-                combinedTooltipDesc
-                  ? `data-tooltip-title="${escapeHtml(enemy.intent?.name ? `行动意图：${enemy.intent.name}` : '敌方行动意图')}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="${escapeHtml(combinedTooltipDesc)}"`
+                enemy.hp > 0 && nextPred.tooltipLines.length > 0
+                  ? `<button
+                      type="button"
+                      class="next-intent-trigger"
+                      aria-label="${escapeHtml(`查看 ${enemy.name} 下回合意图预测`)}"
+                      data-tooltip-title="${escapeHtml(`${enemy.name} · 下回合预测`)}"
+                      data-tooltip-tag="行动预判"
+                      data-tooltip-desc="${escapeHtml(nextPred.tooltipLines.join('\n'))}"
+                    >🔮</button>`
                   : ''
               }
-            >
-              ${enemy.hp > 0 ? getIntentIconSvg(intentPreview.type) : ''}
-              <span>${enemy.hp > 0 ? escapeHtml(intentPreview.label) : '已击败'}</span>
             </div>
             ${
               enemy.hp > 0 && nextPred.summaryText
@@ -109,7 +135,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           <div class="hp-track">
             <div class="hp-fill ${enemy.block > 0 ? 'shielded' : ''}" style="width: ${hpPct}%;"></div>
             <div class="hp-preview-cut" data-preview-cut="${escapeHtml(enemy.id)}" style="left: 0%; width: 0%;"></div>
-            <span class="hp-label">${escapeHtml(enemy.hp)} / ${escapeHtml(enemy.maxHp)}</span>
+            <span class="hp-label">${isRegrowing ? `复苏倒计时 ${escapeHtml(enemy.darklingRegrowTurns)}` : `${escapeHtml(enemy.hp)} / ${escapeHtml(enemy.maxHp)}`}</span>
           </div>
           ${renderStatusesHtml(enemy, enemy.name)}
         </div>
@@ -121,11 +147,40 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const isAnyPendingChoice = hasPendingCardChoice(combat);
   const pendingMode = pendingChoice?.mode || null;
   const isHandChoiceMode =
-    pendingMode === 'discard' || pendingMode === 'exhaust' || pendingMode === 'upgrade';
+    pendingMode === 'discard' ||
+    pendingMode === 'exhaust' ||
+    pendingMode === 'upgrade' ||
+    pendingMode === 'retain';
+  const retainSelectedSet =
+    pendingMode === 'retain' ? new Set(pendingChoice.selectedIds || []) : null;
+  const retainEligibleSet =
+    pendingMode === 'retain'
+      ? new Set((pendingChoice.candidates || []).map((c) => c.instanceId))
+      : null;
   const previewTarget = getPreviewTargetEnemy();
   const handHtml = combat.hand
     .map((card, idx) => {
       if (isHandChoiceMode) {
+        if (pendingMode === 'retain') {
+          const eligible = retainEligibleSet.has(card.instanceId);
+          const isPicked = retainSelectedSet.has(card.instanceId);
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: eligible ? 'toggle-retain-card' : 'noop',
+            playable: eligible,
+            selected: isPicked,
+            dimmed: !eligible,
+            disabled: !eligible,
+            retainSelectable: eligible,
+            retainSelected: isPicked,
+            hotkey: eligible && idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
         if (pendingMode === 'discard') {
           const cStats = getCardStats(card);
           const isDiscardSynergy = Boolean(cStats.onDiscardGainEnergy || cStats.onDiscardDraw);
@@ -221,7 +276,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   let bannerText = ui.notice;
   let bannerDesktopHint = '';
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
-  if (pendingMode === 'discard') {
+  if (pendingMode === 'retain') {
+    const pickedLen = (pendingChoice.selectedIds || []).length;
+    bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌保留至下回合（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认保留」`;
+    bannerDesktopHint = '（数字键 1–9 选择，Enter 确认并结束回合）';
+    bannerClass = 'retain-prompt';
+  } else if (pendingMode === 'discard') {
     bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌弃置`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'discard-prompt';
@@ -235,6 +295,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerClass = 'upgrade-prompt';
   } else if (pendingMode === 'scry') {
     bannerText = `【${pendingChoice.sourceName}】正在预见抽牌堆顶 ${pendingChoice.count} 张卡牌……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'discard_to_draw') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择 ${pendingChoice.remaining} 张牌置于抽牌堆顶……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'retrieve_discard_retain') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择最多 ${pendingChoice.count} 张牌取回并保留……`;
     bannerClass = 'scry-prompt';
   } else if (isTargetingEnemy) {
     const itemName = selectedCardStats
@@ -280,26 +346,34 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       : 0;
 
   const mobileChoiceHint =
-    pendingMode === 'discard'
-      ? '点击下方手牌弃置'
-      : pendingMode === 'exhaust'
-        ? '点击下方手牌消耗'
-        : pendingMode === 'upgrade'
-          ? '点击下方手牌升级'
-          : pendingMode === 'scry'
-            ? '请在弹窗完成预见'
-            : settings?.mobileTapConfirm
-              ? '点选预览 · 再点/上滑出牌'
-              : '左右滑选牌 · 上滑拖出牌';
+    pendingMode === 'retain'
+      ? `点选保留牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
+      : pendingMode === 'discard'
+        ? '点击下方手牌弃置'
+        : pendingMode === 'exhaust'
+          ? '点击下方手牌消耗'
+          : pendingMode === 'upgrade'
+            ? '点击下方手牌升级'
+            : pendingMode === 'scry'
+              ? '请在弹窗完成预见'
+              : pendingMode === 'discard_to_draw' || pendingMode === 'retrieve_discard_retain'
+                ? '请在弹窗从弃牌堆选牌'
+                : settings?.mobileTapConfirm
+                  ? '点选预览 · 再点/上滑出牌'
+                  : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
-    pendingMode === 'discard'
-      ? 'discard-selecting'
-      : pendingMode === 'exhaust'
-        ? 'exhaust-selecting'
-        : pendingMode === 'upgrade'
-          ? 'upgrade-selecting'
-          : '';
+    pendingMode === 'retain'
+      ? 'retain-selecting'
+      : pendingMode === 'discard'
+        ? 'discard-selecting'
+        : pendingMode === 'exhaust'
+          ? 'exhaust-selecting'
+          : pendingMode === 'upgrade'
+            ? 'upgrade-selecting'
+            : '';
+
+  const restartsSoFar = state.stats?.combatRestarts ?? 0;
 
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}${
@@ -365,11 +439,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                   data-action="restart-combat"
                   ${
                     state.combatSnapshot
-                      ? 'data-tooltip-title="重启本场战斗" data-tooltip-tag="战斗操作" data-tooltip-desc="放弃当前回合进度，恢复到本场战斗第 1 回合初始状态。"'
+                      ? `data-tooltip-title="重启本场战斗" data-tooltip-tag="战斗操作${restartsSoFar > 0 ? ` · 本局已重启 ${restartsSoFar} 次` : ''}" data-tooltip-desc="放弃当前回合进度，恢复到本场战斗第 1 回合初始状态。重启次数将自动记入最终战报与历史记录。"`
                       : 'disabled'
                   }
                 >
-                  重启本场战斗
+                  重启本场战斗${restartsSoFar > 0 ? ` (${restartsSoFar})` : ''}
                 </button>`
               : ''
           }
@@ -383,15 +457,26 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         </div>
 
         <div class="pile-group dock-right-group">
-          <button
-            type="button"
-            id="btn-end-turn"
-            class="btn-brass"
-            data-action="end-turn"
-            ${combat.phase !== 'player' || aliveEnemies.length === 0 || isAnyPendingChoice ? 'disabled' : ''}
-          >
-            结束回合<span class="hotkey-hint"> (E)</span>
-          </button>
+          ${
+            pendingMode === 'retain'
+              ? `<button
+                  type="button"
+                  id="btn-confirm-retain"
+                  class="btn-brass retain-confirm-btn"
+                  data-action="confirm-retain-choice"
+                >
+                  确认保留 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)}) 并结束回合
+                </button>`
+              : `<button
+                  type="button"
+                  id="btn-end-turn"
+                  class="btn-brass"
+                  data-action="end-turn"
+                  ${combat.phase !== 'player' || aliveEnemies.length === 0 || isAnyPendingChoice ? 'disabled' : ''}
+                >
+                  结束回合<span class="hotkey-hint"> (E)</span>
+                </button>`
+          }
           <button type="button" id="btn-discard-pile" class="btn-stone" data-action="open-modal" data-modal="discard">
             弃牌堆 (${escapeHtml(combat.discardPile.length)})
           </button>

@@ -25,6 +25,7 @@ import {
 } from '../src/data/events.js';
 import {
   BOSS_RELIC_IDS,
+  CAMPFIRE_RELIC_IDS,
   getRelicPoolsForCharacter,
   NON_STARTER_RELIC_IDS,
   RELIC_LIBRARY,
@@ -61,6 +62,7 @@ import {
   completeNeowAction,
   continueFromEvent,
   createNewRun,
+  digAtCampfire,
   discardPotion,
   findMapNode,
   getAvailableNodeIds,
@@ -72,6 +74,7 @@ import {
   hasPendingNeowBlessing,
   leaveShop,
   leaveTreasureRoom,
+  liftAtCampfire,
   openTreasureChest,
   pickEventLibraryCard,
   playerHasHeavyAttackCard,
@@ -88,6 +91,7 @@ import {
   settleAct1Victory,
   settleVictory,
   skipNeowCardOffer,
+  tokeAtCampfire,
   transitionCombatVictory,
 } from '../src/engine/game.js';
 import {
@@ -96,6 +100,7 @@ import {
   calculateRunScore,
   createDefaultCompendium,
   createDefaultMeta,
+  exportSaveBackup,
   formatShareableBattleReport,
   getCharacterProgress,
   getLockedContentSets,
@@ -105,8 +110,10 @@ import {
   MAX_ASCENSION,
   META_STORAGE_KEY,
   recordCompletedRun,
+  SAVE_BACKUP_APP_ID,
   saveMeta,
   syncCompendiumFromRunState,
+  validateSaveBackup,
 } from '../src/engine/meta.js';
 import {
   buildChallengeUrl,
@@ -2066,11 +2073,11 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 232 cards resolve valid vector card art', () => {
+test('Art Integrity: all 47 enemy SVGs have unique hero-tier gradients & all 233 cards resolve valid vector card art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenEnemyGradIds = new Set();
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
-  assert.equal(enemyEntries.length, 40);
+  assert.equal(enemyEntries.length, 47);
 
   for (const [id, tpl] of enemyEntries) {
     const svg = getCharacterSvg(tpl.artKey || id);
@@ -2089,7 +2096,7 @@ test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 232
   assert.ok(guardianDefSvg.includes('ea-gd-orb') && guardianDefSvg.includes('radialGradient'));
 
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 232);
+  assert.equal(cardEntries.length, 233);
   for (const sigId of Object.keys(SIGNATURE_CARD_ART)) {
     assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
   }
@@ -2272,3 +2279,130 @@ test('P1 Out-of-Combat Relics & All 16 New Events (Normal & A8 scaling): full li
     assert.equal(continueFromEvent(evRun).ok, true);
   }
 });
+
+test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace Pipe + max-2 cap), Parasite -3 Max HP, Save Backup Export/Import validation, and Battle Report combatRestarts', () => {
+  // 1. Last-2 encounter deduplication (normal & elite) across Act 2/3 expanded encounter pools
+  const dedupRun = createNewRun({ seed: 42001, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  dedupRun.act = 2;
+  dedupRun.recentEncounterIds = [];
+  const seenNormalSeq = [];
+  for (let i = 0; i < 8; i += 1) {
+    const node = { id: `n_${i}`, floor: i + 1, col: 0, type: 'combat', nextIds: [] };
+    dedupRun.map[i] = [node];
+    dedupRun.floor = i;
+    dedupRun.currentNodeId = i === 0 ? null : `n_${i - 1}`;
+    if (i > 0) dedupRun.map[i - 1][0].nextIds = [`n_${i}`];
+    dedupRun.screen = 'map';
+    const sel = selectMapNode(dedupRun, node.id);
+    assert.equal(sel.ok, true);
+    const encId = dedupRun.combat.encounterId;
+    if (seenNormalSeq.length >= 1) {
+      assert.notEqual(encId, seenNormalSeq[seenNormalSeq.length - 1], 'Must not repeat immediately previous encounter');
+    }
+    if (seenNormalSeq.length >= 2) {
+      assert.notEqual(encId, seenNormalSeq[seenNormalSeq.length - 2], 'Must not repeat encounter from 2 combats ago');
+    }
+    seenNormalSeq.push(encId);
+    assert.ok(dedupRun.recentEncounterIds.length <= 4);
+  }
+  assert.ok(ENCOUNTERS.act2Early.length >= 6 && ENCOUNTERS.act2Hard.length >= 8);
+  assert.ok(ENCOUNTERS.act3Early.length >= 5 && ENCOUNTERS.act3Hard.length >= 6);
+
+  // 2. Campfire Relics: Girya (Lift max 3 -> +3 starting Strength), Shovel (Dig relic), Peace Pipe (Toke + Parasite -3 Max HP)
+  const campRun = createNewRun({ seed: 42002, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  campRun.player.relics.push('girya', 'shovel', 'peace_pipe');
+
+  // Lift 3 times across 3 rest sites -> 4th lift rejected
+  for (let i = 1; i <= 3; i += 1) {
+    campRun.screen = 'rest';
+    campRun.restState = { completed: false };
+    const liftRes = liftAtCampfire(campRun);
+    assert.equal(liftRes.ok, true);
+    assert.equal(liftRes.lifts, i);
+    assert.equal(campRun.screen, 'map');
+  }
+  campRun.screen = 'rest';
+  campRun.restState = { completed: false };
+  assert.equal(liftAtCampfire(campRun).ok, false, 'Girya Lift capped at 3 times per run');
+
+  // Verify Girya grants +3 Strength at combat start
+  startCombat(campRun, ENCOUNTERS.floor1[0], 'normal');
+  assert.equal(campRun.player.statuses.strength, 3, 'Girya 3/3 grants +3 starting Strength in combat');
+
+  // Dig with Shovel -> adds 1 unowned relic
+  campRun.screen = 'rest';
+  campRun.restState = { completed: false };
+  const relicsBeforeDig = campRun.player.relics.length;
+  const digRes = digAtCampfire(campRun);
+  assert.equal(digRes.ok, true);
+  assert.equal(campRun.player.relics.length, relicsBeforeDig + 1);
+  assert.ok(RELIC_LIBRARY[digRes.relicId], 'Shovel dug a valid relic');
+
+  // Toke with Peace Pipe -> removes Parasite curse and deducts 3 Max HP
+  const parasiteCard = addCardToMasterDeck(campRun, createCardInstance(campRun, 'parasite'));
+  const maxHpBeforeToke = campRun.player.maxHp;
+  campRun.screen = 'rest';
+  campRun.restState = { completed: false };
+  const tokeRes = tokeAtCampfire(campRun, parasiteCard.instanceId);
+  assert.equal(tokeRes.ok, true);
+  assert.equal(tokeRes.lostMaxHp, 3, 'Removing Parasite via Peace Pipe loses 3 Max HP');
+  assert.equal(campRun.player.maxHp, maxHpBeforeToke - 3);
+  assert.equal(campRun.player.deck.some((c) => c.instanceId === parasiteCard.instanceId), false);
+
+  // Max-2 campfire relics per run cap when rolling unowned relics
+  const capRun = createNewRun({ seed: 42003, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  capRun.player.relics.push('girya', 'shovel');
+  // Open 100 treasure chests and confirm peace_pipe is never rolled once 2 campfire relics are already held
+  for (let i = 0; i < 40; i += 1) {
+    capRun.screen = 'treasure';
+    capRun.treasureState = { opened: false, chestTier: 'large', chestLabel: '远古大宝箱', relicId: null, gold: 0, curseCardId: null, outcomeText: '' };
+    openTreasureChest(capRun);
+    if (capRun.player.relics.length > 60) break;
+  }
+  const heldCampfireCount = CAMPFIRE_RELIC_IDS.filter((id) => capRun.player.relics.includes(id)).length;
+  assert.equal(heldCampfireCount, 2, 'At most 2 of Girya/Shovel/Peace Pipe can be obtained in one run');
+
+  // 3. Battle report & Run History include combatRestarts annotation
+  const rrState = createNewRun({ seed: 42004, characterId: 'watcher', skipNeow: true });
+  startCombat(rrState, ENCOUNTERS.floor1[0], 'normal');
+  assert.equal(runRestartCombat(rrState).ok, true);
+  assert.equal(runRestartCombat(rrState).ok, true);
+  assert.equal(rrState.stats.combatRestarts, 2);
+  rrState.screen = 'game_over';
+  rrState.outcome = 'victory';
+  const meta = createDefaultMeta();
+  const recResult = recordCompletedRun(meta, rrState);
+  assert.equal(recResult.historyEntry.combatRestarts, 2);
+  const shareText = formatShareableBattleReport(recResult.historyEntry);
+  assert.ok(shareText.includes('「重启本场战斗」2 次'), `Battle report must annotate combatRestarts, got: ${shareText}`);
+
+  // Clean run without restarts omits restart remark cleanly
+  const cleanReport = buildRunReportFromState(createNewRun({ seed: 42005, characterId: 'ironclad', skipNeow: true }));
+  assert.equal(cleanReport.combatRestarts, 0);
+  assert.equal(formatShareableBattleReport(cleanReport).includes('重启本场战斗'), false);
+
+  // 4. Save Backup Export & Import Validation
+  const jsonStr = exportSaveBackup({
+    meta,
+    settings: { soundEnabled: false, volume: 35, animSpeed: 'fast', showDamageNumbers: true, mobileTapConfirm: true, tutorialDismissed: true },
+    activeRun: campRun,
+  });
+  const parsed = JSON.parse(jsonStr);
+  assert.equal(parsed.app, SAVE_BACKUP_APP_ID);
+  const validCheck = validateSaveBackup(jsonStr, TOTAL_FLOORS);
+  assert.equal(validCheck.ok, true);
+  assert.equal(validCheck.summary.hasActiveRun, true);
+  assert.equal(validCheck.backup.meta.runHistory[0].combatRestarts, 2);
+  assert.equal(validCheck.backup.settings.volume, 35);
+  assert.equal(validCheck.backup.settings.animSpeed, 'fast');
+
+  // Malformed / wrong app / corrupted activeRun rejected gracefully
+  assert.equal(validateSaveBackup('not valid json').ok, false);
+  assert.equal(validateSaveBackup(JSON.stringify({ app: 'other_game', meta })).ok, false);
+  assert.equal(validateSaveBackup(JSON.stringify({ app: SAVE_BACKUP_APP_ID, schemaVersion: 1, meta: null })).ok, false);
+  assert.equal(
+    validateSaveBackup(JSON.stringify({ app: SAVE_BACKUP_APP_ID, schemaVersion: 1, meta, activeRun: { screen: 'combat', player: {} } })).ok,
+    false
+  );
+});
+

@@ -4,7 +4,7 @@
 
 import { getCharacterDef } from '../../data/characters.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
-import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyModifierDefs } from '../../engine/daily.js';
 import { ASCENSION_DEFS } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
@@ -24,34 +24,58 @@ export function renderTopHud({ state, ui }) {
       const r = RELIC_LIBRARY[id];
       if (!r) return '';
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
-      let counterHtml = '';
+      const icon = getRelicIcon(id);
+      let counterText = '';
+      let counterShort = '';
+      let tooltipExtra = '';
       if (id === 'happy_flower') {
         const count = state.relicCounters?.happy_flower ?? 0;
-        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/3</span>`;
+        counterText = `${count}/3`;
+        counterShort = `${count}`;
+        tooltipExtra = `\n当前计数：${count}/3`;
       } else if (id === 'incense_burner') {
         const count = state.relicCounters?.incense_burner ?? 0;
-        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/6</span>`;
+        counterText = `${count}/6`;
+        counterShort = `${count}`;
+        tooltipExtra = `\n当前计数：${count}/6`;
       } else if (id === 'nunchaku') {
         const count = state.relicCounters?.nunchaku ?? 0;
-        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/10</span>`;
+        counterText = `${count}/10`;
+        counterShort = `${count}`;
+        tooltipExtra = `\n当前计数：${count}/10`;
       } else if (id === 'pen_nib') {
         const count = state.relicCounters?.pen_nib ?? 0;
-        counterHtml = `<span class="relic-counter-pill">${count === 9 ? '9/10 就绪!' : `${escapeHtml(count)}/10`}</span>`;
+        counterText = count === 9 ? '9/10 就绪!' : `${count}/10`;
+        counterShort = count === 9 ? '⚡' : `${count}`;
+        tooltipExtra = `\n当前计数：${count}/10${count === 9 ? '（下一次攻击双倍！）' : ''}`;
       } else if (id === 'sundial') {
         const count = state.relicCounters?.sundial ?? 0;
-        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/3</span>`;
+        counterText = `${count}/3`;
+        counterShort = `${count}`;
+        tooltipExtra = `\n当前计数：${count}/3`;
+      } else if (id === 'girya') {
+        const count = state.relicCounters?.girya ?? 0;
+        counterText = `${count}/3`;
+        counterShort = `+${count}`;
+        tooltipExtra = `\n已举重：${count}/3 次（开战 +${count} 力量）`;
       } else if (id === 'lizard_tail' && state.relicFlags?.lizardTailUsed) {
-        counterHtml = `<span class="relic-counter-pill">已耗尽</span>`;
+        counterText = '已耗尽';
+        counterShort = '×';
+        tooltipExtra = '\n状态：已消耗';
       }
+      const counterHtml = counterText
+        ? `<span class="relic-counter-pill"><span class="relic-counter-full">${escapeHtml(counterText)}</span><span class="relic-counter-short" aria-hidden="true">${escapeHtml(counterShort)}</span></span>`
+        : '';
       return `<span
-        class="relic-badge tier-${escapeHtml(r.tier)}"
+        class="relic-badge tier-${escapeHtml(r.tier)}${counterText ? ' has-counter' : ''}"
         data-relic-id="${escapeHtml(id)}"
         tabindex="0"
-        data-tooltip-title="${escapeHtml(r.name)}"
+        aria-label="${escapeHtml(`${r.name}${counterText ? ` (${counterText})` : ''}`)}"
+        data-tooltip-title="${escapeHtml(`${icon} ${r.name}`)}"
         data-tooltip-tag="${escapeHtml(tierLabel)}"
-        data-tooltip-desc="${escapeHtml(r.description)}"
+        data-tooltip-desc="${escapeHtml(`${r.description}${tooltipExtra}`)}"
         data-tooltip-tone="relic"
-      >${escapeHtml(r.name)}${counterHtml}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span><span class="relic-name-label">${escapeHtml(r.name)}</span>${counterHtml}</span>`;
     })
     .join('');
 
@@ -189,7 +213,7 @@ export function renderTopHud({ state, ui }) {
 
       <nav class="top-actions" aria-label="全局操作">
         <button type="button" id="btn-open-deck" class="btn-stone" data-action="open-modal" data-modal="deck">
-          牌组 (${escapeHtml(state.player.deck.length)})
+          <span class="nav-btn-emoji" aria-hidden="true">🃏</span> 牌组 (${escapeHtml(state.player.deck.length)})
         </button>
         ${
           state.screen !== 'map' && state.screen !== 'game_over'
@@ -203,24 +227,24 @@ export function renderTopHud({ state, ui }) {
                 data-tooltip-tag="路线预览"
                 data-tooltip-desc="随时查看当前幕完整攀登路线、当前所在位置、后续可选分支与关底首领，关闭后直接回到当前房间。"
               >
-                地图
+                <span class="nav-btn-emoji" aria-hidden="true">🗺️</span> 地图
               </button>`
             : ''
         }
         <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
-          进阶<span class="hud-btn-long">/生涯</span>
+          <span class="nav-btn-emoji" aria-hidden="true">🏆</span> 进阶<span class="hud-btn-long">/生涯</span>
         </button>
         <button type="button" id="btn-open-compendium" class="btn-stone" data-action="open-modal" data-modal="compendium">
-          图鉴
+          <span class="nav-btn-emoji" aria-hidden="true">📖</span> 图鉴
         </button>
         <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
-          词典<span class="hud-btn-long">/引导</span>
+          <span class="nav-btn-emoji" aria-hidden="true">💡</span> 词典<span class="hud-btn-long">/引导</span>
         </button>
         <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
-          设置
+          <span class="nav-btn-emoji" aria-hidden="true">⚙️</span> 设置
         </button>
         <button type="button" id="btn-new-run" class="btn-stone" data-action="new-run">
-          新的一局
+          <span class="nav-btn-emoji" aria-hidden="true">🔄</span> 新<span class="hud-btn-long">的一</span>局
         </button>
       </nav>
     </header>

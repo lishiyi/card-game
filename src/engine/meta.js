@@ -558,6 +558,7 @@ export function buildRunReportFromState(state) {
     totalDamageTaken: state.stats?.totalDamageTaken ?? 0,
     highestSingleHit: state.stats?.highestSingleHit ?? 0,
     goldEarned: state.stats?.goldEarned ?? 0,
+    combatRestarts: state.stats?.combatRestarts ?? 0,
     defeatedBy: state.stats?.defeatedBy || '',
     durationSec,
   };
@@ -600,7 +601,14 @@ export function formatShareableBattleReport(report, shareUrl = '') {
   if ((report.highestSingleHit ?? 0) > 0) {
     statBits.push(`最高单击 ${report.highestSingleHit}`);
   }
+  if ((report.combatRestarts ?? 0) > 0) {
+    statBits.push(`重启战斗 ${report.combatRestarts} 次`);
+  }
   lines.push(`⚔️ 战绩：${statBits.join(' | ')}`);
+
+  if ((report.combatRestarts ?? 0) > 0) {
+    lines.push(`🔄 备注：本局共使用「重启本场战斗」${report.combatRestarts} 次`);
+  }
 
   if (!isWin && report.defeatedBy) {
     lines.push(`🕯️ 败因：${report.defeatedBy}`);
@@ -773,6 +781,112 @@ export function recordCompletedRun(meta, state) {
   };
 }
 
+export function normalizeMetaData(parsed) {
+  const base = createDefaultMeta();
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return base;
+  const xp = Number.isFinite(parsed.xp) ? Math.max(0, parsed.xp) : 0;
+  const maxAsc = Number.isFinite(parsed.maxAscensionUnlocked)
+    ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(parsed.maxAscensionUnlocked)))
+    : 0;
+  const selChar = normalizeCharacterId(parsed.selectedCharacterId);
+  const runHistory = Array.isArray(parsed.runHistory)
+    ? parsed.runHistory.slice(0, MAX_RUN_HISTORY)
+    : [];
+  const characterProgress = createDefaultCharacterProgress();
+
+  if (
+    parsed.characterProgress &&
+    typeof parsed.characterProgress === 'object' &&
+    !Array.isArray(parsed.characterProgress)
+  ) {
+    for (const cid of CHARACTER_IDS) {
+      const src = parsed.characterProgress[cid];
+      if (!src || typeof src !== 'object') continue;
+      characterProgress[cid] = {
+        runsPlayed: Number.isFinite(src.runsPlayed) ? Math.max(0, Math.floor(src.runsPlayed)) : 0,
+        victories: Number.isFinite(src.victories) ? Math.max(0, Math.floor(src.victories)) : 0,
+        maxAscensionUnlocked: Number.isFinite(src.maxAscensionUnlocked)
+          ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(src.maxAscensionUnlocked)))
+          : 0,
+        bestFloor: Number.isFinite(src.bestFloor) ? Math.max(0, Math.floor(src.bestFloor)) : 0,
+        bestScore: Number.isFinite(src.bestScore) ? Math.max(0, Math.floor(src.bestScore)) : 0,
+      };
+    }
+  } else {
+    for (const rec of runHistory) {
+      const cid = normalizeCharacterId(rec?.characterId);
+      const entry = characterProgress[cid];
+      if (!entry) continue;
+      entry.runsPlayed += 1;
+      const floorReached = ((rec.act ?? 1) - 1) * 16 + (rec.floor ?? 0);
+      entry.bestFloor = Math.max(entry.bestFloor, floorReached);
+      if (Number.isFinite(rec.score)) {
+        entry.bestScore = Math.max(entry.bestScore, rec.score);
+      }
+      if (rec.outcome === 'victory') {
+        entry.victories += 1;
+        if (!rec.dailyDateKey && !rec.isChallenge) {
+          entry.maxAscensionUnlocked = Math.max(
+            entry.maxAscensionUnlocked,
+            Math.min(MAX_ASCENSION, Math.floor((rec.ascension ?? 0) + 1))
+          );
+        }
+      }
+    }
+    characterProgress.ironclad.maxAscensionUnlocked = Math.max(
+      characterProgress.ironclad.maxAscensionUnlocked,
+      maxAsc
+    );
+  }
+
+  const effectiveMaxAsc = Math.max(
+    maxAsc,
+    ...Object.values(characterProgress).map((p) => p.maxAscensionUnlocked ?? 0)
+  );
+  const unlockAllOverride = Boolean(parsed.unlockAllOverride);
+  const selCharMaxAsc = unlockAllOverride
+    ? MAX_ASCENSION
+    : characterProgress[selChar]?.maxAscensionUnlocked ?? 0;
+  const selAsc = Number.isFinite(parsed.selectedAscension)
+    ? Math.max(0, Math.min(selCharMaxAsc, Math.floor(parsed.selectedAscension)))
+    : 0;
+  const dailyRecords =
+    parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
+      ? parsed.dailyRecords
+      : {};
+  const loaded = {
+    xp,
+    unlockedTier: Math.max(
+      computeUnlockedTierFromXp(xp),
+      Number.isFinite(parsed.unlockedTier) ? parsed.unlockedTier : 0
+    ),
+    maxAscensionUnlocked: effectiveMaxAsc,
+    selectedAscension: selAsc,
+    selectedCharacterId: selChar,
+    characterProgress,
+    unlockAllOverride,
+    runsPlayed: Number.isFinite(parsed.runsPlayed) ? Math.max(0, Math.floor(parsed.runsPlayed)) : 0,
+    victories: Number.isFinite(parsed.victories) ? Math.max(0, Math.floor(parsed.victories)) : 0,
+    bestFloor: Number.isFinite(parsed.bestFloor) ? Math.max(0, Math.floor(parsed.bestFloor)) : 0,
+    bestScore: Number.isFinite(parsed.bestScore) ? Math.max(0, Math.floor(parsed.bestScore)) : 0,
+    totalEnemiesSlain: Number.isFinite(parsed.totalEnemiesSlain)
+      ? Math.max(0, Math.floor(parsed.totalEnemiesSlain))
+      : 0,
+    recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
+    dailyRecords,
+    runHistory,
+    compendium: parsed.compendium,
+  };
+  ensureCompendium(loaded);
+  for (const rec of runHistory) {
+    recordCompendiumDiscovery(loaded, {
+      cards: (rec?.deckSnapshot || []).map((c) => c?.cardId).filter(Boolean),
+      relics: Array.isArray(rec?.relicIds) ? rec.relicIds : [],
+    });
+  }
+  return loaded;
+}
+
 export function loadSavedMeta(storage = globalThis?.localStorage) {
   const base = createDefaultMeta();
   if (!storage) return base;
@@ -780,107 +894,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
     const raw = storage.getItem(META_STORAGE_KEY);
     if (!raw) return base;
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return base;
-    const xp = Number.isFinite(parsed.xp) ? Math.max(0, parsed.xp) : 0;
-    const maxAsc = Number.isFinite(parsed.maxAscensionUnlocked)
-      ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(parsed.maxAscensionUnlocked)))
-      : 0;
-    const selChar = normalizeCharacterId(parsed.selectedCharacterId);
-    const runHistory = Array.isArray(parsed.runHistory)
-      ? parsed.runHistory.slice(0, MAX_RUN_HISTORY)
-      : [];
-    const characterProgress = createDefaultCharacterProgress();
-
-    if (
-      parsed.characterProgress &&
-      typeof parsed.characterProgress === 'object' &&
-      !Array.isArray(parsed.characterProgress)
-    ) {
-      for (const cid of CHARACTER_IDS) {
-        const src = parsed.characterProgress[cid];
-        if (!src || typeof src !== 'object') continue;
-        characterProgress[cid] = {
-          runsPlayed: Number.isFinite(src.runsPlayed) ? Math.max(0, Math.floor(src.runsPlayed)) : 0,
-          victories: Number.isFinite(src.victories) ? Math.max(0, Math.floor(src.victories)) : 0,
-          maxAscensionUnlocked: Number.isFinite(src.maxAscensionUnlocked)
-            ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(src.maxAscensionUnlocked)))
-            : 0,
-          bestFloor: Number.isFinite(src.bestFloor) ? Math.max(0, Math.floor(src.bestFloor)) : 0,
-          bestScore: Number.isFinite(src.bestScore) ? Math.max(0, Math.floor(src.bestScore)) : 0,
-        };
-      }
-    } else {
-      // Migrate legacy save without characterProgress from history + legacy maxAscensionUnlocked
-      for (const rec of runHistory) {
-        const cid = normalizeCharacterId(rec?.characterId);
-        const entry = characterProgress[cid];
-        if (!entry) continue;
-        entry.runsPlayed += 1;
-        const floorReached = ((rec.act ?? 1) - 1) * 16 + (rec.floor ?? 0);
-        entry.bestFloor = Math.max(entry.bestFloor, floorReached);
-        if (Number.isFinite(rec.score)) {
-          entry.bestScore = Math.max(entry.bestScore, rec.score);
-        }
-        if (rec.outcome === 'victory') {
-          entry.victories += 1;
-          if (!rec.dailyDateKey && !rec.isChallenge) {
-            entry.maxAscensionUnlocked = Math.max(
-              entry.maxAscensionUnlocked,
-              Math.min(MAX_ASCENSION, Math.floor((rec.ascension ?? 0) + 1))
-            );
-          }
-        }
-      }
-      characterProgress.ironclad.maxAscensionUnlocked = Math.max(
-        characterProgress.ironclad.maxAscensionUnlocked,
-        maxAsc
-      );
-    }
-
-    const effectiveMaxAsc = Math.max(
-      maxAsc,
-      ...Object.values(characterProgress).map((p) => p.maxAscensionUnlocked ?? 0)
-    );
-    const unlockAllOverride = Boolean(parsed.unlockAllOverride);
-    const selCharMaxAsc = unlockAllOverride
-      ? MAX_ASCENSION
-      : characterProgress[selChar]?.maxAscensionUnlocked ?? 0;
-    const selAsc = Number.isFinite(parsed.selectedAscension)
-      ? Math.max(0, Math.min(selCharMaxAsc, Math.floor(parsed.selectedAscension)))
-      : 0;
-    const dailyRecords =
-      parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
-        ? parsed.dailyRecords
-        : {};
-    const loaded = {
-      xp,
-      unlockedTier: Math.max(
-        computeUnlockedTierFromXp(xp),
-        Number.isFinite(parsed.unlockedTier) ? parsed.unlockedTier : 0
-      ),
-      maxAscensionUnlocked: effectiveMaxAsc,
-      selectedAscension: selAsc,
-      selectedCharacterId: selChar,
-      characterProgress,
-      unlockAllOverride,
-      runsPlayed: Number.isFinite(parsed.runsPlayed) ? parsed.runsPlayed : 0,
-      victories: Number.isFinite(parsed.victories) ? parsed.victories : 0,
-      bestFloor: Number.isFinite(parsed.bestFloor) ? parsed.bestFloor : 0,
-      bestScore: Number.isFinite(parsed.bestScore) ? parsed.bestScore : 0,
-      totalEnemiesSlain: Number.isFinite(parsed.totalEnemiesSlain) ? parsed.totalEnemiesSlain : 0,
-      recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
-      dailyRecords,
-      runHistory,
-      compendium: parsed.compendium,
-    };
-    ensureCompendium(loaded);
-    for (const rec of runHistory) {
-      recordCompendiumDiscovery(loaded, {
-        cards: (rec?.deckSnapshot || []).map((c) => c?.cardId).filter(Boolean),
-        relics: Array.isArray(rec?.relicIds) ? rec.relicIds : [],
-      });
-    }
-    return loaded;
+    return normalizeMetaData(parsed);
   } catch {
     return base;
   }
@@ -893,4 +907,139 @@ export function saveMeta(meta, storage = globalThis?.localStorage) {
   } catch {
     // Ignore storage quota errors
   }
+}
+
+export const SAVE_BACKUP_APP_ID = 'slay-the-spire-lite';
+export const SAVE_BACKUP_SCHEMA_VERSION = 1;
+
+export function exportSaveBackup({ meta, settings = null, activeRun = null } = {}) {
+  const safeMeta = normalizeMetaData(meta);
+  const safeRun =
+    activeRun &&
+    typeof activeRun === 'object' &&
+    activeRun.screen !== 'game_over' &&
+    activeRun.player &&
+    Array.isArray(activeRun.player.deck) &&
+    Array.isArray(activeRun.map)
+      ? structuredClone(activeRun)
+      : null;
+
+  return JSON.stringify(
+    {
+      app: SAVE_BACKUP_APP_ID,
+      schemaVersion: SAVE_BACKUP_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      meta: structuredClone(safeMeta),
+      settings: settings && typeof settings === 'object' ? { ...settings } : null,
+      activeRun: safeRun,
+    },
+    null,
+    2
+  );
+}
+
+export function validateSaveBackup(rawInput, expectedFloors = 16) {
+  let obj = rawInput;
+  if (typeof rawInput === 'string') {
+    const trimmed = rawInput.trim();
+    if (!trimmed) {
+      return { ok: false, reason: '存档内容为空，请粘贴或选择有效的 JSON 存档文件。' };
+    }
+    try {
+      obj = JSON.parse(trimmed);
+    } catch {
+      return { ok: false, reason: 'JSON 格式解析失败，请确认粘贴了完整的导出内容。' };
+    }
+  }
+
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return { ok: false, reason: '存档结构无效：顶层必须为 JSON 对象。' };
+  }
+  if (obj.app !== SAVE_BACKUP_APP_ID) {
+    return {
+      ok: false,
+      reason: '这不是《杀戮尖塔 · 简明版》的存档备份文件（缺少有效应用标识）。',
+    };
+  }
+  if (
+    !Number.isInteger(obj.schemaVersion) ||
+    obj.schemaVersion < 1 ||
+    obj.schemaVersion > SAVE_BACKUP_SCHEMA_VERSION
+  ) {
+    return {
+      ok: false,
+      reason: `不支持的存档格式版本（v${String(obj.schemaVersion ?? '未知')}）。`,
+    };
+  }
+  if (!obj.meta || typeof obj.meta !== 'object' || Array.isArray(obj.meta)) {
+    return { ok: false, reason: '存档缺少生涯数据字段（meta）。' };
+  }
+  if (obj.meta.xp !== undefined && (!Number.isFinite(obj.meta.xp) || obj.meta.xp < 0)) {
+    return { ok: false, reason: '存档生涯历练（xp）数值无效。' };
+  }
+  if (obj.meta.runHistory !== undefined && !Array.isArray(obj.meta.runHistory)) {
+    return { ok: false, reason: '存档历史记录（runHistory）格式损坏。' };
+  }
+
+  let validatedRun = null;
+  if (obj.activeRun !== null && obj.activeRun !== undefined) {
+    const r = obj.activeRun;
+    if (
+      !r ||
+      typeof r !== 'object' ||
+      !r.player ||
+      typeof r.player !== 'object' ||
+      !Array.isArray(r.player.deck) ||
+      !Array.isArray(r.map) ||
+      r.map.length !== expectedFloors ||
+      typeof r.screen !== 'string' ||
+      !Number.isFinite(r.player.hp) ||
+      !Number.isFinite(r.player.maxHp)
+    ) {
+      return { ok: false, reason: '存档中的进行中对局数据（activeRun）结构损坏或不兼容。' };
+    }
+    validatedRun = structuredClone(r);
+  }
+
+  let validatedSettings = null;
+  if (obj.settings !== null && obj.settings !== undefined) {
+    if (typeof obj.settings !== 'object' || Array.isArray(obj.settings)) {
+      return { ok: false, reason: '存档中的设置项（settings）格式无效。' };
+    }
+    const s = obj.settings;
+    validatedSettings = {
+      soundEnabled: typeof s.soundEnabled === 'boolean' ? s.soundEnabled : true,
+      volume: Number.isFinite(s.volume) ? Math.max(0, Math.min(100, Math.round(s.volume))) : 65,
+      animSpeed:
+        s.animSpeed === 'normal' || s.animSpeed === 'fast' || s.animSpeed === 'off'
+          ? s.animSpeed
+          : 'normal',
+      showDamageNumbers: typeof s.showDamageNumbers === 'boolean' ? s.showDamageNumbers : true,
+      tutorialDismissed: Boolean(s.tutorialDismissed),
+      mobileTapConfirm: Boolean(s.mobileTapConfirm),
+    };
+  }
+
+  const normalizedMeta = normalizeMetaData(obj.meta);
+  const comp = ensureCompendium(normalizedMeta);
+  const compendiumCount =
+    comp.cards.length + comp.relics.length + comp.potions.length + comp.enemies.length;
+
+  return {
+    ok: true,
+    backup: {
+      meta: normalizedMeta,
+      settings: validatedSettings,
+      activeRun: validatedRun,
+      exportedAt: typeof obj.exportedAt === 'string' ? obj.exportedAt : null,
+    },
+    summary: {
+      runsPlayed: normalizedMeta.runsPlayed ?? 0,
+      victories: normalizedMeta.victories ?? 0,
+      xp: normalizedMeta.xp ?? 0,
+      compendiumCount,
+      historyCount: normalizedMeta.runHistory?.length ?? 0,
+      hasActiveRun: Boolean(validatedRun),
+    },
+  };
 }

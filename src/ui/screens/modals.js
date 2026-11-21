@@ -10,7 +10,7 @@ import { canUpgradeCard, CARD_LIBRARY, getCardCharacter, getCardStats } from '..
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
 import { ENEMY_TEMPLATES } from '../../data/enemies.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
-import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
   getCurrentBossName,
@@ -213,6 +213,7 @@ function renderMetaModal({ state, meta, ui }) {
                     }
                     <span class="history-floor">第 ${escapeHtml(rec.act ?? 1)} 幕 · F${escapeHtml(rec.floor ?? 1)}</span>
                     ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
+                    ${(rec.combatRestarts ?? 0) > 0 ? `<span class="history-badge restart">🔄 重启 ${escapeHtml(rec.combatRestarts)}次</span>` : ''}
                     <span class="history-meta">牌组 ${escapeHtml(rec.deckSize ?? 0)} · 遗物 ${escapeHtml(rec.relicCount ?? 0)} · 斩敌 ${escapeHtml(rec.enemiesSlain ?? 0)}</span>
                     ${dateLabel ? `<span class="history-date">${escapeHtml(dateLabel)}</span>` : ''}
                   </div>
@@ -407,14 +408,15 @@ function renderHistoryDetailModal({ meta, ui }) {
       const r = RELIC_LIBRARY[rid];
       if (!r) return '';
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+      const icon = getRelicIcon(rid);
       return `<span
         class="relic-badge tier-${escapeHtml(r.tier)}"
         tabindex="0"
-        data-tooltip-title="${escapeHtml(r.name)}"
+        data-tooltip-title="${escapeHtml(`${icon} ${r.name}`)}"
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(r.description)}"
         data-tooltip-tone="relic"
-      >${escapeHtml(r.name)}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(r.name)}</span>`;
     })
     .join('');
 
@@ -466,6 +468,8 @@ function renderHistoryDetailModal({ meta, ui }) {
     )
     .join('');
 
+  const histRestarts = rec.combatRestarts ?? 0;
+
   return `
     <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-sheet" id="history-detail-modal">
@@ -493,6 +497,7 @@ function renderHistoryDetailModal({ meta, ui }) {
                   <span class="character-hud-pill char-${escapeHtml(recCharId)}">${escapeHtml(recCharName)}</span>
                   ${isDaily ? `<span class="daily-pill">每日挑战 ${escapeHtml(rec.dailyDateKey)}</span>` : ''}
                   ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
+                  ${histRestarts > 0 ? `<span class="restart-count-pill">🔄 重启 ${escapeHtml(histRestarts)} 次</span>` : ''}
                   <code class="seed-code-tag">${escapeHtml(sCode)}</code>
                 </div>
                 ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}
@@ -528,8 +533,8 @@ function renderHistoryDetailModal({ meta, ui }) {
                 <strong class="report-stat-val">${escapeHtml((rec.totalBlockGained ?? 0).toLocaleString())}</strong>
               </div>
               <div class="report-stat-cell">
-                <span class="report-stat-label">牌组 / 遗物</span>
-                <strong class="report-stat-val">${escapeHtml(rec.deckSize ?? 0)} 张 / ${escapeHtml(rec.relicCount ?? 0)} 件</strong>
+                <span class="report-stat-label">${histRestarts > 0 ? '牌组 / 重启战斗' : '牌组 / 遗物'}</span>
+                <strong class="report-stat-val">${escapeHtml(rec.deckSize ?? 0)} 张 / ${histRestarts > 0 ? `<small class="stat-warn">重启 ${escapeHtml(histRestarts)} 次</small>` : `${escapeHtml(rec.relicCount ?? 0)} 件`}</strong>
               </div>
             </div>
 
@@ -581,7 +586,7 @@ function renderHistoryDetailModal({ meta, ui }) {
   `;
 }
 
-function renderSettingsModal({ settings }) {
+function renderSettingsModal({ settings, ui }) {
   const speedButtonsHtml = ANIM_SPEED_OPTIONS.map((opt) => {
     const active = settings.animSpeed === opt.id;
     return `
@@ -597,13 +602,17 @@ function renderSettingsModal({ settings }) {
     `;
   }).join('');
 
+  const backupFeedback = ui?.backupFeedback || '';
+  const backupTone = ui?.backupFeedbackTone === 'warn' ? 'warn' : 'ok';
+  const backupText = ui?.backupJsonDraft || '';
+
   return `
     <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-sheet modal-medium-sheet" id="settings-modal">
         <div class="modal-header">
           <div>
-            <h2 id="modal-title" class="stage-heading">游戏设置</h2>
-            <p class="stage-subtitle">自定义合成音效、音量大小、出牌与受击动画速度、移动端防误触及飘字反馈（自动保存在本地）。</p>
+            <h2 id="modal-title" class="stage-heading">⚙️ 游戏设置</h2>
+            <p class="stage-subtitle">自定义音效、动画速度、防误触体验，并支持本地存档 JSON 一键备份导出与跨设备导入迁移。</p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
@@ -696,6 +705,50 @@ function renderSettingsModal({ settings }) {
               <button type="button" id="btn-reset-tutorial" class="btn-stone" data-action="reset-tutorial">
                 重新开启新手提示
               </button>
+            </div>
+
+            <div class="settings-backup-box" id="settings-backup-box">
+              <div class="settings-backup-head">
+                <div>
+                  <div class="settings-label">💾 存档备份与迁移（导出 / 导入）</div>
+                  <div class="settings-desc">包含进阶解锁、生涯战绩、图鉴进度、设置偏好与当前进行中的对局；导入前自动执行格式与字段完整性校验。</div>
+                </div>
+              </div>
+              <div class="settings-backup-actions">
+                <button type="button" id="btn-export-save-file" class="btn-brass btn-compact" data-action="export-save-file">
+                  💾 下载存档 (.json)
+                </button>
+                <button type="button" id="btn-copy-save-json" class="btn-stone btn-compact" data-action="copy-save-json">
+                  📋 复制存档 JSON
+                </button>
+                <button type="button" id="btn-trigger-import-file" class="btn-stone btn-compact" data-action="trigger-import-save-file">
+                  📂 选择文件导入
+                </button>
+                <input
+                  type="file"
+                  id="input-import-save-file"
+                  accept=".json,application/json"
+                  style="display:none;"
+                  aria-label="选择 JSON 存档文件"
+                />
+              </div>
+              <div class="settings-backup-paste">
+                <textarea
+                  id="input-import-save-json"
+                  class="spire-textarea"
+                  rows="3"
+                  placeholder="也可在此粘贴已导出的 JSON 存档文本，然后点击下方「校验并导入存档」……"
+                  aria-label="粘贴存档 JSON 文本"
+                >${escapeHtml(backupText)}</textarea>
+                <button type="button" id="btn-import-save-json" class="btn-stone btn-compact" data-action="import-save-json">
+                  📥 校验并导入存档
+                </button>
+              </div>
+              ${
+                backupFeedback
+                  ? `<div id="settings-backup-feedback" class="settings-backup-feedback tone-${backupTone}" role="status">${escapeHtml(backupFeedback)}</div>`
+                  : ''
+              }
             </div>
           </div>
         </div>
@@ -888,6 +941,68 @@ function renderScryChoiceModal({ state }) {
   `;
 }
 
+function renderDiscardPileChoiceModal({ state }) {
+  const pending = state?.combat?.pendingCardChoice;
+  if (
+    !pending ||
+    (pending.mode !== 'discard_to_draw' && pending.mode !== 'retrieve_discard_retain')
+  ) {
+    return '';
+  }
+  const candidates = Array.isArray(pending.candidates) ? pending.candidates : [];
+  const selectedSet = new Set(pending.selectedIds || []);
+  const isMeditate = pending.mode === 'retrieve_discard_retain';
+
+  const heading = isMeditate
+    ? `冥想 · 从弃牌堆取回并保留（${pending.sourceName}）`
+    : `弃牌置顶 · ${pending.sourceName}`;
+  const subtitle = isMeditate
+    ? `点击选择最多 ${pending.count} 张弃牌加入手牌并赋予本回合保留（已选 ${selectedSet.size}/${pending.count}），完成后点击确认。`
+    : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
+
+  const cardsHtml = candidates
+    .map((c, idx) =>
+      renderCardHtml(c, {
+        idPrefix: 'discard-choice-card',
+        action: isMeditate ? 'toggle-discard-choice-card' : 'resolve-card-choice',
+        playable: true,
+        selected: isMeditate && selectedSet.has(c.instanceId),
+        discardPickSelectable: true,
+        discardPickSelected: isMeditate && selectedSet.has(c.instanceId),
+        discardPickLabel: isMeditate ? '点击取回保留' : '点击置于牌堆顶',
+        hotkey: idx < 9 ? idx + 1 : undefined,
+        combatContext: {
+          player: state.player,
+          combat: state.combat,
+        },
+      })
+    )
+    .join('');
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop" data-action="noop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-sheet scry-modal-sheet" id="discard-choice-modal" data-choice-mode="${escapeHtml(pending.mode)}">
+        <div class="modal-header scry-modal-header">
+          <div class="scry-header-copy">
+            <h2 id="modal-title" class="stage-heading">${escapeHtml(heading)}</h2>
+            <p class="stage-subtitle">${escapeHtml(subtitle)}</p>
+          </div>
+          ${
+            isMeditate
+              ? `<button type="button" id="btn-confirm-discard-choice" class="btn-brass scry-confirm-btn" data-action="confirm-discard-choice">
+                  确认取回（已选 ${escapeHtml(selectedSet.size)}/${escapeHtml(pending.count)}）${pending.endTurnAfter ? '并结束回合' : ''}
+                </button>`
+              : ''
+          }
+        </div>
+        <div class="modal-body">
+          <div class="card-showcase scry-showcase" id="discard-choice-card-list">${cardsHtml}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCompendiumModal({ meta, ui }) {
   const comp = ensureCompendium(meta);
   const revealAll = Boolean(meta?.unlockAllOverride);
@@ -1071,7 +1186,7 @@ function renderCompendiumModal({ meta, ui }) {
         return `
           <article class="compendium-entry-card" data-compendium-id="${escapeHtml(relicId)}" data-discovered="true">
             <div class="compendium-entry-head">
-              <span class="compendium-entry-name">${escapeHtml(r.name)}</span>
+              <span class="compendium-entry-name"><span class="relic-icon" aria-hidden="true">${escapeHtml(getRelicIcon(relicId))}</span> ${escapeHtml(r.name)}</span>
               <div class="compendium-entry-badges">
                 <span class="relic-badge tier-${escapeHtml(r.tier)}">${escapeHtml(tierLabel)}</span>
                 <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
@@ -1206,12 +1321,14 @@ function renderCompendiumModal({ meta, ui }) {
 
 export function renderModal({ state, meta, settings, ui }) {
   if (!ui.modal) {
-    if (
-      state?.screen === 'combat' &&
-      state?.combat?.status === 'ongoing' &&
-      state?.combat?.pendingCardChoice?.mode === 'scry'
-    ) {
-      return renderScryChoiceModal({ state });
+    if (state?.screen === 'combat' && state?.combat?.status === 'ongoing') {
+      const pendingMode = state?.combat?.pendingCardChoice?.mode;
+      if (pendingMode === 'scry') {
+        return renderScryChoiceModal({ state });
+      }
+      if (pendingMode === 'discard_to_draw' || pendingMode === 'retrieve_discard_retain') {
+        return renderDiscardPileChoiceModal({ state });
+      }
     }
     return '';
   }
@@ -1229,7 +1346,7 @@ export function renderModal({ state, meta, settings, ui }) {
   }
 
   if (ui.modal === 'settings') {
-    return renderSettingsModal({ settings });
+    return renderSettingsModal({ settings, ui });
   }
 
   if (ui.modal === 'help') {
@@ -1419,22 +1536,15 @@ export function renderModal({ state, meta, settings, ui }) {
   let cardAction = 'noop';
   let playable = false;
   let showUpgradePreview = false;
+  const isDrawPile = ui.modal === 'draw';
 
   if (ui.modal === 'deck') {
-    title = `当前总牌组（${state.player.deck.length} 张）`;
+    title = `🃏 当前总牌组（${state.player.deck.length} 张）`;
     cards = state.player.deck;
   } else if (ui.modal === 'draw' && state.combat) {
     title = `抽牌堆（${state.combat.drawPile.length} 张）`;
-    subtitle = '为保持策略公平性，抽牌堆按类型与费用排序展示（非实际抽牌顺序）。';
-    cards = [...state.combat.drawPile].sort((a, b) => {
-      const sa = getCardStats(a);
-      const sb = getCardStats(b);
-      return (
-        sa.type.localeCompare(sb.type) ||
-        String(sa.cost).localeCompare(String(sb.cost)) ||
-        sa.cardId.localeCompare(sb.cardId)
-      );
-    });
+    subtitle = '为保持策略公平性，抽牌堆不会按真实抽牌顺序展示。';
+    cards = state.combat.drawPile;
   } else if (ui.modal === 'discard' && state.combat) {
     title = `弃牌堆（${state.combat.discardPile.length} 张）`;
     cards = state.combat.discardPile;
@@ -1443,7 +1553,7 @@ export function renderModal({ state, meta, settings, ui }) {
     cards = state.combat.exhaustPile;
   } else if (ui.modal === 'smith') {
     cards = getUpgradableDeckCards(state);
-    title = `铁砧锻造 · 选择 1 张卡牌永久升级（可选 ${cards.length} 张）`;
+    title = `🔨 铁砧锻造 · 选择 1 张卡牌永久升级（可选 ${cards.length} 张）`;
     subtitle = '底部预览中以绿色突出“升级后”及发生变化的数值与效果。点击卡牌即可完成锻造。';
     cardAction = 'confirm-smith';
     playable = true;
@@ -1454,18 +1564,167 @@ export function renderModal({ state, meta, settings, ui }) {
     subtitle = '点击任意一张卡牌将其从牌组中永久移除。';
     cardAction = 'confirm-shop-purge';
     playable = true;
+  } else if (ui.modal === 'rest_toke') {
+    cards = state.player.deck;
+    title = `🪈 和平烟斗 · 选择 1 张卡牌永久移除（共 ${cards.length} 张）`;
+    subtitle = '点击任意一张卡牌将其从牌组中永久移除（合并堆点击将移除其中 1 张）。';
+    cardAction = 'confirm-rest-toke';
+    playable = true;
   }
 
-  const cardsHtml =
+  // Deck / pile composition summary
+  let atkCount = 0;
+  let sklCount = 0;
+  let pwrCount = 0;
+  let curseStatusCount = 0;
+  let upgradedCount = 0;
+  let costSum = 0;
+  let costCardCount = 0;
+  for (const c of cards) {
+    const st = getCardStats(c);
+    if (st.type === 'attack') atkCount += 1;
+    else if (st.type === 'skill') sklCount += 1;
+    else if (st.type === 'power') pwrCount += 1;
+    else curseStatusCount += 1;
+    if (c.upgraded) upgradedCount += 1;
+    if (!st.unplayable && !st.isXCost && typeof st.cost === 'number') {
+      costSum += st.cost;
+      costCardCount += 1;
+    }
+  }
+  const avgCostText = costCardCount > 0 ? (costSum / costCardCount).toFixed(2) : '—';
+
+  const activeSort =
+    isDrawPile && (!ui.deckSort || ui.deckSort === 'order')
+      ? 'type'
+      : ui.deckSort || (isDrawPile ? 'type' : 'order');
+  const stackCopies = ui.deckStack !== false;
+
+  const TYPE_SORT_WEIGHT = { attack: 0, skill: 1, power: 2, status: 3, curse: 4 };
+  const RARITY_SORT_WEIGHT = {
+    rare: 0,
+    uncommon: 1,
+    common: 2,
+    starter: 3,
+    special: 4,
+    curse: 5,
+    status: 6,
+  };
+
+  const indexedCards = cards.map((card, origIdx) => ({ card, origIdx, stats: getCardStats(card) }));
+  const costKey = (st) =>
+    st.unplayable ? 99 : st.isXCost ? 50 : typeof st.cost === 'number' ? st.cost : 98;
+
+  indexedCards.sort((a, b) => {
+    if (activeSort === 'order') {
+      return a.origIdx - b.origIdx;
+    }
+    if (activeSort === 'type') {
+      return (
+        (TYPE_SORT_WEIGHT[a.stats.type] ?? 9) - (TYPE_SORT_WEIGHT[b.stats.type] ?? 9) ||
+        costKey(a.stats) - costKey(b.stats) ||
+        a.stats.name.localeCompare(b.stats.name, 'zh-CN')
+      );
+    }
+    if (activeSort === 'cost') {
+      return (
+        costKey(a.stats) - costKey(b.stats) ||
+        (TYPE_SORT_WEIGHT[a.stats.type] ?? 9) - (TYPE_SORT_WEIGHT[b.stats.type] ?? 9) ||
+        a.stats.name.localeCompare(b.stats.name, 'zh-CN')
+      );
+    }
+    if (activeSort === 'rarity') {
+      return (
+        (RARITY_SORT_WEIGHT[a.stats.rarity] ?? 9) - (RARITY_SORT_WEIGHT[b.stats.rarity] ?? 9) ||
+        (TYPE_SORT_WEIGHT[a.stats.type] ?? 9) - (TYPE_SORT_WEIGHT[b.stats.type] ?? 9) ||
+        a.stats.name.localeCompare(b.stats.name, 'zh-CN')
+      );
+    }
+    return a.origIdx - b.origIdx;
+  });
+
+  const displayItems = [];
+  if (stackCopies) {
+    const bucketMap = new Map();
+    for (const entry of indexedCards) {
+      const c = entry.card;
+      const key = `${c.cardId}|${c.upgraded ? '1' : '0'}|${c.combatDamageMod ?? 0}|${c.combatBlockMod ?? 0}|${c.retainedCostDiscount ?? 0}|${c.combatCost ?? ''}`;
+      const existing = bucketMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        const item = { card: c, count: 1 };
+        bucketMap.set(key, item);
+        displayItems.push(item);
+      }
+    }
+  } else {
+    for (const entry of indexedCards) {
+      displayItems.push({ card: entry.card, count: 1 });
+    }
+  }
+
+  const sortOptions = [
+    ...(isDrawPile ? [] : [{ id: 'order', label: '获得顺序' }]),
+    { id: 'type', label: '按类型' },
+    { id: 'cost', label: '按费用' },
+    { id: 'rarity', label: '按稀有度' },
+  ];
+
+  const sortChipsHtml = sortOptions
+    .map(
+      (opt) => `
+        <button
+          type="button"
+          id="btn-deck-sort-${escapeHtml(opt.id)}"
+          class="filter-chip ${activeSort === opt.id ? 'active' : ''}"
+          data-action="set-deck-sort"
+          data-sort="${escapeHtml(opt.id)}"
+        >${escapeHtml(opt.label)}</button>
+      `
+    )
+    .join('');
+
+  const deckToolbarHtml =
     cards.length > 0
-      ? cards
-          .map((c) =>
-            renderCardHtml(c, {
+      ? `
+        <div class="deck-modal-toolbar" id="deck-modal-toolbar">
+          <div class="deck-stats-bar" id="deck-stats-bar">
+            <span class="deck-stat-chip stat-attack">⚔️ 攻击 <strong>${escapeHtml(atkCount)}</strong></span>
+            <span class="deck-stat-chip stat-skill">🛡️ 技能 <strong>${escapeHtml(sklCount)}</strong></span>
+            <span class="deck-stat-chip stat-power">⚡ 能力 <strong>${escapeHtml(pwrCount)}</strong></span>
+            ${
+              curseStatusCount > 0
+                ? `<span class="deck-stat-chip stat-curse">💀 诅咒/状态 <strong>${escapeHtml(curseStatusCount)}</strong></span>`
+                : ''
+            }
+            <span class="deck-stat-chip stat-cost">📈 均费 <strong>${escapeHtml(avgCostText)}</strong></span>
+            <span class="deck-stat-chip stat-upg">✨ 已升级 <strong>${escapeHtml(upgradedCount)}</strong></span>
+          </div>
+          <div class="deck-controls-bar">
+            <div class="glossary-filter-chips" role="group" aria-label="排序方式">${sortChipsHtml}</div>
+            <button
+              type="button"
+              id="btn-toggle-deck-stack"
+              class="filter-chip ${stackCopies ? 'active' : ''}"
+              data-action="toggle-deck-stack"
+            >${stackCopies ? '✓ 合并同名 (×N)' : '展开全部单张'}</button>
+          </div>
+        </div>
+      `
+      : '';
+
+  const cardsHtml =
+    displayItems.length > 0
+      ? displayItems
+          .map((item) =>
+            renderCardHtml(item.card, {
               idPrefix: 'modal-card',
               action: cardAction,
               playable,
               disabled: !playable,
               showUpgradePreview,
+              stackCount: stackCopies ? item.count : undefined,
             })
           )
           .join('')
@@ -1482,6 +1741,7 @@ export function renderModal({ state, meta, settings, ui }) {
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
         <div class="modal-body">
+          ${deckToolbarHtml}
           <div class="card-showcase">${cardsHtml}</div>
         </div>
       </div>

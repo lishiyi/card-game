@@ -2186,6 +2186,18 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: null, unplayable: true, endOfTurnLoseHp: 2 },
     upgraded: null,
   },
+  parasite: {
+    id: 'parasite',
+    name: '寄生',
+    character: 'neutral',
+    type: 'curse',
+    rarity: 'curse',
+    target: 'none',
+    unplayable: true,
+    price: 0,
+    base: { cost: null, unplayable: true, onRemoveLoseMaxHp: 3 },
+    upgraded: null,
+  },
 
   // === P1 Expansion: Ironclad (+10) ===
   headbutt: {
@@ -2964,6 +2976,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.endOfTurnWeak) {
     parts.push(`回合结束时若仍在手牌，获得 ${stats.endOfTurnWeak} 层虚弱。`);
   }
+  if (stats.onRemoveLoseMaxHp) {
+    parts.push(`若从牌组中移除本牌，失去 ${stats.onRemoveLoseMaxHp} 点最大生命值。`);
+  }
   if (stats.loseHp) {
     parts.push(`失去 ${stats.loseHp} 点生命。`);
   }
@@ -3029,7 +3044,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push('将弃牌堆洗入抽牌堆。');
   }
   if (stats.retrieveDiscardRetain) {
-    parts.push(`从弃牌堆取回最多 ${stats.retrieveDiscardRetain} 张牌加入手牌并赋予本回合保留。`);
+    parts.push(`从弃牌堆选择最多 ${stats.retrieveDiscardRetain} 张牌放入手牌并赋予本回合保留。`);
   }
   if (stats.doubleBlock) {
     parts.push('将你当前的格挡值翻倍。');
@@ -3159,7 +3174,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     );
   }
   if (stats.putTopDiscardToDraw) {
-    parts.push('将弃牌堆顶的 1 张牌放回抽牌堆顶。');
+    parts.push('从弃牌堆选择 1 张牌置于抽牌堆顶。');
   }
   if (stats.reduceCostPerHpLossThisCombat) {
     const lostCount = combat?.hpLossCountThisCombat ?? 0;
@@ -3462,7 +3477,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push(`每回合开始时额外获得 ${stats.applySelfStatuses.berserk} 点能量。`);
     }
     if (stats.applySelfStatuses.wellLaidPlans) {
-      parts.push(`每回合结束时自动保留手中最多 ${stats.applySelfStatuses.wellLaidPlans} 张非状态/诅咒牌。`);
+      parts.push(`回合结束时，你可以选择保留手中最多 ${stats.applySelfStatuses.wellLaidPlans} 张牌。`);
     }
     if (stats.applySelfStatuses.phantasmal) {
       parts.push('下回合你打出的所有攻击牌造成双倍伤害！');

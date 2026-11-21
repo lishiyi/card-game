@@ -58,6 +58,10 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.upgradeSelectable ? 'upgrade-selectable' : '',
     options.scrySelectable ? 'scry-selectable' : '',
     options.scryMarkedDiscard ? 'scry-marked-discard' : '',
+    options.retainSelectable ? 'retain-selectable' : '',
+    options.retainSelected ? 'retain-selected' : '',
+    options.discardPickSelectable ? 'discard-pick-selectable' : '',
+    options.discardPickSelected ? 'discard-pick-selected' : '',
     typeof options.dealIndex === 'number' ? 'card-deal-in' : '',
   ]
     .filter(Boolean)
@@ -116,23 +120,31 @@ export function renderCardHtml(cardInstance, options = {}) {
     ? options.scryMarkedDiscard
       ? '✕ 将弃置'
       : '✓ 留在牌堆顶'
-    : options.exhaustSelectable
-      ? '点击消耗'
-      : options.upgradeSelectable
-        ? '点击升级'
-        : options.discardSelectable
-          ? options.discardSynergy
-            ? '✦ 弃置触发'
-            : '点击弃置'
-          : medKitActive
-            ? '消耗打出'
-            : stats.unplayable
-              ? '不可打出'
-              : stats.target === 'all_enemies'
-                ? '全体目标'
-                : stats.target === 'enemy'
-                  ? '单体目标'
-                  : '自身';
+    : options.retainSelectable
+      ? options.retainSelected
+        ? '✦ 将保留'
+        : '点击保留'
+      : options.discardPickSelectable
+        ? options.discardPickSelected
+          ? '✦ 已选取回'
+          : options.discardPickLabel || '点击选择'
+        : options.exhaustSelectable
+          ? '点击消耗'
+          : options.upgradeSelectable
+            ? '点击升级'
+            : options.discardSelectable
+              ? options.discardSynergy
+                ? '✦ 弃置触发'
+                : '点击弃置'
+              : medKitActive
+                ? '消耗打出'
+                : stats.unplayable
+                  ? '不可打出'
+                  : stats.target === 'all_enemies'
+                    ? '全体目标'
+                    : stats.target === 'enemy'
+                      ? '单体目标'
+                      : '自身';
 
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';

@@ -59,6 +59,9 @@ jobs:
           mkdir -p _site
           cp index.html manifest.webmanifest sw.js _site/
           cp -r styles src icons _site/
+          BUILD_VER="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          sed -i "s/__SW_CACHE_VERSION__/${BUILD_VER}/g" _site/sw.js
+          echo "Injected SW cache version: ${BUILD_VER}"
           node scripts/build-standalone.mjs _site/slay_the_spire_lite.html
           touch _site/.nojekyll
 

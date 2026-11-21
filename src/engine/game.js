@@ -18,12 +18,14 @@ import {
   TOTAL_FLOORS,
 } from '../data/events.js';
 import {
+  CAMPFIRE_RELIC_IDS,
   getAvailablePotionIds,
   getRelicPoolsForCharacter,
   POTION_LIBRARY,
   RELIC_LIBRARY,
 } from '../data/relics.js';
 import {
+  confirmPendingCardChoice,
   confirmScryChoice,
   discardHandCard,
   endPlayerTurn,
@@ -33,6 +35,7 @@ import {
   resolveCardChoice,
   restartCombat,
   startCombat,
+  togglePendingCardChoice,
   toggleScryChoice,
   usePotion,
 } from './combat.js';
@@ -208,9 +211,11 @@ export function createNewRun(options = {}) {
     visitedEdges: [],
     lastEncounterId: null,
     lastEliteId: null,
+    recentEncounterIds: [],
+    recentEliteIds: [],
     visitedEventIds: [],
     neowState: null,
-    relicCounters: { happy_flower: 0, incense_burner: 0 },
+    relicCounters: { happy_flower: 0, incense_burner: 0, girya: 0 },
     eventCombatReward: null,
     player: {
       name: charDef.name,
@@ -254,6 +259,7 @@ export function createNewRun(options = {}) {
       highestSingleHit: 0,
       goldEarned: 0,
       colorlessBought: 0,
+      combatRestarts: 0,
       defeatedBy: '',
       startedAt: Date.now(),
     },
@@ -421,7 +427,15 @@ function rollChestProfile(state) {
 
 function rollUnownedRelicId(state, source = 'elite', tierOddsOverride = null) {
   const { relics } = getUnlockedPools(state);
-  const unowned = (pool) => (Array.isArray(pool) ? pool.filter((id) => !hasRelic(state, id)) : []);
+  const ownedCampfireCount = CAMPFIRE_RELIC_IDS.filter((id) => hasRelic(state, id)).length;
+  const unowned = (pool) =>
+    Array.isArray(pool)
+      ? pool.filter(
+          (id) =>
+            !hasRelic(state, id) &&
+            !(ownedCampfireCount >= 2 && CAMPFIRE_RELIC_IDS.includes(id))
+        )
+      : [];
 
   if (source === 'shop_exclusive') {
     const shopPool = unowned(relics.shop);
@@ -828,18 +842,40 @@ export function selectMapNode(state, nodeId) {
               : node.floor <= 6
                 ? ENCOUNTERS.normal
                 : ENCOUNTERS.hardNormal;
-      const nonRepeat = pool.filter((e) => e.id !== state.lastEncounterId);
-      const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : pool);
+      if (!Array.isArray(state.recentEncounterIds)) {
+        state.recentEncounterIds = state.lastEncounterId ? [state.lastEncounterId] : [];
+      }
+      const recent2 = state.recentEncounterIds.slice(-2);
+      let candidates = pool.filter((e) => !recent2.includes(e.id));
+      if (candidates.length === 0) {
+        candidates = pool.filter((e) => e.id !== state.lastEncounterId);
+      }
+      const encounter = pickRandom(state, candidates.length > 0 ? candidates : pool);
       state.lastEncounterId = encounter.id;
+      state.recentEncounterIds.push(encounter.id);
+      if (state.recentEncounterIds.length > 4) {
+        state.recentEncounterIds = state.recentEncounterIds.slice(-4);
+      }
       startCombat(state, encounter, 'normal', transitionCombatVictory);
       return { ok: true, screen: state.screen };
     }
     case 'elite': {
       const elitePool =
         act >= 3 ? ENCOUNTERS.act3Elite : act >= 2 ? ENCOUNTERS.act2Elite : ENCOUNTERS.elite;
-      const nonRepeat = elitePool.filter((e) => e.id !== state.lastEliteId);
-      const encounter = pickRandom(state, nonRepeat.length > 0 ? nonRepeat : elitePool);
+      if (!Array.isArray(state.recentEliteIds)) {
+        state.recentEliteIds = state.lastEliteId ? [state.lastEliteId] : [];
+      }
+      const recent2Elites = state.recentEliteIds.slice(-2);
+      let eliteCandidates = elitePool.filter((e) => !recent2Elites.includes(e.id));
+      if (eliteCandidates.length === 0) {
+        eliteCandidates = elitePool.filter((e) => e.id !== state.lastEliteId);
+      }
+      const encounter = pickRandom(state, eliteCandidates.length > 0 ? eliteCandidates : elitePool);
       state.lastEliteId = encounter.id;
+      state.recentEliteIds.push(encounter.id);
+      if (state.recentEliteIds.length > 4) {
+        state.recentEliteIds = state.recentEliteIds.slice(-4);
+      }
       state.lastEncounterId = encounter.id;
       startCombat(state, encounter, 'elite', transitionCombatVictory);
       return { ok: true, screen: state.screen };
@@ -936,6 +972,14 @@ export function runDiscardHandCard(state, instanceId) {
 
 export function runResolveCardChoice(state, instanceId) {
   return resolveCardChoice(state, instanceId, transitionCombatVictory);
+}
+
+export function runTogglePendingCardChoice(state, instanceId) {
+  return togglePendingCardChoice(state, instanceId);
+}
+
+export function runConfirmPendingCardChoice(state, explicitIds = null) {
+  return confirmPendingCardChoice(state, explicitIds, transitionCombatVictory);
 }
 
 export function runInitiateScry(state, amount, sourceName = '预见') {
@@ -1090,6 +1134,8 @@ export function proceedToNextAct(state) {
   state.visitedEdges = [];
   state.lastEncounterId = null;
   state.lastEliteId = null;
+  state.recentEncounterIds = [];
+  state.recentEliteIds = [];
   state.bossReward = null;
   state.combat = null;
   state.map = generateSpireMap(state);
@@ -1303,6 +1349,78 @@ export function restUpgradeCard(state, instanceId) {
   return { ok: true, card };
 }
 
+function applyCardRemovalSideEffects(state, removedCard) {
+  if (!removedCard || !state?.player) return { lostMaxHp: 0 };
+  const stats = getCardStats(removedCard);
+  if ((stats.onRemoveLoseMaxHp ?? 0) > 0) {
+    const loss = stats.onRemoveLoseMaxHp;
+    state.player.maxHp = Math.max(1, state.player.maxHp - loss);
+    state.player.hp = Math.min(state.player.hp, state.player.maxHp);
+    return { lostMaxHp: loss };
+  }
+  return { lostMaxHp: 0 };
+}
+
+export function liftAtCampfire(state) {
+  if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
+    return { ok: false, reason: '当前不能在营地举重' };
+  }
+  if (!hasRelic(state, 'girya')) {
+    return { ok: false, reason: '需要持有遗物【壶铃】才能在营地举重' };
+  }
+  if (!state.relicCounters) state.relicCounters = {};
+  const current = state.relicCounters.girya ?? 0;
+  if (current >= 3) {
+    return { ok: false, reason: '【壶铃】已达最大举重次数（3/3）' };
+  }
+  state.relicCounters.girya = current + 1;
+  state.restState.completed = true;
+  state.restState.lastAction = `举重锻炼（初始力量 +1，当前 ${state.relicCounters.girya}/3）`;
+  state.screen = 'map';
+  return { ok: true, lifts: state.relicCounters.girya };
+}
+
+export function digAtCampfire(state) {
+  if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
+    return { ok: false, reason: '当前不能在营地挖掘' };
+  }
+  if (!hasRelic(state, 'shovel')) {
+    return { ok: false, reason: '需要持有遗物【铲子】才能在营地挖掘' };
+  }
+  const relicId = rollUnownedRelicId(state, 'treasure');
+  if (!relicId) {
+    return { ok: false, reason: '已收集全部可发掘遗物，暂无更多遗物可挖' };
+  }
+  grantRelicToPlayer(state, relicId);
+  const relicName = RELIC_LIBRARY[relicId]?.name || relicId;
+  state.restState.completed = true;
+  state.restState.lastAction = `挖掘发现了遗物【${relicName}】`;
+  state.screen = 'map';
+  return { ok: true, relicId, relicName };
+}
+
+export function tokeAtCampfire(state, instanceId) {
+  if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
+    return { ok: false, reason: '当前不能在营地吞云移除卡牌' };
+  }
+  if (!hasRelic(state, 'peace_pipe')) {
+    return { ok: false, reason: '需要持有遗物【和平烟斗】才能在营地移除卡牌' };
+  }
+  if (state.player.deck.length <= 1) {
+    return { ok: false, reason: '牌组至少需要保留 1 张卡牌' };
+  }
+  const idx = state.player.deck.findIndex((c) => c.instanceId === instanceId);
+  if (idx === -1) {
+    return { ok: false, reason: '未在牌组中找到该卡牌' };
+  }
+  const [removed] = state.player.deck.splice(idx, 1);
+  const side = applyCardRemovalSideEffects(state, removed);
+  state.restState.completed = true;
+  state.restState.lastAction = `吞云移除了【${getCardStats(removed).name}】`;
+  state.screen = 'map';
+  return { ok: true, removed, lostMaxHp: side.lostMaxHp };
+}
+
 export function leaveRestSite(state) {
   if (state.screen !== 'rest') {
     return { ok: false, reason: '当前不在营地界面' };
@@ -1434,7 +1552,8 @@ export function buyShopPurge(state, instanceId) {
   state.shop.purgeUsed = true;
   state.purgeCount = (state.purgeCount ?? 0) + 1;
   const [removed] = state.player.deck.splice(idx, 1);
-  return { ok: true, removed };
+  const side = applyCardRemovalSideEffects(state, removed);
+  return { ok: true, removed, lostMaxHp: side.lostMaxHp };
 }
 
 export function leaveShop(state) {

@@ -190,6 +190,31 @@ export const ENEMY_TEMPLATES = deepFreeze({
     malleableBase: 3,
     initialStatuses: { malleable: 3 },
   },
+  chosen: {
+    id: 'chosen',
+    name: '天选者',
+    role: 'normal',
+    artKey: 'chosen',
+    hpRange: [78, 86],
+    initialStatuses: {},
+  },
+  shelled_parasite: {
+    id: 'shelled_parasite',
+    name: '带壳寄生虫',
+    role: 'normal',
+    artKey: 'shelled_parasite',
+    hpRange: [52, 58],
+    initialBlock: 10,
+    initialStatuses: { platedArmor: 10 },
+  },
+  snecko: {
+    id: 'snecko',
+    name: '异蛇',
+    role: 'normal',
+    artKey: 'snecko',
+    hpRange: [92, 102],
+    initialStatuses: {},
+  },
   book_of_stabbing: {
     id: 'book_of_stabbing',
     name: '刺击魔典',
@@ -279,6 +304,39 @@ export const ENEMY_TEMPLATES = deepFreeze({
     artKey: 'maw',
     hpRange: [128, 136],
     initialStatuses: {},
+  },
+  darkling: {
+    id: 'darkling',
+    name: '暗影虫',
+    role: 'normal',
+    artKey: 'darkling',
+    hpRange: [34, 40],
+    initialStatuses: { lifeLink: 1 },
+  },
+  spire_growth: {
+    id: 'spire_growth',
+    name: '尖塔蔓生体',
+    role: 'normal',
+    artKey: 'spire_growth',
+    hpRange: [120, 132],
+    initialStatuses: {},
+  },
+  transient: {
+    id: 'transient',
+    name: '瞬息',
+    role: 'normal',
+    artKey: 'transient',
+    hpRange: [420, 420],
+    initialStatuses: { fading: 5, shifting: 1 },
+  },
+  writhing_mass: {
+    id: 'writhing_mass',
+    name: '蠕动之块',
+    role: 'normal',
+    artKey: 'writhing_mass',
+    hpRange: [112, 122],
+    malleableBase: 3,
+    initialStatuses: { malleable: 3, reactive: 1 },
   },
   giant_head: {
     id: 'giant_head',
@@ -498,6 +556,16 @@ export const ENCOUNTERS = deepFreeze({
         { templateId: 'looter', customHp: 35 },
       ],
     },
+    {
+      id: 'chosen_solo',
+      name: '天选者巡猎',
+      enemies: [{ templateId: 'chosen' }],
+    },
+    {
+      id: 'shelled_parasite_solo',
+      name: '带壳寄生虫',
+      enemies: [{ templateId: 'shelled_parasite' }],
+    },
   ],
   act2Hard: [
     {
@@ -525,6 +593,35 @@ export const ENCOUNTERS = deepFreeze({
         { templateId: 'spheric_guardian', customHp: 22 },
         { templateId: 'cultist', customHp: 42 },
       ],
+    },
+    {
+      id: 'chosen_and_cultist',
+      name: '天选者与邪教徒',
+      enemies: [
+        { templateId: 'chosen', customHp: 74 },
+        { templateId: 'cultist', customHp: 46 },
+      ],
+    },
+    {
+      id: 'chosen_and_byrd',
+      name: '天选者与尖塔飞鸟',
+      enemies: [
+        { templateId: 'chosen', customHp: 74 },
+        { templateId: 'byrd' },
+      ],
+    },
+    {
+      id: 'parasite_and_fungi',
+      name: '寄生虫与真菌兽',
+      enemies: [
+        { templateId: 'shelled_parasite', customHp: 54 },
+        { templateId: 'fungi_beast' },
+      ],
+    },
+    {
+      id: 'snecko_solo',
+      name: '异蛇巢穴',
+      enemies: [{ templateId: 'snecko' }],
     },
   ],
   act2Elite: [
@@ -583,6 +680,23 @@ export const ENCOUNTERS = deepFreeze({
       name: '自爆斥力阵列',
       enemies: [{ templateId: 'exploder' }, { templateId: 'repulsor' }],
     },
+    {
+      id: 'darkling_trio',
+      name: '暗影虫群',
+      enemies: [
+        { templateId: 'darkling', variantIndex: 0 },
+        { templateId: 'darkling', variantIndex: 1 },
+        { templateId: 'darkling', variantIndex: 2 },
+      ],
+    },
+    {
+      id: 'orb_and_repulsor',
+      name: '行者与斥力阵列',
+      enemies: [
+        { templateId: 'orb_walker', customHp: 68 },
+        { templateId: 'repulsor' },
+      ],
+    },
   ],
   act3Hard: [
     {
@@ -606,6 +720,21 @@ export const ENCOUNTERS = deepFreeze({
         { templateId: 'orb_walker', customHp: 70 },
         { templateId: 'orb_walker', customHp: 70 },
       ],
+    },
+    {
+      id: 'spire_growth_solo',
+      name: '尖塔蔓生体',
+      enemies: [{ templateId: 'spire_growth' }],
+    },
+    {
+      id: 'transient_solo',
+      name: '瞬息幻影',
+      enemies: [{ templateId: 'transient' }],
+    },
+    {
+      id: 'writhing_mass_solo',
+      name: '蠕动之块',
+      enemies: [{ templateId: 'writhing_mass' }],
     },
   ],
   act3Elite: [
@@ -651,9 +780,13 @@ const STATUS_ZH_LABELS = Object.freeze({
   enrage: '激怒',
   thorns: '荆棘',
   metallicize: '金属化',
+  platedArmor: '多层护甲',
   weak: '虚弱',
   vulnerable: '易伤',
   frail: '脆弱',
+  hex: '妖术',
+  confused: '混乱',
+  constricted: '缠绕',
 });
 
 const STATUS_CARD_ZH_LABELS = Object.freeze({
@@ -661,6 +794,7 @@ const STATUS_CARD_ZH_LABELS = Object.freeze({
   slimed: '黏液',
   burn: '灼伤',
   wound: '伤口',
+  parasite: '寄生',
 });
 
 function rebuildA9IntentSummary(intent) {
@@ -723,6 +857,7 @@ const SWARM_NORMAL_IDS = new Set([
   'spiker',
   'exploder',
   'repulsor',
+  'darkling',
 ]);
 
 function applyAscensionIntentScaling(state, enemy, intent) {
@@ -865,6 +1000,7 @@ export function createEnemyInstance(state, spec) {
     if (tpl.id === 'byrd') statuses.flight = 4;
     if (tpl.id === 'orb_walker') statuses.ritual = 3;
     if (tpl.id === 'spiker') statuses.thorns = 4;
+    if (tpl.id === 'shelled_parasite') statuses.platedArmor = 14;
     if (tpl.id === 'awakened_one') {
       statuses.curiosity = 2;
       statuses.regenerating = 7;
@@ -873,7 +1009,7 @@ export function createEnemyInstance(state, spec) {
 
   let initialBlock = statuses.metallicize ? statuses.metallicize : 0;
   if (typeof tpl.initialBlock === 'number' && tpl.initialBlock > 0) {
-    initialBlock += tpl.initialBlock + (asc >= 9 ? 6 : 0);
+    initialBlock += tpl.initialBlock + (asc >= 9 ? (tpl.id === 'shelled_parasite' ? 2 : 6) : 0);
   }
 
   const enemy = {
@@ -911,6 +1047,9 @@ export function createEnemyInstance(state, spec) {
     awakenedPhase: 1,
     pendingHaste: false,
     hasteUsed: false,
+    darklingRegrowTurns: 0,
+    implantUsed: false,
+    tempStrengthRestore: 0,
     isMinion: Boolean(spec.isMinion || tpl.isMinion),
     intent: null,
   };
@@ -2649,6 +2788,364 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
       ];
     }
 
+    case 'chosen': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'chosen_poke', name: '连刺', type: 'attack', damage: 5, hits: 2 },
+          },
+        ];
+      }
+      if (enemy.turnIndex === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'chosen_hex',
+              name: '妖术诅咒',
+              type: 'debuff',
+              applyPlayerStatuses: { hex: 1 },
+              summary: '意图：施加 1 层【妖术】（此后你每打出非攻击牌，洗 1 张【晕眩】进抽牌堆）！',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 0.5,
+            intent: {
+              id: 'chosen_debilitate',
+              name: '削弱重击',
+              type: 'attack_debuff',
+              damage: 10,
+              hits: 1,
+              applyPlayerStatuses: { vulnerable: 2 },
+            },
+          },
+          {
+            probability: 0.5,
+            intent: {
+              id: 'chosen_drain',
+              name: '汲能咒缚',
+              type: 'buff',
+              applySelfStatuses: { strength: 3 },
+              applyPlayerStatuses: { weak: 3 },
+              summary: '意图：自身获得 3 点力量，并给予你 3 层【虚弱】。',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 0.6,
+          intent: { id: 'chosen_poke', name: '连刺', type: 'attack', damage: 5, hits: 2 },
+        },
+        {
+          probability: 0.4,
+          intent: { id: 'chosen_zap', name: '秘能强击', type: 'attack', damage: 16, hits: 1 },
+        },
+      ];
+    }
+
+    case 'shelled_parasite': {
+      if ((enemy.statuses?.stunned ?? 0) > 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'stunned',
+              name: '硬壳碎裂 · 眩晕',
+              type: 'debuff',
+              summary: '多层护甲已被击碎！本回合陷入眩晕无法行动。',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 0.5,
+            intent: { id: 'parasite_double', name: '双连噬咬', type: 'attack', damage: 5, hits: 2 },
+          },
+          {
+            probability: 0.5,
+            intent: {
+              id: 'parasite_suck',
+              name: '吸血啃咬',
+              type: 'attack_buff',
+              damage: 9,
+              hits: 1,
+              lifesteal: true,
+              summary: '意图：造成 9 点伤害，并回复等同于实际生命伤害的血量！',
+            },
+          },
+        ];
+      }
+      const allowFell = enemy.lastMoveId !== 'parasite_fell';
+      if (allowFell) {
+        return [
+          {
+            probability: 0.4,
+            intent: { id: 'parasite_double', name: '双连噬咬', type: 'attack', damage: 5, hits: 2 },
+          },
+          {
+            probability: 0.4,
+            intent: {
+              id: 'parasite_suck',
+              name: '吸血啃咬',
+              type: 'attack_buff',
+              damage: 9,
+              hits: 1,
+              lifesteal: true,
+              summary: '意图：造成 9 点伤害，并回复等同于实际生命伤害的血量！',
+            },
+          },
+          {
+            probability: 0.2,
+            intent: {
+              id: 'parasite_fell',
+              name: '重甲击倒',
+              type: 'attack_debuff',
+              damage: 15,
+              hits: 1,
+              applyPlayerStatuses: { frail: 2 },
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 0.5,
+          intent: { id: 'parasite_double', name: '双连噬咬', type: 'attack', damage: 5, hits: 2 },
+        },
+        {
+          probability: 0.5,
+          intent: {
+            id: 'parasite_suck',
+            name: '吸血啃咬',
+            type: 'attack_buff',
+            damage: 9,
+            hits: 1,
+            lifesteal: true,
+            summary: '意图：造成 9 点伤害，并回复等同于实际生命伤害的血量！',
+          },
+        },
+      ];
+    }
+
+    case 'snecko': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'perplexing_glare',
+              name: '困惑凝视',
+              type: 'debuff',
+              applyPlayerStatuses: { confused: 1 },
+              summary: '意图：施加【混乱】（此后抽到的每张牌费用随机重设为 0–3）！',
+            },
+          },
+        ];
+      }
+      if (enemy.lastMoveId === 'tail_whip') {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'snecko_bite', name: '毒牙啃咬', type: 'attack', damage: 14, hits: 1 },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 0.6,
+          intent: { id: 'snecko_bite', name: '毒牙啃咬', type: 'attack', damage: 14, hits: 1 },
+        },
+        {
+          probability: 0.4,
+          intent: {
+            id: 'tail_whip',
+            name: '神龙摆尾',
+            type: 'attack_debuff',
+            damage: 8,
+            hits: 1,
+            applyPlayerStatuses: { vulnerable: 2, weak: 2 },
+          },
+        },
+      ];
+    }
+
+    case 'darkling': {
+      const isMiddle = (enemy.variantIndex ?? 0) === 1;
+      const hardenIntent = {
+        id: 'darkling_harden',
+        name: '暗影硬化',
+        type: (enemy.ascension ?? 0) >= 2 ? 'defend_buff' : 'defend',
+        block: 10,
+        applySelfStatuses: (enemy.ascension ?? 0) >= 2 ? { strength: 1 } : undefined,
+        summary:
+          (enemy.ascension ?? 0) >= 2
+            ? '意图：获得 10 点格挡与 1 点力量。'
+            : '意图：获得 10 点格挡。',
+      };
+      const nipIntent = {
+        id: 'darkling_nip',
+        name: '暗影啃咬',
+        type: 'attack',
+        damage: 8,
+        hits: 1,
+      };
+      const chompIntent = {
+        id: 'darkling_chomp',
+        name: '双颚撕咬',
+        type: 'attack',
+        damage: 6,
+        hits: 2,
+      };
+      if (enemy.turnIndex === 0) {
+        return isMiddle
+          ? [
+              { probability: 0.5, intent: nipIntent },
+              { probability: 0.5, intent: hardenIntent },
+            ]
+          : [
+              { probability: 0.5, intent: nipIntent },
+              { probability: 0.5, intent: chompIntent },
+            ];
+      }
+      if (isMiddle) {
+        return enemy.lastMoveId === 'darkling_harden'
+          ? [{ probability: 1, intent: nipIntent }]
+          : [
+              { probability: 0.5, intent: nipIntent },
+              { probability: 0.5, intent: hardenIntent },
+            ];
+      }
+      if (enemy.lastMoveId === 'darkling_chomp') {
+        return [
+          { probability: 0.55, intent: nipIntent },
+          { probability: 0.45, intent: hardenIntent },
+        ];
+      }
+      return [
+        { probability: 0.4, intent: chompIntent },
+        { probability: 0.35, intent: nipIntent },
+        { probability: 0.25, intent: hardenIntent },
+      ];
+    }
+
+    case 'spire_growth': {
+      const playerConstricted = (player?.statuses?.constricted ?? 0) > 0;
+      const constrictIntent = {
+        id: 'sg_constrict',
+        name: '藤蔓缠绕',
+        type: 'debuff',
+        applyPlayerStatuses: { constricted: 8 },
+        summary: '意图：给予你 8 层【缠绕】（每回合结束受到 8 点可格挡伤害）！',
+      };
+      const quickTackle = {
+        id: 'sg_tackle',
+        name: '迅捷撞击',
+        type: 'attack',
+        damage: 14,
+        hits: 1,
+      };
+      const smashIntent = {
+        id: 'sg_smash',
+        name: '重锤猛击',
+        type: 'attack',
+        damage: 20,
+        hits: 1,
+      };
+      if (enemy.turnIndex === 0 && !playerConstricted) {
+        return [{ probability: 1, intent: constrictIntent }];
+      }
+      if (!playerConstricted && enemy.lastMoveId !== 'sg_constrict') {
+        return [
+          { probability: 0.5, intent: constrictIntent },
+          { probability: 0.5, intent: quickTackle },
+        ];
+      }
+      if (enemy.lastMoveId === 'sg_smash') {
+        return [{ probability: 1, intent: quickTackle }];
+      }
+      return [
+        { probability: 0.5, intent: quickTackle },
+        { probability: 0.5, intent: smashIntent },
+      ];
+    }
+
+    case 'transient': {
+      const step = Math.min(4, Math.max(0, enemy.turnIndex ?? 0));
+      const baseDmg = 22 + step * 8;
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'transient_attack',
+            name: '虚无重击',
+            type: 'attack',
+            damage: baseDmg,
+            hits: 1,
+          },
+        },
+      ];
+    }
+
+    case 'writhing_mass': {
+      const pool = [
+        {
+          probability: 0.22,
+          intent: { id: 'wm_heavy', name: '猛烈抽打', type: 'attack', damage: 26, hits: 1 },
+        },
+        {
+          probability: 0.24,
+          intent: { id: 'wm_flail', name: '触手连击', type: 'attack', damage: 7, hits: 3 },
+        },
+        {
+          probability: 0.22,
+          intent: {
+            id: 'wm_guard',
+            name: '硬甲反击',
+            type: 'attack_defend',
+            damage: 12,
+            hits: 1,
+            block: 12,
+          },
+        },
+        {
+          probability: 0.2,
+          intent: {
+            id: 'wm_wither',
+            name: '枯萎侵蚀',
+            type: 'attack_debuff',
+            damage: 9,
+            hits: 1,
+            applyPlayerStatuses: { weak: 2, frail: 2 },
+          },
+        },
+      ];
+      if (!enemy.implantUsed && (enemy.turnIndex ?? 0) >= 1) {
+        pool.push({
+          probability: 0.12,
+          intent: {
+            id: 'wm_implant',
+            name: '寄生植入',
+            type: 'debuff',
+            addCurseToDeck: 'parasite',
+            summary: '⚠ 危险！将 1 张永久诅咒【寄生】植入你的牌组（用攻击牌触发【应激反应】可刷新意图躲避）！',
+          },
+        });
+      }
+      const totalProb = pool.reduce((sum, item) => sum + item.probability, 0);
+      return pool.map((item) => ({
+        ...item,
+        probability: Number((item.probability / totalProb).toFixed(6)),
+      }));
+    }
+
     default:
       return [
         {
@@ -2665,9 +3162,20 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
   }
 }
 
-export function rollEnemyIntent(state, enemy) {
+export function rollEnemyIntent(state, enemy, options = {}) {
+  const rawCandidates = getEnemyIntentCandidates(enemy, state?.player ?? null, state?.combat ?? null);
+  let candidates = rawCandidates;
+  if (options.forceDifferentFromId && rawCandidates.length > 1) {
+    const filtered = rawCandidates.filter((item) => item.intent?.id !== options.forceDifferentFromId);
+    if (filtered.length > 0) {
+      const sumProb = filtered.reduce((sum, item) => sum + item.probability, 0) || 1;
+      candidates = filtered.map((item) => ({
+        ...item,
+        probability: item.probability / sumProb,
+      }));
+    }
+  }
   const roll = nextRandom(state);
-  const candidates = getEnemyIntentCandidates(enemy, state?.player ?? null, state?.combat ?? null);
   let cumulative = 0;
   let chosen = candidates[candidates.length - 1].intent;
   for (const item of candidates) {
@@ -2882,6 +3390,18 @@ export function predictNextTurnIntents(
   if ((simEnemyStatuses.explosive ?? 0) > 0 && !curIntent?.selfDestruct) {
     simEnemyStatuses.explosive = Math.max(1, simEnemyStatuses.explosive - 1);
   }
+  if (enemy.templateId === 'shelled_parasite' && (simEnemyStatuses.stunned ?? 0) > 0) {
+    delete simEnemyStatuses.stunned;
+  }
+  if (enemy.templateId === 'transient' && (enemy.statuses?.fading ?? 0) <= 1) {
+    return {
+      summaryText: '下回合：消逝离场',
+      tooltipLines: ['• 【消逝】倒计时将在本回合结束后归零，瞬息自动消散并结束战斗！'],
+      candidates: [],
+      conditionalNote: '撑过本回合攻击即可直接获胜！',
+    };
+  }
+  const nextImplantUsed = Boolean(enemy.implantUsed || curIntent?.id === 'wm_implant');
 
   const simEnemy = {
     ...enemy,
@@ -2898,6 +3418,7 @@ export function predictNextTurnIntents(
     defensiveStanceCount: nextDefensiveStanceCount,
     pendingHaste: nextPendingHaste,
     hasteUsed: nextHasteUsed,
+    implantUsed: nextImplantUsed,
     lastMoveId: curIntent?.id ?? enemy.lastMoveId ?? null,
     mode: nextMode,
     offensiveStep: nextOffensiveStep,
@@ -2940,6 +3461,20 @@ export function predictNextTurnIntents(
     conditionalNote = `连续攻击命中 ${enemy.statuses.flight} 次即可击落【飞行】，使其本回合【眩晕】！`;
   } else if (enemy.templateId === 'snake_plant') {
     conditionalNote = `每次攻击都会触发【可塑护甲】（当前 +${enemy.statuses?.malleable ?? 3} 格挡且递增），重击或中毒更克制`;
+  } else if (enemy.templateId === 'chosen') {
+    conditionalNote = '中【妖术】后每打出技能或能力牌都会往抽牌堆洗入【晕眩】，优先集火速战速决！';
+  } else if (enemy.templateId === 'shelled_parasite' && (enemy.statuses?.platedArmor ?? 0) > 0) {
+    conditionalNote = `每次穿透格挡造成生命伤害会剥落 1 层【多层护甲】（剩 ${enemy.statuses.platedArmor} 层），归零时立即将其击晕 1 回合！`;
+  } else if (enemy.templateId === 'snecko') {
+    conditionalNote = '【混乱】会随机重设抽到卡牌的费用（0–3），高费大牌往往更占便宜！';
+  } else if (enemy.templateId === 'darkling') {
+    conditionalNote = '【生命链接】：须在 2 回合内同时击倒全部暗影虫，否则倒下者会恢复 50% 生命复活！';
+  } else if (enemy.templateId === 'spire_growth') {
+    conditionalNote = '【缠绕】会在你的回合结束造成可格挡伤害，务必留足护盾！';
+  } else if (enemy.templateId === 'transient') {
+    conditionalNote = `【游移】：每造成 1 点生命伤害即临时降低其 1 点力量！撑过剩余 ${enemy.statuses?.fading ?? 1} 回合即可自动获胜`;
+  } else if (enemy.templateId === 'writhing_mass') {
+    conditionalNote = '【应激反应】：每次攻击命中都会随机刷新本回合意图——看到危险重击或【寄生植入】时可用低费攻击牌刷走！';
   } else if (enemy.templateId === 'gremlin_leader') {
     conditionalNote = '优先清理【狂怒地精】爪牙可迫使其消耗回合吹响【集结号角】而非强化全队！';
   } else if (enemy.templateId === 'hexaghost' && enemy.turnIndex === 0) {

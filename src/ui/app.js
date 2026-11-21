@@ -37,18 +37,21 @@ import {
   completeNeowAction,
   continueFromEvent,
   createNewRun,
+  digAtCampfire,
   discardPotion,
   getStarterPotionSlotCount,
   hasPendingNeowBlessing,
   leaveRestSite,
   leaveShop,
   leaveTreasureRoom,
+  liftAtCampfire,
   openTreasureChest,
   pickEventLibraryCard,
   proceedFromReward,
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runConfirmPendingCardChoice,
   runConfirmScry,
   runDiscardHandCard,
   runEndTurn,
@@ -56,16 +59,19 @@ import {
   runPlayCard,
   runResolveCardChoice,
   runRestartCombat,
+  runTogglePendingCardChoice,
   runToggleScryCard,
   runUsePotion,
   selectMapNode,
   settleVictory,
   skipNeowCardOffer,
   STARTER_POTION_SLOTS,
+  tokeAtCampfire,
 } from '../engine/game.js';
 import {
   buildRunReportFromState,
   ensureCharacterProgress,
+  exportSaveBackup,
   formatShareableBattleReport,
   getMaxAscensionForCharacter,
   getRunRecordKey,
@@ -75,6 +81,7 @@ import {
   saveMeta,
   syncCompendiumFromRunState,
   UNLOCK_TIERS,
+  validateSaveBackup,
 } from '../engine/meta.js';
 import {
   buildChallengeUrl,
@@ -411,6 +418,11 @@ export function mountSpireApp(rootEl) {
     compendiumCharFilter: 'all',
     compendiumRelicTier: 'all',
     compendiumShowUpgraded: false,
+    deckSort: 'order',
+    deckStack: true,
+    backupFeedback: '',
+    backupFeedbackTone: 'ok',
+    backupJsonDraft: '',
     seedInput: '',
     notice: initialNotice,
     noticeTone: 'normal',
@@ -763,6 +775,75 @@ export function mountSpireApp(rootEl) {
     }
   }
 
+  function executeTogglePendingChoiceWithFx(instanceId) {
+    if (!state || state.screen !== 'combat' || !state.combat?.pendingCardChoice) return;
+    const res = runTogglePendingCardChoice(state, instanceId);
+    if (res.ok) {
+      soundEngine.play('ui_click');
+      setNotice('');
+      render();
+    } else if (res.reason) {
+      setNotice(res.reason, 'warn');
+      render();
+    }
+  }
+
+  function executeConfirmPendingChoiceWithFx() {
+    if (!state || state.screen !== 'combat' || !state.combat?.pendingCardChoice) return;
+    const mode = state.combat.pendingCardChoice.mode;
+    const prevSnap = fxManager.captureCombatSnapshot(state);
+    const res = runConfirmPendingCardChoice(state);
+    clearCombatSelection();
+    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    render();
+    if (res.ok) {
+      soundEngine.play(mode === 'retain' ? 'ui_click' : 'card_skill');
+      fxManager.reconcileCombatFx(prevSnap, state, mode === 'retain' ? 'endTurn' : 'card', soundEngine);
+    }
+  }
+
+  function applyImportedBackup(rawInput) {
+    const check = validateSaveBackup(rawInput, TOTAL_FLOORS);
+    if (!check.ok) {
+      ui.backupFeedback = `导入失败：${check.reason}`;
+      ui.backupFeedbackTone = 'warn';
+      soundEngine.play('ui_click');
+      render();
+      return false;
+    }
+    const { backup, summary } = check;
+    meta = backup.meta;
+    saveMeta(meta);
+    if (backup.settings) {
+      settings = backup.settings;
+      saveSettings(settings);
+      fxManager.applyAnimSpeedAttr();
+    }
+    if (backup.activeRun) {
+      state = backup.activeRun;
+      persistRun(state);
+      ui.showCharacterSelect = false;
+      ui.selectedCharacterId = state.characterId || meta.selectedCharacterId || 'ironclad';
+    } else {
+      state = null;
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore storage errors
+      }
+      ui.showCharacterSelect = true;
+      ui.selectedCharacterId = meta.selectedCharacterId || 'ironclad';
+    }
+    lastGameOverSummary = null;
+    clearCombatSelection();
+    ui.backupJsonDraft = '';
+    ui.backupFeedback = `✓ 校验通过并已导入存档：累计 ${summary.runsPlayed} 场（胜 ${summary.victories} 场）· ${summary.xp} XP · 图鉴 ${summary.compendiumCount} 项${summary.hasActiveRun ? '（含进行中对局）' : ''}。`;
+    ui.backupFeedbackTone = 'ok';
+    soundEngine.play('upgrade');
+    render();
+    return true;
+  }
+
   function executePotionWithFx(slot, targetEnemyId) {
     const prevSnap = fxManager.captureCombatSnapshot(state);
     const res = runUsePotion(state, slot, targetEnemyId);
@@ -783,7 +864,9 @@ export function mountSpireApp(rootEl) {
     render();
     if (res.ok) {
       soundEngine.play('ui_click');
-      fxManager.reconcileCombatFx(prevSnap, state, 'endTurn', soundEngine);
+      if (!res.awaitingRetainChoice) {
+        fxManager.reconcileCombatFx(prevSnap, state, 'endTurn', soundEngine);
+      }
     }
   }
 
@@ -791,7 +874,17 @@ export function mountSpireApp(rootEl) {
     if (!state || state.screen !== 'combat' || !state.combat) return;
     if (hasPendingCardChoice(state.combat)) {
       const pending = getActivePendingCardChoice(state.combat);
-      if (pending?.mode === 'scry') return;
+      if (
+        pending?.mode === 'scry' ||
+        pending?.mode === 'discard_to_draw' ||
+        pending?.mode === 'retrieve_discard_retain'
+      ) {
+        return;
+      }
+      if (pending?.mode === 'retain') {
+        executeTogglePendingChoiceWithFx(instanceId);
+        return;
+      }
       executeResolveCardChoiceWithFx(instanceId);
       return;
     }
@@ -1065,12 +1158,13 @@ export function mountSpireApp(rootEl) {
     const target = isBackdropInnerClick ? null : rawTarget;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
 
-    // Nested inspect chips (relic, potion, starter-deck badges) inside a Character Select card inspect cleanly without re-rendering the card
+    // Nested inspect chips (relic, potion, starter-deck badges, enemy next-intent trigger) inspect cleanly without triggering parent action
     const isNestedInspectChip =
       Boolean(tipAnchor) &&
       Boolean(target) &&
       tipAnchor !== target &&
-      target.dataset.action === 'select-character';
+      (target.dataset.action === 'select-character' ||
+        tipAnchor.classList.contains('next-intent-trigger'));
 
     // Mobile / touch tap-to-inspect support for passive badges (relics, potions, daily chips, locked Ascension pills, statuses, intents)
     const isPassiveClick =
@@ -1451,7 +1545,9 @@ export function mountSpireApp(rootEl) {
           ui.modal = null;
           clearCombatSelection();
           soundEngine.play('ui_click');
-          setNotice('已重启本场战斗，恢复至第 1 回合初始状态。');
+          setNotice(
+            `已重启本场战斗，恢复至第 1 回合初始状态（本局累计重启 ${res.combatRestarts ?? state.stats?.combatRestarts ?? 1} 次）。`
+          );
         } else {
           setNotice(res.reason, 'warn');
         }
@@ -1459,9 +1555,74 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'open-modal': {
-        ui.modal = target.dataset.modal || null;
+        const nextModal = target.dataset.modal || null;
+        if (nextModal === 'settings') {
+          ui.backupFeedback = '';
+        }
+        ui.modal = nextModal;
         soundEngine.play('ui_click');
         render();
+        break;
+      }
+      case 'set-deck-sort': {
+        const nextSort = target.dataset.sort || 'order';
+        if (['order', 'type', 'cost', 'rarity'].includes(nextSort)) {
+          ui.deckSort = nextSort;
+          soundEngine.play('ui_click');
+          render();
+        }
+        break;
+      }
+      case 'toggle-deck-stack': {
+        ui.deckStack = ui.deckStack === false;
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'export-save-file': {
+        const jsonStr = exportSaveBackup({ meta, settings, activeRun: state });
+        try {
+          const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `sts-lite-backup-${getLocalDateKey()}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          ui.backupFeedback = `✓ 已导出存档文件（sts-lite-backup-${getLocalDateKey()}.json）。`;
+          ui.backupFeedbackTone = 'ok';
+        } catch {
+          ui.backupJsonDraft = jsonStr;
+          ui.backupFeedback = '浏览器限制了自动下载，已将完整 JSON 填入下方文本框，可手动复制保存。';
+          ui.backupFeedbackTone = 'warn';
+        }
+        soundEngine.play('upgrade');
+        render();
+        break;
+      }
+      case 'copy-save-json': {
+        const jsonStr = exportSaveBackup({ meta, settings, activeRun: state });
+        writeTextToClipboard(jsonStr);
+        ui.backupJsonDraft = jsonStr;
+        ui.backupFeedback = '✓ 已复制完整存档 JSON 到剪贴板（下方文本框也已填入，可全选备份）。';
+        ui.backupFeedbackTone = 'ok';
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'trigger-import-save-file': {
+        const fileInput = rootEl.querySelector('#input-import-save-file');
+        if (fileInput instanceof HTMLInputElement) {
+          fileInput.click();
+        }
+        break;
+      }
+      case 'import-save-json': {
+        const ta = rootEl.querySelector('#input-import-save-json');
+        const raw = ta instanceof HTMLTextAreaElement ? ta.value : ui.backupJsonDraft || '';
+        applyImportedBackup(raw);
         break;
       }
       case 'close-modal':
@@ -1501,6 +1662,16 @@ export function mountSpireApp(rootEl) {
       }
       case 'confirm-scry-choice': {
         executeConfirmScryWithFx();
+        break;
+      }
+      case 'toggle-retain-card':
+      case 'toggle-discard-choice-card': {
+        executeTogglePendingChoiceWithFx(target.dataset.instanceId);
+        break;
+      }
+      case 'confirm-retain-choice':
+      case 'confirm-discard-choice': {
+        executeConfirmPendingChoiceWithFx();
         break;
       }
       case 'click-enemy': {
@@ -1664,6 +1835,44 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'rest-lift': {
+        const res = liftAtCampfire(state);
+        if (res.ok) {
+          soundEngine.play('upgrade');
+          setNotice(`🏋️ 完成【壶铃】举重锻炼（${res.lifts}/3）！之后每场战斗初始获得 +${res.lifts} 点力量。`);
+        } else {
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
+      case 'rest-dig': {
+        const res = digAtCampfire(state);
+        if (res.ok) {
+          soundEngine.play('gold');
+          setNotice(`⛏️ 使用【铲子】在篝火旁发掘出遗物【${res.relicName}】！`);
+        } else {
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
+      case 'confirm-rest-toke': {
+        const res = tokeAtCampfire(state, target.dataset.instanceId);
+        if (res.ok) {
+          ui.modal = null;
+          soundEngine.play('card_attack');
+          setNotice(
+            res.lostMaxHp > 0
+              ? `🪈 已使用【和平烟斗】永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
+              : '🪈 已使用【和平烟斗】永久移除 1 张卡牌！'
+          );
+        } else {
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
       case 'confirm-smith': {
         const res = restUpgradeCard(state, target.dataset.instanceId);
         if (res.ok) {
@@ -1730,7 +1939,11 @@ export function mountSpireApp(rootEl) {
         if (res.ok) {
           ui.modal = null;
           soundEngine.play('card_attack');
-          setNotice('已永久移除 1 张卡牌！');
+          setNotice(
+            res.lostMaxHp > 0
+              ? `已永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
+              : '已永久移除 1 张卡牌！'
+          );
         } else {
           setNotice(res.reason, 'warn');
         }
@@ -1813,6 +2026,8 @@ export function mountSpireApp(rootEl) {
       target instanceof HTMLInputElement
     ) {
       ui.seedInput = target.value;
+    } else if (target.id === 'input-import-save-json' && target instanceof HTMLTextAreaElement) {
+      ui.backupJsonDraft = target.value;
     }
   });
 
@@ -1820,6 +2035,34 @@ export function mountSpireApp(rootEl) {
     const target = event.target;
     if (target instanceof HTMLInputElement && target.id === 'input-sound-volume') {
       soundEngine.play('test');
+    } else if (target instanceof HTMLInputElement && target.id === 'input-import-save-file') {
+      const file = target.files?.[0];
+      if (!file) return;
+      const handleText = (text) => {
+        applyImportedBackup(text);
+        target.value = '';
+      };
+      if (typeof file.text === 'function') {
+        file
+          .text()
+          .then(handleText)
+          .catch(() => {
+            ui.backupFeedback = '导入失败：无法读取所选文件内容。';
+            ui.backupFeedbackTone = 'warn';
+            target.value = '';
+            render();
+          });
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => handleText(String(reader.result || ''));
+        reader.onerror = () => {
+          ui.backupFeedback = '导入失败：无法读取所选文件内容。';
+          ui.backupFeedbackTone = 'warn';
+          target.value = '';
+          render();
+        };
+        reader.readAsText(file);
+      }
     }
   });
 
@@ -2132,6 +2375,49 @@ export function mountSpireApp(rootEl) {
           const cand = activeChoice.candidates?.[scryNum - 1];
           if (cand) {
             executeToggleScryWithFx(cand.instanceId);
+          }
+        }
+        return;
+      }
+
+      if (activeChoice?.mode === 'discard_to_draw') {
+        const pickNum = Number(event.key);
+        if (pickNum >= 1 && pickNum <= 9) {
+          const cand = activeChoice.candidates?.[pickNum - 1];
+          if (cand) {
+            executeResolveCardChoiceWithFx(cand.instanceId);
+          }
+        }
+        return;
+      }
+
+      if (activeChoice?.mode === 'retrieve_discard_retain') {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          executeConfirmPendingChoiceWithFx();
+          return;
+        }
+        const pickNum = Number(event.key);
+        if (pickNum >= 1 && pickNum <= 9) {
+          const cand = activeChoice.candidates?.[pickNum - 1];
+          if (cand) {
+            executeTogglePendingChoiceWithFx(cand.instanceId);
+          }
+        }
+        return;
+      }
+
+      if (activeChoice?.mode === 'retain') {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          executeConfirmPendingChoiceWithFx();
+          return;
+        }
+        const retainNum = Number(event.key);
+        if (retainNum >= 1 && retainNum <= 9) {
+          const card = state.combat.hand[retainNum - 1];
+          if (card) {
+            executeTogglePendingChoiceWithFx(card.instanceId);
           }
         }
         return;

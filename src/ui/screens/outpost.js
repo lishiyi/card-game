@@ -4,7 +4,7 @@
 
 import { CARD_LIBRARY, getCardCharacter } from '../../data/cards.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
-import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from '../../engine/daily.js';
 import {
   getCurrentBossName,
@@ -444,13 +444,18 @@ export function renderRestScreen({ state }) {
   const featherHealed = state.restState?.featherHealed ?? 0;
   const hasCoffeeDripper = state.player.relics.includes('coffee_dripper');
   const hasMidas = hasDailyModifier(state, 'midas');
+  const hasGirya = state.player.relics.includes('girya');
+  const giryaLifts = state.relicCounters?.girya ?? 0;
+  const hasShovel = state.player.relics.includes('shovel');
+  const hasPeacePipe = state.player.relics.includes('peace_pipe');
+  const canToke = state.player.deck.length > 1;
 
   return `
     <section class="panel-stage" aria-labelledby="rest-heading">
       <div class="stage-header">
         <div>
-          <h2 id="rest-heading" class="stage-heading">篝火营地</h2>
-          <p class="stage-subtitle">摇曳的火光驱散了尖塔寒意。你可以小憩恢复体力，或在铁砧上锻造升级一张卡牌。</p>
+          <h2 id="rest-heading" class="stage-heading">🔥 篝火营地</h2>
+          <p class="stage-subtitle">摇曳的火光驱散了尖塔寒意。你可以小憩恢复体力、在铁砧上锻造升级卡牌，或施展营火遗物的专属能力。</p>
         </div>
       </div>
 
@@ -470,12 +475,12 @@ export function renderRestScreen({ state }) {
         >
           <span class="choice-title">${
             hasCoffeeDripper
-              ? '篝火休息（已禁用 · 咖啡滤滴器）'
-              : `篝火休息（回复 ${escapeHtml(healAmount)} 点生命）`
+              ? '🔥 篝火休息（已禁用 · 咖啡滤滴器）'
+              : `🔥 篝火休息（回复 ${escapeHtml(healAmount)} 点生命）`
           }</span>
           <span class="choice-detail">${
             hasCoffeeDripper
-              ? '持有首领遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命（仍可铁砧锻造）。'
+              ? '持有首领遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命（仍可执行其他营火操作）。'
               : `回复最大生命值的 ${healPct}%（当前生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}）。`
           }</span>
         </button>
@@ -489,7 +494,7 @@ export function renderRestScreen({ state }) {
           ${hasMidas || upgradable.length === 0 ? 'disabled' : ''}
         >
           <span class="choice-title">${
-            hasMidas ? '铁砧锻造（已禁用 · 点金之手）' : '铁砧锻造（升级 1 张卡牌）'
+            hasMidas ? '🔨 铁砧锻造（已禁用 · 点金之手）' : '🔨 铁砧锻造（升级 1 张卡牌）'
           }</span>
           <span class="choice-detail">
             ${
@@ -501,6 +506,59 @@ export function renderRestScreen({ state }) {
             }
           </span>
         </button>
+
+        ${
+          hasGirya
+            ? `<button
+                type="button"
+                id="btn-rest-lift"
+                class="choice-btn choice-relic-action"
+                data-action="rest-lift"
+                ${giryaLifts >= 3 ? 'disabled' : ''}
+              >
+                <span class="choice-title">🏋️ 举重锻炼 · 壶铃（${escapeHtml(giryaLifts)}/3${giryaLifts >= 3 ? ' 已满' : ' → 初始力量 +1'}）</span>
+                <span class="choice-detail">${
+                  giryaLifts >= 3
+                    ? '已达到【壶铃】举重上限（3/3），每场战斗开始固定获得 +3 点力量！'
+                    : `使用稀有遗物【壶铃】举重，使之后每场战斗开始时永久额外获得 +1 点力量（当前已叠加 +${escapeHtml(giryaLifts)} 点）。`
+                }</span>
+              </button>`
+            : ''
+        }
+
+        ${
+          hasShovel
+            ? `<button
+                type="button"
+                id="btn-rest-dig"
+                class="choice-btn choice-relic-action"
+                data-action="rest-dig"
+              >
+                <span class="choice-title">⛏️ 营地挖掘 · 铲子（发掘 1 件随机遗物）</span>
+                <span class="choice-detail">使用稀有遗物【铲子】在篝火旁深挖，立即随机获得 1 件尚未拥有的遗物！</span>
+              </button>`
+            : ''
+        }
+
+        ${
+          hasPeacePipe
+            ? `<button
+                type="button"
+                id="btn-rest-toke"
+                class="choice-btn choice-relic-action"
+                data-action="open-modal"
+                data-modal="rest_toke"
+                ${canToke ? '' : 'disabled'}
+              >
+                <span class="choice-title">🪈 吞云精简 · 和平烟斗（永久移除 1 张卡牌）</span>
+                <span class="choice-detail">${
+                  canToke
+                    ? `使用稀有遗物【和平烟斗】从当前 ${escapeHtml(state.player.deck.length)} 张牌组中永久移除 1 张冗余牌或诅咒牌。`
+                    : '牌组至少需要保留 1 张卡牌。'
+                }</span>
+              </button>`
+            : ''
+        }
 
         <button type="button" id="btn-rest-leave" class="btn-stone" style="align-self:flex-start;" data-action="leave-rest">
           直接离开营地
@@ -720,16 +778,19 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
       const r = RELIC_LIBRARY[id];
       if (!r) return '';
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+      const icon = getRelicIcon(id);
       return `<span
         class="relic-badge tier-${escapeHtml(r.tier)}"
         tabindex="0"
-        data-tooltip-title="${escapeHtml(r.name)}"
+        data-tooltip-title="${escapeHtml(`${icon} ${r.name}`)}"
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(r.description)}"
         data-tooltip-tone="relic"
-      >${escapeHtml(r.name)}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(r.name)}</span>`;
     })
     .join('');
+
+  const combatRestarts = report.combatRestarts ?? state.stats?.combatRestarts ?? 0;
 
   const dailyModsHtml = dailyMods
     .map(
@@ -827,6 +888,11 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
               ${daily ? `<span class="daily-pill">每日挑战 ${escapeHtml(daily.dateKey)}</span>` : ''}
               ${state.isChallengeRun && !daily ? `<span class="challenge-pill">好友种子挑战</span>` : ''}
               ${(state.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(state.ascension)}</span>` : ''}
+              ${
+                combatRestarts > 0
+                  ? `<span class="restart-count-pill" id="gameover-restart-pill" tabindex="0" data-tooltip-title="本局重启战斗记录" data-tooltip-tag="战绩标注" data-tooltip-desc="本局冒险中共使用了 ${escapeHtml(combatRestarts)} 次「重启本场战斗」功能。">🔄 重启 ${escapeHtml(combatRestarts)} 次</span>`
+                  : ''
+              }
               <code class="seed-code-tag">${escapeHtml(seedCode)}</code>
               ${summary?.xpGained > 0 ? `<span class="report-xp-pill">+${escapeHtml(summary.xpGained)} XP</span>` : ''}
             </div>
@@ -868,8 +934,8 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
             <strong class="report-stat-val">${escapeHtml((report.totalBlockGained ?? 0).toLocaleString())}</strong>
           </div>
           <div class="report-stat-cell">
-            <span class="report-stat-label">累计出牌</span>
-            <strong class="report-stat-val">${escapeHtml((report.cardsPlayed ?? 0).toLocaleString())}</strong>
+            <span class="report-stat-label">${combatRestarts > 0 ? '出牌 / 重启战斗' : '累计出牌'}</span>
+            <strong class="report-stat-val">${escapeHtml((report.cardsPlayed ?? 0).toLocaleString())}${combatRestarts > 0 ? ` <small class="stat-warn">(重启 ${escapeHtml(combatRestarts)} 次)</small>` : ''}</strong>
           </div>
         </div>
 

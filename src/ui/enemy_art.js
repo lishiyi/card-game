@@ -1257,6 +1257,227 @@ export function getEnemySvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'chosen':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-ch-robe" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(272, 46%, 44%)" />
+              <stop offset="60%" stop-color="hsl(268, 44%, 24%)" />
+              <stop offset="100%" stop-color="hsl(262, 48%, 12%)" />
+            </linearGradient>
+            <linearGradient id="ea-cho-gold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(46, 94%, 74%)" />
+              <stop offset="100%" stop-color="hsl(32, 72%, 40%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="34" ry="6" fill="hsla(0,0%,0%,0.52)" />
+          <!-- Arcane Hex halo -->
+          <circle cx="60" cy="40" r="32" fill="none" stroke="hsla(292, 86%, 68%, 0.4)" stroke-width="1.6" stroke-dasharray="5 4" />
+          <!-- Winged avian cult mantle -->
+          <path d="M22 48 Q38 30 60 36 Q82 30 98 48 L88 96 L60 104 L32 96 Z" fill="url(#ea-ch-robe)" stroke="hsl(286, 62%, 58%)" stroke-width="2" />
+          <!-- Gold breastplate sash -->
+          <path d="M44 46 L76 46 L69 88 L51 88 Z" fill="hsl(264, 42%, 15%)" stroke="url(#ea-cho-gold)" stroke-width="2" />
+          <path d="M60 52 L66 64 L60 76 L54 64 Z" fill="hsl(296, 92%, 68%)" />
+          <!-- Beaked golden bird mask & twin plumes -->
+          <path d="M44 26 Q34 12 40 10 Q48 16 52 24 Z" fill="url(#ea-cho-gold)" />
+          <path d="M76 26 Q86 12 80 10 Q72 16 68 24 Z" fill="url(#ea-cho-gold)" />
+          <path d="M45 24 Q60 15 75 24 L72 44 L60 54 L48 44 Z" fill="url(#ea-cho-gold)" stroke="hsl(30, 56%, 24%)" stroke-width="1.8" />
+          <path d="M52 33 L58 35 L53 38 Z" fill="hsl(304, 100%, 72%)" />
+          <path d="M68 33 L62 35 L67 38 Z" fill="hsl(304, 100%, 72%)" />
+          <!-- Ritual halberd / hex wand -->
+          <line x1="94" y1="18" x2="86" y2="100" stroke="url(#ea-cho-gold)" stroke-width="3.2" stroke-linecap="round" />
+          <polygon points="94,10 103,24 94,32 85,24" fill="hsl(298, 92%, 66%)" stroke="hsl(48, 95%, 76%)" stroke-width="1.4" />
+        </svg>
+      `;
+
+    case 'shelled_parasite':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-sp-shell" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(38, 42%, 58%)" />
+              <stop offset="55%" stop-color="hsl(32, 34%, 34%)" />
+              <stop offset="100%" stop-color="hsl(26, 32%, 18%)" />
+            </linearGradient>
+            <linearGradient id="ea-sp-flesh" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(340, 62%, 52%)" />
+              <stop offset="100%" stop-color="hsl(332, 54%, 26%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="107" rx="44" ry="7" fill="hsla(0,0%,0%,0.52)" />
+          <!-- Segmented armored carapace -->
+          <path d="M22 80 Q24 28 62 24 Q98 28 100 76 Q88 94 56 92 Q28 92 22 80 Z" fill="url(#ea-sp-shell)" stroke="hsl(42, 58%, 70%)" stroke-width="2.4" />
+          <!-- Plated armor ridge bands -->
+          <path d="M36 36 Q62 46 92 42" fill="none" stroke="hsl(28, 36%, 20%)" stroke-width="3" />
+          <path d="M28 56 Q62 66 96 60" fill="none" stroke="hsl(28, 36%, 20%)" stroke-width="3" />
+          <path d="M40 28 L44 48 M64 25 L66 48 M84 32 L82 52" stroke="hsl(42, 46%, 64%)" stroke-width="1.6" opacity="0.65" />
+          <!-- Fleshy parasitic tendrils & toothy maw emerging left -->
+          <path d="M18 76 Q28 62 48 68 L44 92 Q26 94 18 76 Z" fill="url(#ea-sp-flesh)" stroke="hsl(344, 72%, 68%)" stroke-width="1.8" />
+          <path d="M20 82 Q12 92 18 98 M28 88 Q24 100 32 103 M38 90 Q38 101 46 102" stroke="hsl(342, 64%, 56%)" stroke-width="3.2" stroke-linecap="round" fill="none" />
+          <circle cx="32" cy="74" r="3.4" fill="hsl(52, 98%, 70%)" />
+          <circle cx="32" cy="74" r="1.4" fill="hsl(338, 70%, 16%)" />
+          <path d="M24 83 L28 86 L32 82 L36 86 L40 82" stroke="hsl(44, 34%, 88%)" stroke-width="1.8" fill="none" />
+        </svg>
+      `;
+
+    case 'snecko':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-sn-body" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(148, 56%, 44%)" />
+              <stop offset="55%" stop-color="hsl(162, 54%, 26%)" />
+              <stop offset="100%" stop-color="hsl(172, 56%, 14%)" />
+            </linearGradient>
+            <radialGradient id="ea-sn-eye" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="hsl(52, 100%, 84%)" />
+              <stop offset="55%" stop-color="hsl(38, 98%, 56%)" />
+              <stop offset="100%" stop-color="hsl(282, 82%, 44%)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="40" ry="6.5" fill="hsla(0,0%,0%,0.52)" />
+          <!-- Hypnotic Confusion spiral rings -->
+          <circle cx="52" cy="36" r="24" fill="none" stroke="hsla(290, 90%, 70%, 0.42)" stroke-width="1.8" stroke-dasharray="4 4" />
+          <circle cx="52" cy="36" r="32" fill="none" stroke="hsla(154, 88%, 58%, 0.28)" stroke-width="1.4" stroke-dasharray="6 5" />
+          <!-- Coiled serpent body & sweeping whip tail -->
+          <path d="M30 98 Q22 76 46 72 Q76 66 80 82 Q84 96 62 98 Q44 100 30 98 Z" fill="url(#ea-sn-body)" stroke="hsl(142, 66%, 56%)" stroke-width="2" />
+          <path d="M80 80 Q104 72 106 52 Q100 62 88 64" fill="none" stroke="hsl(146, 62%, 48%)" stroke-width="6" stroke-linecap="round" />
+          <!-- Curved neck & crested serpent head -->
+          <path d="M46 76 Q38 52 52 34 Q68 24 76 38 Q78 52 62 56 Q56 64 62 76 Z" fill="url(#ea-sn-body)" stroke="hsl(142, 68%, 58%)" stroke-width="2" />
+          <!-- Spined crest -->
+          <path d="M54 26 L58 14 L64 24 L72 16 L73 28" fill="hsl(44, 86%, 58%)" stroke="hsl(28, 56%, 24%)" stroke-width="1.4" />
+          <!-- Giant hypnotic Snecko eye -->
+          <circle cx="56" cy="39" r="8.5" fill="url(#ea-sn-eye)" stroke="hsl(288, 76%, 64%)" stroke-width="1.8" />
+          <ellipse cx="56" cy="39" rx="2.4" ry="6.2" fill="hsl(276, 70%, 14%)" />
+          <!-- Forked tongue & fangs -->
+          <path d="M36 46 L46 44 M38 49 L44 46" stroke="hsl(352, 92%, 62%)" stroke-width="2" stroke-linecap="round" />
+          <path d="M44 48 L47 54 L50 48" fill="hsl(48, 30%, 92%)" />
+        </svg>
+      `;
+
+    case 'darkling':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-dk-body" cx="45%" cy="40%" r="60%">
+              <stop offset="0%" stop-color="hsl(262, 34%, 34%)" />
+              <stop offset="65%" stop-color="hsl(258, 38%, 16%)" />
+              <stop offset="100%" stop-color="hsl(256, 46%, 8%)" />
+            </radialGradient>
+            <linearGradient id="ea-dk-glow" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(182, 96%, 68%)" />
+              <stop offset="100%" stop-color="hsl(282, 86%, 60%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="104" rx="38" ry="6.5" fill="hsla(0,0%,0%,0.55)" />
+          <!-- Shadowy Life Link aura wisps -->
+          <path d="M22 72 Q16 50 32 38 M98 72 Q104 50 88 38" stroke="url(#ea-dk-glow)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.55" />
+          <!-- Hunched obsidian beetle-blob body -->
+          <path d="M24 88 Q20 46 58 34 Q96 36 96 86 Q78 98 60 96 Q38 98 24 88 Z" fill="url(#ea-dk-body)" stroke="hsl(276, 56%, 54%)" stroke-width="2.2" />
+          <!-- Dorsal shadow spines -->
+          <path d="M42 38 L46 22 L54 34 L62 20 L68 35 L78 25 L80 42" fill="hsl(266, 44%, 22%)" stroke="hsl(186, 86%, 62%)" stroke-width="1.4" />
+          <!-- Glowing teal eyes -->
+          <ellipse cx="44" cy="64" rx="5.5" ry="4" fill="hsl(182, 98%, 66%)" />
+          <ellipse cx="68" cy="64" rx="5.5" ry="4" fill="hsl(182, 98%, 66%)" />
+          <circle cx="44" cy="64" r="2" fill="hsl(260, 60%, 10%)" />
+          <circle cx="68" cy="64" r="2" fill="hsl(260, 60%, 10%)" />
+          <!-- Jagged chomping jaw -->
+          <path d="M36 78 L44 85 L52 78 L60 86 L68 78 L76 84" stroke="hsl(44, 34%, 88%)" stroke-width="2.2" fill="none" stroke-linejoin="round" />
+        </svg>
+      `;
+
+    case 'spire_growth':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-sg-vine" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(286, 48%, 42%)" />
+              <stop offset="55%" stop-color="hsl(272, 42%, 22%)" />
+              <stop offset="100%" stop-color="hsl(252, 40%, 12%)" />
+            </linearGradient>
+            <radialGradient id="ea-sg-core" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="hsl(148, 96%, 72%)" />
+              <stop offset="70%" stop-color="hsl(164, 82%, 38%)" />
+              <stop offset="100%" stop-color="hsl(274, 52%, 18%)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="44" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <!-- Twisting constricting tentacles -->
+          <path d="M18 96 Q14 62 34 48 Q22 28 42 20" stroke="url(#ea-sg-vine)" stroke-width="9" stroke-linecap="round" fill="none" />
+          <path d="M102 96 Q106 62 86 48 Q98 28 78 20" stroke="url(#ea-sg-vine)" stroke-width="9" stroke-linecap="round" fill="none" />
+          <path d="M24 88 Q44 98 60 88 Q76 98 96 88" stroke="hsl(292, 56%, 48%)" stroke-width="6" stroke-linecap="round" fill="none" />
+          <!-- Central thorny bulb & bioluminescent eyes -->
+          <path d="M36 86 Q30 44 60 28 Q90 44 84 86 Q60 98 36 86 Z" fill="url(#ea-sg-vine)" stroke="hsl(154, 72%, 52%)" stroke-width="2.2" />
+          <circle cx="60" cy="58" r="14" fill="url(#ea-sg-core)" stroke="hsl(148, 92%, 70%)" stroke-width="1.8" />
+          <circle cx="60" cy="58" r="5" fill="hsl(268, 56%, 12%)" />
+          <circle cx="44" cy="46" r="3.2" fill="hsl(146, 96%, 68%)" />
+          <circle cx="76" cy="46" r="3.2" fill="hsl(146, 96%, 68%)" />
+        </svg>
+      `;
+
+    case 'transient':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-tr-void" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(240, 26%, 34%)" />
+              <stop offset="60%" stop-color="hsl(252, 34%, 15%)" />
+              <stop offset="100%" stop-color="hsla(260, 44%, 8%, 0.15)" />
+            </linearGradient>
+            <radialGradient id="ea-tr-mask" cx="50%" cy="45%" r="55%">
+              <stop offset="0%" stop-color="hsl(220, 24%, 88%)" />
+              <stop offset="70%" stop-color="hsl(236, 18%, 54%)" />
+              <stop offset="100%" stop-color="hsl(252, 26%, 24%)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="34" ry="5.5" fill="hsla(276,60%,40%,0.32)" />
+          <!-- Fading spectral dissipation rings -->
+          <circle cx="60" cy="52" r="44" fill="none" stroke="hsla(282, 86%, 72%, 0.34)" stroke-width="1.6" stroke-dasharray="4 6" />
+          <!-- Towering shifting shadow-cloak figure -->
+          <path d="M28 96 Q24 52 44 28 Q60 14 76 28 Q96 52 92 96 L76 86 L60 102 L44 86 Z" fill="url(#ea-tr-void)" stroke="hsl(268, 54%, 58%)" stroke-width="2" />
+          <!-- Colossal floating stone-void visage -->
+          <path d="M40 30 Q60 18 80 30 L76 66 Q60 76 44 66 Z" fill="url(#ea-tr-mask)" stroke="hsl(276, 62%, 70%)" stroke-width="2" />
+          <!-- Hollow glowing spectral eyes & fissure -->
+          <path d="M46 44 L56 48 L48 53 Z" fill="hsl(292, 100%, 74%)" />
+          <path d="M74 44 L64 48 L72 53 Z" fill="hsl(292, 100%, 74%)" />
+          <path d="M52 61 Q60 66 68 61" stroke="hsl(260, 44%, 14%)" stroke-width="2.6" fill="none" stroke-linecap="round" />
+          <!-- Orbiting temporal shards -->
+          <polygon points="18,46 24,38 26,48" fill="hsl(288, 84%, 72%)" opacity="0.8" />
+          <polygon points="102,42 96,34 94,46" fill="hsl(194, 88%, 72%)" opacity="0.8" />
+          <polygon points="24,78 30,72 31,82" fill="hsl(288, 84%, 72%)" opacity="0.65" />
+        </svg>
+      `;
+
+    case 'writhing_mass':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-wm-mass" cx="48%" cy="46%" r="54%">
+              <stop offset="0%" stop-color="hsl(312, 48%, 42%)" />
+              <stop offset="60%" stop-color="hsl(296, 46%, 22%)" />
+              <stop offset="100%" stop-color="hsl(280, 48%, 11%)" />
+            </radialGradient>
+            <linearGradient id="ea-wm-arm" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(324, 54%, 50%)" />
+              <stop offset="100%" stop-color="hsl(290, 46%, 20%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="44" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <!-- Writhing coiled tendrils radiating outward -->
+          <path d="M24 52 Q10 38 22 24 M96 52 Q110 38 98 24 M20 82 Q8 90 18 98 M100 82 Q112 90 102 98 M60 22 Q54 8 66 10" stroke="url(#ea-wm-arm)" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- Organic tangled eldritch knot -->
+          <path d="M26 76 Q18 44 44 30 Q62 18 82 32 Q104 48 92 80 Q76 100 56 96 Q34 100 26 76 Z" fill="url(#ea-wm-mass)" stroke="hsl(326, 66%, 58%)" stroke-width="2.2" />
+          <path d="M34 54 Q58 42 84 56 M32 72 Q60 84 86 68" stroke="hsl(286, 52%, 14%)" stroke-width="3.2" fill="none" stroke-linecap="round" />
+          <!-- Multiple reactive glowing eyes -->
+          <circle cx="46" cy="48" r="5" fill="hsl(48, 100%, 72%)" /><circle cx="46" cy="48" r="2" fill="hsl(312, 62%, 16%)" />
+          <circle cx="72" cy="46" r="6" fill="hsl(48, 100%, 72%)" /><circle cx="72" cy="46" r="2.4" fill="hsl(312, 62%, 16%)" />
+          <circle cx="58" cy="68" r="7" fill="hsl(352, 96%, 66%)" stroke="hsl(48, 96%, 72%)" stroke-width="1.4" /><circle cx="58" cy="68" r="2.6" fill="hsl(292, 62%, 12%)" />
+          <circle cx="38" cy="70" r="3.6" fill="hsl(148, 92%, 64%)" />
+          <circle cx="80" cy="70" r="3.6" fill="hsl(148, 92%, 64%)" />
+        </svg>
+      `;
+
     default:
       return null;
   }

@@ -13,13 +13,16 @@ import {
 } from '../src/data/cards.js';
 import { ENCOUNTERS } from '../src/data/enemies.js';
 import {
+  getRelicIcon,
   POTION_LIBRARY,
+  RELIC_ICONS,
   RELIC_LIBRARY,
   STANCE_METADATA,
   STATUS_METADATA,
 } from '../src/data/relics.js';
 import {
   applyStatus,
+  confirmPendingCardChoice,
   confirmScryChoice,
   discardHandCard,
   endPlayerTurn,
@@ -30,6 +33,7 @@ import {
   restartCombat,
   RUSHDOWN_MAX_TRIGGERS_PER_TURN,
   startCombat,
+  togglePendingCardChoice,
   toggleScryChoice,
   usePotion,
 } from '../src/engine/combat.js';
@@ -414,19 +418,22 @@ test('Body Slam description and execution dynamically reflect live Block + Modif
   assert.equal(state.player.potions[0], null);
 });
 
-test('restartCombat restores initial Turn 1 snapshot (HP, potions, piles, relics, enemy stats) and supports repeated restarts', () => {
+test('restartCombat restores initial Turn 1 snapshot (HP, potions, piles, relics, enemy stats) while tracking cumulative combatRestarts', () => {
   const state = createNewRun({ seed: 1337 });
   state.player.hp = 64;
   state.player.relics.push('anchor', 'vajra');
   startCombat(state, ENCOUNTERS.normal[1], 'normal'); // Slime duo (Acid + Spike Slime)
 
-  const turn1Snapshot = JSON.stringify({
-    rngState: state.rngState,
-    nextUid: state.nextUid,
-    player: state.player,
-    combat: state.combat,
-    stats: state.stats,
-  });
+  const snapshotWithoutRestarts = (s) =>
+    JSON.stringify({
+      rngState: s.rngState,
+      nextUid: s.nextUid,
+      player: s.player,
+      combat: s.combat,
+      stats: { ...s.stats, combatRestarts: 0 },
+    });
+  const turn1Snapshot = snapshotWithoutRestarts(state);
+  assert.equal(state.stats.combatRestarts, 0);
 
   // Burn potion, play cards, end turn (Slimes attack and shuffle Slimed into discardPile)
   usePotion(state, 0, state.combat.enemies[0].id);
@@ -443,32 +450,18 @@ test('restartCombat restores initial Turn 1 snapshot (HP, potions, piles, relics
   // Restart #1
   const res1 = restartCombat(state);
   assert.equal(res1.ok, true);
-  assert.equal(
-    JSON.stringify({
-      rngState: state.rngState,
-      nextUid: state.nextUid,
-      player: state.player,
-      combat: state.combat,
-      stats: state.stats,
-    }),
-    turn1Snapshot
-  );
+  assert.equal(res1.combatRestarts, 1);
+  assert.equal(state.stats.combatRestarts, 1);
+  assert.equal(snapshotWithoutRestarts(state), turn1Snapshot);
 
-  // Play turn again and Restart #2 to verify snapshot wasn't mutated on Restart #1
+  // Play turn again and Restart #2 to verify snapshot wasn't mutated on Restart #1 and counter accumulates
   usePotion(state, 0, state.combat.enemies[1].id);
   endPlayerTurn(state);
   const res2 = restartCombat(state);
   assert.equal(res2.ok, true);
-  assert.equal(
-    JSON.stringify({
-      rngState: state.rngState,
-      nextUid: state.nextUid,
-      player: state.player,
-      combat: state.combat,
-      stats: state.stats,
-    }),
-    turn1Snapshot
-  );
+  assert.equal(res2.combatRestarts, 2);
+  assert.equal(state.stats.combatRestarts, 2);
+  assert.equal(snapshotWithoutRestarts(state), turn1Snapshot);
 });
 
 test('Upgrade preview and getCardStats explicitly surface cost reductions (Seeing Red & Body Slam) without false positives', () => {
@@ -554,19 +547,22 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 100);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 103);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 3);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 25);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 19);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 22);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 8);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
     16
   );
+  for (const id of Object.keys(RELIC_LIBRARY)) {
+    assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
+  }
   assert.equal(Object.keys(POTION_LIBRARY).length, 28);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 232);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 233);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     65
@@ -582,6 +578,7 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
   assert.ok(CARD_LIBRARY.wound, 'CARD_LIBRARY must include Wound status card');
+  assert.ok(CARD_LIBRARY.parasite, 'CARD_LIBRARY must include Parasite curse card');
   assert.ok(CARD_LIBRARY.apparition, 'CARD_LIBRARY must include Apparition event card');
   assert.ok(STATUS_METADATA.confused, 'STATUS_METADATA must include confused for Snecko Eye');
   assert.ok(STATUS_METADATA.poison, 'STATUS_METADATA must include poison for The Silent');
@@ -2664,8 +2661,13 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
 
   playCard(si, pk.instanceId);
   playCard(si, wlp.instanceId);
-  endPlayerTurn(si);
+  const wlpEndRes = endPlayerTurn(si);
+  assert.equal(wlpEndRes.awaitingRetainChoice, true, 'Well-Laid Plans pauses end of turn for player retain selection');
+  assert.equal(si.combat.pendingCardChoice?.mode, 'retain');
+  const wlpConfirm = confirmPendingCardChoice(si, [def1.instanceId]);
+  assert.equal(wlpConfirm.ok, true);
   assert.equal(si.player.statuses.doubleDamage, 1, 'Phantasmal Killer activates Double Damage next turn');
+  assert.ok(si.combat.hand.some((c) => c.instanceId === def1.instanceId), 'Chosen Defend was retained by Well-Laid Plans');
   assert.ok(si.combat.hand.length >= 6, 'Well-Laid Plans retained 1 card + drew 5 next turn');
 
   // 3. Watcher P1: Master Reality (+Safety+), Battle Hymn (+Smite+), Wave of the Hand, Indignation, Swivel, Windmill Strike, Reach Heaven -> Through Violence, Meditate, Deus Ex Machina
@@ -2682,7 +2684,8 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   const meditate = createCardInstance(wa, 'meditate', false);
   wa.combat.hand = [mr, woth, swivel, windmill, reach, meditate];
   wa.combat.drawPile = [createCardInstance(wa, 'deus_ex_machina', false)];
-  wa.combat.discardPile = [createCardInstance(wa, 'strike', false)];
+  const strikeDiscWa = createCardInstance(wa, 'strike', false);
+  wa.combat.discardPile = [strikeDiscWa];
   wa.player.energy = 10;
 
   playCard(wa, mr.instanceId);
@@ -2699,10 +2702,13 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   assert.equal(wa.player.statuses.freeAttackPower, 1, 'Swivel arms freeAttackPower');
   assert.equal(getEffectiveCardCost(getCardStats(windmill), wa.player, wa.combat), 0, 'Swivel makes Windmill Strike cost 0');
 
-  // Meditate enters Calm, retrieves 1 discard with tempRetain, gains 6 block, and ends turn (retaining Windmill Strike -> +6 dmg!)
+  // Meditate enters Calm, opens interactive discard-pile pick, and ends turn on confirm (retaining Windmill Strike -> +6 dmg!)
   playCard(wa, meditate.instanceId);
   assert.equal(wa.combat.stance, 'calm', 'Meditate enters Calm');
+  assert.equal(wa.combat.pendingCardChoice?.mode, 'retrieve_discard_retain', 'Meditate prompts interactive discard choice');
+  assert.equal(confirmPendingCardChoice(wa, [strikeDiscWa.instanceId]).ok, true);
   assert.equal(windmill.combatDamageMod, 6, 'Windmill Strike gained +6 permanent combat damage on retain');
+  assert.ok(wa.combat.hand.some((c) => c.instanceId === strikeDiscWa.instanceId), 'Meditate retrieved chosen card and retained it into next turn');
   assert.ok(wa.combat.hand.some((c) => c.cardId === 'miracle' && c.upgraded), 'Deus Ex Machina auto-exhausted on draw into upgraded Miracles+');
 
   // 4. Colorless P1: Panacea (Artifact), Dark Shackles (-9 Str), Panache (every 5 cards 8 AoE), The Bomb (30 AoE after 3 turns)
@@ -2742,7 +2748,7 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   assert.equal(hpPreBomb - enCo.hp, 30, 'The Bomb detonates for 30 AoE after 3 turns');
 });
 
-test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/60, cross-turn Chain & Swivel, Nirvana 0-discard/empty Scry, Blasphemy+Intangible, Vault vs Time Eater, 0-dmg Talk to the Hand, smart Meditate', () => {
+test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/60, cross-turn Chain & Swivel, Nirvana 0-discard/empty Scry, Blasphemy+Intangible, Vault vs Time Eater, 0-dmg Talk to the Hand, interactive Meditate', () => {
   // 1. Original-StS Rarities & Omega 50/60
   assert.equal(RUSHDOWN_MAX_TRIGGERS_PER_TURN, Infinity);
   assert.equal(CARD_LIBRARY.omega.base.applySelfStatuses.omega, 50);
@@ -2829,7 +2835,7 @@ test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/6
   assert.equal(vt.player.hp, 60, 'Vault skipped Time Eater 40-damage attack even on 12th card');
   assert.equal(teBoss.statuses.timeWarp, 12, 'Time Warp counter reset after 12th card');
 
-  // 6. Talk to the Hand triggers even on 0-damage attack hit + Meditate smartly retrieves Eruption over Strike
+  // 6. Talk to the Hand triggers even on 0-damage attack hit + Interactive Meditate lets player choose Eruption+ from discard
   const tm = createNewRun({ seed: 23005, characterId: 'watcher', skipNeow: true });
   startCombat(tm, ENCOUNTERS.floor1[0], 'normal');
   const tEn = tm.combat.enemies[0];
@@ -2848,8 +2854,205 @@ test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/6
   playCard(tm, zeroStrike.instanceId, tEn.id);
   assert.equal(tm.player.block, 3, 'Talk to the Hand grants Block even on 0-damage attack hits');
   playCard(tm, med.instanceId);
+  assert.equal(tm.combat.pendingCardChoice?.mode, 'retrieve_discard_retain');
+  assert.equal(togglePendingCardChoice(tm, erupDiscard.instanceId).ok, true);
+  assert.equal(confirmPendingCardChoice(tm).ok, true);
   assert.ok(
     tm.combat.hand.some((c) => c.instanceId === erupDiscard.instanceId),
-    'Meditate smartly retrieves Eruption+ from discard pile instead of basic Strike'
+    'Interactive Meditate retrieves player-chosen Eruption+ from discard pile'
   );
 });
+
+test('Interactive Headbutt (discard_to_draw), Meditate+ (up to 2), Well-Laid Plans+ (up to 2) & all 7 new Act 2/3 enemies', () => {
+  // 1. Headbutt interactive discard_to_draw (cannot pick itself, puts chosen card on top of drawPile)
+  const hb = createNewRun({ seed: 43001, characterId: 'ironclad', skipNeow: true });
+  startCombat(hb, ENCOUNTERS.floor1[0], 'normal');
+  const hbEn = hb.combat.enemies[0];
+  hbEn.hp = 100;
+  const headbutt = createCardInstance(hb, 'headbutt', false);
+  const bashDisc = createCardInstance(hb, 'bash', true);
+  const strikeDisc = createCardInstance(hb, 'strike', false);
+  hb.combat.hand = [headbutt];
+  hb.combat.discardPile = [bashDisc, strikeDisc];
+  hb.combat.drawPile = [createCardInstance(hb, 'defend', false)];
+  hb.player.energy = 3;
+  assert.equal(playCard(hb, headbutt.instanceId, hbEn.id).ok, true);
+  assert.equal(hb.combat.pendingCardChoice?.mode, 'discard_to_draw');
+  assert.equal(
+    hb.combat.pendingCardChoice.candidates.some((c) => c.instanceId === headbutt.instanceId),
+    false,
+    'Headbutt must not offer itself as a discard candidate'
+  );
+  assert.equal(resolveCardChoice(hb, bashDisc.instanceId).ok, true);
+  assert.equal(hb.combat.pendingCardChoice, null);
+  assert.equal(hb.combat.drawPile[0].instanceId, bashDisc.instanceId, 'Chosen card placed on top of drawPile');
+
+  // 2. Well-Laid Plans+ allows toggling up to 2 cards and retaining both across turn boundary
+  const wlpRun = createNewRun({ seed: 43002, characterId: 'silent', skipNeow: true });
+  startCombat(wlpRun, ENCOUNTERS.floor1[0], 'normal');
+  wlpRun.combat.enemies[0].hp = 100;
+  wlpRun.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const wlpPlus = createCardInstance(wlpRun, 'well_laid_plans', true);
+  const c1 = createCardInstance(wlpRun, 'neutralize', false);
+  const c2 = createCardInstance(wlpRun, 'survivor', false);
+  const c3 = createCardInstance(wlpRun, 'strike', false);
+  wlpRun.combat.hand = [wlpPlus, c1, c2, c3];
+  wlpRun.player.energy = 3;
+  playCard(wlpRun, wlpPlus.instanceId);
+  const endRes = endPlayerTurn(wlpRun);
+  assert.equal(endRes.awaitingRetainChoice, true);
+  assert.equal(wlpRun.combat.pendingCardChoice.count, 2);
+  assert.equal(togglePendingCardChoice(wlpRun, c1.instanceId).ok, true);
+  assert.equal(togglePendingCardChoice(wlpRun, c2.instanceId).ok, true);
+  assert.equal(togglePendingCardChoice(wlpRun, c3.instanceId).ok, false, 'Cannot exceed retain limit of 2');
+  assert.equal(confirmPendingCardChoice(wlpRun).ok, true);
+  assert.ok(wlpRun.combat.hand.some((c) => c.instanceId === c1.instanceId));
+  assert.ok(wlpRun.combat.hand.some((c) => c.instanceId === c2.instanceId));
+  assert.equal(wlpRun.combat.hand.some((c) => c.instanceId === c3.instanceId), false);
+
+  // 3. Chosen (Turn 1 Poke, Turn 2 Hex -> adds Dazed to drawPile on Skill/Power, not on Attack)
+  const chRun = createNewRun({ seed: 43003, characterId: 'ironclad', skipNeow: true });
+  startCombat(chRun, ENCOUNTERS.act2Early.find((e) => e.id === 'chosen_solo'), 'normal');
+  const chosen = chRun.combat.enemies[0];
+  chosen.hp = 150;
+  assert.equal(chosen.intent.id, 'chosen_poke', 'Chosen opens with Poke on Turn 1');
+  endPlayerTurn(chRun);
+  assert.equal(chosen.intent.id, 'chosen_hex', 'Chosen queues Hex on Turn 2');
+  endPlayerTurn(chRun);
+  assert.equal(chRun.player.statuses.hex, 1, 'Chosen applied Hex debuff on Turn 2');
+  const dazedBefore = chRun.combat.drawPile.filter((c) => c.cardId === 'dazed').length;
+  const stCard = createCardInstance(chRun, 'strike', false);
+  const dfCard = createCardInstance(chRun, 'defend', false);
+  chRun.combat.hand = [stCard, dfCard];
+  chRun.player.energy = 3;
+  playCard(chRun, stCard.instanceId, chosen.id);
+  assert.equal(chRun.combat.drawPile.filter((c) => c.cardId === 'dazed').length, dazedBefore, 'Hex does NOT trigger on Attack');
+  playCard(chRun, dfCard.instanceId);
+  assert.equal(chRun.combat.drawPile.filter((c) => c.cardId === 'dazed').length, dazedBefore + 1, 'Hex shuffles Dazed into drawPile on Skill');
+
+  // 4. Shelled Parasite (Plated Armor break stuns + Suck lifesteal)
+  const spRun = createNewRun({ seed: 43004, characterId: 'ironclad', skipNeow: true });
+  startCombat(spRun, ENCOUNTERS.act2Early.find((e) => e.id === 'shelled_parasite_solo'), 'normal');
+  const parasite = spRun.combat.enemies[0];
+  assert.ok(parasite.statuses.platedArmor >= 10, 'Shelled Parasite starts with Plated Armor');
+  parasite.statuses.platedArmor = 1;
+  parasite.block = 0;
+  parasite.intent = { id: 'fell', name: '重击', type: 'attack', damage: 18, hits: 1 };
+  const strikeBreak = createCardInstance(spRun, 'strike', false);
+  spRun.combat.hand = [strikeBreak];
+  spRun.player.energy = 3;
+  playCard(spRun, strikeBreak.instanceId, parasite.id);
+  assert.equal(parasite.statuses.platedArmor, undefined, 'Plated Armor broke to 0');
+  assert.equal(parasite.intent.id, 'stunned', 'Breaking Shelled Parasite Plated Armor stuns it!');
+
+  // Test Suck lifesteal
+  parasite.hp = 40;
+  parasite.intent = { id: 'suck', name: '吸血啃噬', type: 'attack_buff', damage: 10, hits: 1, lifesteal: true };
+  spRun.player.block = 4;
+  endPlayerTurn(spRun);
+  assert.equal(parasite.hp, 46, 'Shelled Parasite Suck healed for 6 unblocked HP damage dealt');
+
+  // 5. Snecko (Perplexing Glare applies Confused -> randomizes drawn card costs 0-3)
+  const snRun = createNewRun({ seed: 43005, characterId: 'ironclad', skipNeow: true });
+  startCombat(snRun, ENCOUNTERS.act2Hard.find((e) => e.id === 'snecko_solo'), 'normal');
+  assert.equal(snRun.combat.enemies[0].intent.id, 'perplexing_glare');
+  endPlayerTurn(snRun);
+  assert.equal(snRun.player.statuses.confused, 1, 'Snecko applied Confused');
+  assert.ok(
+    snRun.combat.hand.every((c) => typeof c.combatCost === 'number' && c.combatCost >= 0 && c.combatCost <= 3),
+    'Confused randomized all drawn card costs in 0..3'
+  );
+
+  // 6. Darkling x3 (Life Link regrows after 2 turns with 50% HP while an ally survives; simultaneous down wins combat)
+  const dkRun = createNewRun({ seed: 43006, characterId: 'ironclad', skipNeow: true });
+  startCombat(dkRun, ENCOUNTERS.act3Early.find((e) => e.id === 'darkling_trio'), 'normal');
+  assert.equal(dkRun.combat.enemies.length, 3);
+  const [dk0, dk1, dk2] = dkRun.combat.enemies;
+  dk0.hp = 4;
+  dk1.hp = 50;
+  dk2.hp = 50;
+  dk1.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  dk2.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const killDk0 = createCardInstance(dkRun, 'strike', false);
+  dkRun.combat.hand = [killDk0];
+  dkRun.player.energy = 3;
+  playCard(dkRun, killDk0.instanceId, dk0.id);
+  assert.equal(dk0.hp, 0);
+  assert.equal(dk0.darklingRegrowTurns, 2, 'Darkling enters 2-turn regrow while allies live');
+  assert.equal(dkRun.combat.status, 'ongoing');
+  endPlayerTurn(dkRun); // 2 -> 1
+  assert.equal(dk0.hp, 0);
+  assert.equal(dk0.darklingRegrowTurns, 1);
+  dk1.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  dk2.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  endPlayerTurn(dkRun); // 1 -> revives at 50% HP!
+  assert.equal(dk0.hp, Math.max(1, Math.floor(dk0.maxHp / 2)), 'Darkling revived at 50% max HP via Life Link');
+
+  // Down all 3 Darklings -> immediate victory!
+  dk0.hp = 3;
+  dk1.hp = 3;
+  dk2.hp = 3;
+  const cleaveWin = createCardInstance(dkRun, 'cleave', false);
+  dkRun.combat.hand = [cleaveWin];
+  dkRun.player.energy = 3;
+  playCard(dkRun, cleaveWin.instanceId);
+  assert.equal(dkRun.combat.status, 'victory', 'Downing all 3 Darklings wins combat immediately');
+
+  // 7. Spire Growth (Constricted end-of-turn blockable damage)
+  const sgRun = createNewRun({ seed: 43007, characterId: 'ironclad', skipNeow: true });
+  startCombat(sgRun, ENCOUNTERS.act3Hard.find((e) => e.id === 'spire_growth_solo'), 'normal');
+  const sg = sgRun.combat.enemies[0];
+  sg.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  sgRun.player.statuses.constricted = 10;
+  sgRun.player.block = 4;
+  const hpBeforeConstr = sgRun.player.hp;
+  endPlayerTurn(sgRun);
+  assert.equal(sgRun.player.hp, hpBeforeConstr - 6, 'Constricted 10 blocked 4 and dealt 6 HP damage at end of turn');
+
+  // 8. Transient (Shifting temporary Strength drop & restore + Fading countdown auto-victory)
+  const trRun = createNewRun({ seed: 43008, characterId: 'ironclad', skipNeow: true });
+  startCombat(trRun, ENCOUNTERS.act3Hard.find((e) => e.id === 'transient_solo'), 'normal');
+  const tr = trRun.combat.enemies[0];
+  assert.equal(tr.statuses.shifting, 1);
+  assert.equal(tr.statuses.fading, 5);
+  tr.block = 0;
+  const trStrike = createCardInstance(trRun, 'strike', false);
+  trRun.combat.hand = [trStrike];
+  trRun.player.energy = 3;
+  playCard(trRun, trStrike.instanceId, tr.id);
+  assert.equal(tr.statuses.strength, -6, 'Shifting dropped Transient Strength by 6 unblocked damage');
+  assert.equal(tr.tempStrengthRestore, 6);
+  tr.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  endPlayerTurn(trRun);
+  assert.equal(tr.statuses.strength, undefined, 'Transient restored temporary Strength after its turn');
+  assert.equal(tr.statuses.fading, 4, 'Fading decremented from 5 to 4');
+  tr.statuses.fading = 1;
+  tr.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  endPlayerTurn(trRun);
+  assert.equal(trRun.combat.status, 'victory', 'Transient vanished when Fading hit 0, granting victory');
+
+  // 9. Writhing Mass (Malleable + Reactive intent reroll on unblocked attack + Implant adds Parasite curse once)
+  const wmRun = createNewRun({ seed: 43009, characterId: 'ironclad', skipNeow: true });
+  wmRun.player.relics.push('darkstone_periapt');
+  startCombat(wmRun, ENCOUNTERS.act3Hard.find((e) => e.id === 'writhing_mass_solo'), 'normal');
+  const wm = wmRun.combat.enemies[0];
+  assert.equal(wm.statuses.reactive, 1);
+  assert.ok(wm.statuses.malleable >= 3);
+  wm.block = 0;
+  const prevIntentId = wm.intent.id;
+  const wmStrike = createCardInstance(wmRun, 'strike', false);
+  wmRun.combat.hand = [wmStrike];
+  wmRun.player.energy = 3;
+  playCard(wmRun, wmStrike.instanceId, wm.id);
+  assert.notEqual(wm.intent.id, prevIntentId, 'Reactive rerolled Writhing Mass intent on unblocked attack damage');
+  assert.ok(wm.block >= 3, 'Malleable granted Writhing Mass block on hit');
+
+  // Force Implant intent and verify Parasite added to master deck + Darkstone Periapt +6 Max HP
+  const maxHpPreImplant = wmRun.player.maxHp;
+  wm.intent = { id: 'implant', name: '寄生植入', type: 'debuff', addCurseToDeck: 'parasite' };
+  endPlayerTurn(wmRun);
+  assert.equal(wm.implantUsed, true);
+  assert.ok(wmRun.player.deck.some((c) => c.cardId === 'parasite'), 'Writhing Mass Implant added Parasite curse to deck');
+  assert.equal(wmRun.player.maxHp, maxHpPreImplant + 6, 'Darkstone Periapt triggered +6 Max HP on Parasite curse');
+});
+

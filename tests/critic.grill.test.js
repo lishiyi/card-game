@@ -26,6 +26,7 @@ import {
   completeNeowAction,
   continueFromEvent,
   createNewRun,
+  digAtCampfire,
   findMapNode,
   getAvailableNodeIds,
   getUpgradableDeckCards,
@@ -33,6 +34,7 @@ import {
   leaveRestSite,
   leaveShop,
   leaveTreasureRoom,
+  liftAtCampfire,
   openTreasureChest,
   pickEventLibraryCard,
   playerHasHeavyAttackCard,
@@ -40,6 +42,7 @@ import {
   proceedToNextAct,
   restHeal,
   restUpgradeCard,
+  runConfirmPendingCardChoice,
   runConfirmScry,
   runDiscardHandCard,
   runEndTurn,
@@ -49,6 +52,7 @@ import {
   runUsePotion,
   selectMapNode,
   settleAct1Victory,
+  tokeAtCampfire,
 } from '../src/engine/game.js';
 import { ASCENSION_DEFS, UNLOCK_TIERS } from '../src/engine/meta.js';
 
@@ -286,6 +290,29 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after confirmScry seed ${seed}`);
               continue;
             }
+            if (choice.mode === 'discard_to_draw') {
+              const cand = choice.candidates?.[0] || state.combat.discardPile[0];
+              assert.ok(cand, `Pending discard_to_draw with empty candidates on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
+              assertRunInvariants(state, `after discard_to_draw seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'retrieve_discard_retain') {
+              const pickIds = (choice.candidates || [])
+                .slice(0, choice.count || 1)
+                .map((c) => c.instanceId);
+              assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
+              assertRunInvariants(state, `after retrieve_discard_retain seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'retain') {
+              const pickIds = (choice.candidates || [])
+                .slice(0, choice.count || 1)
+                .map((c) => c.instanceId);
+              assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
+              assertRunInvariants(state, `after retain choice seed ${seed}`);
+              continue;
+            }
             if (choice.mode === 'upgrade') {
               const target = state.combat.hand.find((c) => canUpgradeCard(c));
               assert.ok(target, `Pending upgrade with no upgradable card on seed ${seed}`);
@@ -376,7 +403,11 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
         if (state.screen === 'combat') {
           resolvePendingDiscards();
           if (state.screen === 'combat') {
-            assert.equal(runEndTurn(state).ok, true);
+            const endRes = runEndTurn(state);
+            assert.equal(endRes.ok, true);
+            if (endRes.awaitingRetainChoice) {
+              resolvePendingDiscards();
+            }
             assertRunInvariants(state, `after endTurn seed ${seed}`);
           }
         }
@@ -417,6 +448,13 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
         const canRestHeal = !state.player.relics.includes('coffee_dripper');
         if (canRestHeal && (state.player.hp < state.player.maxHp * 0.65 || upgradable.length === 0)) {
           restHeal(state);
+        } else if (state.player.relics.includes('girya') && (state.relicCounters?.girya ?? 0) < 3) {
+          liftAtCampfire(state);
+        } else if (state.player.relics.includes('shovel')) {
+          digAtCampfire(state);
+        } else if (state.player.relics.includes('peace_pipe') && state.player.deck.length > 8) {
+          const curseCard = state.player.deck.find((c) => getCardStats(c).type === 'curse');
+          tokeAtCampfire(state, (curseCard || state.player.deck[0]).instanceId);
         } else if (upgradable.length > 0) {
           restUpgradeCard(state, upgradable[0].instanceId);
         } else {

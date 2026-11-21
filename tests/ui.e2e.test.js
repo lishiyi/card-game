@@ -540,7 +540,7 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     assert.equal(initialAudit.legacySvgLines, 0, 'Map must no longer use straight dashed <line> elements');
     assert.ok(initialAudit.bezierEdgeCount >= 22, 'Expected 16-floor Spire map cubic Bezier route curves');
     assert.equal(initialAudit.allCubicBezier, true, 'Every map edge must be a smooth cubic Bezier curve');
-    assert.equal(initialAudit.deckBtnText, '牌组 (10)');
+    assert.equal(initialAudit.deckBtnText, '🃏 牌组 (10)');
     assert.equal(initialAudit.allNodesHaveIcons, true, 'Every map node must render an icon');
     assert.notEqual(initialAudit.combatSvgMarkup, initialAudit.eliteSvgMarkup, 'Normal combat and Elite must use distinct monster icons');
     assert.notEqual(initialAudit.combatIconColor, initialAudit.eliteIconColor, 'Normal combat and Elite icons must have distinct color accents');
@@ -726,7 +726,7 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     const relicTip = await hoverSelector('.relic-badge');
     assert.equal(relicTip.hidden, false);
     assert.notEqual(relicTip.display, 'none');
-    assert.equal(relicTip.title, '燃烧之血');
+    assert.equal(relicTip.title, '🩸 燃烧之血');
     assert.ok(relicTip.desc.includes('回复 6 点生命'));
 
     const isPotionDisabledOnMap = await cdp.evaluate(`document.getElementById('potion-slot-0').disabled`);
@@ -1270,7 +1270,7 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
     assert.equal(asc5Audit.ascension, 5);
     assert.equal(asc5Audit.maxHp, 75);
     assert.equal(asc5Audit.ascPillText, '进阶 5');
-    assert.equal(asc5Audit.deckBtnText, '牌组 (11)');
+    assert.equal(asc5Audit.deckBtnText, '🃏 牌组 (11)');
     assert.equal(asc5Audit.hasClumsy, true);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
@@ -1575,19 +1575,32 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       const handOverflowX = getComputedStyle(document.querySelector('.hand-tray')).overflowX;
 
       const nextHint = document.querySelector('.enemy-side .next-intent-hint');
-      nextHint.click();
+      const nextHintDisplay = nextHint ? getComputedStyle(nextHint).display : 'none';
+      const nextTrigger = document.querySelector('.enemy-side .next-intent-trigger');
+      const nextTriggerRect = nextTrigger ? nextTrigger.getBoundingClientRect() : null;
+      nextTrigger.click();
       const tip = document.getElementById('spire-tooltip');
       const tipOpen = !tip.hidden;
       const tipTag = tip.querySelector('.spire-tooltip-tag')?.textContent?.trim() || '';
-      if (!tip.hidden) nextHint.click();
+      if (!tip.hidden) nextTrigger.click();
 
-      return { docScrollWidth, innerWidth, handOverflowX, tipOpen, tipTag };
+      return {
+        docScrollWidth,
+        innerWidth,
+        handOverflowX,
+        nextHintDisplay,
+        nextTriggerVisible: Boolean(nextTriggerRect && nextTriggerRect.width >= 18 && nextTriggerRect.height >= 18),
+        tipOpen,
+        tipTag,
+      };
     })()`);
     assert.ok(
       mobileCombatAudit.docScrollWidth <= mobileCombatAudit.innerWidth,
       `Mobile combat overflowed horizontally: ${mobileCombatAudit.docScrollWidth} > ${mobileCombatAudit.innerWidth}`
     );
     assert.equal(mobileCombatAudit.handOverflowX, 'auto');
+    assert.equal(mobileCombatAudit.nextHintDisplay, 'none', 'Multi-line .next-intent-hint must be hidden on 390px mobile');
+    assert.equal(mobileCombatAudit.nextTriggerVisible, true, 'Compact .next-intent-trigger icon must be visible on 390px mobile');
     assert.equal(mobileCombatAudit.tipOpen, true);
     assert.equal(mobileCombatAudit.tipTag, '行动预判');
 
@@ -2422,9 +2435,9 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     assert.equal(silentHudAudit.heroName, '静默猎手');
     assert.equal(silentHudAudit.hp, 70);
     assert.equal(silentHudAudit.maxHp, 70);
-    assert.equal(silentHudAudit.deckBtnText, '牌组 (12)');
+    assert.equal(silentHudAudit.deckBtnText, '🃏 牌组 (12)');
     assert.equal(silentHudAudit.heroBadgeText, '静默猎手');
-    assert.equal(silentHudAudit.relicText, '蛇之戒指');
+    assert.equal(silentHudAudit.relicText, '🐍蛇之戒指');
     assert.equal(silentHudAudit.potionTitle, '剧毒药水');
     assert.ok(silentHudAudit.neowBossSwap.includes('蛇之戒指'), `Expected Silent Boss Swap text, got: ${silentHudAudit.neowBossSwap}`);
 
@@ -4102,7 +4115,7 @@ test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive 
         dailyRecords: {},
       }));
     })()`);
-    await cdp.send('Page.reload', { ignoreCache: true });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
     const charSelectAudit = await cdp.evaluate(`(() => {
@@ -4802,10 +4815,10 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       };
     })()`);
     assert.equal(compInitial.open, true);
-    assert.ok(compInitial.cardTabText.includes('/232') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
-    assert.equal(compInitial.totalRelicCards, 100, 'Relics tab lists all 100 relics');
+    assert.ok(compInitial.cardTabText.includes('/233') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
+    assert.equal(compInitial.totalRelicCards, 103, 'Relics tab lists all 103 relics');
     assert.equal(compInitial.totalPotionCards, 28, 'Potions tab lists all 28 potions');
-    assert.equal(compInitial.totalEnemyCards, 40, 'Enemies tab lists all 40 enemies');
+    assert.equal(compInitial.totalEnemyCards, 47, 'Enemies tab lists all 47 enemies');
     assert.ok(compInitial.undiscoveredCount > 0 && compInitial.silhouettes > 0, 'Unseen entries render as silhouettes');
     await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
 
@@ -4832,9 +4845,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
         pickedCardId: null,
       };
       app.render();
-      const penNibPill = document.querySelector('[data-relic-id="pen_nib"] .relic-counter-pill')?.textContent?.trim() || '';
-      const nunchakuPill = document.querySelector('[data-relic-id="nunchaku"] .relic-counter-pill')?.textContent?.trim() || '';
-      const lizardPill = document.querySelector('[data-relic-id="lizard_tail"] .relic-counter-pill')?.textContent?.trim() || '';
+      const penNibPill = document.querySelector('[data-relic-id="pen_nib"] .relic-counter-full')?.textContent?.trim() || '';
+      const nunchakuPill = document.querySelector('[data-relic-id="nunchaku"] .relic-counter-full')?.textContent?.trim() || '';
+      const lizardPill = document.querySelector('[data-relic-id="lizard_tail"] .relic-counter-full')?.textContent?.trim() || '';
       const hasExtraRelicBtn = Boolean(document.getElementById('btn-claim-extra-relic'));
       const proceedBtnText = document.getElementById('btn-proceed-reward')?.textContent?.trim() || '';
       // Open Compendium from HUD and verify Watcher starter cards & relics are now discovered!
@@ -4948,3 +4961,335 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent popover, Deck stats/sort/stack, Settings Save Backup, Campfire Relics, Interactive Headbutt/Meditate/Well-Laid Plans, Restart count & SW Update banner', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1366,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 400));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    // 1. Enhanced Deck Modal: stats bar, sorting, stack toggle, and anti-cheat Draw Pile hides "获得顺序"
+    const deckUiAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-deck').click();
+      const statsText = document.getElementById('deck-stats-bar')?.textContent?.replace(/\\s+/g, ' ').trim() || '';
+      const stackedCardCount = document.querySelectorAll('#modal-backdrop .game-card').length;
+      const stackBadges = [...document.querySelectorAll('#modal-backdrop .card-stack-badge')].map((el) => el.textContent.trim());
+      document.getElementById('btn-toggle-deck-stack').click();
+      const unstackedCardCount = document.querySelectorAll('#modal-backdrop .game-card').length;
+      document.getElementById('btn-toggle-deck-stack').click();
+      document.getElementById('btn-deck-sort-cost').click();
+      const costSortActive = document.getElementById('btn-deck-sort-cost')?.classList.contains('active') || false;
+      const firstCardCostAfterCostSort = document.querySelector('#modal-backdrop .game-card .card-cost')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal').click();
+      return { statsText, stackedCardCount, stackBadges, unstackedCardCount, costSortActive, firstCardCostAfterCostSort };
+    })()`);
+    assert.ok(deckUiAudit.statsText.includes('攻击 6') && deckUiAudit.statsText.includes('技能 4'), `Deck stats bar mismatch: ${deckUiAudit.statsText}`);
+    assert.equal(deckUiAudit.stackedCardCount, 3, 'Ironclad starter 10 cards stack into 3 unique cards (5 Strike, 4 Defend, 1 Bash)');
+    assert.ok(deckUiAudit.stackBadges.includes('×5') && deckUiAudit.stackBadges.includes('×4'));
+    assert.equal(deckUiAudit.unstackedCardCount, 10, 'Unstacking expands back to all 10 individual cards');
+    assert.equal(deckUiAudit.costSortActive, true);
+    assert.equal(deckUiAudit.firstCardCostAfterCostSort, '1');
+
+    // 2. Settings Save Backup: Copy JSON -> invalid JSON error -> valid JSON import updates meta
+    const backupAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-settings').click();
+      document.getElementById('btn-copy-save-json').click();
+      const exported = document.getElementById('input-import-save-json')?.value || '';
+      const copyFb = document.getElementById('settings-backup-feedback')?.textContent?.trim() || '';
+
+      // Invalid JSON must fail gracefully with tone-warn
+      const ta = document.getElementById('input-import-save-json');
+      ta.value = '{bad json';
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('btn-import-save-json').click();
+      const invalidTone = document.getElementById('settings-backup-feedback')?.className || '';
+
+      // Valid JSON with modified XP imports cleanly
+      const parsed = JSON.parse(exported);
+      parsed.meta.xp = 777;
+      const ta2 = document.getElementById('input-import-save-json');
+      ta2.value = JSON.stringify(parsed);
+      ta2.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('btn-import-save-json').click();
+      const validTone = document.getElementById('settings-backup-feedback')?.className || '';
+      const importedXp = window.__SPIRE_APP__.getMeta().xp;
+      document.getElementById('btn-close-modal').click();
+      return { exportedLen: exported.length, copyFb, invalidTone, validTone, importedXp };
+    })()`);
+    assert.ok(backupAudit.exportedLen > 200, 'Exported backup JSON must contain full save payload');
+    assert.ok(backupAudit.copyFb.includes('已复制'));
+    assert.ok(backupAudit.invalidTone.includes('tone-warn'), 'Invalid backup JSON must show warning tone');
+    assert.ok(backupAudit.validTone.includes('tone-ok'), 'Valid backup JSON must show ok tone');
+    assert.equal(backupAudit.importedXp, 777, 'Imported backup must restore meta XP');
+
+    // 3. Campfire Relics (Girya, Shovel, Peace Pipe) UI
+    const campAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.relics.push('girya', 'shovel', 'peace_pipe');
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+      const hasLift = Boolean(document.getElementById('btn-rest-lift'));
+      const hasDig = Boolean(document.getElementById('btn-rest-dig'));
+      const hasToke = Boolean(document.getElementById('btn-rest-toke'));
+
+      document.getElementById('btn-rest-lift').click();
+      const giryaAfterLift = st.relicCounters?.girya ?? 0;
+
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+      const relicsBeforeDig = st.player.relics.length;
+      document.getElementById('btn-rest-dig').click();
+      const relicsAfterDig = st.player.relics.length;
+
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+      const deckBeforeToke = st.player.deck.length;
+      document.getElementById('btn-rest-toke').click();
+      const tokeModalOpen = Boolean(document.getElementById('modal-backdrop'));
+      document.querySelector('#modal-backdrop [data-action="confirm-rest-toke"]').click();
+      const deckAfterToke = st.player.deck.length;
+      return { hasLift, hasDig, hasToke, giryaAfterLift, relicsBeforeDig, relicsAfterDig, tokeModalOpen, deckBeforeToke, deckAfterToke };
+    })()`);
+    assert.equal(campAudit.hasLift, true);
+    assert.equal(campAudit.hasDig, true);
+    assert.equal(campAudit.hasToke, true);
+    assert.equal(campAudit.giryaAfterLift, 1);
+    assert.equal(campAudit.relicsAfterDig, campAudit.relicsBeforeDig + 1);
+    assert.equal(campAudit.tokeModalOpen, true);
+    assert.equal(campAudit.deckAfterToke, campAudit.deckBeforeToke - 1);
+
+    // 4. Interactive Headbutt, Meditate, Well-Laid Plans + Combat Restart count in Game Over & History
+    const combatV2Audit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      // Enter first floor combat via map node
+      if (document.getElementById('neow-blessing-panel')) {
+        document.getElementById('neow-choice-0').click();
+        if (document.getElementById('neow-action-modal')) {
+          document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
+        }
+      }
+      document.querySelector('.map-node-btn.available').click();
+
+      // Restart combat once and check count
+      document.getElementById('btn-restart-combat').click();
+      const restartsAfterClick = st.stats.combatRestarts;
+
+      // Verify Draw pile hides "获得顺序" sort option
+      document.getElementById('btn-draw-pile').click();
+      const drawHasOrderSort = Boolean(document.getElementById('btn-deck-sort-order'));
+      const drawHasTypeSort = Boolean(document.getElementById('btn-deck-sort-type'));
+      document.getElementById('btn-close-modal').click();
+
+      // Inject Headbutt + discard card and play it -> discard_to_draw modal opens
+      const hbCard = { instanceId: 'e2e_hb_1', cardId: 'headbutt', upgraded: false };
+      const discCard = { instanceId: 'e2e_disc_1', cardId: 'bash', upgraded: true };
+      const wlpCard = { instanceId: 'e2e_wlp_1', cardId: 'well_laid_plans', upgraded: false };
+      const keepCard = { instanceId: 'e2e_keep_1', cardId: 'defend', upgraded: false };
+      st.combat.enemies = [st.combat.enemies[0]];
+      st.combat.enemies[0].hp = 120;
+      st.combat.hand = [hbCard, wlpCard, keepCard];
+      st.combat.discardPile = [discCard];
+      st.player.energy = 5;
+      app.render();
+
+      document.getElementById('hand-card-e2e_hb_1').click();
+      const hbModalOpen = Boolean(document.getElementById('discard-choice-modal'));
+      const hbMode = document.getElementById('discard-choice-modal')?.dataset?.choiceMode || '';
+      document.getElementById('discard-choice-card-e2e_disc_1').click();
+      const hbTopMatches = st.combat.drawPile[0]?.instanceId === 'e2e_disc_1';
+
+      // Play Well-Laid Plans then End Turn -> Retain hand selection UI + #btn-confirm-retain
+      document.getElementById('hand-card-e2e_wlp_1').click();
+      document.getElementById('btn-end-turn').click();
+      const retainBtnVisible = Boolean(document.getElementById('btn-confirm-retain'));
+      document.getElementById('hand-card-e2e_keep_1').click();
+      const keepCardSelected = document.getElementById('hand-card-e2e_keep_1')?.classList.contains('retain-selected') || false;
+      document.getElementById('btn-confirm-retain').click();
+      const keptIntoNextTurn = st.combat.hand.some((c) => c.instanceId === 'e2e_keep_1');
+
+      return {
+        restartsAfterClick,
+        drawHasOrderSort,
+        drawHasTypeSort,
+        hbModalOpen,
+        hbMode,
+        hbTopMatches,
+        retainBtnVisible,
+        keepCardSelected,
+        keptIntoNextTurn,
+      };
+    })()`);
+    assert.equal(combatV2Audit.restartsAfterClick, 1);
+    assert.equal(combatV2Audit.drawHasOrderSort, false, 'Draw pile must hide order sort for fairness');
+    assert.equal(combatV2Audit.drawHasTypeSort, true);
+    assert.equal(combatV2Audit.hbModalOpen, true);
+    assert.equal(combatV2Audit.hbMode, 'discard_to_draw');
+    assert.equal(combatV2Audit.hbTopMatches, true);
+    assert.equal(combatV2Audit.retainBtnVisible, true);
+    assert.equal(combatV2Audit.keepCardSelected, true);
+    assert.equal(combatV2Audit.keptIntoNextTurn, true);
+
+    // 5. Switch to 390x844 Mobile: verify compact 30x30px icon relic tiles (10 relics!), tap tooltip, Darkling regrowing SVG, next-intent trigger with card selected, and SW update banner
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 150));
+
+    const mobileV2Audit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      // Give 10 relics to test compact mobile icon bar
+      const extras = ['vajra', 'anchor', 'lantern', 'pen_nib', 'nunchaku', 'happy_flower', 'akabeko', 'bag_of_marbles', 'girya', 'shovel'];
+      for (const r of extras) {
+        if (!st.player.relics.includes(r)) st.player.relics.push(r);
+      }
+      st.relicCounters = { ...(st.relicCounters || {}), pen_nib: 9, girya: 2 };
+      // Render Darkling trio (one regrowing) to verify new Act 3 SVG + regrowing UI
+      const baseEn = st.combat.enemies[0];
+      st.combat.enemies = [
+        { ...structuredClone(baseEn), id: 'dk_0', templateId: 'darkling', name: '暗影虫 A', artKey: 'darkling', hp: 0, maxHp: 48, darklingRegrowTurns: 2, statuses: { lifeLink: 1 } },
+        { ...structuredClone(baseEn), id: 'dk_1', templateId: 'writhing_mass', name: '蠕动之块', artKey: 'writhing_mass', hp: 140, maxHp: 140, statuses: { reactive: 1, malleable: 3 } },
+      ];
+      app.render();
+
+      const firstRelic = document.querySelector('.top-hud .relic-badge');
+      const relicRect = firstRelic.getBoundingClientRect();
+      const nameLabelDisplay = getComputedStyle(firstRelic.querySelector('.relic-name-label')).display;
+      const penShortDisplay = getComputedStyle(document.querySelector('[data-relic-id="pen_nib"] .relic-counter-short')).display;
+      const penFullDisplay = getComputedStyle(document.querySelector('[data-relic-id="pen_nib"] .relic-counter-full')).display;
+      const docOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+
+      // Tap icon relic -> opens tooltip with full name & description
+      firstRelic.click();
+      const relicTipOpen = !document.getElementById('spire-tooltip').hidden;
+      const relicTipTitle = document.querySelector('#spire-tooltip .spire-tooltip-title')?.textContent?.trim() || '';
+      firstRelic.click();
+
+      // Tap next-intent trigger inside enemy card -> opens 行动预判 tooltip without attacking enemy
+      const trigger = document.querySelector('#enemy-unit-dk_1 .next-intent-trigger');
+      const wmHpBefore = st.combat.enemies[1].hp;
+      trigger.click();
+      const intentTipOpen = !document.getElementById('spire-tooltip').hidden;
+      const intentTipTag = document.querySelector('#spire-tooltip .spire-tooltip-tag')?.textContent?.trim() || '';
+      const wmHpAfter = st.combat.enemies[1].hp;
+      trigger.click();
+
+      const hasRegrowingEl = Boolean(document.querySelector('#enemy-unit-dk_0.regrowing'));
+      const newRunRect = document.getElementById('btn-new-run').getBoundingClientRect();
+      const topActionsRect = document.querySelector('.top-actions').getBoundingClientRect();
+      const newRunFits = newRunRect.right <= topActionsRect.right + 1;
+
+      // SW update banner test
+      window.__SPIRE_SHOW_SW_UPDATE__({ postMessage: () => {} });
+      const swBannerOpen = Boolean(document.getElementById('sw-update-banner'));
+      const swBannerText = document.getElementById('sw-update-banner')?.textContent?.trim() || '';
+      document.getElementById('btn-sw-dismiss').click();
+      const swBannerClosed = !document.getElementById('sw-update-banner');
+
+      return {
+        relicWidth: Math.round(relicRect.width),
+        relicHeight: Math.round(relicRect.height),
+        nameLabelDisplay,
+        penShortDisplay,
+        penFullDisplay,
+        docOverflow,
+        relicTipOpen,
+        relicTipTitle,
+        intentTipOpen,
+        intentTipTag,
+        wmHpUnchanged: wmHpBefore === wmHpAfter,
+        hasRegrowingEl,
+        newRunFits,
+        swBannerOpen,
+        swBannerText,
+        swBannerClosed,
+      };
+    })()`);
+
+    assert.ok(mobileV2Audit.relicWidth <= 34 && mobileV2Audit.relicHeight <= 34, `Mobile relic icon must be compact <=34px, got ${mobileV2Audit.relicWidth}x${mobileV2Audit.relicHeight}`);
+    assert.equal(mobileV2Audit.nameLabelDisplay, 'none', 'Mobile relic badge hides long text label');
+    assert.notEqual(mobileV2Audit.penShortDisplay, 'none', 'Mobile relic badge shows short corner counter');
+    assert.equal(mobileV2Audit.penFullDisplay, 'none', 'Mobile relic badge hides long counter text');
+    assert.equal(mobileV2Audit.docOverflow, false, 'Mobile combat with 10+ relics must not overflow horizontally');
+    assert.equal(mobileV2Audit.relicTipOpen, true);
+    assert.ok(mobileV2Audit.relicTipTitle.includes('燃烧之血'));
+    assert.equal(mobileV2Audit.intentTipOpen, true);
+    assert.equal(mobileV2Audit.intentTipTag, '行动预判');
+    assert.equal(mobileV2Audit.wmHpUnchanged, true, 'Tapping next-intent trigger must never attack enemy');
+    assert.equal(mobileV2Audit.hasRegrowingEl, true, 'Downed Darkling renders .regrowing state');
+    assert.equal(mobileV2Audit.newRunFits, true, 'All 7 emoji nav buttons fit inside 390px .top-actions');
+    assert.equal(mobileV2Audit.swBannerOpen, true);
+    assert.ok(mobileV2Audit.swBannerText.includes('发现新版本'));
+    assert.equal(mobileV2Audit.swBannerClosed, true);
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotV2Combat = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_v2_combat_icons.png'),
+        Buffer.from(shotV2Combat.data, 'base64')
+      );
+    }
+
+    // 6. Game Over & Run History display restart count badge cleanly
+    const restartReportAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.stats.combatRestarts = 3;
+      st.screen = 'game_over';
+      st.outcome = 'victory';
+      app.render();
+      const gameoverPill = document.getElementById('gameover-restart-pill')?.textContent?.trim() || '';
+      document.getElementById('btn-open-meta').click();
+      const historyRestartBadge = document.querySelector('.history-badge.restart')?.textContent?.trim() || '';
+      document.querySelector('[data-action="inspect-history-run"]')?.click();
+      const detailText = document.getElementById('history-detail-modal')?.textContent || '';
+      return { gameoverPill, historyRestartBadge, detailHasRestart: detailText.includes('重启 3 次') };
+    })()`);
+    assert.ok(restartReportAudit.gameoverPill.includes('重启 3 次'), `Expected Game Over restart pill, got: ${restartReportAudit.gameoverPill}`);
+    assert.ok(restartReportAudit.historyRestartBadge.includes('重启 3次'), `Expected History restart badge, got: ${restartReportAudit.historyRestartBadge}`);
+    assert.equal(restartReportAudit.detailHasRestart, true, 'History Detail modal must show combat restart count');
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
