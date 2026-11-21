@@ -5858,6 +5858,32 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(afterMobileSwipe.leftEdgeGuardPrevented, true, 'Swiping right at left edge of #hand-tray must call preventDefault to block page overscroll');
     assert.equal(afterMobileSwipe.docOverflow, false, 'Mobile combat must never overflow horizontally');
 
+    // === 6. Top HUD Vitals use crisp SVG icons instead of '生命'/'金币' words ===
+    const hudVitalsAudit = await cdp.evaluate(`(() => {
+      const hpEl = document.getElementById('hud-player-hp');
+      const goldEl = document.getElementById('hud-player-gold');
+      hpEl?.click();
+      const tipTitle = document.getElementById('spire-tooltip')?.querySelector('.spire-tooltip-title')?.textContent?.trim() || '';
+      return {
+        hpText: hpEl?.textContent?.trim() || '',
+        goldText: goldEl?.textContent?.trim() || '',
+        hpSvg: Boolean(hpEl?.querySelector('svg[data-vital-icon="hp"]')),
+        goldSvg: Boolean(goldEl?.querySelector('svg[data-vital-icon="gold"]')),
+        hpAria: hpEl?.getAttribute('aria-label') || '',
+        goldAria: goldEl?.getAttribute('aria-label') || '',
+        tipTitle,
+      };
+    })()`);
+    assert.equal(hudVitalsAudit.hpSvg, true, 'Top HUD HP chip must render crisp HP heart SVG icon');
+    assert.equal(hudVitalsAudit.goldSvg, true, 'Top HUD Gold chip must render crisp Gold coin SVG icon');
+    assert.equal(/生命/.test(hudVitalsAudit.hpText), false, `HUD HP chip must use icon instead of '生命' word, got "${hudVitalsAudit.hpText}"`);
+    assert.equal(/金币/.test(hudVitalsAudit.goldText), false, `HUD Gold chip must use icon instead of '金币' word, got "${hudVitalsAudit.goldText}"`);
+    assert.match(hudVitalsAudit.hpText, /^\d+\/\d+$/, 'HUD HP chip displays compact hp/maxHp value');
+    assert.match(hudVitalsAudit.goldText, /^\d+$/, 'HUD Gold chip displays numeric gold value');
+    assert.ok(hudVitalsAudit.hpAria.includes('生命'), 'HUD HP chip keeps accessible aria-label');
+    assert.ok(hudVitalsAudit.goldAria.includes('金币'), 'HUD Gold chip keeps accessible aria-label');
+    assert.equal(hudVitalsAudit.tipTitle, '当前生命值', 'Tapping HUD HP chip opens explanatory tooltip');
+
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
       (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'

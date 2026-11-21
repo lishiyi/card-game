@@ -133,10 +133,27 @@ button:disabled {
 .vital-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 0.9rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.vital-chip[data-tooltip-title] {
+  cursor: help;
+}
+
+.vital-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.vital-icon-svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
 
 .vital-hp {
@@ -5089,10 +5106,20 @@ body.spire-dragging {
     padding: 9px 10px;
   }
 
-  .vital-chip,
   .relic-badge {
     font-size: 0.72rem;
     padding: 3px 7px;
+  }
+
+  .vital-chip {
+    font-size: 0.76rem;
+    padding: 2px 4px;
+    gap: 3px;
+  }
+
+  .vital-icon-svg {
+    width: 14px;
+    height: 14px;
   }
 
   .potion-slot {

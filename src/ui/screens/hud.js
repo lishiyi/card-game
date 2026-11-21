@@ -9,6 +9,7 @@ import { getDailyModifierDefs } from '../../engine/daily.js';
 import { ASCENSION_DEFS } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml } from '../helpers.js';
+import { getVitalIconSvg } from '../icons.js';
 
 export function renderTopHud({ state, ui }) {
   const hasSacredBark = state.player.relics.includes('sacred_bark');
@@ -201,8 +202,26 @@ export function renderTopHud({ state, ui }) {
       <div class="vitals-cluster">
         <div class="vitals-top-row">
           <div class="vitals-numbers-row">
-            <span class="vital-chip vital-hp" id="hud-player-hp">生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}</span>
-            <span class="vital-chip vital-gold" id="hud-player-gold">金币 ${escapeHtml(state.player.gold)}</span>
+            <span
+              class="vital-chip vital-hp"
+              id="hud-player-hp"
+              tabindex="0"
+              aria-label="${escapeHtml(`生命 ${state.player.hp}/${state.player.maxHp}`)}"
+              data-tooltip-title="当前生命值"
+              data-tooltip-tag="${escapeHtml(`${state.player.hp} / ${state.player.maxHp}`)}"
+              data-tooltip-desc="生命值归零即本局失败。可通过篝火休息、药水、遗物、事件或吸血类卡牌回复生命。"
+              data-tooltip-tone="buff"
+            ><span class="vital-icon" aria-hidden="true">${getVitalIconSvg('hp')}</span><span class="vital-value">${escapeHtml(state.player.hp)}/${escapeHtml(state.player.maxHp)}</span></span>
+            <span
+              class="vital-chip vital-gold"
+              id="hud-player-gold"
+              tabindex="0"
+              aria-label="${escapeHtml(`金币 ${state.player.gold}`)}"
+              data-tooltip-title="当前金币"
+              data-tooltip-tag="${escapeHtml(`${state.player.gold} 枚`)}"
+              data-tooltip-desc="可在神秘商人处购买卡牌、遗物、药水或移除冗余卡牌。"
+              data-tooltip-tone="relic"
+            ><span class="vital-icon" aria-hidden="true">${getVitalIconSvg('gold')}</span><span class="vital-value">${escapeHtml(state.player.gold)}</span></span>
           </div>
           <div class="hud-gear-scroll" aria-label="遗物栏区域">
             <div class="relic-strip" aria-label="已拥有遗物">${relicsHtml}</div>

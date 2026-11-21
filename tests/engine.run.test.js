@@ -16,7 +16,7 @@ import {
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
-import { getCharacterSvg } from '../src/ui/icons.js';
+import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import {
   EVENT_IDS,
   EVENT_LIBRARY,
@@ -2157,6 +2157,11 @@ test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients &
   assert.equal(getCardArtKey('defend', defendStats, 'ironclad'), 'iron_shield');
   assert.equal(getCardArtKey('defend', defendStats, 'silent'), 'silent_cloak');
   assert.equal(getCardArtKey('defend', defendStats, 'watcher'), 'watcher_calm');
+
+  const hpVitalSvg = getVitalIconSvg('hp');
+  const goldVitalSvg = getVitalIconSvg('gold');
+  assert.ok(hpVitalSvg.includes('data-vital-icon="hp"') && hpVitalSvg.includes('radialGradient'));
+  assert.ok(goldVitalSvg.includes('data-vital-icon="gold"') && goldVitalSvg.includes('radialGradient'));
 });
 
 test('P0: Compendium auto-discovery, legacy runHistory backfill, and PWA manifest/sw/icons & standalone stripping', () => {

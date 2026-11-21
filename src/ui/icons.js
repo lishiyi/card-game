@@ -388,3 +388,42 @@ export function getLootIconSvg(kind) {
       return '';
   }
 }
+
+export function getVitalIconSvg(kind) {
+  switch (kind) {
+    case 'hp':
+      return `<svg viewBox="0 0 20 20" width="16" height="16" class="vital-icon-svg" data-vital-icon="hp" aria-hidden="true">
+        <defs>
+          <radialGradient id="hud-vital-hp-grad" cx="38%" cy="32%" r="68%">
+            <stop offset="0%" stop-color="hsl(6, 100%, 74%)" />
+            <stop offset="55%" stop-color="hsl(356, 88%, 54%)" />
+            <stop offset="100%" stop-color="hsl(346, 82%, 32%)" />
+          </radialGradient>
+        </defs>
+        <path
+          d="M10 17.6C9.6 17.6 3 13 3 7.6A3.9 3.9 0 0 1 10 5.1a3.9 3.9 0 0 1 7 2.5C17 13 10.4 17.6 10 17.6Z"
+          fill="url(#hud-vital-hp-grad)"
+          stroke="hsl(8, 92%, 78%)"
+          stroke-width="1.2"
+          stroke-linejoin="round"
+        />
+        <path d="M5.6 7.4a1.9 1.9 0 0 1 2.2-1.7" fill="none" stroke="hsla(0, 0%, 100%, 0.72)" stroke-width="1.3" stroke-linecap="round" />
+      </svg>`;
+    case 'gold':
+      return `<svg viewBox="0 0 20 20" width="16" height="16" class="vital-icon-svg" data-vital-icon="gold" aria-hidden="true">
+        <defs>
+          <radialGradient id="hud-vital-gold-grad" cx="36%" cy="32%" r="68%">
+            <stop offset="0%" stop-color="hsl(50, 100%, 82%)" />
+            <stop offset="55%" stop-color="hsl(42, 92%, 56%)" />
+            <stop offset="100%" stop-color="hsl(32, 76%, 32%)" />
+          </radialGradient>
+        </defs>
+        <circle cx="10" cy="10" r="7.5" fill="url(#hud-vital-gold-grad)" stroke="hsl(48, 96%, 78%)" stroke-width="1.2" />
+        <circle cx="10" cy="10" r="5" fill="none" stroke="hsl(28, 62%, 28%)" stroke-width="1.1" opacity="0.72" />
+        <polygon points="10,6.6 12.6,10 10,13.4 7.4,10" fill="hsl(48, 100%, 84%)" stroke="hsl(28, 60%, 28%)" stroke-width="0.9" />
+      </svg>`;
+    default:
+      return '';
+  }
+}
+
