@@ -2,6 +2,7 @@
  * Unknown Event screen renderer (narrative choices, card upgrade/transform/purge sub-flows, and Library draft).
  */
 
+import { getCardStats } from '../../data/cards.js';
 import {
   EVENT_LIBRARY,
   getEventChoicesForAscension,
@@ -27,11 +28,15 @@ export function renderEventScreen({ state, ui }) {
       )
       .join('');
 
-    const hpNote =
-      (evState.purgeHpCost ?? 0) > 0 ? `（确认移除后将失去 ${evState.purgeHpCost} 点生命）` : '';
+    const costNote =
+      (evState.purgeHpCost ?? 0) > 0
+        ? `（确认移除后将失去 ${evState.purgeHpCost} 点生命）`
+        : (evState.purgeGoldCost ?? 0) > 0
+          ? `（确认移除后将花费 ${evState.purgeGoldCost} 金币）`
+          : '';
 
     bodyHtml = `
-      <p class="stage-subtitle" style="margin-bottom:12px;">请选择要从牌组中永久移除的 1 张卡牌${escapeHtml(hpNote)}：</p>
+      <p class="stage-subtitle" style="margin-bottom:12px;">请选择要从牌组中永久移除的 1 张卡牌${escapeHtml(costNote)}：</p>
       <div class="card-showcase">${deckHtml}</div>
       <button type="button" id="btn-cancel-event-purge" class="btn-stone" data-action="cancel-event-purge">返回重选</button>
     `;
@@ -50,13 +55,18 @@ export function renderEventScreen({ state, ui }) {
       )
       .join('');
 
+    const actionHpNote =
+      (evState.cardActionHpCost ?? 0) > 0
+        ? `（确认后将失去 ${evState.cardActionHpCost} 点生命）`
+        : '';
+
     bodyHtml = `
       <p class="stage-subtitle" style="margin-bottom:12px;">
         ${
           isUpgrade
             ? '请选择牌组中要永久强化的 1 张卡牌：'
             : isRareTransform
-              ? '请选择牌组中要定向蜕变为金色【稀有】牌的 1 张卡牌：'
+              ? `请选择牌组中要定向蜕变为金色【稀有】牌的 1 张卡牌${escapeHtml(actionHpNote)}：`
               : '请选择牌组中要进行随机蜕变重塑的 1 张卡牌：'
         }
       </p>
@@ -123,6 +133,10 @@ export function renderEventScreen({ state, ui }) {
     const upgradableCount = getUpgradableDeckCards(state).length;
     const hasHeavyAttack = playerHasHeavyAttackCard(state);
     const hasGoldenIdol = state.player.relics.includes('golden_idol_relic');
+    const hasBloodVial = state.player.relics.includes('blood_vial');
+    const hasRedMask = state.player.relics.includes('red_mask');
+    const hasSkillCard = state.player.deck.some((c) => getCardStats(c).type === 'skill');
+    const hasAttackCard = state.player.deck.some((c) => getCardStats(c).type === 'attack');
     const evTune = getEventTuning(state.ascension ?? 0);
     const choicesList = getEventChoicesForAscension(evDef.id, state.ascension ?? 0);
     const oozeAttempts = evState.oozeAttempts ?? 0;
@@ -157,12 +171,25 @@ export function renderEventScreen({ state, ui }) {
           (evDef.id === 'augmenter' && ch.id === 'augment_serum' && state.player.hp <= evTune.augmentSerumHpLoss) ||
           (evDef.id === 'sensory_stone' && ch.id === 'recall_2' && state.player.hp <= evTune.sensoryRecall2HpLoss) ||
           (evDef.id === 'sensory_stone' && ch.id === 'recall_3' && state.player.hp <= evTune.sensoryRecall3HpLoss) ||
-          (evDef.id === 'winding_halls' && ch.id === 'embrace_madness' && state.player.hp <= evTune.windingMadnessHpLoss)
+          (evDef.id === 'winding_halls' && ch.id === 'embrace_madness' && state.player.hp <= evTune.windingMadnessHpLoss) ||
+          (evDef.id === 'dead_adventurer' && ch.id === 'loot_pack' && state.player.hp <= evTune.adventurerFailHpLoss) ||
+          (evDef.id === 'dead_adventurer' && ch.id === 'salvage_weapon' && state.player.hp <= evTune.adventurerWeaponHpLoss) ||
+          (evDef.id === 'world_of_goop' && ch.id === 'gather_goop_gold' && state.player.hp <= evTune.goopHpLoss) ||
+          (evDef.id === 'colosseum_trial' && ch.id === 'accept_trial' && state.player.hp <= evTune.colosseumHpLoss) ||
+          (evDef.id === 'mysterious_sphere' && ch.id === 'smash_sphere' && state.player.hp <= evTune.sphereHpLoss) ||
+          (evDef.id === 'secret_portal' && ch.id === 'siphon_portal' && state.player.hp <= evTune.portalSiphonHpLoss) ||
+          (evDef.id === 'spire_forge_altar' && ch.id === 'altar_transmute_rare' && state.player.hp <= evTune.forgeAltarHpLoss)
         ) {
           blockedReason = '（生命不足）';
         } else if (
           (evDef.id === 'ancient_forge' && ch.id === 'overclock_forge' && state.player.gold < evTune.forgeOverclockGold) ||
-          (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && state.player.gold < evTune.alchemistBuyGold)
+          (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && state.player.gold < evTune.alchemistBuyGold) ||
+          (evDef.id === 'cleric' && ch.id === 'cleric_heal' && state.player.gold < evTune.clericHealGold) ||
+          (evDef.id === 'cleric' && ch.id === 'cleric_purify' && state.player.gold < evTune.clericPurifyGold) ||
+          (evDef.id === 'the_joust' && (ch.id === 'bet_murderer' || ch.id === 'bet_owner') && state.player.gold < 50) ||
+          (evDef.id === 'beggar_shrine' && ch.id === 'give_beggar_gold' && state.player.gold < evTune.beggarPurifyGold) ||
+          (evDef.id === 'tomb_of_red_mask' && ch.id === 'offer_all_gold' && state.player.gold < 1) ||
+          (evDef.id === 'spire_forge_altar' && ch.id === 'altar_buy_colorless' && state.player.gold < evTune.forgeAltarGold)
         ) {
           blockedReason = '（金币不足）';
         } else if (evDef.id === 'potion_alchemist' && ch.id === 'buy_potions' && !hasEmptyPotion) {
@@ -170,16 +197,31 @@ export function renderEventScreen({ state, ui }) {
         } else if (
           ((evDef.id === 'ancient_shrine' && ch.id === 'pray_purge') ||
             (evDef.id === 'living_wall' && ch.id === 'wall_forget') ||
-            (evDef.id === 'wing_statue' && ch.id === 'pray_wing')) &&
+            (evDef.id === 'wing_statue' && ch.id === 'pray_wing') ||
+            (evDef.id === 'cleric' && ch.id === 'cleric_purify') ||
+            (evDef.id === 'beggar_shrine' && ch.id === 'give_beggar_gold') ||
+            (evDef.id === 'falling_abyss' && (ch.id === 'land_sacrifice_skill' || ch.id === 'land_sacrifice_attack'))) &&
           state.player.deck.length <= 1
         ) {
           blockedReason = '（牌组过少）';
+        } else if (evDef.id === 'falling_abyss' && ch.id === 'land_sacrifice_skill' && !hasSkillCard) {
+          blockedReason = '（无技能牌）';
+        } else if (evDef.id === 'falling_abyss' && ch.id === 'land_sacrifice_attack' && !hasAttackCard) {
+          blockedReason = '（无攻击牌）';
         } else if (evDef.id === 'living_wall' && ch.id === 'wall_grow' && upgradableCount === 0) {
           blockedReason = '（无可升级牌）';
         } else if (evDef.id === 'wing_statue' && ch.id === 'destroy_wing' && !hasHeavyAttack) {
           blockedReason = '（需基础伤害≥10攻击牌）';
-        } else if (evDef.id === 'forgotten_altar' && ch.id === 'offer_golden_idol' && !hasGoldenIdol) {
+        } else if (
+          ((evDef.id === 'forgotten_altar' && ch.id === 'offer_golden_idol') ||
+            (evDef.id === 'moai_head' && ch.id === 'offer_golden_idol')) &&
+          !hasGoldenIdol
+        ) {
           blockedReason = '（需持有黄金神像）';
+        } else if (evDef.id === 'vampires_den' && ch.id === 'trade_blood_vial' && !hasBloodVial) {
+          blockedReason = '（需持有鲜血小瓶）';
+        } else if (evDef.id === 'tomb_of_red_mask' && ch.id === 'wear_red_mask' && !hasRedMask) {
+          blockedReason = '（需持有红面具）';
         }
 
         const isBlocked = Boolean(blockedReason);

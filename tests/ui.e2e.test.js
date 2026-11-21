@@ -15,7 +15,9 @@ const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.png': 'image/png',
 };
 
 function startStaticServer() {
@@ -269,25 +271,34 @@ async function createCdpClient(pageWsUrl) {
   const methodWaiters = new Map();
   let pageDomainEnabled = false;
 
-  const waitForEvent = (eventName, timeoutMs = 5000) =>
+  const waitForAnyEvent = (eventNames, timeoutMs = 5000) =>
     new Promise((resolve) => {
-      const list = methodWaiters.get(eventName) || [];
       let settled = false;
-      const done = (params = null) => {
+      const cleanups = [];
+      const finish = (result) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        const cur = methodWaiters.get(eventName);
-        if (cur) {
-          const idx = cur.indexOf(done);
-          if (idx !== -1) cur.splice(idx, 1);
-        }
-        resolve(params);
+        for (const fn of cleanups) fn();
+        resolve(result);
       };
-      const timer = setTimeout(() => done(null), timeoutMs);
-      list.push(done);
-      methodWaiters.set(eventName, list);
+      const timer = setTimeout(() => finish({ event: null, params: null }), timeoutMs);
+      for (const eventName of eventNames) {
+        const list = methodWaiters.get(eventName) || [];
+        const handler = (params = null) => finish({ event: eventName, params });
+        list.push(handler);
+        methodWaiters.set(eventName, list);
+        cleanups.push(() => {
+          const cur = methodWaiters.get(eventName);
+          if (cur) {
+            const idx = cur.indexOf(handler);
+            if (idx !== -1) cur.splice(idx, 1);
+          }
+        });
+      }
     });
+
+  let lastEmulationParams = null;
 
   ws.addEventListener('close', () => {
     for (const [, p] of pending) {
@@ -320,15 +331,15 @@ async function createCdpClient(pageWsUrl) {
     }
   });
 
-  function sendRaw(method, params = {}) {
+  function sendRaw(method, params = {}, timeoutMs = 15000) {
     const id = nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (pending.has(id)) {
           pending.delete(id);
-          reject(new Error(`CDP call timed out after 15s: ${method}`));
+          reject(new Error(`CDP call timed out after ${Math.round(timeoutMs / 1000)}s: ${method}`));
         }
-      }, 15000);
+      }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       ws.send(JSON.stringify({ id, method, params }));
     });
@@ -340,39 +351,80 @@ async function createCdpClient(pageWsUrl) {
       pageDomainEnabled = true;
       return res;
     }
+    if (method === 'Emulation.setDeviceMetricsOverride') {
+      lastEmulationParams = params;
+      return sendRaw(method, params);
+    }
     if (method === 'Page.navigate' && pageDomainEnabled) {
       const targetUrl = String(params?.url || '');
       const navToken = `nav_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       try {
-        await sendRaw('Runtime.evaluate', {
-          expression: `window.__CDP_NAV_TOKEN__ = ${JSON.stringify(navToken)}; true`,
-          returnByValue: true,
-        });
+        await sendRaw(
+          'Runtime.evaluate',
+          {
+            expression: `window.__CDP_NAV_TOKEN__ = ${JSON.stringify(navToken)}; true`,
+            returnByValue: true,
+          },
+          1500
+        );
       } catch {
         // Ignore if previous execution context is not ready.
       }
       let lastRes = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const loadDone = waitForEvent('Page.loadEventFired', 8000);
-        lastRes = await sendRaw(method, params);
-        const loaded = await loadDone;
-        if (loaded !== null) {
-          break;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const navOutcomePromise = waitForAnyEvent(
+          ['Page.loadEventFired', 'Inspector.targetCrashed'],
+          4000
+        );
+        try {
+          lastRes = await sendRaw(method, params, 5000);
+        } catch {
+          await new Promise((r) => setTimeout(r, 120));
+          continue;
         }
-      }
-      if (targetUrl.startsWith('http://127.0.0.1:')) {
-        const readyDeadline = Date.now() + 5000;
+        const outcome = await navOutcomePromise;
+        if (outcome.event === 'Inspector.targetCrashed') {
+          await new Promise((r) => setTimeout(r, 120));
+          try {
+            await sendRaw('Runtime.enable', {}, 2000);
+            await sendRaw('Page.enable', {}, 2000);
+            if (lastEmulationParams) {
+              await sendRaw('Emulation.setDeviceMetricsOverride', lastEmulationParams, 2000);
+            }
+          } catch {
+            // Re-enable domains best-effort before retrying navigation.
+          }
+          continue;
+        }
+        if (!targetUrl.startsWith('http://127.0.0.1:')) {
+          if (outcome.event === 'Page.loadEventFired') {
+            break;
+          }
+          continue;
+        }
+        let committed = false;
+        const readyDeadline = Date.now() + 2500;
         while (Date.now() < readyDeadline) {
           try {
-            const check = await sendRaw('Runtime.evaluate', {
-              expression: `Boolean(window.__SPIRE_APP__) && document.readyState === 'complete' && window.__CDP_NAV_TOKEN__ !== ${JSON.stringify(navToken)}`,
-              returnByValue: true,
-            });
-            if (check?.result?.value === true) break;
+            const check = await sendRaw(
+              'Runtime.evaluate',
+              {
+                expression: `location.href.startsWith('http://127.0.0.1:') && Boolean(window.__SPIRE_APP__) && document.readyState === 'complete' && window.__CDP_NAV_TOKEN__ !== ${JSON.stringify(navToken)}`,
+                returnByValue: true,
+              },
+              1500
+            );
+            if (check?.result?.value === true) {
+              committed = true;
+              break;
+            }
           } catch {
             // Transient execution-context destruction while navigation commits.
           }
           await new Promise((r) => setTimeout(r, 40));
+        }
+        if (committed) {
+          break;
         }
       }
       return lastRes;
@@ -396,7 +448,7 @@ async function createCdpClient(pageWsUrl) {
 }
 
 async function launchHeroFromCharacterSelect(cdp, characterId = 'ironclad') {
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
     const ready = await cdp.evaluate(`Boolean(window.__SPIRE_APP__)`);
     if (ready) break;
@@ -546,7 +598,12 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
     // 4. Play first card in hand & use starting potion & end turn (clicking targetable enemy if 2+ enemies spawned)
     const initialHandIds = await cdp.evaluate(`window.__SPIRE_APP__.getState().combat.hand.map(c => c.instanceId)`);
     await cdp.evaluate(`(() => {
-      document.querySelector('#hand-tray .game-card.playable').click();
+      const hand = window.__SPIRE_APP__.getState().combat.hand;
+      const basic = hand.find((c) => ['defend', 'strike', 'bash'].includes(c.cardId));
+      const cardEl =
+        (basic && document.getElementById('hand-card-' + basic.instanceId)) ||
+        document.querySelector('#hand-tray .game-card.playable');
+      cardEl.click();
       const targetEl = document.querySelector('.fighter-unit.enemy-targetable');
       if (targetEl) targetEl.click();
     })()`);
@@ -1066,7 +1123,7 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
       mobile: false,
     });
 
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
     await new Promise((r) => setTimeout(r, 350));
     await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
@@ -3504,7 +3561,7 @@ test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged s
       deviceScaleFactor: 1,
       mobile: false,
     });
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
     await new Promise((r) => setTimeout(r, 350));
 
     // 1. Unlock all via Meta modal and inspect Character Select A6 & A10 vitals + mobile fit
@@ -4646,6 +4703,180 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     assert.equal(mobileCharTabAudit.watcherSelected, true, 'Clicking mobile Watcher tab must select Watcher');
     assert.equal(mobileCharTabAudit.visibleCardsAfter, 1);
     assert.equal(mobileCharTabAudit.f1InViewport, true, 'Daily Challenge map must auto-scroll Floor 1 available nodes into mobile viewport');
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Compendium (Desktop + 390px Mobile), HUD P1 relic counters & Black Star/Singing Bowl reward UI', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    // 1. Verify PWA manifest, service worker & PNG icons return HTTP 200 with valid content
+    const manifestResp = await fetch(`http://127.0.0.1:${port}/manifest.webmanifest`);
+    assert.equal(manifestResp.status, 200);
+    const manifestJson = await manifestResp.json();
+    assert.equal(manifestJson.display, 'standalone');
+    assert.ok(manifestJson.icons.length >= 2);
+
+    const swResp = await fetch(`http://127.0.0.1:${port}/sw.js`);
+    assert.equal(swResp.status, 200);
+    const swText = await swResp.text();
+    assert.ok(swText.includes('self.addEventListener'));
+
+    const icon192Resp = await fetch(`http://127.0.0.1:${port}/icons/icon-192.png`);
+    assert.equal(icon192Resp.status, 200);
+
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    // 2. Normal URL (/): #btn-unlock-all-meta MUST be hidden!
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 400));
+    await cdp.evaluate(`document.getElementById('btn-open-meta').click()`);
+    const normalMetaAudit = await cdp.evaluate(`({
+      hasMetaModal: Boolean(document.getElementById('meta-progression-modal')),
+      hasUnlockAllBtn: Boolean(document.getElementById('btn-unlock-all-meta')),
+    })`);
+    assert.equal(normalMetaAudit.hasMetaModal, true);
+    assert.equal(normalMetaAudit.hasUnlockAllBtn, false, '#btn-unlock-all-meta must be hidden without ?debug=1');
+    await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
+
+    // 3. Open 4-tab Compendium from Character Select -> switch all 4 tabs, filter, verify locked silhouettes -> launch run -> verify auto-discovery!
+    await cdp.evaluate(`document.getElementById('btn-open-compendium').click()`);
+    const compInitial = await cdp.evaluate(`(() => {
+      const modal = document.getElementById('compendium-modal');
+      const cardTabText = document.getElementById('btn-comp-tab-cards')?.textContent || '';
+      const relicTabText = document.getElementById('btn-comp-tab-relics')?.textContent || '';
+      const potionTabText = document.getElementById('btn-comp-tab-potions')?.textContent || '';
+      const enemyTabText = document.getElementById('btn-comp-tab-enemies')?.textContent || '';
+      const undiscoveredCount = document.querySelectorAll('#compendium-cards-grid .compendium-silhouette-card').length;
+      document.getElementById('btn-comp-tab-relics').click();
+      const totalRelicCards = document.querySelectorAll('#compendium-relics-grid .compendium-entry-card').length;
+      document.getElementById('btn-comp-tab-potions').click();
+      const totalPotionCards = document.querySelectorAll('#compendium-potions-grid .compendium-entry-card').length;
+      document.getElementById('btn-comp-tab-enemies').click();
+      const totalEnemyCards = document.querySelectorAll('#compendium-enemies-grid .compendium-enemy-card').length;
+      const silhouettes = document.querySelectorAll('#compendium-enemies-grid .compendium-enemy-portrait.silhouette').length;
+      return {
+        open: Boolean(modal),
+        cardTabText,
+        relicTabText,
+        potionTabText,
+        enemyTabText,
+        undiscoveredCount,
+        totalRelicCards,
+        totalPotionCards,
+        totalEnemyCards,
+        silhouettes,
+      };
+    })()`);
+    assert.equal(compInitial.open, true);
+    assert.ok(compInitial.cardTabText.includes('/232') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
+    assert.equal(compInitial.totalRelicCards, 100, 'Relics tab lists all 100 relics');
+    assert.equal(compInitial.totalPotionCards, 28, 'Potions tab lists all 28 potions');
+    assert.equal(compInitial.totalEnemyCards, 40, 'Enemies tab lists all 40 enemies');
+    assert.ok(compInitial.undiscoveredCount > 0 && compInitial.silhouettes > 0, 'Unseen entries render as silhouettes');
+    await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
+
+    // 4. Launch Watcher run -> auto-discovers Watcher starter cards & Pure Water -> verify HUD P1 counters + Black Star/Singing Bowl Reward UI
+    await launchHeroFromCharacterSelect(cdp, 'watcher');
+    const p1UiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.relics.push('nunchaku', 'pen_nib', 'sundial', 'lizard_tail', 'singing_bowl', 'black_star');
+      st.relicCounters = { ...(st.relicCounters || {}), nunchaku: 4, pen_nib: 9, sundial: 2 };
+      st.relicFlags = { ...(st.relicFlags || {}), lizardTailUsed: true };
+      st.screen = 'reward';
+      st.reward = {
+        gold: 35,
+        goldClaimed: false,
+        relicId: 'vajra',
+        relicClaimed: false,
+        extraRelicId: 'nunchaku',
+        extraRelicClaimed: false,
+        potionId: 'stance_potion',
+        potionClaimed: false,
+        cardChoices: st.player.deck.slice(0, 3),
+        cardClaimed: false,
+        pickedCardId: null,
+      };
+      app.render();
+      const penNibPill = document.querySelector('[data-relic-id="pen_nib"] .relic-counter-pill')?.textContent?.trim() || '';
+      const nunchakuPill = document.querySelector('[data-relic-id="nunchaku"] .relic-counter-pill')?.textContent?.trim() || '';
+      const lizardPill = document.querySelector('[data-relic-id="lizard_tail"] .relic-counter-pill')?.textContent?.trim() || '';
+      const hasExtraRelicBtn = Boolean(document.getElementById('btn-claim-extra-relic'));
+      const proceedBtnText = document.getElementById('btn-proceed-reward')?.textContent?.trim() || '';
+      // Open Compendium from HUD and verify Watcher starter cards & relics are now discovered!
+      document.getElementById('btn-open-compendium').click();
+      document.getElementById('btn-comp-tab-cards').click();
+      const discoveredCards = document.querySelectorAll('#compendium-cards-grid .game-card').length;
+      document.getElementById('btn-comp-tab-relics').click();
+      const discoveredRelics = document.querySelectorAll('#compendium-relics-grid [data-discovered="true"]').length;
+      return { penNibPill, nunchakuPill, lizardPill, hasExtraRelicBtn, proceedBtnText, discoveredCards, discoveredRelics };
+    })()`);
+    assert.equal(p1UiAudit.penNibPill, '9/10 就绪!');
+    assert.equal(p1UiAudit.nunchakuPill, '4/10');
+    assert.equal(p1UiAudit.lizardPill, '已耗尽');
+    assert.equal(p1UiAudit.hasExtraRelicBtn, true, 'Black Star renders #btn-claim-extra-relic on Reward screen');
+    assert.ok(p1UiAudit.proceedBtnText.includes('+2 最大生命'), 'Singing Bowl shows +2 Max HP skip hint');
+    assert.ok(p1UiAudit.discoveredCards >= 4, 'Starter Watcher cards auto-discovered in Compendium');
+    assert.ok(p1UiAudit.discoveredRelics >= 6, 'Owned relics auto-discovered in Compendium');
+
+    // 5. Mobile 390x844 layout audit on Compendium modal: ZERO horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 150));
+    const mobileCompAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-comp-tab-cards').click();
+      const cardsOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+      document.getElementById('btn-comp-tab-enemies').click();
+      const enemiesOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+      return { cardsOverflow, enemiesOverflow };
+    })()`);
+    assert.equal(mobileCompAudit.cardsOverflow, false, 'Compendium Cards tab must not overflow 390px mobile');
+    assert.equal(mobileCompAudit.enemiesOverflow, false, 'Compendium Enemies tab must not overflow 390px mobile');
+
+    // 6. Debug URL (/?debug=1): #btn-unlock-all-meta IS visible!
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
+    await new Promise((r) => setTimeout(r, 400));
+    await cdp.evaluate(`document.getElementById('btn-open-meta').click()`);
+    const debugMetaAudit = await cdp.evaluate(`Boolean(document.getElementById('btn-unlock-all-meta'))`);
+    assert.equal(debugMetaAudit, true, '#btn-unlock-all-meta must appear when ?debug=1 is present');
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

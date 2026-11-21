@@ -138,6 +138,9 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   } else if (stats.hitsPerAttackPlayedThisTurn) {
     basePerHit = stats.damage ?? 0;
     hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
+  } else if (stats.hitsPerHandSkill) {
+    basePerHit = stats.damage ?? 0;
+    hits = combat.hand.filter((c) => getCardStats(c).type === 'skill').length;
   } else if (stats.hitsPerAliveEnemy) {
     basePerHit = stats.damage ?? 0;
     hits = Math.max(1, getAliveEnemies(combat).length);

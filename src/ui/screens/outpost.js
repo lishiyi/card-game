@@ -318,6 +318,42 @@ export function renderRewardScreen({ state, ui }) {
         </div>`
     : '';
 
+  const extraRelicObj = rw.extraRelicId ? RELIC_LIBRARY[rw.extraRelicId] : null;
+  const extraRelicTierLabel = extraRelicObj
+    ? RELIC_TIER_LABELS[extraRelicObj.tier] || '黑星遗物'
+    : '';
+  const extraRelicCardHtml = extraRelicObj
+    ? !rw.extraRelicClaimed
+      ? `<button
+          type="button"
+          id="btn-claim-extra-relic"
+          class="loot-reward-card loot-kind-relic"
+          data-action="claim-extra-relic"
+          data-tooltip-title="${escapeHtml(extraRelicObj.name)}"
+          data-tooltip-tag="${escapeHtml(`黑星额外掉落 · ${extraRelicTierLabel}`)}"
+          data-tooltip-desc="${escapeHtml(extraRelicObj.description)}"
+          data-tooltip-tone="relic"
+        >
+          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">
+              黑星遗物：${escapeHtml(extraRelicObj.name)}
+              <span class="loot-sub-pill">${escapeHtml(extraRelicTierLabel)}</span>
+            </span>
+            <span class="loot-card-desc">${escapeHtml(extraRelicObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta">点击拾取</span>
+        </button>`
+      : `<div class="loot-reward-card loot-kind-relic loot-claimed" aria-live="polite">
+          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">已装备黑星遗物：${escapeHtml(extraRelicObj.name)}</span>
+            <span class="loot-card-desc">${escapeHtml(extraRelicObj.description)}</span>
+          </span>
+          <span class="loot-claim-cta claimed">✓ 已拾取</span>
+        </div>`
+    : '';
+
   const potionObj = rw.potionId ? POTION_LIBRARY[rw.potionId] : null;
   const emptyPotionSlots = state.player.potions.filter((p) => p === null).length;
   const potionCardHtml = potionObj
@@ -367,16 +403,18 @@ export function renderRewardScreen({ state, ui }) {
     .join('');
 
   const pityPct = Math.round((state.rarePityBonus ?? 0) * 100);
+  const hasSingingBowl = state.player.relics.includes('singing_bowl');
+  const singingBowlReady = hasSingingBowl && !rw.cardClaimed && (rw.cardChoices?.length ?? 0) > 0;
 
   return `
     <section class="panel-stage" aria-labelledby="reward-heading">
       <div class="stage-header">
         <div>
           <h2 id="reward-heading" class="stage-heading">战斗胜利 · 战利品结算</h2>
-          <p class="stage-subtitle">点击下方战利品牌匾收入囊中，并从 3 张卡牌中挑选 1 张加入牌组（也可跳过卡牌以保持精简构筑）。</p>
+          <p class="stage-subtitle">点击下方战利品牌匾收入囊中，并从 3 张卡牌中挑选 1 张加入牌组（也可跳过卡牌以保持精简构筑${singingBowlReady ? '，跳过将触发【颂钵】永久 +2 最大生命' : ''}）。</p>
         </div>
         <button type="button" id="btn-proceed-reward" class="btn-brass" data-action="proceed-reward">
-          继续前进 →
+          ${singingBowlReady ? '跳过卡牌 (+2 最大生命) →' : '继续前进 →'}
         </button>
       </div>
 
@@ -386,6 +424,7 @@ export function renderRewardScreen({ state, ui }) {
       <div class="loot-list">
         ${goldCardHtml}
         ${relicCardHtml}
+        ${extraRelicCardHtml}
         ${potionCardHtml}
       </div>
 
@@ -523,6 +562,8 @@ export function renderShopScreen({ state, ui }) {
   const shopRelicOffer = shop.shopRelicOffer;
   const shopRelicDef = shopRelicOffer ? RELIC_LIBRARY[shopRelicOffer.relicId] : null;
   const hasMembership = state.player.relics.includes('membership_card');
+  const hasSmilingMask = state.player.relics.includes('smiling_mask');
+  const mealTicketHealed = shop.mealTicketHealed ?? 0;
   const potionOffer = shop.potionOffer;
   const potionDef = potionOffer ? POTION_LIBRARY[potionOffer.potionId] : null;
   const nextPurgeCost = getCurrentPurgeCost({
@@ -542,6 +583,11 @@ export function renderShopScreen({ state, ui }) {
         </button>
       </div>
 
+      ${
+        mealTicketHealed > 0
+          ? `<div class="toast-banner" style="margin-bottom:12px;color:var(--jade-upgrade);">【餐券】生效：踏入神秘商店享用热餐，回复了 ${escapeHtml(mealTicketHealed)} 点生命！</div>`
+          : ''
+      }
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
 
       <div class="shop-section">
@@ -597,7 +643,11 @@ export function renderShopScreen({ state, ui }) {
             ${shop.purgeUsed || state.player.gold < shop.purgeCost || state.player.deck.length <= 1 ? 'disabled' : ''}
           >
             <span class="choice-title">${shop.purgeUsed ? '[已使用] ' : ''}卡牌移除服务（${escapeHtml(shop.purgeCost)} 金币）</span>
-            <span class="choice-detail">从牌组中永久移除 1 张基础、诅咒或冗余卡牌（每移除 1 次递增涨价，下次商店移除费用：${escapeHtml(nextPurgeCost)} 金币）。</span>
+            <span class="choice-detail">${
+              hasSmilingMask
+                ? '持有【微笑面具】，商店卡牌移除服务恒定 50 金币，不再涨价！'
+                : `从牌组中永久移除 1 张基础、诅咒或冗余卡牌（每移除 1 次递增涨价，下次商店移除费用：${escapeHtml(nextPurgeCost)} 金币）。`
+            }</span>
           </button>
         </div>
       </div>

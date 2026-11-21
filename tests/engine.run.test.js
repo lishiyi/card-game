@@ -38,6 +38,7 @@ import {
   isValidDailyDateKey,
 } from '../src/engine/daily.js';
 import {
+  addCardToMasterDeck,
   buyShopCard,
   buyShopColorlessCard,
   buyShopExclusiveRelic,
@@ -51,6 +52,7 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
@@ -92,6 +94,7 @@ import {
   ASCENSION_DEFS,
   buildRunReportFromState,
   calculateRunScore,
+  createDefaultCompendium,
   createDefaultMeta,
   formatShareableBattleReport,
   getCharacterProgress,
@@ -103,6 +106,7 @@ import {
   META_STORAGE_KEY,
   recordCompletedRun,
   saveMeta,
+  syncCompendiumFromRunState,
 } from '../src/engine/meta.js';
 import {
   buildChallengeUrl,
@@ -840,7 +844,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 12);
+  assert.equal(BOSS_RELIC_IDS.length, 16);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -1058,8 +1062,8 @@ test('The Silent run setup: 70 HP (65 Asc 4), 12-card deck, Ring of the Snake (+
 });
 
 test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Uncommon + 1 Rare shelf, purchase & stats tracking', () => {
-  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 6);
-  assert.equal(COLORLESS_CARD_POOLS.rare.length, 4);
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 12);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 8);
 
   // 1. 40+ normal/elite/boss reward rolls across both Ironclad and Silent must NEVER drop colorless cards
   for (const characterId of ['ironclad', 'silent']) {
@@ -1350,12 +1354,12 @@ test('Relic Pool Tiering, Small/Medium/Large Chests, Dual Shop Relic Slots & Mem
   assert.equal(silentPools.common.includes('snecko_skull'), true);
   assert.equal(ironPools.uncommon.includes('red_skull'), true);
   assert.equal(silentPools.uncommon.includes('red_skull'), false);
-  assert.equal(ironPools.shop.length, 5);
+  assert.equal(ironPools.shop.length, 7);
   assert.equal(ironPools.event.length, 4);
-  assert.equal(ironPools.boss.length, 8); // Ironclad excludes ring_of_the_serpent & wrist_blade
+  assert.equal(ironPools.boss.length, 11);
   assert.equal(ironPools.boss.includes('black_blood'), true);
   assert.equal(ironPools.boss.includes('wrist_blade'), false);
-  assert.equal(silentPools.boss.length, 9); // Silent excludes black_blood
+  assert.equal(silentPools.boss.length, 12);
   assert.equal(silentPools.boss.includes('ring_of_the_serpent'), true);
   assert.equal(silentPools.boss.includes('black_blood'), false);
   for (const id of NON_STARTER_RELIC_IDS) {
@@ -1672,9 +1676,9 @@ test('Ascension 6-10 rules: damaged start & 2 potion slots (A6), gold & upgrade 
   assert.equal(metaA9.maxAscensionUnlocked, 10, 'Capped at MAX_ASCENSION 10');
 });
 
-test('Stage 1: Act-scoped 19-event pool, 7 new events + Bloody Idol, Silent neutral copy, and independent per-character Ascension & legacy meta migration', () => {
-  // 1. Act-scoped event pool integrity (19 total events, proper minAct/maxAct filtering)
-  assert.equal(EVENT_IDS.length, 19, 'Expected 19 total events after adding 7 Stage 1 events');
+test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent neutral copy, and independent per-character Ascension & legacy meta migration', () => {
+  // 1. Act-scoped event pool integrity (35 total events, proper minAct/maxAct filtering)
+  assert.equal(EVENT_IDS.length, 35, 'Expected 35 total events including P1 expansion');
   const act1Events = getEventIdsForAct(1);
   const act2Events = getEventIdsForAct(2);
   const act3Events = getEventIdsForAct(3);
@@ -2062,7 +2066,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 191 cards resolve valid vector card art', () => {
+test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 232 cards resolve valid vector card art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenEnemyGradIds = new Set();
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
@@ -2085,7 +2089,7 @@ test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 191
   assert.ok(guardianDefSvg.includes('ea-gd-orb') && guardianDefSvg.includes('radialGradient'));
 
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 191);
+  assert.equal(cardEntries.length, 232);
   for (const sigId of Object.keys(SIGNATURE_CARD_ART)) {
     assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
   }
@@ -2104,4 +2108,167 @@ test('Art Integrity: all 40 enemy SVGs have unique hero-tier gradients & all 191
   assert.equal(getCardArtKey('defend', defendStats, 'ironclad'), 'iron_shield');
   assert.equal(getCardArtKey('defend', defendStats, 'silent'), 'silent_cloak');
   assert.equal(getCardArtKey('defend', defendStats, 'watcher'), 'watcher_calm');
+});
+
+test('P0: Compendium auto-discovery, legacy runHistory backfill, and PWA manifest/sw/icons & standalone stripping', () => {
+  // 1. Default compendium & syncCompendiumFromRunState
+  const meta = createDefaultMeta();
+  assert.deepEqual(meta.compendium, createDefaultCompendium());
+  const run = createNewRun({ seed: 22001, characterId: 'watcher', skipNeow: true });
+  run.player.potions[0] = 'stance_potion';
+  startCombat(run, ENCOUNTERS.floor1[0], 'normal');
+
+  assert.equal(syncCompendiumFromRunState(meta, run), true);
+  assert.equal(syncCompendiumFromRunState(meta, run), false, 'Second sync with unchanged state is a no-op');
+  assert.ok(meta.compendium.cards.includes('eruption'));
+  assert.ok(meta.compendium.relics.includes('pure_water'));
+  assert.ok(meta.compendium.potions.includes('stance_potion'));
+  assert.ok(meta.compendium.enemies.includes(run.combat.enemies[0].templateId));
+
+  // 2. Legacy meta without compendium backfills from runHistory on loadSavedMeta
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => (mockStore.has(k) ? mockStore.get(k) : null),
+    setItem: (k, v) => mockStore.set(k, String(v)),
+  };
+  mockStorage.setItem(
+    META_STORAGE_KEY,
+    JSON.stringify({
+      version: 1,
+      runHistory: [
+        {
+          relicIds: ['burning_blood', 'nunchaku'],
+          deckSnapshot: [{ cardId: 'bash' }, { cardId: 'double_tap' }],
+        },
+      ],
+    })
+  );
+  const loaded = loadSavedMeta(mockStorage);
+  assert.ok(loaded.compendium.relics.includes('nunchaku'), 'Backfills relics from runHistory');
+  assert.ok(loaded.compendium.cards.includes('double_tap'), 'Backfills cards from runHistory');
+
+  // 3. PWA assets exist & valid; standalone bundle strips external manifest/icon links cleanly
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const manifestRaw = fs.readFileSync(path.join(repoRoot, 'manifest.webmanifest'), 'utf8');
+  const manifest = JSON.parse(manifestRaw);
+  assert.equal(manifest.display, 'standalone');
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 2);
+  assert.ok(fs.existsSync(path.join(repoRoot, 'sw.js')));
+  assert.ok(fs.existsSync(path.join(repoRoot, 'icons/icon-192.png')));
+  assert.ok(fs.existsSync(path.join(repoRoot, 'icons/icon-512.png')));
+
+  const { html } = buildStandaloneHtml(repoRoot);
+  assert.equal(html.includes('manifest.webmanifest'), false, 'Standalone HTML strips external manifest link');
+  assert.equal(html.includes('apple-touch-icon'), false, 'Standalone HTML strips external apple-touch-icon');
+});
+
+test('P1 Out-of-Combat Relics & All 16 New Events (Normal & A8 scaling): full lifecycle verification', () => {
+  // 1. Ceramic Fish (+9g/card), Darkstone Periapt (+6 max HP/curse), Smiling Mask (fixed 50g purge), Whetstone/War Paint pickup upgrades, Meal Ticket (+15 HP on shop), Singing Bowl (+2 max HP on card skip), Black Star (+75g & extra Elite relic), White Beast Statue (100% potion)
+  const st = createNewRun({ seed: 23001, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  st.player.hp = 50;
+  st.player.maxHp = 80;
+  st.player.gold = 100;
+  grantRelicToPlayer(st, 'ceramic_fish');
+  grantRelicToPlayer(st, 'darkstone_periapt');
+  grantRelicToPlayer(st, 'smiling_mask');
+  grantRelicToPlayer(st, 'meal_ticket');
+  grantRelicToPlayer(st, 'singing_bowl');
+  grantRelicToPlayer(st, 'white_beast_statue');
+
+  addCardToMasterDeck(st, createCardInstance(st, 'doubt', false));
+  assert.equal(st.player.gold, 109, 'Ceramic Fish grants +9 gold on card added');
+  assert.equal(st.player.maxHp, 86, 'Darkstone Periapt grants +6 Max HP on curse added');
+  assert.equal(getCurrentPurgeCost(st), 50, 'Smiling Mask locks shop purge cost to 50g');
+  st.purgeCount = 4;
+  assert.equal(getCurrentPurgeCost(st), 50, 'Smiling Mask keeps purge cost at 50g even after multiple purges');
+
+  const upgradedBefore = st.player.deck.filter((c) => c.upgraded).length;
+  grantRelicToPlayer(st, 'whetstone');
+  grantRelicToPlayer(st, 'war_paint');
+  assert.equal(st.player.deck.filter((c) => c.upgraded).length, upgradedBefore + 4, 'Whetstone + War Paint upgrade 2 Attacks + 2 Skills');
+
+  const goldBeforeStar = st.player.gold;
+  grantRelicToPlayer(st, 'black_star');
+  assert.equal(st.player.gold, goldBeforeStar + 75, 'Black Star grants +75 gold on pickup');
+
+  // Shop entry triggers Meal Ticket (+15 HP)
+  const shopNode = st.map.flat().find((n) => n.type === 'shop');
+  const prevNode = st.map[shopNode.row - 1][0];
+  st.currentNodeId = prevNode.id;
+  prevNode.nextIds = [shopNode.id];
+  const hpBeforeShop = st.player.hp;
+  selectMapNode(st, shopNode.id);
+  assert.equal(st.screen, 'shop');
+  assert.equal(st.player.hp, Math.min(st.player.maxHp, hpBeforeShop + 15), 'Meal Ticket heals 15 HP on shop entry');
+  assert.equal(st.shop.mealTicketHealed, 15);
+  leaveShop(st);
+
+  // Elite victory triggers Black Star extraRelicId & White Beast Statue guaranteed potionId, and skipping card triggers Singing Bowl (+2 Max HP)
+  startCombat(st, ENCOUNTERS.elite[0], 'elite');
+  transitionCombatVictory(st);
+  assert.equal(st.screen, 'reward');
+  assert.ok(st.reward.relicId && st.reward.extraRelicId, 'Black Star drops 2 relics on Elite victory');
+  assert.notEqual(st.reward.relicId, st.reward.extraRelicId);
+  assert.ok(st.reward.potionId, 'White Beast Statue guarantees potion drop');
+  assert.equal(getUnclaimedImportantRewards(st).items.length, 3, 'Gold + Relic + Extra Relic flagged before claiming');
+  claimRewardGold(st);
+  claimRewardRelic(st);
+  assert.equal(claimRewardExtraRelic(st).ok, true);
+  const maxHpBeforeSkip = st.player.maxHp;
+  assert.equal(proceedFromReward(st).ok, true);
+  assert.equal(st.player.maxHp, maxHpBeforeSkip + 2, 'Singing Bowl grants +2 Max HP when skipping card reward');
+
+  // 2. Exercise all 16 new P1 events (Act 1/2/3 + A8 tuning check)
+  const openEv = (runState, evId) => {
+    runState.screen = 'event';
+    runState.eventState = { eventId: evId, resolved: false, outcomeText: '', pendingPurge: false, purgeHpCost: 0, purgeGoldCost: 0, pendingCardAction: null, cardActionHpCost: 0, libraryChoices: null };
+  };
+  const evRun = createNewRun({ seed: 23002, characterId: 'ironclad', ascension: 8, skipNeow: true, unlockAllOverride: true });
+  evRun.player.maxHp = 80;
+  evRun.player.hp = 60;
+  evRun.player.gold = 300;
+  evRun.player.relics.push('blood_vial', 'red_mask', 'golden_idol_relic');
+
+  // Verify A8 tuning & choice labels for new events
+  const t0 = getEventTuning(0);
+  const t8 = getEventTuning(8);
+  assert.equal(t0.forgeAltarGold, 85);
+  assert.equal(t8.forgeAltarGold, 100);
+  assert.ok(getEventChoicesForAscension('spire_forge_altar', 8)[0].detail.includes('100'));
+
+  const newEventCases = [
+    ['big_fish', 'eat_donut'],
+    ['cleric', 'cleric_purify'],
+    ['dead_adventurer', 'salvage_weapon'],
+    ['sssserpent', 'accept_serpent_gold'],
+    ['world_of_goop', 'gather_goop_gold'],
+    ['the_joust', 'bet_murderer'],
+    ['the_mausoleum', 'open_coffin'],
+    ['vampires_den', 'trade_blood_vial'],
+    ['beggar_shrine', 'give_beggar_gold'],
+    ['colosseum_trial', 'accept_trial'],
+    ['tomb_of_red_mask', 'wear_red_mask'],
+    ['falling_abyss', 'brace_fall_impact'],
+    ['mysterious_sphere', 'smash_sphere'],
+    ['moai_head', 'offer_golden_idol'],
+    ['secret_portal', 'study_portal'],
+    ['spire_forge_altar', 'altar_buy_colorless'],
+  ];
+
+  for (const [evId, chId] of newEventCases) {
+    evRun.player.hp = Math.min(evRun.player.maxHp, Math.max(evRun.player.hp, 55));
+    evRun.player.gold = Math.max(evRun.player.gold, 200);
+    openEv(evRun, evId);
+    const res = chooseEventOption(evRun, chId);
+    assert.equal(res.ok, true, `Event ${evId} -> ${chId} failed: ${res.reason}`);
+    if (evRun.eventState?.pendingPurge) {
+      assert.equal(completeEventPurge(evRun, evRun.player.deck[0].instanceId).ok, true);
+    } else if (evRun.eventState?.pendingCardAction) {
+      assert.equal(completeEventCardAction(evRun, evRun.player.deck[0].instanceId).ok, true);
+    } else if (Array.isArray(evRun.eventState?.libraryChoices)) {
+      assert.equal(pickEventLibraryCard(evRun, evRun.eventState.libraryChoices[0].instanceId).ok, true);
+    }
+    assert.equal(evRun.eventState.resolved, true, `Event ${evId} did not resolve`);
+    assert.equal(continueFromEvent(evRun).ok, true);
+  }
 });

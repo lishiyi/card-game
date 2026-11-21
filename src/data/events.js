@@ -446,6 +446,382 @@ export const EVENT_LIBRARY = deepFreeze({
       },
     ],
   },
+
+  // === P1 Expansion: Act 1 Events (+5) ===
+  big_fish: {
+    id: 'big_fish',
+    title: '悬空巨鱼',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '幽暗的走廊中竟然垂吊着一根香蕉、一枚甜甜圈与一只精致木匣，黑暗深处传来嘶哑的诱惑声：“任选一件吧……”',
+    choices: [
+      {
+        id: 'eat_banana',
+        label: '吃掉香蕉',
+        detail: '立即回复 33% 最大生命值。',
+      },
+      {
+        id: 'eat_donut',
+        label: '吃掉甜甜圈',
+        detail: '永久提升 5 点最大生命值（并回复 5 点生命）。',
+      },
+      {
+        id: 'open_fish_box',
+        label: '打开木匣',
+        detail: '获得 1 件随机遗物，但将 1 张诅咒【悔恨】加入牌组。',
+      },
+    ],
+  },
+  cleric: {
+    id: 'cleric',
+    title: '尖塔牧师',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '一名身披蓝色长袍的诡异牧师向你致意：“朋友，给我一点金币，我可以为你疗伤，或净化牌组中的杂念！”',
+    choices: [
+      {
+        id: 'cleric_heal',
+        label: '祈福疗伤',
+        detail: '花费 35 金币，回复 25% 最大生命值。',
+      },
+      {
+        id: 'cleric_purify',
+        label: '圣光净化',
+        detail: '花费 50 金币，自选并永久移除牌组中的 1 张卡牌。',
+      },
+      {
+        id: 'cleric_leave',
+        label: '礼貌告别',
+        detail: '不花费任何金币直接离开。',
+      },
+    ],
+  },
+  dead_adventurer: {
+    id: 'dead_adventurer',
+    title: '遇难冒险家',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '墙角倒着一名早已陨落的攀塔者，他身旁散落着鼓囊的行囊与一把仍泛寒光的利刃，但周围阴影似乎潜伏着捕食者。',
+    choices: [
+      {
+        id: 'loot_pack',
+        label: '冒死翻找行囊',
+        detail: '55% 概率无损获得 1 件随机遗物；45% 概率惊动埋伏失去 10 点生命但抢到 55 金币。',
+      },
+      {
+        id: 'salvage_weapon',
+        label: '拾取残刃磨砺',
+        detail: '失去 6 点生命，随机永久升级牌组中 1 张攻击牌。',
+      },
+      {
+        id: 'leave_adventurer',
+        label: '悄然绕行',
+        detail: '不冒风险，直接继续攀登。',
+      },
+    ],
+  },
+  sssserpent: {
+    id: 'sssserpent',
+    title: '巨蛇的诱惑',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '一条盘踞在残垣上的金色巨蛇吐着信子：“嘶嘶……只要你愿意收下这份小小的心结，这堆沉甸甸的金币就全归你了！”',
+    choices: [
+      {
+        id: 'accept_serpent_gold',
+        label: '收下巨蛇黄金',
+        detail: '立即获得 175 金币，但将 1 张诅咒【疑虑】加入牌组。',
+      },
+      {
+        id: 'refuse_serpent',
+        label: '冷然拒绝',
+        detail: '不为贪念所动，安全离开。',
+      },
+    ],
+  },
+  world_of_goop: {
+    id: 'world_of_goop',
+    title: '黏液泥潭',
+    minAct: 1,
+    maxAct: 1,
+    description:
+      '脚下的地面化作散发刺鼻酸雾的史莱姆水洼，黏稠的淤泥里闪烁着上一位冒险者遗落的闪亮金币。',
+    choices: [
+      {
+        id: 'gather_goop_gold',
+        label: '强忍酸蚀捞金',
+        detail: '失去 11 点生命，捞出 75 金币。',
+      },
+      {
+        id: 'leave_goop',
+        label: '谨慎脱身',
+        detail: '慌乱避让中滑落 15 金币（若金币不足则全部滑落），不受任何伤害。',
+      },
+    ],
+  },
+
+  // === P1 Expansion: Act 2 Events (+5) ===
+  the_joust: {
+    id: 'the_joust',
+    title: '长矛比武',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '城中广场正在举行狂热的骑士对决：身披黑甲的杀人凶手与誓要复仇的白衣骑士相对冲锋，围观者正疯狂下注！',
+    choices: [
+      {
+        id: 'bet_murderer',
+        label: '押注黑甲骑士（稳健）',
+        detail: '下注 50 金币：70% 胜率赢回 100 金币！',
+      },
+      {
+        id: 'bet_owner',
+        label: '押注白衣骑士（高赔率）',
+        detail: '下注 50 金币：30% 胜率豪赢 250 金币！',
+      },
+      {
+        id: 'leave_joust',
+        label: '旁观离开',
+        detail: '不参与赌局，继续前行。',
+      },
+    ],
+  },
+  the_mausoleum: {
+    id: 'the_mausoleum',
+    title: '幽暗陵墓',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '你在城市深处发现了一座布满黑雾的石棺，棺盖缝隙中泄露出古老遗物的微光，但也伴随着令人窒息的诅咒气息。',
+    choices: [
+      {
+        id: 'open_coffin',
+        label: '推开石棺',
+        detail: '必定获得 1 件随机遗物，但有 50% 概率沾染 1 张诅咒【疑虑】。',
+      },
+      {
+        id: 'leave_mausoleum',
+        label: '合掌离去',
+        detail: '不惊扰沉睡者，安全离开。',
+      },
+    ],
+  },
+  vampires_den: {
+    id: 'vampires_den',
+    title: '暗夜血族',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '几位苍白优雅的贵族拦住你的去路，举起猩红酒杯：“加入暗夜的盛宴吧，只需献出一缕生命本源，即可重获新生与锋芒。”',
+    choices: [
+      {
+        id: 'accept_vampire_pact',
+        label: '饮下猩红血契',
+        detail: '永久失去 25% 最大生命（最低保留 25 点），但立即回满生命并随机升级 2 张攻击牌！',
+      },
+      {
+        id: 'trade_blood_vial',
+        label: '献出【鲜血小瓶】（若有）',
+        detail: '需持有【鲜血小瓶】：无损失去它以换取全血回复 + 随机升级 2 张攻击牌！',
+      },
+      {
+        id: 'refuse_vampires',
+        label: '谢绝盛宴',
+        detail: '拒绝血族的邀请，平静离开。',
+      },
+    ],
+  },
+  beggar_shrine: {
+    id: 'beggar_shrine',
+    title: '神秘老乞丐',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '一名衣衫褴褛却双目如炬的老者向你伸出枯手：“一点碎银，换我替你抹去心中最沉重的一道执念……”',
+    choices: [
+      {
+        id: 'give_beggar_gold',
+        label: '施舍 75 金币',
+        detail: '花费 75 金币，自选并永久移除牌组中的 1 张卡牌。',
+      },
+      {
+        id: 'leave_beggar',
+        label: '径直走开',
+        detail: '不花费金币，直接离开。',
+      },
+    ],
+  },
+  colosseum_trial: {
+    id: 'colosseum_trial',
+    title: '地下斗技场',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '城下角斗场的奴隶主认出了你的身手，抛出沉重的钱袋与神秘战利品：“撑过三轮血腥试炼，这些就全是你的！”',
+    choices: [
+      {
+        id: 'accept_trial',
+        label: '踏入角斗试炼',
+        detail: '激战负伤失去 14 点生命，赢得 100 金币与 1 件罕见/稀有遗物！',
+      },
+      {
+        id: 'skip_trial',
+        label: '拒绝角斗',
+        detail: '保存体力，悄然离开。',
+      },
+    ],
+  },
+
+  // === P1 Expansion: Act 3 & Act 2-3 Events (+6) ===
+  tomb_of_red_mask: {
+    id: 'tomb_of_red_mask',
+    title: '红面具之墓',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '深渊圣殿中矗立着一座戴着鲜红假面的石棺，雕像手中捧着一尊空置的祭盘，似乎只认得同道中人或全部家当。',
+    choices: [
+      {
+        id: 'wear_red_mask',
+        label: '佩戴【红面具】致意（若有）',
+        detail: '需持有【红面具】：石棺自动开启，无损赠予你 222 金币！',
+      },
+      {
+        id: 'offer_all_gold',
+        label: '献上全部金币',
+        detail: '清空所有金币（至少需 1 金币），换取事件遗物【红面具】（若已拥有则改为 1 件稀有遗物）。',
+      },
+      {
+        id: 'leave_red_tomb',
+        label: '转身离去',
+        detail: '不献祭也不强取，安全离开。',
+      },
+    ],
+  },
+  falling_abyss: {
+    id: 'falling_abyss',
+    title: '坠落深渊',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '脚下的悬空石板骤然崩塌！你急速下坠，必须在千钧一发之际借助一件技艺稳住身形，或硬扛坠地冲击！',
+    choices: [
+      {
+        id: 'land_sacrifice_skill',
+        label: '舍弃 1 张技能牌缓冲',
+        detail: '随机永久失去牌组中 1 张技能牌，毫发无损着陆。',
+      },
+      {
+        id: 'land_sacrifice_attack',
+        label: '舍弃 1 张攻击牌借力',
+        detail: '随机永久失去牌组中 1 张攻击牌，毫发无损着陆。',
+      },
+      {
+        id: 'brace_fall_impact',
+        label: '护住牌组硬扛冲击',
+        detail: '失去 15 点生命，完整保住牌组中的所有卡牌！',
+      },
+    ],
+  },
+  mysterious_sphere: {
+    id: 'mysterious_sphere',
+    title: '神秘星体',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '一颗漂浮在圣殿中央的璀璨金属球体正缓缓旋转，球壳内隐约可见一件闪耀金光的稀有遗物，但外围守护电弧极其狂暴。',
+    choices: [
+      {
+        id: 'smash_sphere',
+        label: '强行击碎球壳',
+        detail: '承受电弧灼伤失去 16 点生命，夺取 1 件【稀有】遗物与 55 金币！',
+      },
+      {
+        id: 'leave_sphere',
+        label: '稳妥绕行',
+        detail: '不触碰守卫机关，直接离开。',
+      },
+    ],
+  },
+  moai_head: {
+    id: 'moai_head',
+    title: '摩艾巨像',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '一尊巍峨的远古石像张开深不见底的巨口，散发着温暖的治愈圣光，似乎也在静候某个闪耀的黄金祭品。',
+    choices: [
+      {
+        id: 'jump_into_moai',
+        label: '纵身跃入圣口',
+        detail: '永久失去 10% 最大生命（最低保留 25 点），但立即回复至 100% 满生命！',
+      },
+      {
+        id: 'offer_golden_idol',
+        label: '献祭【黄金神像】（若有）',
+        detail: '需持有【黄金神像】：献出它以换取 333 枚沉甸甸的金币！',
+      },
+      {
+        id: 'leave_moai',
+        label: '鞠躬离开',
+        detail: '保持原状，继续前进。',
+      },
+    ],
+  },
+  secret_portal: {
+    id: 'secret_portal',
+    title: '秘境星门',
+    minAct: 3,
+    maxAct: 3,
+    description:
+      '一道流淌着星辉的时空裂隙浮现在走廊尽头，裂隙中跃动着浓缩的尖塔奥秘与不稳定能量。',
+    choices: [
+      {
+        id: 'study_portal',
+        label: '研习星门符文',
+        detail: '安全增益：随机升级牌组中 2 张牌，并随机获得 1 瓶药水（若有空栏位）。',
+      },
+      {
+        id: 'siphon_portal',
+        label: '强行汲取星能',
+        detail: '失去 12 点生命，随机获得 1 张已升级的【无色稀有牌+】与 1 件随机遗物！',
+      },
+      {
+        id: 'leave_portal',
+        label: '绕开裂隙',
+        detail: '稳步前行，不介入时空波动。',
+      },
+    ],
+  },
+  spire_forge_altar: {
+    id: 'spire_forge_altar',
+    title: '圣器铸造祭坛',
+    minAct: 2,
+    maxAct: 3,
+    description:
+      '一座流淌着液态秘银的古老祭坛在寂静中燃烧，既可花费金币换取异界无色秘传，也可献血将凡牌重铸为金色稀有牌。',
+    choices: [
+      {
+        id: 'altar_buy_colorless',
+        label: '献金求取秘传',
+        detail: '花费 85 金币，从 3 张跨职业【无色牌】中任选 1 张加入牌组！',
+      },
+      {
+        id: 'altar_transmute_rare',
+        label: '血祭重铸稀有',
+        detail: '失去 10 点生命，自选牌组中 1 张牌变化为随机【稀有】职业牌！',
+      },
+      {
+        id: 'leave_forge_altar',
+        label: '离开祭坛',
+        detail: '不做交易，继续攀登。',
+      },
+    ],
+  },
 });
 
 export const EVENT_IDS = Object.freeze(Object.keys(EVENT_LIBRARY));
@@ -503,6 +879,26 @@ export function getEventTuning(ascension = 0) {
     windingMadnessHpLoss: isA8 ? 16 : 12,
     windingRetraceHealPct: isA8 ? 20 : 25,
     windingPushMaxHpPct: isA8 ? 9 : 6,
+    // P1 New Event A8 Scaling
+    bigFishBananaPct: isA8 ? 25 : 33,
+    bigFishDonutMaxHp: isA8 ? 4 : 5,
+    clericHealGold: isA8 ? 45 : 35,
+    clericPurifyGold: isA8 ? 65 : 50,
+    adventurerFailHpLoss: isA8 ? 14 : 10,
+    adventurerWeaponHpLoss: isA8 ? 9 : 6,
+    serpentGold: isA8 ? 150 : 175,
+    goopHpLoss: isA8 ? 14 : 11,
+    goopLeaveGoldLoss: isA8 ? 25 : 15,
+    vampMaxHpLossPct: isA8 ? 32 : 25,
+    beggarPurifyGold: isA8 ? 90 : 75,
+    colosseumHpLoss: isA8 ? 18 : 14,
+    colosseumGold: isA8 ? 80 : 100,
+    fallingImpactHpLoss: isA8 ? 20 : 15,
+    sphereHpLoss: isA8 ? 20 : 16,
+    moaiMaxHpLossPct: isA8 ? 15 : 10,
+    portalSiphonHpLoss: isA8 ? 16 : 12,
+    forgeAltarGold: isA8 ? 100 : 85,
+    forgeAltarHpLoss: isA8 ? 14 : 10,
   };
 }
 
@@ -588,6 +984,50 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
       embrace_madness: `失去 ${t.windingMadnessHpLoss} 点生命，获得 2 张随机 0 费【无色罕见牌】加入牌组！`,
       retrace_steps: `回复 ${t.windingRetraceHealPct}% 最大生命值，但将 1 张诅咒【疑虑】加入牌组。`,
       push_through_halls: `永久失去 ${t.windingPushMaxHpPct}% 最大生命（最低保留 25 点），不带任何诅咒安全脱身。`,
+    },
+    big_fish: {
+      eat_banana: `立即回复 ${t.bigFishBananaPct}% 最大生命值。`,
+      eat_donut: `永久提升 ${t.bigFishDonutMaxHp} 点最大生命值（并回复 ${t.bigFishDonutMaxHp} 点生命）。`,
+    },
+    cleric: {
+      cleric_heal: `花费 ${t.clericHealGold} 金币，回复 25% 最大生命值。`,
+      cleric_purify: `花费 ${t.clericPurifyGold} 金币，自选并永久移除牌组中的 1 张卡牌。`,
+    },
+    dead_adventurer: {
+      loot_pack: `55% 概率无损获得 1 件随机遗物；45% 概率惊动埋伏失去 ${t.adventurerFailHpLoss} 点生命但抢到 55 金币。`,
+      salvage_weapon: `失去 ${t.adventurerWeaponHpLoss} 点生命，随机永久升级牌组中 1 张攻击牌。`,
+    },
+    sssserpent: {
+      accept_serpent_gold: `立即获得 ${t.serpentGold} 金币，但将 1 张诅咒【疑虑】加入牌组。`,
+    },
+    world_of_goop: {
+      gather_goop_gold: `失去 ${t.goopHpLoss} 点生命，捞出 75 金币。`,
+      leave_goop: `慌乱避让中滑落 ${t.goopLeaveGoldLoss} 金币（若金币不足则全部滑落），不受任何伤害。`,
+    },
+    vampires_den: {
+      accept_vampire_pact: `永久失去 ${t.vampMaxHpLossPct}% 最大生命（最低保留 25 点），但立即回满生命并随机升级 2 张攻击牌！`,
+    },
+    beggar_shrine: {
+      give_beggar_gold: `花费 ${t.beggarPurifyGold} 金币，自选并永久移除牌组中的 1 张卡牌。`,
+    },
+    colosseum_trial: {
+      accept_trial: `激战负伤失去 ${t.colosseumHpLoss} 点生命，赢得 ${t.colosseumGold} 金币与 1 件罕见/稀有遗物！`,
+    },
+    falling_abyss: {
+      brace_fall_impact: `失去 ${t.fallingImpactHpLoss} 点生命，完整保住牌组中的所有卡牌！`,
+    },
+    mysterious_sphere: {
+      smash_sphere: `承受电弧灼伤失去 ${t.sphereHpLoss} 点生命，夺取 1 件【稀有】遗物与 55 金币！`,
+    },
+    moai_head: {
+      jump_into_moai: `永久失去 ${t.moaiMaxHpLossPct}% 最大生命（最低保留 25 点），但立即回复至 100% 满生命！`,
+    },
+    secret_portal: {
+      siphon_portal: `失去 ${t.portalSiphonHpLoss} 点生命，随机获得 1 张已升级的【无色稀有牌+】与 1 件随机遗物！`,
+    },
+    spire_forge_altar: {
+      altar_buy_colorless: `花费 ${t.forgeAltarGold} 金币，从 3 张跨职业【无色牌】中任选 1 张加入牌组！`,
+      altar_transmute_rare: `失去 ${t.forgeAltarHpLoss} 点生命，自选牌组中 1 张牌变化为随机【稀有】职业牌！`,
     },
   }[eventId];
 

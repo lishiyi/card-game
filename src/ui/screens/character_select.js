@@ -53,6 +53,9 @@ export function renderCharacterSelectHeader({ hasActiveRun }) {
         <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
           进阶/生涯
         </button>
+        <button type="button" id="btn-open-compendium" class="btn-stone" data-action="open-modal" data-modal="compendium">
+          图鉴
+        </button>
         <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
           词典/引导
         </button>

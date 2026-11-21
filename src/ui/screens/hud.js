@@ -31,6 +31,17 @@ export function renderTopHud({ state, ui }) {
       } else if (id === 'incense_burner') {
         const count = state.relicCounters?.incense_burner ?? 0;
         counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/6</span>`;
+      } else if (id === 'nunchaku') {
+        const count = state.relicCounters?.nunchaku ?? 0;
+        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/10</span>`;
+      } else if (id === 'pen_nib') {
+        const count = state.relicCounters?.pen_nib ?? 0;
+        counterHtml = `<span class="relic-counter-pill">${count === 9 ? '9/10 就绪!' : `${escapeHtml(count)}/10`}</span>`;
+      } else if (id === 'sundial') {
+        const count = state.relicCounters?.sundial ?? 0;
+        counterHtml = `<span class="relic-counter-pill">${escapeHtml(count)}/3</span>`;
+      } else if (id === 'lizard_tail' && state.relicFlags?.lizardTailUsed) {
+        counterHtml = `<span class="relic-counter-pill">已耗尽</span>`;
       }
       return `<span
         class="relic-badge tier-${escapeHtml(r.tier)}"
@@ -197,10 +208,13 @@ export function renderTopHud({ state, ui }) {
             : ''
         }
         <button type="button" id="btn-open-meta" class="btn-stone" data-action="open-modal" data-modal="meta">
-          进阶/生涯
+          进阶<span class="hud-btn-long">/生涯</span>
+        </button>
+        <button type="button" id="btn-open-compendium" class="btn-stone" data-action="open-modal" data-modal="compendium">
+          图鉴
         </button>
         <button type="button" id="btn-open-help" class="btn-stone" data-action="open-modal" data-modal="help">
-          词典/引导
+          词典<span class="hud-btn-long">/引导</span>
         </button>
         <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
           设置

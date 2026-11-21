@@ -14,7 +14,10 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
   }
 
   if ((attacker?.statuses?.weak ?? 0) > 0) {
-    raw *= 0.75;
+    const hasPaperKrane =
+      Boolean(options.hasPaperKrane) ||
+      (Array.isArray(defender?.relics) && defender.relics.includes('paper_krane'));
+    raw *= hasPaperKrane ? 0.65 : 0.75;
   }
 
   if (defender && (defender?.statuses?.vulnerable ?? 0) > 0) {
@@ -29,6 +32,10 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
   }
 
   if ((attacker?.statuses?.doubleDamage ?? 0) > 0) {
+    raw *= 2;
+  }
+
+  if (Boolean(options.penNibActive) || Boolean(attacker?.penNibActive)) {
     raw *= 2;
   }
 

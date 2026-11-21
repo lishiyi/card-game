@@ -4845,12 +4845,16 @@ body.spire-dragging {
   }
 
   .top-actions {
-    gap: 4px;
+    gap: 3px;
   }
 
   .top-actions button {
-    padding: 5px 6px;
-    font-size: 0.7rem;
+    padding: 5px 5px;
+    font-size: 0.67rem;
+  }
+
+  .hud-btn-long {
+    display: none;
   }
 
   .stage-viewport {
@@ -5377,6 +5381,240 @@ body.spire-dragging {
     width: 100%;
     min-width: 0;
     max-width: none;
+  }
+}
+
+/* === P0 Compendium Modal (图鉴) === */
+.modal-compendium-sheet {
+  width: min(1040px, 95vw);
+}
+
+.compendium-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.compendium-progress-track {
+  margin-bottom: 14px;
+}
+
+.compendium-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.compendium-card-grid {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.compendium-silhouette-card {
+  position: relative;
+  width: 162px;
+  min-height: 224px;
+  border-radius: var(--radius-md);
+  border: 1px dashed hsla(34, 24%, 44%, 0.42);
+  background: linear-gradient(165deg, hsla(26, 16%, 14%, 0.85), hsla(24, 18%, 9%, 0.94));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 12px;
+  text-align: center;
+  color: var(--text-ash);
+  user-select: none;
+}
+
+.compendium-silhouette-cost {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: hsla(26, 16%, 20%, 0.9);
+  border: 1px solid hsla(34, 24%, 48%, 0.45);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--text-ash);
+}
+
+.compendium-silhouette-art {
+  width: 112px;
+  height: 52px;
+  border-radius: var(--radius-sm);
+  background: hsla(24, 14%, 8%, 0.92);
+  border: 1px solid hsla(32, 18%, 32%, 0.4);
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: hsla(38, 34%, 56%, 0.35);
+}
+
+.compendium-silhouette-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: hsla(36, 16%, 68%, 0.72);
+}
+
+.compendium-silhouette-meta {
+  font-size: 0.72rem;
+  color: var(--text-ash);
+}
+
+.compendium-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.compendium-entry-card {
+  padding: 12px 13px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-stone);
+  background: linear-gradient(160deg, hsla(26, 20%, 15%, 0.94), hsla(24, 20%, 10%, 0.96));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.compendium-entry-card.undiscovered {
+  border-style: dashed;
+  border-color: hsla(34, 18%, 34%, 0.55);
+  background: hsla(24, 14%, 10%, 0.78);
+  opacity: 0.74;
+}
+
+.compendium-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.compendium-entry-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-ivory);
+}
+
+.compendium-entry-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.compendium-owner-pill,
+.compendium-kind-pill {
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid var(--border-muted);
+  background: hsla(26, 16%, 18%, 0.88);
+  color: var(--text-sand);
+}
+
+.compendium-kind-pill.kind-elite {
+  border-color: hsla(38, 82%, 56%, 0.65);
+  color: hsl(42, 92%, 74%);
+  background: hsla(38, 48%, 18%, 0.85);
+}
+
+.compendium-kind-pill.kind-boss {
+  border-color: hsla(354, 78%, 56%, 0.7);
+  color: hsl(356, 94%, 76%);
+  background: hsla(354, 48%, 18%, 0.85);
+}
+
+.compendium-entry-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.48;
+  color: var(--text-sand);
+}
+
+.compendium-enemy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  gap: 10px;
+}
+
+.compendium-enemy-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-stone);
+  background: linear-gradient(160deg, hsla(26, 20%, 15%, 0.94), hsla(24, 20%, 10%, 0.96));
+}
+
+.compendium-enemy-card.undiscovered {
+  border-style: dashed;
+  border-color: hsla(34, 18%, 34%, 0.55);
+  background: hsla(24, 14%, 10%, 0.78);
+}
+
+.compendium-enemy-portrait {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  background: radial-gradient(circle at 50% 45%, hsla(34, 28%, 22%, 0.5), hsla(24, 18%, 8%, 0.95));
+  border: 1px solid hsla(34, 22%, 34%, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.compendium-enemy-portrait svg {
+  width: 56px;
+  height: 56px;
+  display: block;
+}
+
+.compendium-enemy-portrait.silhouette svg {
+  filter: brightness(0) saturate(0) opacity(0.32);
+}
+
+.compendium-enemy-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+@media (max-width: 640px) {
+  .compendium-card-grid {
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .compendium-silhouette-card {
+    width: 146px;
+    min-height: 204px;
+  }
+
+  .compendium-entry-grid,
+  .compendium-enemy-grid {
+    grid-template-columns: 1fr;
   }
 }
 

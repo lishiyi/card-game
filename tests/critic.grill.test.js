@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { canUpgradeCard, CARD_LIBRARY, createCardInstance, getCardStats } from '../src/data/cards.js';
 import { CHARACTER_LIBRARY } from '../src/data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../src/data/enemies.js';
-import { EVENT_LIBRARY } from '../src/data/events.js';
+import { EVENT_LIBRARY, getEventChoicesForAscension, getEventTuning } from '../src/data/events.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../src/data/relics.js';
 import { canPlayCard, hasPendingCardChoice, MAX_HAND_SIZE, startCombat } from '../src/engine/combat.js';
 import {
@@ -17,6 +17,7 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
@@ -382,6 +383,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
       } else if (state.screen === 'reward') {
         claimRewardGold(state);
         if (state.reward.relicId) claimRewardRelic(state);
+        if (state.reward.extraRelicId) claimRewardExtraRelic(state);
         if (state.reward.potionId) claimRewardPotion(state);
         if (state.reward.cardChoices.length > 0 && state.player.deck.length < 24) {
           claimRewardCard(state, state.reward.cardChoices[0].instanceId);
@@ -432,6 +434,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
         leaveShop(state);
       } else if (state.screen === 'event') {
         const eventId = state.eventState.eventId;
+        const evTune = getEventTuning(state.ascension ?? 0);
         if (eventId === 'shining_light') {
           assert.equal(chooseEventOption(state, state.player.hp > 20 ? 'enter_light' : 'leave').ok, true);
         } else if (eventId === 'ancient_forge') {
@@ -576,6 +579,99 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
                 ? 'retrace_steps'
                 : 'push_through_halls';
           assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'big_fish') {
+          const choice = state.player.hp < state.player.maxHp * 0.65 ? 'eat_banana' : seed % 3 === 0 ? 'open_fish_box' : 'eat_donut';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'cleric') {
+          if (state.player.gold >= evTune.clericPurifyGold && state.player.deck.length > 3 && seed % 2 === 0) {
+            assert.equal(chooseEventOption(state, 'cleric_purify').ok, true);
+            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+          } else if (state.player.gold >= evTune.clericHealGold) {
+            assert.equal(chooseEventOption(state, 'cleric_heal').ok, true);
+          } else {
+            assert.equal(chooseEventOption(state, 'cleric_leave').ok, true);
+          }
+        } else if (eventId === 'dead_adventurer') {
+          const choice =
+            state.player.hp > evTune.adventurerFailHpLoss + 8
+              ? 'loot_pack'
+              : state.player.hp > evTune.adventurerWeaponHpLoss + 6
+                ? 'salvage_weapon'
+                : 'leave_adventurer';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'sssserpent') {
+          assert.equal(chooseEventOption(state, seed % 2 === 0 ? 'accept_serpent_gold' : 'refuse_serpent').ok, true);
+        } else if (eventId === 'world_of_goop') {
+          assert.equal(
+            chooseEventOption(state, state.player.hp > evTune.goopHpLoss + 8 ? 'gather_goop_gold' : 'leave_goop').ok,
+            true
+          );
+        } else if (eventId === 'the_joust') {
+          const choice = state.player.gold >= 50 ? (seed % 2 === 0 ? 'bet_murderer' : 'bet_owner') : 'leave_joust';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'the_mausoleum') {
+          assert.equal(chooseEventOption(state, seed % 2 === 0 ? 'open_coffin' : 'leave_mausoleum').ok, true);
+        } else if (eventId === 'vampires_den') {
+          const choice = state.player.relics.includes('blood_vial')
+            ? 'trade_blood_vial'
+            : state.player.maxHp >= 50 && seed % 3 === 0
+              ? 'accept_vampire_pact'
+              : 'refuse_vampires';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'beggar_shrine') {
+          if (state.player.gold >= evTune.beggarPurifyGold && state.player.deck.length > 3) {
+            assert.equal(chooseEventOption(state, 'give_beggar_gold').ok, true);
+            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+          } else {
+            assert.equal(chooseEventOption(state, 'leave_beggar').ok, true);
+          }
+        } else if (eventId === 'colosseum_trial') {
+          assert.equal(
+            chooseEventOption(state, state.player.hp > evTune.colosseumHpLoss + 10 ? 'accept_trial' : 'skip_trial').ok,
+            true
+          );
+        } else if (eventId === 'tomb_of_red_mask') {
+          const choice = state.player.relics.includes('red_mask')
+            ? 'wear_red_mask'
+            : state.player.gold >= 1 && seed % 2 === 0
+              ? 'offer_all_gold'
+              : 'leave_red_tomb';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'falling_abyss') {
+          const hasSkill = state.player.deck.some((c) => getCardStats(c).type === 'skill');
+          const hasAtk = state.player.deck.some((c) => getCardStats(c).type === 'attack');
+          const choice =
+            state.player.deck.length > 2 && hasAtk && seed % 3 === 0
+              ? 'land_sacrifice_attack'
+              : state.player.deck.length > 2 && hasSkill && seed % 3 === 1
+                ? 'land_sacrifice_skill'
+                : 'brace_fall_impact';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'mysterious_sphere') {
+          assert.equal(
+            chooseEventOption(state, state.player.hp > evTune.sphereHpLoss + 10 ? 'smash_sphere' : 'leave_sphere').ok,
+            true
+          );
+        } else if (eventId === 'moai_head') {
+          const choice = state.player.relics.includes('golden_idol_relic')
+            ? 'offer_golden_idol'
+            : state.player.hp < state.player.maxHp * 0.6
+              ? 'jump_into_moai'
+              : 'leave_moai';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'secret_portal') {
+          const choice = state.player.hp > evTune.portalSiphonHpLoss + 10 && seed % 2 === 0 ? 'siphon_portal' : 'study_portal';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'spire_forge_altar') {
+          if (state.player.gold >= evTune.forgeAltarGold && seed % 2 === 0) {
+            assert.equal(chooseEventOption(state, 'altar_buy_colorless').ok, true);
+            assert.equal(pickEventLibraryCard(state, state.eventState.libraryChoices[0].instanceId).ok, true);
+          } else if (state.player.hp > evTune.forgeAltarHpLoss + 8 && state.player.deck.length > 0) {
+            assert.equal(chooseEventOption(state, 'altar_transmute_rare').ok, true);
+            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+          } else {
+            assert.equal(chooseEventOption(state, 'leave_forge_altar').ok, true);
+          }
         } else {
           assert.fail(`Unhandled event in fuzz test: ${eventId}`);
         }

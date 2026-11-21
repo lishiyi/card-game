@@ -28,6 +28,7 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
@@ -72,6 +73,7 @@ import {
   MAX_ASCENSION,
   recordCompletedRun,
   saveMeta,
+  syncCompendiumFromRunState,
   UNLOCK_TIERS,
 } from '../engine/meta.js';
 import {
@@ -380,7 +382,16 @@ export function mountSpireApp(rootEl) {
     positionTooltip(anchorEl);
   }
 
+  const initialDebugMode = (() => {
+    try {
+      return new URLSearchParams(window.location?.search || '').get('debug') === '1';
+    } catch {
+      return false;
+    }
+  })();
+
   const ui = {
+    debugMode: initialDebugMode,
     showCharacterSelect: initialShowCharacterSelect,
     selectedCharacterId: state?.characterId || meta.selectedCharacterId || 'ironclad',
     selectedCardId: null,
@@ -396,6 +407,10 @@ export function mountSpireApp(rootEl) {
     helpTab: 'glossary',
     glossaryCategory: 'all',
     glossaryQuery: '',
+    compendiumTab: 'cards',
+    compendiumCharFilter: 'all',
+    compendiumRelicTier: 'all',
+    compendiumShowUpgraded: false,
     seedInput: '',
     notice: initialNotice,
     noticeTone: 'normal',
@@ -569,6 +584,9 @@ export function mountSpireApp(rootEl) {
     }
 
     persistRun(state);
+    if (syncCompendiumFromRunState(meta, state)) {
+      saveMeta(meta);
+    }
     const prevScreen = lastRenderedScreen;
     const screenChanged = Boolean(prevScreen && prevScreen !== state.screen);
     lastRenderedScreen = state.screen;
@@ -1310,6 +1328,7 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'toggle-unlock-all': {
+        if (!ui.debugMode) break;
         meta.unlockAllOverride = true;
         meta.unlockedTier = UNLOCK_TIERS.length;
         meta.maxAscensionUnlocked = MAX_ASCENSION;
@@ -1319,6 +1338,33 @@ export function mountSpireApp(rootEl) {
         }
         saveMeta(meta);
         soundEngine.play('upgrade');
+        render();
+        break;
+      }
+      case 'set-compendium-tab': {
+        const nextTab = target.dataset.tab;
+        if (['cards', 'relics', 'potions', 'enemies'].includes(nextTab)) {
+          ui.compendiumTab = nextTab;
+          soundEngine.play('ui_click');
+          render();
+        }
+        break;
+      }
+      case 'set-compendium-char': {
+        ui.compendiumCharFilter = target.dataset.charFilter || 'all';
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'set-compendium-tier': {
+        ui.compendiumRelicTier = target.dataset.tierFilter || 'all';
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'toggle-compendium-upgrade': {
+        ui.compendiumShowUpgraded = !ui.compendiumShowUpgraded;
+        soundEngine.play('ui_click');
         render();
         break;
       }
@@ -1546,6 +1592,13 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'claim-extra-relic': {
+        claimRewardExtraRelic(state);
+        soundEngine.play('upgrade');
+        setNotice('');
+        render();
+        break;
+      }
       case 'claim-potion': {
         const res = claimRewardPotion(state);
         if (res.ok) soundEngine.play('potion');
@@ -1588,6 +1641,9 @@ export function mountSpireApp(rootEl) {
           }
           if (state.reward.relicId && !state.reward.relicClaimed) {
             claimRewardRelic(state);
+          }
+          if (state.reward.extraRelicId && !state.reward.extraRelicClaimed) {
+            claimRewardExtraRelic(state);
           }
         }
         proceedFromReward(state, { force: true });

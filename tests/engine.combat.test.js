@@ -554,30 +554,30 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 62);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 100);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 3);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 13);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 13);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 12);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 5);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 25);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 19);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 8);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    12
+    16
   );
-  assert.equal(Object.keys(POTION_LIBRARY).length, 16);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 191);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 28);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 232);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
-    55
+    65
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'silent').length,
-    55
+    65
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'watcher').length,
-    61
+    72
   );
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
@@ -1289,10 +1289,10 @@ test('The Silent Discard archetype: pendingDiscard selection, Tactician, Reflex,
   assert.equal(state.combat.pendingDiscard?.sourceName, '独门秘技', 'Tools of the Trade must prompt 1 discard at turn start');
 });
 
-test('Shop-exclusive Colorless Cards (10): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
-  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 6);
-  assert.equal(COLORLESS_CARD_POOLS.rare.length, 4);
-  assert.equal(COLORLESS_CARD_POOLS.all.length, 10);
+test('Shop-exclusive Colorless Cards (20): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 12);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 8);
+  assert.equal(COLORLESS_CARD_POOLS.all.length, 20);
   for (const cid of COLORLESS_CARD_POOLS.all) {
     assert.equal(CARD_LIBRARY[cid].character, 'colorless');
     assert.equal(CARD_LIBRARY[cid].shopOnly, true);
@@ -2453,4 +2453,290 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   assert.equal(zeroCostPowers.length, 1);
   const pChar = getCardCharacter(zeroCostPowers[0]);
   assert.ok(pChar === 'watcher' || pChar === 'colorless', `Enchiridion leaked ${pChar} power to Watcher`);
+});
+
+test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dummy, Lizard Tail, Dead Branch, Clay/Runic Cube caps, Hovering Kite, Cloak Clasp, Magic Flower, Champion Belt, Pocketwatch, Art of War, Sundial, Melange, Brimstone, Twisted Funnel, Thread & Needle, Insect, Pantograph, Slavers Collar, Toy Ornithopter & 12 New Potions', () => {
+  // 1. Artifact (Clockwork Souvenir / Ancient Potion) blocks debuff, Paper Krane reduces Weak attack to 65%, Pen Nib doubles 10th attack, Strike Dummy adds +3 to Strikes, Nunchaku grants +1 energy on 10th attack
+  const s1 = createNewRun({ seed: 20001, characterId: 'silent', skipNeow: true });
+  s1.player.relics = ['clockwork_souvenir', 'paper_krane', 'strike_dummy', 'nunchaku', 'pen_nib', 'bronze_scales', 'thread_and_needle', 'twisted_funnel'];
+  s1.relicCounters = { nunchaku: 9, pen_nib: 9 };
+  startCombat(s1, ENCOUNTERS.floor1[0], 'normal');
+  const en1 = s1.combat.enemies[0];
+  en1.hp = 120;
+  assert.equal(s1.player.statuses.artifact, 1, 'Clockwork Souvenir grants 1 Artifact');
+  assert.equal(s1.player.statuses.thorns, 3, 'Bronze Scales grants 3 Thorns');
+  assert.equal(s1.player.statuses.platedArmor, 3, 'Thread and Needle grants 3 Plated Armor');
+  assert.equal(en1.statuses.poison, 3, 'Twisted Funnel poisons all enemies for 3');
+  assert.equal(s1.player.penNibActive, true, 'Pen Nib arms at counter 9/10');
+
+  // Artifact blocks incoming Vulnerable cleanly
+  assert.equal(applyStatus(s1.player, 'vulnerable', 2), false);
+  assert.equal(s1.player.statuses.vulnerable ?? 0, 0);
+  assert.equal(s1.player.statuses.artifact ?? 0, 0);
+
+  // Paper Krane Weak multiplier (0.65x instead of 0.75x)
+  en1.statuses.weak = 2;
+  assert.equal(calculateAttackDamage(20, en1, s1.player), 13, 'Paper Krane reduces 20 dmg Weak attack to 13 (65%)');
+
+  // Strike Dummy (+3) + Pen Nib (2x) + Nunchaku (+1 energy) on 10th attack!
+  const strike = createCardInstance(s1, 'strike', false); // 6 + 3 = 9, *2 Pen Nib = 18
+  s1.combat.hand = [strike];
+  s1.player.energy = 3;
+  const hpBeforeStrike = en1.hp;
+  playCard(s1, strike.instanceId, en1.id);
+  assert.equal(hpBeforeStrike - en1.hp, 18, 'Strike Dummy (+3) & Pen Nib (2x) deal 18 damage');
+  assert.equal(s1.player.energy, 3, 'Nunchaku refunded +1 energy on 10th attack (3 - 1 + 1 = 3)');
+  assert.equal(s1.relicCounters.nunchaku, 0);
+  assert.equal(s1.relicCounters.pen_nib, 0);
+  assert.equal(s1.player.penNibActive, false);
+
+  // 2. Lizard Tail 30% revive once + restartCombat restores unused state; Self-Forming Clay (max 2/turn) & Runic Cube (max 1/phase) & Magic Flower (+50% combat heal) & Champion Belt & Dead Branch
+  const s2 = createNewRun({ seed: 20002, characterId: 'ironclad', skipNeow: true });
+  s2.player.maxHp = 80;
+  s2.player.hp = 10;
+  s2.player.relics = ['lizard_tail', 'self_forming_clay', 'runic_cube', 'magic_flower', 'champion_belt', 'dead_branch', 'brimstone', 'toy_ornithopter'];
+  s2.player.potions = ['blood_surge_potion', 'ancient_potion', 'duplication_potion'];
+  startCombat(s2, ENCOUNTERS.floor1[0], 'normal');
+  const en2 = s2.combat.enemies[0];
+  en2.hp = 150;
+  assert.equal(s2.player.statuses.strength, 2, 'Brimstone grants +2 player Strength on turn 1');
+  assert.equal(en2.statuses.strength, 1, 'Brimstone grants +1 enemy Strength on turn 1');
+
+  // Champion Belt applies Weak when applying Vulnerable (e.g. Bash)
+  const bash = createCardInstance(s2, 'bash', false);
+  s2.combat.hand = [bash];
+  s2.player.energy = 3;
+  playCard(s2, bash.instanceId, en2.id);
+  assert.equal(en2.statuses.vulnerable, 2);
+  assert.equal(en2.statuses.weak, 1, 'Champion Belt adds 1 Weak alongside Vulnerable');
+
+  // Toy Ornithopter + Magic Flower (+50% heal): Blood Surge (8 heal -> 12) + Ornithopter (5 heal -> 7) = +19 HP!
+  const hpBeforePot = s2.player.hp;
+  usePotion(s2, 0);
+  assert.equal(s2.player.hp - hpBeforePot, 19, 'Magic Flower boosts both Blood Surge (8->12) and Ornithopter (5->7)');
+
+  // Dead Branch adds a card to hand on Exhaust
+  const seeingRed = createCardInstance(s2, 'seeing_red', false);
+  s2.combat.hand = [seeingRed];
+  s2.player.energy = 3;
+  playCard(s2, seeingRed.instanceId);
+  assert.equal(s2.combat.hand.length, 1, 'Dead Branch generated 1 card into hand on Exhaust');
+
+  // Lizard Tail triggers on fatal enemy attack -> revives to 30% maxHp (24 HP) once
+  s2.player.hp = 5;
+  s2.player.block = 0;
+  en2.intent = { id: 'fatal', name: '致命斩', type: 'attack', damage: 50, hits: 1 };
+  endPlayerTurn(s2);
+  assert.equal(s2.combat.status, 'ongoing', 'Lizard Tail prevented defeat');
+  assert.equal(s2.player.hp, 24, 'Lizard Tail revived player to 30% of 80 Max HP = 24');
+  assert.equal(s2.relicFlags.lizardTailUsed, true);
+  assert.equal(restartCombat(s2).ok, true);
+  assert.equal(Boolean(s2.relicFlags.lizardTailUsed), false, 'restartCombat restores Lizard Tail unused state');
+
+  // 3. Hovering Kite, Pocketwatch (+2 draw if <=3 cards), Art of War (+1E if 0 attacks), Sundial, Melange, Cloak Clasp (pre-discard *2 capped at 10)
+  const s3 = createNewRun({ seed: 20003, characterId: 'watcher', skipNeow: true });
+  s3.player.relics = ['hovering_kite', 'pocketwatch', 'art_of_war', 'cloak_clasp', 'melange', 'sundial'];
+  s3.relicCounters = { sundial: 2 };
+  s3.player.potions = ['stance_potion', 'mantra_elixir', 'essence_of_steel'];
+  startCombat(s3, ENCOUNTERS.floor1[0], 'normal');
+  const en3 = s3.combat.enemies[0];
+  en3.hp = 200;
+  en3.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  // Stance Potion enters Wrath (+8 block + 1 draw), then Mantra Elixir (+6 mantra + 6 block), then Essence of Steel (+4 Plated Armor)
+  assert.equal(usePotion(s3, 0).ok, true);
+  assert.equal(s3.combat.stance, 'wrath');
+  assert.ok(s3.player.block >= 8);
+  assert.equal(usePotion(s3, 1).ok, true);
+  if (s3.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(s3);
+  assert.equal(s3.player.statuses.mantra, 6);
+  assert.equal(usePotion(s3, 2).ok, true);
+  assert.equal(s3.player.statuses.platedArmor, 4);
+  // End turn with 0 cards played -> Art of War (+1E) + Pocketwatch (+2 draw triggers reshuffle -> Sundial +2E & Melange +4 Mantra => Divinity +3E! Total 3+1+2+3=9!)
+  endPlayerTurn(s3);
+  if (s3.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(s3);
+  assert.equal(s3.combat.stance, 'divinity', 'Melange (+4 Mantra) + Mantra Elixir (6) reached 10 Mantra -> Divinity!');
+  assert.equal(s3.player.energy, 9, 'Base 3 + Art of War (1) + Sundial (2) + Divinity (3) = 9 energy');
+  assert.equal(s3.combat.hand.length, 7, 'Pocketwatch granted +2 extra draw (5 + 2 = 7) after <=3 cards played');
+
+  // 4. Preserved Insect (-25% Elite HP), Pantograph (+25 Boss HP), Slaver's Collar (+1E in Elite/Boss), Ghost in a Jar, Gambler's Brew, Elixir Potion
+  const s4Base = createNewRun({ seed: 20004, characterId: 'silent', skipNeow: true });
+  startCombat(s4Base, ENCOUNTERS.elite[0], 'elite');
+  const baseEliteMaxHp = s4Base.combat.enemies[0].maxHp;
+
+  const s4 = createNewRun({ seed: 20004, characterId: 'silent', skipNeow: true });
+  s4.player.hp = 30;
+  s4.player.maxHp = 70;
+  s4.player.relics = ['preserved_insect', 'pantograph', 'slavers_collar'];
+  s4.player.potions = ['ghost_in_a_jar', 'gamblers_brew', 'elixir_potion'];
+  startCombat(s4, ENCOUNTERS.elite[0], 'elite');
+  assert.equal(s4.player.energy, 4, 'Slaver Collar grants +1 Energy in Elite combat');
+  assert.equal(
+    s4.combat.enemies[0].maxHp,
+    Math.floor(baseEliteMaxHp * 0.75),
+    'Preserved Insect reduces Elite starting HP by 25%'
+  );
+  assert.equal(usePotion(s4, 0).ok, true);
+  assert.equal(s4.player.statuses.intangible, 1, 'Ghost in a Jar grants 1 Intangible');
+  assert.equal(usePotion(s4, 1).ok, true);
+  s4.combat.hand.push(createCardInstance(s4, 'wound', false));
+  const blockBeforeElixir = s4.player.block;
+  assert.equal(usePotion(s4, 2).ok, true);
+  assert.equal(s4.player.block, blockBeforeElixir + 10, 'Elixir Potion grants 10 Block and exhausts status cards');
+  assert.equal(s4.combat.hand.some((c) => c.cardId === 'wound'), false);
+
+  startCombat(s4, ENCOUNTERS.boss[0], 'boss');
+  assert.equal(s4.player.hp, 55, 'Pantograph heals 25 HP when entering Boss combat (30 -> 55)');
+  assert.equal(s4.player.energy, 4, 'Slaver Collar grants +1 Energy in Boss combat');
+});
+
+test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, triggers, synergies & previews', () => {
+  // 1. Ironclad P1: Blood for Blood cost reduction, Rage block-on-attack, Double Tap, Combust, Sentinel exhaust energy, Berserk, Havoc
+  const ic = createNewRun({ seed: 21001, characterId: 'ironclad', skipNeow: true });
+  startCombat(ic, ENCOUNTERS.floor1[0], 'normal');
+  const enIc = ic.combat.enemies[0];
+  enIc.hp = 200;
+  enIc.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const bfb = createCardInstance(ic, 'blood_for_blood', false);
+  const rage = createCardInstance(ic, 'rage', false);
+  const dt = createCardInstance(ic, 'double_tap', false);
+  const combust = createCardInstance(ic, 'combust', false);
+  const sentinel = createCardInstance(ic, 'sentinel', false);
+  const extraDefend = createCardInstance(ic, 'defend', false);
+  const trueGrit = createCardInstance(ic, 'true_grit', true);
+  const berserk = createCardInstance(ic, 'berserk', true);
+  ic.combat.hand = [rage, dt, bfb, combust, sentinel, extraDefend, trueGrit, berserk];
+  ic.player.energy = 10;
+
+  assert.equal(getEffectiveCardCost(getCardStats(bfb), ic.player, ic.combat), 4);
+  playCard(ic, combust.instanceId);
+  playCard(ic, berserk.instanceId);
+  assert.equal(ic.player.statuses.berserk, 1);
+  assert.equal(ic.player.statuses.vulnerable, 1, 'Berserk+ applies 1 self Vulnerable');
+  playCard(ic, rage.instanceId);
+  playCard(ic, dt.instanceId);
+  const hpBeforeBfb = enIc.hp;
+  playCard(ic, bfb.instanceId, enIc.id);
+  assert.equal(hpBeforeBfb - enIc.hp, 36, 'Double Tap plays Blood for Blood twice (18*2 = 36)');
+  assert.ok(ic.player.block >= 3, 'Rage grants block on Attack');
+
+  // Exhaust Sentinel via True Grit+ -> +2 energy
+  const energyBeforeGrit = ic.player.energy;
+  playCard(ic, trueGrit.instanceId);
+  assert.equal(ic.combat.pendingCardChoice?.mode, 'exhaust');
+  resolveCardChoice(ic, sentinel.instanceId);
+  assert.equal(ic.player.energy, energyBeforeGrit - 1 + 2, 'Exhausting Sentinel grants +2 energy');
+
+  // End turn -> Combust deals 5 AoE & loses 1 HP, reducing Blood for Blood cost by 1!
+  const hpPreCombust = ic.player.hp;
+  const enHpPreCombust = enIc.hp;
+  endPlayerTurn(ic);
+  assert.equal(ic.player.hp, hpPreCombust - 1, 'Combust deals 1 self HP loss');
+  assert.equal(enHpPreCombust - enIc.hp, 5, 'Combust deals 5 AoE damage');
+  assert.equal(ic.player.energy, 4, 'Berserk grants +1 energy at start of next turn');
+  assert.equal(getEffectiveCardCost(getCardStats(bfb), ic.player, ic.combat), 3, 'Blood for Blood cost reduced after HP loss');
+
+  // 2. Silent P1: Flechettes preview & hits, Choke, Heel Hook, Expertise, Well-Laid Plans, Phantasmal Killer, Die Die Die
+  const si = createNewRun({ seed: 21002, characterId: 'silent', skipNeow: true });
+  startCombat(si, ENCOUNTERS.floor1[0], 'normal');
+  const enSi = si.combat.enemies[0];
+  enSi.hp = 200;
+  enSi.statuses.weak = 2;
+  enSi.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const flech = createCardInstance(si, 'flechettes', false);
+  const def1 = createCardInstance(si, 'defend', false);
+  const def2 = createCardInstance(si, 'defend', false);
+  const choke = createCardInstance(si, 'choke', false);
+  const heel = createCardInstance(si, 'heel_hook', false);
+  const pk = createCardInstance(si, 'phantasmal_killer', false);
+  const wlp = createCardInstance(si, 'well_laid_plans', false);
+  si.combat.hand = [flech, def1, def2, choke, heel, pk, wlp];
+  si.player.energy = 10;
+
+  const flechPrev = previewCardDamageOnEnemy(si, flech, enSi);
+  assert.equal(flechPrev.hits, 3, 'Flechettes counts 3 Skill cards in hand (2 Defends + Phantasmal Killer)');
+  playCard(si, choke.instanceId, enSi.id);
+  const hpAfterChoke = enSi.hp;
+  const ePreHeel = si.player.energy;
+  playCard(si, heel.instanceId, enSi.id);
+  assert.equal(si.player.energy, ePreHeel, 'Heel Hook refunds 1 energy against Weak enemy');
+  assert.equal(hpAfterChoke - enSi.hp, 5 + 3, 'Heel Hook (5) + Choke trigger (3) = 8 damage');
+
+  playCard(si, pk.instanceId);
+  playCard(si, wlp.instanceId);
+  endPlayerTurn(si);
+  assert.equal(si.player.statuses.doubleDamage, 1, 'Phantasmal Killer activates Double Damage next turn');
+  assert.ok(si.combat.hand.length >= 6, 'Well-Laid Plans retained 1 card + drew 5 next turn');
+
+  // 3. Watcher P1: Master Reality (+Safety+), Battle Hymn (+Smite+), Wave of the Hand, Indignation, Swivel, Windmill Strike, Reach Heaven -> Through Violence, Meditate, Deus Ex Machina
+  const wa = createNewRun({ seed: 21003, characterId: 'watcher', skipNeow: true });
+  startCombat(wa, ENCOUNTERS.floor1[0], 'normal');
+  const enWa = wa.combat.enemies[0];
+  enWa.hp = 200;
+  enWa.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const mr = createCardInstance(wa, 'master_reality', false);
+  const woth = createCardInstance(wa, 'wave_of_the_hand', false);
+  const swivel = createCardInstance(wa, 'swivel', false);
+  const windmill = createCardInstance(wa, 'windmill_strike', false);
+  const reach = createCardInstance(wa, 'reach_heaven', false);
+  const meditate = createCardInstance(wa, 'meditate', false);
+  wa.combat.hand = [mr, woth, swivel, windmill, reach, meditate];
+  wa.combat.drawPile = [createCardInstance(wa, 'deus_ex_machina', false)];
+  wa.combat.discardPile = [createCardInstance(wa, 'strike', false)];
+  wa.player.energy = 10;
+
+  playCard(wa, mr.instanceId);
+  assert.equal(wa.player.statuses.masterReality, 1);
+  assert.ok(wa.combat.hand.some((c) => c.cardId === 'safety' && c.upgraded), 'Master Reality generates upgraded Safety+');
+
+  playCard(wa, reach.instanceId, enWa.id);
+  const tvCard = wa.combat.drawPile.find((c) => c.cardId === 'through_violence');
+  assert.ok(tvCard && tvCard.upgraded, 'Master Reality upgrades Through Violence shuffled by Reach Heaven');
+
+  playCard(wa, woth.instanceId);
+  assert.ok((enWa.statuses.weak ?? 0) >= 1, 'Wave of the Hand applies Weak to all enemies');
+  playCard(wa, swivel.instanceId);
+  assert.equal(wa.player.statuses.freeAttackPower, 1, 'Swivel arms freeAttackPower');
+  assert.equal(getEffectiveCardCost(getCardStats(windmill), wa.player, wa.combat), 0, 'Swivel makes Windmill Strike cost 0');
+
+  // Meditate enters Calm, retrieves 1 discard with tempRetain, gains 6 block, and ends turn (retaining Windmill Strike -> +6 dmg!)
+  playCard(wa, meditate.instanceId);
+  assert.equal(wa.combat.stance, 'calm', 'Meditate enters Calm');
+  assert.equal(windmill.combatDamageMod, 6, 'Windmill Strike gained +6 permanent combat damage on retain');
+  assert.ok(wa.combat.hand.some((c) => c.cardId === 'miracle' && c.upgraded), 'Deus Ex Machina auto-exhausted on draw into upgraded Miracles+');
+
+  // 4. Colorless P1: Panacea (Artifact), Dark Shackles (-9 Str), Panache (every 5 cards 8 AoE), The Bomb (30 AoE after 3 turns)
+  const co = createNewRun({ seed: 21004, characterId: 'ironclad', skipNeow: true });
+  startCombat(co, ENCOUNTERS.floor1[0], 'normal');
+  const enCo = co.combat.enemies[0];
+  enCo.hp = 150;
+  enCo.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const panacea = createCardInstance(co, 'panacea', false);
+  const shackles = createCardInstance(co, 'dark_shackles', false);
+  const panache = createCardInstance(co, 'panache', false);
+  const bomb = createCardInstance(co, 'the_bomb', false);
+  const sA = createCardInstance(co, 'good_instincts', false);
+  const sB = createCardInstance(co, 'good_instincts', false);
+  co.combat.hand = [panache, panacea, shackles, bomb, sA, sB];
+  co.player.energy = 10;
+
+  playCard(co, panache.instanceId);
+  playCard(co, panacea.instanceId);
+  assert.equal(co.player.statuses.artifact, 1);
+  playCard(co, shackles.instanceId, enCo.id);
+  assert.equal(enCo.statuses.strength, -9);
+  playCard(co, bomb.instanceId);
+  assert.equal(co.combat.activeBombs.length, 1);
+  playCard(co, sA.instanceId); // 4th card after Panache
+  const hpPre5th = enCo.hp;
+  playCard(co, sB.instanceId); // 5th card after Panache -> triggers Panache!
+  assert.equal(hpPre5th - enCo.hp, 8, 'Panache deals 8 AoE on 5th card played after activation');
+
+  // Tick 3 turns for The Bomb detonation (30 AoE)
+  endPlayerTurn(co);
+  assert.equal(co.combat.activeBombs[0].turns, 2);
+  endPlayerTurn(co);
+  assert.equal(co.combat.activeBombs[0].turns, 1);
+  const hpPreBomb = enCo.hp;
+  endPlayerTurn(co);
+  assert.equal(hpPreBomb - enCo.hp, 30, 'The Bomb detonates for 30 AoE after 3 turns');
 });

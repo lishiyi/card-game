@@ -11,6 +11,81 @@ function wrapArtSvg(key, bg1, bg2, inner, accent = 'rgba(255,255,255,0.12)') {
 }
 
 export const SIGNATURE_CARD_ART = Object.freeze({
+  // === P1 HEADLINE SIGNATURES ===
+  double_tap: wrapArtSvg(
+    'double_tap',
+    'hsl(12, 62%, 22%)',
+    'hsl(354, 52%, 10%)',
+    `<path d="M26 34 L62 10 L70 16 L36 38 Z" fill="hsl(36, 94%, 66%)" opacity="0.55"/>
+     <path d="M46 36 L86 8 L94 15 L56 40 Z" fill="hsl(42, 98%, 74%)" stroke="hsl(14, 86%, 46%)" stroke-width="1.4"/>
+     <path d="M22 22 L44 12 M78 28 L98 20" stroke="hsl(44, 100%, 76%)" stroke-width="2" stroke-linecap="round"/>`,
+    'hsla(24, 96%, 54%, 0.24)'
+  ),
+  berserk: wrapArtSvg(
+    'berserk',
+    'hsl(354, 70%, 22%)',
+    'hsl(10, 56%, 10%)',
+    `<circle cx="60" cy="22" r="14" fill="hsl(354, 84%, 38%)" stroke="hsl(38, 96%, 64%)" stroke-width="1.8"/>
+     <path d="M48 18 L57 22 L49 25 Z M72 18 L63 22 L71 25 Z" fill="hsl(48, 100%, 74%)"/>
+     <path d="M22 14 L38 22 L24 32 M98 14 L82 22 L96 32" stroke="hsl(22, 98%, 62%)" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    'hsla(356, 94%, 52%, 0.26)'
+  ),
+  phantasmal_killer: wrapArtSvg(
+    'phantasmal_killer',
+    'hsl(166, 54%, 18%)',
+    'hsl(216, 48%, 9%)',
+    `<path d="M36 38 Q40 12 60 10 Q80 12 84 38 Q72 30 60 36 Q48 30 36 38 Z" fill="hsl(162, 64%, 28%)" stroke="hsl(152, 90%, 66%)" stroke-width="1.5"/>
+     <circle cx="53" cy="21" r="2.6" fill="hsl(148, 100%, 76%)"/><circle cx="67" cy="21" r="2.6" fill="hsl(148, 100%, 76%)"/>
+     <path d="M22 30 L42 18 M98 30 L78 18" stroke="hsl(156, 94%, 68%)" stroke-width="2" stroke-linecap="round"/>`,
+    'hsla(156, 88%, 50%, 0.24)'
+  ),
+  die_die_die: wrapArtSvg(
+    'die_die_die',
+    'hsl(148, 48%, 16%)',
+    'hsl(350, 52%, 10%)',
+    `<path d="M20 12 L52 34 M60 8 L60 38 M100 12 L68 34" stroke="hsl(44, 88%, 74%)" stroke-width="2.6" stroke-linecap="round"/>
+     <polygon points="52,34 45,25 56,28" fill="hsl(354, 92%, 62%)"/><polygon points="60,38 55,28 65,28" fill="hsl(148, 92%, 62%)"/><polygon points="68,34 64,28 75,25" fill="hsl(354, 92%, 62%)"/>`,
+    'hsla(352, 86%, 52%, 0.22)'
+  ),
+  deus_ex_machina: wrapArtSvg(
+    'deus_ex_machina',
+    'hsl(276, 52%, 22%)',
+    'hsl(42, 54%, 12%)',
+    `<circle cx="60" cy="22" r="14" fill="hsl(44, 94%, 62%)" opacity="0.22"/>
+     <polygon points="60,6 68,22 60,38 52,22" fill="hsl(46, 98%, 76%)" stroke="hsl(286, 82%, 66%)" stroke-width="1.5"/>
+     <circle cx="34" cy="22" r="6" fill="hsl(46, 96%, 68%)"/><circle cx="86" cy="22" r="6" fill="hsl(46, 96%, 68%)"/>
+     <path d="M20 22 H28 M92 22 H100" stroke="hsl(48, 100%, 82%)" stroke-width="2" stroke-linecap="round"/>`,
+    'hsla(46, 96%, 64%, 0.26)'
+  ),
+  master_reality: wrapArtSvg(
+    'master_reality',
+    'hsl(282, 56%, 22%)',
+    'hsl(224, 52%, 10%)',
+    `<ellipse cx="60" cy="22" rx="28" ry="12" fill="none" stroke="hsl(46, 96%, 68%)" stroke-width="1.8"/>
+     <circle cx="60" cy="22" r="7" fill="hsl(288, 86%, 62%)" stroke="hsl(48, 100%, 82%)" stroke-width="1.5"/>
+     <circle cx="60" cy="22" r="2.6" fill="hsl(48, 100%, 88%)"/>
+     <path d="M22 10 L32 16 M98 10 L88 16 M22 34 L32 28 M98 34 L88 28" stroke="hsl(296, 92%, 72%)" stroke-width="1.6"/>`,
+    'hsla(286, 88%, 60%, 0.24)'
+  ),
+  through_violence: wrapArtSvg(
+    'through_violence',
+    'hsl(292, 62%, 22%)',
+    'hsl(344, 58%, 10%)',
+    `<path d="M16 32 L104 12" stroke="hsl(46, 100%, 82%)" stroke-width="3.6" stroke-linecap="round"/>
+     <path d="M24 36 L98 16" stroke="hsl(312, 96%, 68%)" stroke-width="2" stroke-linecap="round"/>
+     <polygon points="88,8 106,12 92,22" fill="hsl(48, 100%, 84%)"/>`,
+    'hsla(312, 92%, 58%, 0.26)'
+  ),
+  the_bomb: wrapArtSvg(
+    'the_bomb',
+    'hsl(24, 34%, 20%)',
+    'hsl(12, 42%, 9%)',
+    `<circle cx="56" cy="25" r="13" fill="hsl(220, 14%, 24%)" stroke="hsl(42, 76%, 64%)" stroke-width="1.8"/>
+     <path d="M64 14 Q74 6 82 12" stroke="hsl(34, 64%, 64%)" stroke-width="2.2" fill="none"/>
+     <circle cx="84" cy="13" r="4.5" fill="hsl(44, 100%, 68%)"/>
+     <path d="M84 5 V9 M90 13 H94 M88 8 L91 6" stroke="hsl(22, 100%, 62%)" stroke-width="1.8" stroke-linecap="round"/>`,
+    'hsla(32, 94%, 56%, 0.24)'
+  ),
   // === IRONCLAD SIGNATURES ===
   bash: wrapArtSvg(
     'bash',
@@ -642,7 +717,13 @@ export function getCardArtKey(cardId, stats = {}, activeCharId = null) {
 
   if (char === 'watcher') {
     if (stats.applyMarkAndTrigger || cardId === 'pressure_points') return 'watcher_mark';
-    if (stats.enterStance === 'wrath' || cardId === 'rushdown' || cardId === 'tantrum' || cardId === 'crescendo') {
+    if (
+      stats.enterStance === 'wrath' ||
+      stats.ifInWrathVulnAllElseWrath ||
+      cardId === 'rushdown' ||
+      cardId === 'tantrum' ||
+      cardId === 'crescendo'
+    ) {
       return 'watcher_wrath';
     }
     if (stats.enterStance === 'calm' || cardId === 'like_water' || cardId === 'inner_peace' || cardId === 'tranquility') {
@@ -686,7 +767,14 @@ export function getCardArtKey(cardId, stats = {}, activeCharId = null) {
     if ((stats.addShivs ?? 0) > 0 || cardId === 'shiv' || cardId === 'accuracy' || cardId === 'infinite_blades') {
       return 'silent_shiv';
     }
-    if ((stats.discard ?? 0) > 0 || stats.discardAllHand || stats.onDiscardDraw || stats.onDiscardEnergy || cardId === 'acrobatics') {
+    if (
+      (stats.discard ?? 0) > 0 ||
+      (stats.discardRandomHand ?? 0) > 0 ||
+      stats.discardAllHand ||
+      stats.onDiscardDraw ||
+      stats.onDiscardEnergy ||
+      cardId === 'acrobatics'
+    ) {
       return 'silent_discard';
     }
     if (type === 'power') return 'silent_power';
@@ -706,15 +794,19 @@ export function getCardArtKey(cardId, stats = {}, activeCharId = null) {
   if (
     (stats.selfDamage ?? 0) > 0 ||
     (stats.heal ?? 0) > 0 ||
+    stats.reduceCostPerHpLossThisCombat ||
     cardId === 'bloodletting' ||
     cardId === 'hemokinesis' ||
-    cardId === 'rupture'
+    cardId === 'rupture' ||
+    cardId === 'combust'
   ) {
     return 'iron_blood';
   }
   if (
     stats.exhaustRandomHand ||
     stats.exhaustChooseHand ||
+    stats.playTopDrawAndExhaust ||
+    stats.onExhaustGainEnergy ||
     (stats.applySelfStatuses?.feel_no_pain ?? 0) > 0 ||
     (stats.applySelfStatuses?.dark_embrace ?? 0) > 0 ||
     cardId === 'burning_pact' ||

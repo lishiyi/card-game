@@ -6,10 +6,11 @@
  * - Deck / Draw / Discard / Exhaust / Smith / Shop Purge / Unclaimed Loot Alert
  */
 
-import { CARD_LIBRARY, getCardStats } from '../../data/cards.js';
+import { canUpgradeCard, CARD_LIBRARY, getCardCharacter, getCardStats } from '../../data/cards.js';
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
+import { ENEMY_TEMPLATES } from '../../data/enemies.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
-import { RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import { POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
   getCurrentBossName,
@@ -18,6 +19,7 @@ import {
 } from '../../engine/game.js';
 import {
   ASCENSION_DEFS,
+  ensureCompendium,
   getCharacterProgress,
   getMaxAscensionForCharacter,
   getScoreGrade,
@@ -25,6 +27,7 @@ import {
   UNLOCK_TIERS,
 } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
+import { getEnemySvg } from '../enemy_art.js';
 import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
@@ -363,7 +366,9 @@ function renderMetaModal({ state, meta, ui }) {
               ${
                 meta.unlockAllOverride && maxAscAllowed >= MAX_ASCENSION
                   ? `<span style="font-size:0.8rem;color:var(--jade-upgrade);font-weight:700;">已开启全图鉴与全进阶</span>`
-                  : `<button type="button" id="btn-unlock-all-meta" class="btn-stone" data-action="toggle-unlock-all">一键解锁全部进阶与图鉴（测试用）</button>`
+                  : ui.debugMode
+                    ? `<button type="button" id="btn-unlock-all-meta" class="btn-stone" data-action="toggle-unlock-all">一键解锁全部进阶与图鉴（调试）</button>`
+                    : ''
               }
             </div>
             <div class="xp-bar-track"><div class="xp-bar-fill" style="width: ${xpPct}%;"></div></div>
@@ -883,6 +888,322 @@ function renderScryChoiceModal({ state }) {
   `;
 }
 
+function renderCompendiumModal({ meta, ui }) {
+  const comp = ensureCompendium(meta);
+  const revealAll = Boolean(meta?.unlockAllOverride);
+  const discoveredCards = new Set(comp.cards);
+  const discoveredRelics = new Set(comp.relics);
+  const discoveredPotions = new Set(comp.potions);
+  const discoveredEnemies = new Set(comp.enemies);
+
+  const tab = ui.compendiumTab || 'cards';
+  const charFilter = ui.compendiumCharFilter || 'all';
+  const relicTierFilter = ui.compendiumRelicTier || 'all';
+  const showUpgraded = Boolean(ui.compendiumShowUpgraded);
+
+  const allCardIds = Object.keys(CARD_LIBRARY);
+  const allRelicIds = Object.keys(RELIC_LIBRARY);
+  const allPotionIds = Object.keys(POTION_LIBRARY);
+  const allEnemyIds = Object.keys(ENEMY_TEMPLATES);
+
+  const countSeen = (ids, set) => (revealAll ? ids.length : ids.filter((id) => set.has(id)).length);
+  const cardSeen = countSeen(allCardIds, discoveredCards);
+  const relicSeen = countSeen(allRelicIds, discoveredRelics);
+  const potionSeen = countSeen(allPotionIds, discoveredPotions);
+  const enemySeen = countSeen(allEnemyIds, discoveredEnemies);
+
+  const RARITY_LABELS = {
+    starter: '初始',
+    common: '普通',
+    uncommon: '罕见',
+    rare: '稀有',
+    special: '衍生',
+    status: '状态',
+    curse: '诅咒',
+  };
+  const CLASS_LABELS = {
+    ironclad: '铁甲战士',
+    silent: '静默猎手',
+    watcher: '观者',
+    colorless: '无色',
+    any: '通用',
+  };
+  const KIND_LABELS = {
+    normal: '普通敌人',
+    elite: '精英强敌',
+    boss: '关底首领',
+  };
+
+  let progressCurrent = cardSeen;
+  let progressTotal = allCardIds.length;
+  let contentHtml = '';
+
+  if (tab === 'cards') {
+    const classOrder = { ironclad: 0, silent: 1, watcher: 2, colorless: 3, special: 4 };
+    const rarityOrder = { starter: 0, common: 1, uncommon: 2, rare: 3, special: 4, status: 5, curse: 6 };
+    const getCardGroup = (def) => {
+      if (def.type === 'curse' || def.type === 'status' || def.rarity === 'special') return 'special';
+      return getCardCharacter(def) || 'ironclad';
+    };
+    const filteredIds = allCardIds
+      .filter((id) => charFilter === 'all' || getCardGroup(CARD_LIBRARY[id]) === charFilter)
+      .sort((a, b) => {
+        const ca = CARD_LIBRARY[a];
+        const cb = CARD_LIBRARY[b];
+        return (
+          (classOrder[getCardGroup(ca)] ?? 9) - (classOrder[getCardGroup(cb)] ?? 9) ||
+          (rarityOrder[ca.rarity] ?? 9) - (rarityOrder[cb.rarity] ?? 9) ||
+          a.localeCompare(b)
+        );
+      });
+
+    const charChips = [
+      ['all', '全部'],
+      ['ironclad', '铁甲战士'],
+      ['silent', '静默猎手'],
+      ['watcher', '观者'],
+      ['colorless', '无色'],
+      ['special', '衍生/状态/诅咒'],
+    ]
+      .map(
+        ([key, label]) => `
+          <button
+            type="button"
+            class="filter-chip ${charFilter === key ? 'active' : ''}"
+            data-action="set-compendium-char"
+            data-char-filter="${escapeHtml(key)}"
+          >${escapeHtml(label)}</button>
+        `
+      )
+      .join('');
+
+    const cardsGridHtml = filteredIds
+      .map((cardId) => {
+        const def = CARD_LIBRARY[cardId];
+        const seen = revealAll || discoveredCards.has(cardId);
+        if (!seen) {
+          const rLabel = RARITY_LABELS[def.rarity] || '卡牌';
+          return `
+            <div class="compendium-silhouette-card rarity-${escapeHtml(def.rarity || 'common')}" data-compendium-id="${escapeHtml(cardId)}" data-discovered="false">
+              <div class="compendium-silhouette-cost">?</div>
+              <div class="compendium-silhouette-art" aria-hidden="true"><span>?</span></div>
+              <div class="compendium-silhouette-name">未发现卡牌</div>
+              <div class="compendium-silhouette-meta">${escapeHtml(rLabel)} · 攀登中解锁</div>
+            </div>
+          `;
+        }
+        const canUp = canUpgradeCard({ cardId, upgraded: false });
+        const previewInst = {
+          instanceId: `comp_${cardId}`,
+          cardId,
+          upgraded: Boolean(showUpgraded && canUp),
+        };
+        return renderCardHtml(previewInst, {
+          idPrefix: 'compendium-card',
+          action: 'noop',
+          playable: false,
+          disabled: true,
+        });
+      })
+      .join('');
+
+    contentHtml = `
+      <div class="compendium-toolbar">
+        <div class="glossary-filter-chips">${charChips}</div>
+        <button
+          type="button"
+          id="btn-compendium-toggle-upgrade"
+          class="filter-chip ${showUpgraded ? 'active' : ''}"
+          data-action="toggle-compendium-upgrade"
+        >
+          ${showUpgraded ? '✓ 升级预览 (+)' : '查看升级 (+)'}
+        </button>
+      </div>
+      <div class="card-showcase compendium-card-grid" id="compendium-cards-grid">${cardsGridHtml}</div>
+    `;
+  } else if (tab === 'relics') {
+    progressCurrent = relicSeen;
+    progressTotal = allRelicIds.length;
+    const tierOrder = { starter: 0, common: 1, uncommon: 2, rare: 3, shop: 4, event: 5, boss: 6 };
+    const filteredIds = allRelicIds
+      .filter((id) => relicTierFilter === 'all' || RELIC_LIBRARY[id].tier === relicTierFilter)
+      .sort((a, b) => (tierOrder[RELIC_LIBRARY[a].tier] ?? 9) - (tierOrder[RELIC_LIBRARY[b].tier] ?? 9));
+
+    const tierChips = [
+      ['all', '全部'],
+      ['starter', '初始'],
+      ['common', '普通'],
+      ['uncommon', '罕见'],
+      ['rare', '稀有'],
+      ['shop', '商店'],
+      ['event', '事件'],
+      ['boss', '首领'],
+    ]
+      .map(
+        ([key, label]) => `
+          <button
+            type="button"
+            class="filter-chip ${relicTierFilter === key ? 'active' : ''}"
+            data-action="set-compendium-tier"
+            data-tier-filter="${escapeHtml(key)}"
+          >${escapeHtml(label)}</button>
+        `
+      )
+      .join('');
+
+    const relicsGridHtml = filteredIds
+      .map((relicId) => {
+        const r = RELIC_LIBRARY[relicId];
+        const seen = revealAll || discoveredRelics.has(relicId);
+        const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
+        const ownerLabel = CLASS_LABELS[r.character || 'any'] || '通用';
+        if (!seen) {
+          return `
+            <article class="compendium-entry-card undiscovered" data-compendium-id="${escapeHtml(relicId)}" data-discovered="false">
+              <div class="compendium-entry-head">
+                <span class="compendium-entry-name">???</span>
+                <span class="relic-badge tier-${escapeHtml(r.tier)}">${escapeHtml(tierLabel)}</span>
+              </div>
+              <p class="compendium-entry-desc">尚未在尖塔冒险中发现这件遗物。</p>
+            </article>
+          `;
+        }
+        return `
+          <article class="compendium-entry-card" data-compendium-id="${escapeHtml(relicId)}" data-discovered="true">
+            <div class="compendium-entry-head">
+              <span class="compendium-entry-name">${escapeHtml(r.name)}</span>
+              <div class="compendium-entry-badges">
+                <span class="relic-badge tier-${escapeHtml(r.tier)}">${escapeHtml(tierLabel)}</span>
+                <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
+              </div>
+            </div>
+            <p class="compendium-entry-desc">${escapeHtml(r.description)}</p>
+          </article>
+        `;
+      })
+      .join('');
+
+    contentHtml = `
+      <div class="compendium-toolbar">
+        <div class="glossary-filter-chips">${tierChips}</div>
+      </div>
+      <div class="compendium-entry-grid" id="compendium-relics-grid">${relicsGridHtml}</div>
+    `;
+  } else if (tab === 'potions') {
+    progressCurrent = potionSeen;
+    progressTotal = allPotionIds.length;
+    const targetLabels = { enemy: '单体敌人', all_enemies: '全体敌人', self: '自身' };
+
+    const potionsGridHtml = allPotionIds
+      .map((potionId) => {
+        const p = POTION_LIBRARY[potionId];
+        const seen = revealAll || discoveredPotions.has(potionId);
+        const ownerLabel = CLASS_LABELS[p.character || 'any'] || '通用';
+        const targetLabel = targetLabels[p.target] || '自身';
+        if (!seen) {
+          return `
+            <article class="compendium-entry-card undiscovered" data-compendium-id="${escapeHtml(potionId)}" data-discovered="false">
+              <div class="compendium-entry-head">
+                <span class="compendium-entry-name">???</span>
+                <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
+              </div>
+              <p class="compendium-entry-desc">尚未在战利品、炼金师或商店中发现此药水。</p>
+            </article>
+          `;
+        }
+        return `
+          <article class="compendium-entry-card" data-compendium-id="${escapeHtml(potionId)}" data-discovered="true">
+            <div class="compendium-entry-head">
+              <span class="compendium-entry-name">${escapeHtml(p.name)}</span>
+              <div class="compendium-entry-badges">
+                <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
+                <span class="compendium-owner-pill">${escapeHtml(targetLabel)}</span>
+              </div>
+            </div>
+            <p class="compendium-entry-desc">${escapeHtml(p.description)}</p>
+          </article>
+        `;
+      })
+      .join('');
+
+    contentHtml = `<div class="compendium-entry-grid" id="compendium-potions-grid">${potionsGridHtml}</div>`;
+  } else {
+    progressCurrent = enemySeen;
+    progressTotal = allEnemyIds.length;
+    const kindOrder = { normal: 0, elite: 1, boss: 2 };
+    const sortedEnemyIds = [...allEnemyIds].sort((a, b) => {
+      const ea = ENEMY_TEMPLATES[a];
+      const eb = ENEMY_TEMPLATES[b];
+      return (kindOrder[ea.kind] ?? 9) - (kindOrder[eb.kind] ?? 9) || a.localeCompare(b);
+    });
+
+    const enemiesGridHtml = sortedEnemyIds
+      .map((enemyId) => {
+        const e = ENEMY_TEMPLATES[enemyId];
+        const seen = revealAll || discoveredEnemies.has(enemyId);
+        const kindLabel = KIND_LABELS[e.kind] || '敌人';
+        const hpRange = Array.isArray(e.hpRange) ? `${e.hpRange[0]}–${e.hpRange[1]} HP` : '';
+        return `
+          <article class="compendium-enemy-card ${seen ? '' : 'undiscovered'}" data-compendium-id="${escapeHtml(enemyId)}" data-discovered="${seen ? 'true' : 'false'}">
+            <div class="compendium-enemy-portrait ${seen ? '' : 'silhouette'}" aria-hidden="true">
+              ${getEnemySvg(enemyId)}
+            </div>
+            <div class="compendium-enemy-info">
+              <div class="compendium-entry-head">
+                <span class="compendium-entry-name">${seen ? escapeHtml(e.name) : '???'}</span>
+                <span class="compendium-kind-pill kind-${escapeHtml(e.kind || 'normal')}">${escapeHtml(kindLabel)}</span>
+              </div>
+              <p class="compendium-entry-desc">
+                ${
+                  seen
+                    ? escapeHtml(`${e.subtitle || '尖塔敌对生物'}${hpRange ? ` · 基础生命 ${hpRange}` : ''}`)
+                    : '尚未在战斗中遭遇此敌人。'
+                }
+              </p>
+            </div>
+          </article>
+        `;
+      })
+      .join('');
+
+    contentHtml = `<div class="compendium-enemy-grid" id="compendium-enemies-grid">${enemiesGridHtml}</div>`;
+  }
+
+  const pct = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0;
+
+  return `
+    <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal-sheet modal-compendium-sheet" id="compendium-modal">
+        <div class="modal-header">
+          <div>
+            <h2 id="modal-title" class="stage-heading">尖塔全览图鉴</h2>
+            <p class="stage-subtitle">已发现 ${escapeHtml(progressCurrent)} / ${escapeHtml(progressTotal)}（${escapeHtml(pct)}%）· 冒险中遇到的卡牌、遗物、药水与怪物会自动收录</p>
+          </div>
+          <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
+        </div>
+        <div class="modal-body">
+          <div class="help-tab-bar compendium-tab-bar" role="tablist" aria-label="图鉴分页">
+            <button type="button" id="btn-comp-tab-cards" class="help-tab-btn ${tab === 'cards' ? 'active' : ''}" data-action="set-compendium-tab" data-tab="cards">
+              卡牌 (${escapeHtml(cardSeen)}/${escapeHtml(allCardIds.length)})
+            </button>
+            <button type="button" id="btn-comp-tab-relics" class="help-tab-btn ${tab === 'relics' ? 'active' : ''}" data-action="set-compendium-tab" data-tab="relics">
+              遗物 (${escapeHtml(relicSeen)}/${escapeHtml(allRelicIds.length)})
+            </button>
+            <button type="button" id="btn-comp-tab-potions" class="help-tab-btn ${tab === 'potions' ? 'active' : ''}" data-action="set-compendium-tab" data-tab="potions">
+              药水 (${escapeHtml(potionSeen)}/${escapeHtml(allPotionIds.length)})
+            </button>
+            <button type="button" id="btn-comp-tab-enemies" class="help-tab-btn ${tab === 'enemies' ? 'active' : ''}" data-action="set-compendium-tab" data-tab="enemies">
+              敌人 (${escapeHtml(enemySeen)}/${escapeHtml(allEnemyIds.length)})
+            </button>
+          </div>
+          <div class="xp-bar-track compendium-progress-track"><div class="xp-bar-fill" style="width: ${pct}%;"></div></div>
+          ${contentHtml}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderModal({ state, meta, settings, ui }) {
   if (!ui.modal) {
     if (
@@ -897,6 +1218,10 @@ export function renderModal({ state, meta, settings, ui }) {
 
   if (ui.modal === 'meta') {
     return renderMetaModal({ state, meta, ui });
+  }
+
+  if (ui.modal === 'compendium') {
+    return renderCompendiumModal({ meta, ui });
   }
 
   if (ui.modal === 'history_detail') {

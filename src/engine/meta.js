@@ -6,7 +6,8 @@
 
 import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
 import { CHARACTER_IDS, getCharacterDef, normalizeCharacterId } from '../data/characters.js';
-import { RELIC_LIBRARY } from '../data/relics.js';
+import { ENEMY_TEMPLATES } from '../data/enemies.js';
+import { POTION_LIBRARY, RELIC_LIBRARY } from '../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
 
@@ -176,6 +177,122 @@ export function getMaxAscensionForCharacter(meta, characterId = 'ironclad') {
   return Math.max(0, Math.min(MAX_ASCENSION, Math.floor(entry.maxAscensionUnlocked ?? 0)));
 }
 
+export function createDefaultCompendium() {
+  return {
+    cards: [],
+    relics: [],
+    potions: [],
+    enemies: [],
+  };
+}
+
+export function ensureCompendium(meta) {
+  if (!meta) return createDefaultCompendium();
+  if (!meta.compendium || typeof meta.compendium !== 'object' || Array.isArray(meta.compendium)) {
+    meta.compendium = createDefaultCompendium();
+  }
+  const c = meta.compendium;
+  c.cards = Array.isArray(c.cards) ? [...new Set(c.cards.filter((id) => Boolean(CARD_LIBRARY[id])))] : [];
+  c.relics = Array.isArray(c.relics) ? [...new Set(c.relics.filter((id) => Boolean(RELIC_LIBRARY[id])))] : [];
+  c.potions = Array.isArray(c.potions) ? [...new Set(c.potions.filter((id) => Boolean(POTION_LIBRARY[id])))] : [];
+  c.enemies = Array.isArray(c.enemies) ? [...new Set(c.enemies.filter((id) => Boolean(ENEMY_TEMPLATES[id])))] : [];
+  return c;
+}
+
+export function recordCompendiumDiscovery(meta, { cards = [], relics = [], potions = [], enemies = [] } = {}) {
+  if (!meta) return false;
+  const c = ensureCompendium(meta);
+  let changed = false;
+
+  const addUnique = (arr, ids, lib) => {
+    const existing = new Set(arr);
+    for (const id of ids) {
+      if (id && lib[id] && !existing.has(id)) {
+        existing.add(id);
+        arr.push(id);
+        changed = true;
+      }
+    }
+  };
+
+  addUnique(c.cards, cards, CARD_LIBRARY);
+  addUnique(c.relics, relics, RELIC_LIBRARY);
+  addUnique(c.potions, potions, POTION_LIBRARY);
+  addUnique(c.enemies, enemies, ENEMY_TEMPLATES);
+  return changed;
+}
+
+export function syncCompendiumFromRunState(meta, state) {
+  if (!meta || !state) return false;
+  const cards = [];
+  const relics = [];
+  const potions = [];
+  const enemies = [];
+
+  for (const item of state.player?.deck || []) {
+    if (item?.cardId) cards.push(item.cardId);
+  }
+  for (const rid of state.player?.relics || []) {
+    if (rid) relics.push(rid);
+  }
+  for (const pid of state.player?.potions || []) {
+    if (pid) potions.push(pid);
+  }
+
+  if (state.combat) {
+    for (const pile of [state.combat.hand, state.combat.drawPile, state.combat.discardPile, state.combat.exhaustPile]) {
+      for (const item of pile || []) {
+        if (item?.cardId) cards.push(item.cardId);
+      }
+    }
+    for (const enemy of state.combat.enemies || []) {
+      if (enemy?.templateId) enemies.push(enemy.templateId);
+    }
+  }
+  if (state.reward) {
+    for (const item of state.reward.cardChoices || []) {
+      if (item?.cardId) cards.push(item.cardId);
+    }
+    if (state.reward.relicId) relics.push(state.reward.relicId);
+    if (state.reward.extraRelicId) relics.push(state.reward.extraRelicId);
+    if (state.reward.potionId) potions.push(state.reward.potionId);
+  }
+  if (state.bossReward) {
+    for (const item of state.bossReward.cardChoices || []) {
+      if (item?.cardId) cards.push(item.cardId);
+    }
+    for (const rid of state.bossReward.relicChoices || []) {
+      if (rid) relics.push(rid);
+    }
+  }
+  if (state.shop) {
+    for (const entry of state.shop.cards || []) {
+      if (entry?.card?.cardId) cards.push(entry.card.cardId);
+    }
+    for (const entry of state.shop.colorlessCards || []) {
+      if (entry?.card?.cardId) cards.push(entry.card.cardId);
+    }
+    for (const entry of state.shop.relics || []) {
+      if (entry?.relicId) relics.push(entry.relicId);
+    }
+    for (const entry of state.shop.potions || []) {
+      if (entry?.potionId) potions.push(entry.potionId);
+    }
+  }
+  if (state.eventState?.libraryChoices) {
+    for (const item of state.eventState.libraryChoices) {
+      if (item?.cardId) cards.push(item.cardId);
+    }
+  }
+  if (state.neowState?.pendingAction?.cards) {
+    for (const item of state.neowState.pendingAction.cards) {
+      if (item?.cardId) cards.push(item.cardId);
+    }
+  }
+
+  return recordCompendiumDiscovery(meta, { cards, relics, potions, enemies });
+}
+
 export function createDefaultMeta() {
   return {
     xp: 0,
@@ -193,6 +310,7 @@ export function createDefaultMeta() {
     recordedRunKeys: [],
     dailyRecords: {},
     runHistory: [],
+    compendium: createDefaultCompendium(),
   };
 }
 
@@ -734,7 +852,7 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
         ? parsed.dailyRecords
         : {};
-    return {
+    const loaded = {
       xp,
       unlockedTier: Math.max(
         computeUnlockedTierFromXp(xp),
@@ -753,7 +871,16 @@ export function loadSavedMeta(storage = globalThis?.localStorage) {
       recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
       dailyRecords,
       runHistory,
+      compendium: parsed.compendium,
     };
+    ensureCompendium(loaded);
+    for (const rec of runHistory) {
+      recordCompendiumDiscovery(loaded, {
+        cards: (rec?.deckSnapshot || []).map((c) => c?.cardId).filter(Boolean),
+        relics: Array.isArray(rec?.relicIds) ? rec.relicIds : [],
+      });
+    }
+    return loaded;
   } catch {
     return base;
   }

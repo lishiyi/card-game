@@ -125,6 +125,9 @@ export function buildStandaloneHtml(repoRoot = REPO_ROOT) {
     throw new Error('Could not find module script placeholder in index.html');
   }
 
+  // Strip external PWA asset links so standalone HTML remains 100% self-contained
+  html = html.replace(/^\s*<link rel="(manifest|apple-touch-icon)"[^>]*>\r?\n/gm, '');
+
   // Use function replacers so `$` characters inside CSS or JS are never interpreted as replacement patterns!
   html = html.replace(
     '<link rel="stylesheet" href="./styles/main.css" />',

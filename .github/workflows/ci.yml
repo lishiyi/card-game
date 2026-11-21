@@ -57,8 +57,8 @@ jobs:
       - name: Assemble clean static Pages bundle
         run: |
           mkdir -p _site
-          cp index.html _site/
-          cp -r styles src _site/
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r styles src icons _site/
           node scripts/build-standalone.mjs _site/slay_the_spire_lite.html
           touch _site/.nojekyll
 
