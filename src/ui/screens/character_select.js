@@ -246,7 +246,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
           data-tooltip-tag="今日词条 · ${escapeHtml(mod.shortTag)}"
           data-tooltip-desc="${escapeHtml(mod.description)}"
           data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
-        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+        >${escapeHtml(mod.name)}</span>
       `
     )
     .join('');
@@ -286,7 +286,14 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
       <div class="daily-challenge-banner" id="daily-challenge-banner" aria-label="今日每日挑战">
         <div class="daily-banner-main">
           <div class="daily-banner-top">
-            <span class="daily-pill">每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
+            <span
+              class="daily-pill"
+              tabindex="0"
+              data-tooltip-title="每日挑战 · ${escapeHtml(dailySpec.dateKey)}"
+              data-tooltip-tag="种子 ${escapeHtml(dailySpec.seedCode)} · 无鲸鱼赐福"
+              data-tooltip-desc="${escapeHtml(`全网同日同图同进阶（${dailySpec.characterName} · 进阶 ${dailySpec.ascension}），不提供初始鲸鱼赐福。点击下方词条可查看具体效果。`)}"
+              data-tooltip-tone="relic"
+            ><span class="daily-pill-long">每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span><span class="daily-pill-short">每日 ${escapeHtml(dailySpec.dateKey.slice(5))}</span></span>
             <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
             <span
               class="ascension-pill"
@@ -297,11 +304,11 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
               data-tooltip-desc="${escapeHtml(`${dailyAscDef.description}（每日挑战不提供初始鲸鱼赐福，全网同日同进阶同起点。）`)}"
               data-tooltip-tone="${dailySpec.ascension > 0 ? 'debuff' : 'buff'}"
             >进阶 ${escapeHtml(dailySpec.ascension)}</span>
-            <code class="seed-code-tag">${escapeHtml(dailySpec.seedCode)}</code>
+            <code class="seed-code-tag daily-banner-seed">${escapeHtml(dailySpec.seedCode)}</code>
             ${
               dailyBest
-                ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)}) · 已战 ${escapeHtml(dailyBest.attempts)} 次</span>`
-                : `<span class="daily-best-pill fresh">无鲸鱼赐福 · 全网同图同进阶冲分</span>`
+                ? `<span class="daily-best-pill">最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} (${escapeHtml(dailyBest.bestGrade)})</span>`
+                : ''
             }
           </div>
           <div class="daily-mod-row">${dailyModsHtml}</div>
@@ -314,7 +321,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
             data-action="start-daily-challenge"
             data-daily-date="${escapeHtml(dailySpec.dateKey)}"
           >
-            开启今日挑战 →
+            <span class="daily-cta-long">开启今日挑战 →</span><span class="daily-cta-short">挑战 →</span>
           </button>
         </div>
       </div>

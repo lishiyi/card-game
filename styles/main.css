@@ -1050,6 +1050,11 @@ button:disabled {
   z-index: 6;
 }
 
+.game-card:disabled:not(.unplayable-dim) {
+  opacity: 1;
+  cursor: default;
+}
+
 .game-card.unplayable-dim {
   opacity: 0.44;
   filter: saturate(0.38) brightness(0.82);
@@ -3987,6 +3992,11 @@ body.spire-dragging {
   flex-shrink: 0;
 }
 
+.daily-pill-short,
+.daily-cta-short {
+  display: none;
+}
+
 .btn-daily-launch {
   background: linear-gradient(180deg, hsl(270, 56%, 46%), hsl(264, 58%, 31%));
   border-color: hsl(274, 72%, 68%);
@@ -4543,13 +4553,82 @@ body.spire-dragging {
     padding: 13px 11px;
   }
 
-  .daily-challenge-banner {
-    padding: 12px;
-    gap: 10px;
+  .character-select-header {
+    margin-bottom: 8px;
   }
 
-  .daily-banner-cta,
-  .btn-daily-launch {
+  .character-select-header .stage-subtitle {
+    display: none;
+  }
+
+  .daily-challenge-banner {
+    padding: 10px 11px;
+    gap: 8px;
+  }
+
+  #daily-challenge-banner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px 8px;
+    margin-bottom: 10px;
+  }
+
+  #daily-challenge-banner .daily-banner-main {
+    display: contents;
+  }
+
+  #daily-challenge-banner .daily-banner-top {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  #daily-challenge-banner .daily-banner-seed {
+    display: none;
+  }
+
+  #daily-challenge-banner .daily-banner-cta {
+    grid-column: 2;
+    grid-row: 1;
+    width: auto;
+  }
+
+  #daily-challenge-banner .btn-daily-launch {
+    width: auto;
+    padding: 5px 10px;
+    font-size: 0.76rem;
+    min-height: 28px;
+    white-space: nowrap;
+  }
+
+  #daily-challenge-banner .daily-pill-long,
+  #daily-challenge-banner .daily-cta-long {
+    display: none;
+  }
+
+  #daily-challenge-banner .daily-pill-short,
+  #daily-challenge-banner .daily-cta-short {
+    display: inline;
+  }
+
+  #daily-challenge-banner .daily-mod-row {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  #daily-challenge-banner .daily-mod-chip {
+    flex: 1 1 0;
+    justify-content: center;
+    white-space: nowrap;
+    padding: 3px 6px;
+    font-size: 0.72rem;
+  }
+
+  #meta-daily-banner .btn-compact {
     width: 100%;
   }
 

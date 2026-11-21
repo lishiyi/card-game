@@ -4853,7 +4853,7 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
     assert.ok(p1UiAudit.discoveredCards >= 4, 'Starter Watcher cards auto-discovered in Compendium');
     assert.ok(p1UiAudit.discoveredRelics >= 6, 'Owned relics auto-discovered in Compendium');
 
-    // 5. Mobile 390x844 layout audit on Compendium modal: ZERO horizontal overflow
+    // 5. Mobile 390x844 layout audit on Compendium & Deck modals (full-color non-dimmed read-only cards!) + Compact 2-row Daily Banner
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 390,
       height: 844,
@@ -4864,16 +4864,74 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
     const mobileCompAudit = await cdp.evaluate(`(() => {
       document.getElementById('btn-comp-tab-cards').click();
       const cardsOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+      const compCard = document.querySelector('#compendium-cards-grid .game-card');
+      const compCardOpacity = compCard ? getComputedStyle(compCard).opacity : '0';
       document.getElementById('btn-comp-tab-enemies').click();
       const enemiesOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
-      return { cardsOverflow, enemiesOverflow };
+      document.getElementById('btn-close-modal').click();
+
+      // Open Deck modal and verify cards render at full opacity (NOT dimmed like disabled buttons)
+      document.getElementById('btn-open-deck').click();
+      const deckCard = document.querySelector('#modal-backdrop .game-card');
+      const deckCardOpacity = deckCard ? getComputedStyle(deckCard).opacity : '0';
+      const deckCardCursor = deckCard ? getComputedStyle(deckCard).cursor : '';
+      return { cardsOverflow, enemiesOverflow, compCardOpacity, deckCardOpacity, deckCardCursor };
     })()`);
     assert.equal(mobileCompAudit.cardsOverflow, false, 'Compendium Cards tab must not overflow 390px mobile');
     assert.equal(mobileCompAudit.enemiesOverflow, false, 'Compendium Enemies tab must not overflow 390px mobile');
+    assert.equal(mobileCompAudit.compCardOpacity, '1', 'Compendium read-only cards must render at full opacity 1');
+    assert.equal(mobileCompAudit.deckCardOpacity, '1', 'Deck modal read-only cards must render at full opacity 1');
+    assert.equal(mobileCompAudit.deckCardCursor, 'default', 'Deck modal read-only cards must use default cursor');
 
-    // 6. Debug URL (/?debug=1): #btn-unlock-all-meta IS visible!
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotDeck = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_deck_modal.png'),
+        Buffer.from(shotDeck.data, 'base64')
+      );
+    }
+
+    // 6. Debug URL (/?debug=1) on 390px mobile: return to Character Select and verify compact 2-row Daily Challenge banner + 3 concise 4-char modifier chips on 1 row + #btn-unlock-all-meta
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 350));
+    await cdp.evaluate(`(() => {
+      if (!document.getElementById('daily-challenge-banner')) {
+        document.getElementById('btn-new-run')?.click();
+        document.getElementById('btn-confirm-new-run')?.click();
+      }
+    })()`);
+    const mobileDailyAudit = await cdp.evaluate(`(() => {
+      const banner = document.getElementById('daily-challenge-banner');
+      const bannerRect = banner.getBoundingClientRect();
+      const chips = [...banner.querySelectorAll('.daily-mod-chip')];
+      const chipRects = chips.map((el) => el.getBoundingClientRect());
+      const sameRow = chipRects.length === 3 && chipRects.every((r) => Math.abs(r.top - chipRects[0].top) <= 2);
+      const conciseNames = chips.every((el) => !el.textContent.includes('·') && el.textContent.trim().length <= 6);
+      const hasFreshPill = Boolean(banner.querySelector('.daily-best-pill.fresh'));
+      const overflow = document.documentElement.scrollWidth > window.innerWidth + 1;
+      return {
+        bannerHeight: Math.round(bannerRect.height),
+        sameRow,
+        conciseNames,
+        hasFreshPill,
+        overflow,
+      };
+    })()`);
+    assert.equal(mobileDailyAudit.hasFreshPill, false, 'Fresh 无鲸鱼赐福 filler pill must be removed from Daily banner');
+    assert.equal(mobileDailyAudit.conciseNames, true, 'Daily modifier chips must display concise 4-char names only');
+    assert.equal(mobileDailyAudit.sameRow, true, 'All 3 Daily modifier chips must fit on 1 row at 390px');
+    assert.ok(mobileDailyAudit.bannerHeight <= 105, `Mobile Daily banner must be compact (<=105px), got ${mobileDailyAudit.bannerHeight}px`);
+    assert.equal(mobileDailyAudit.overflow, false, '390px Character Select must have zero horizontal overflow');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      const shotStart = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_char_select_compact.png'),
+        Buffer.from(shotStart.data, 'base64')
+      );
+    }
+
     await cdp.evaluate(`document.getElementById('btn-open-meta').click()`);
     const debugMetaAudit = await cdp.evaluate(`Boolean(document.getElementById('btn-unlock-all-meta'))`);
     assert.equal(debugMetaAudit, true, '#btn-unlock-all-meta must appear when ?debug=1 is present');

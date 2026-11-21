@@ -138,10 +138,10 @@ function renderMetaModal({ state, meta, ui }) {
           class="daily-mod-chip tone-${escapeHtml(mod.tone)}"
           tabindex="0"
           data-tooltip-title="${escapeHtml(mod.name)}"
-          data-tooltip-tag="${escapeHtml(mod.shortTag)}"
+          data-tooltip-tag="今日词条 · ${escapeHtml(mod.shortTag)}"
           data-tooltip-desc="${escapeHtml(mod.description)}"
           data-tooltip-tone="${mod.tone === 'challenge' ? 'debuff' : 'buff'}"
-        >${escapeHtml(mod.name)} · ${escapeHtml(mod.shortTag)}</span>
+        >${escapeHtml(mod.name)}</span>
       `
     )
     .join('');
@@ -292,7 +292,7 @@ function renderMetaModal({ state, meta, ui }) {
                   ${
                     dailyBest
                       ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)})</span>`
-                      : `<span class="daily-best-pill fresh">无鲸鱼赐福 · 今日尚未挑战</span>`
+                      : ''
                   }
                 </div>
                 <div class="daily-mod-row">${dailyModsHtml}</div>
