@@ -121,10 +121,10 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
     }
   }
 
-  // Must match .map-row height (42px) and .map-board gap (26px) with padding: 0
-  const rowHeight = 42;
-  const rowGap = 26;
-  const nodeHalfH = 19;
+  // Must match .map-row height (52px) and .map-board gap (24px) with padding: 0
+  const rowHeight = 52;
+  const rowGap = 24;
+  const nodeHalfH = 21;
   const totalHeight = totalRows * rowHeight + (totalRows - 1) * rowGap;
 
   const nodeCoords = new Map();
@@ -236,6 +236,7 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
                     ? '需先选赐福'
                     : `第 ${node.floor} 层`;
 
+          const ariaLabel = `第 ${node.floor} 层 · ${metaInfo.label}（${statusNote}）`;
           const bossTooltip =
             node.type === 'boss'
               ? `data-tooltip-title="${escapeHtml(`本幕首领：${bossName}`)}" data-tooltip-tag="第 ${TOTAL_FLOORS} 层终战" data-tooltip-desc="${escapeHtml(`抵达第 ${TOTAL_FLOORS} 层后将迎战【${bossName}】，提前针对其机制构筑牌组！`)}"`
@@ -250,15 +251,13 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
               data-node-type="${escapeHtml(node.type)}"
               data-action="${interactive ? 'select-node' : 'inspect-map-node'}"
               data-node-id="${escapeHtml(node.id)}"
+              aria-label="${escapeHtml(ariaLabel)}"
+              title="${escapeHtml(ariaLabel)}"
               ${bossTooltip}
               aria-disabled="${interactive && isAvailable ? 'false' : 'true'}"
             >
               <span class="node-icon-wrap node-type-${escapeHtml(node.type)}">${getNodeIconSvg(node.type)}</span>
-              <span class="node-text">
-                <span class="node-title">${escapeHtml(metaInfo.label)}</span>
-                <span class="node-short-title">${escapeHtml(metaInfo.shortLabel)}</span>
-                <span class="node-hint">${escapeHtml(statusNote)}</span>
-              </span>
+              ${node.visited && !isCurrent ? '<span class="node-visited-check" aria-hidden="true">✓</span>' : ''}
             </button>
           `;
         })

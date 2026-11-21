@@ -13,6 +13,7 @@ import {
   hasRelic,
 } from '../../engine/combat.js';
 import { getEnemyIntentPreview } from '../../engine/math.js';
+import { isCardBonusConditionMet } from '../../engine/tactics.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
 import { getCharacterSvg, getIntentIconSvg } from '../icons.js';
 
@@ -245,10 +246,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           : check.reason.includes('天鹅绒项圈')
             ? 'choker'
             : 'unplayable';
+      const conditionMet = check.playable && isCardBonusConditionMet(state, card);
       return renderCardHtml(card, {
         idPrefix: 'hand-card',
         action: 'click-hand-card',
         playable: check.playable,
+        conditionActive: conditionMet,
         selected: ui.selectedCardId === card.instanceId,
         dimmed: !check.playable,
         unplayableReason,

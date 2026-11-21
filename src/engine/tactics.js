@@ -1049,3 +1049,68 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
 
   return result;
 }
+
+function isEnemyIntendingAttack(enemy) {
+  return Boolean(
+    enemy &&
+      enemy.hp > 0 &&
+      enemy.intent &&
+      (enemy.intent.type?.startsWith('attack') || typeof enemy.intent.damage === 'number')
+  );
+}
+
+/**
+ * Original Slay the Spire golden-border glow check for hand cards whose
+ * conditional bonus trigger is currently satisfied.
+ */
+export function isCardBonusConditionMet(state, cardInstance) {
+  const combat = state?.combat;
+  if (!combat || !cardInstance) return false;
+  const stats = getCardStats(cardInstance);
+  if (!stats) return false;
+
+  const aliveEnemies = getAliveEnemies(combat);
+
+  // Last-card-type combos: Sash Whip (腰带抽打), Crush Joints (粉碎关节), Follow-Up (追击), Sanctity (圣洁)
+  if (stats.ifLastCardType) {
+    return combat.lastCardTypePlayed === stats.ifLastCardType.type;
+  }
+
+  // Enemy status / intent / threshold combos (glows gold if ANY alive enemy satisfies condition, like original StS)
+  if (stats.ifVulnerableBonusEnergy) {
+    return aliveEnemies.some((e) => (e.statuses?.vulnerable ?? 0) > 0);
+  }
+  if (stats.ifWeakBonusEnergy) {
+    return aliveEnemies.some((e) => (e.statuses?.weak ?? 0) > 0);
+  }
+  if (stats.bonusHitIfPoisoned) {
+    return aliveEnemies.some((e) => (e.statuses?.poison ?? 0) > 0);
+  }
+  if (stats.spotWeaknessStrength || stats.ifTargetAttackingEnterStance) {
+    return aliveEnemies.some((e) => isEnemyIntendingAttack(e));
+  }
+  if (typeof stats.judgmentThreshold === 'number') {
+    return aliveEnemies.some((e) => e.hp <= stats.judgmentThreshold);
+  }
+
+  // Stance / turn-state / hand-composition combos
+  const curStance = combat.stance ?? state?.player?.stance ?? 'neutral';
+  if (stats.wrathBonusBlock) {
+    return curStance === 'wrath';
+  }
+  if (stats.ifInCalmDrawElseCalm) {
+    return curStance === 'calm';
+  }
+  if (stats.ifInWrathVulnAllElseWrath) {
+    return curStance === 'wrath';
+  }
+  if (stats.refundEnergyIfDiscarded) {
+    return (combat.discardedThisTurn ?? 0) > 0;
+  }
+  if (stats.drawIfNoAttackInHand) {
+    return !combat.hand.some((c) => getCardStats(c).type === 'attack');
+  }
+
+  return false;
+}
+

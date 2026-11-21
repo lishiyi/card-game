@@ -425,7 +425,7 @@ button:disabled {
   padding: 0;
   display: flex;
   flex-direction: column-reverse;
-  gap: 26px;
+  gap: 24px;
 }
 
 .map-edges-svg {
@@ -483,7 +483,7 @@ button:disabled {
 .map-row {
   position: relative;
   z-index: 1;
-  height: 42px;
+  height: 52px;
   display: flex;
   align-items: center;
 }
@@ -491,7 +491,7 @@ button:disabled {
 .map-floor-tag {
   position: absolute;
   left: 4px;
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   font-family: var(--font-mono);
   color: var(--text-ash);
   pointer-events: none;
@@ -501,24 +501,60 @@ button:disabled {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 146px;
-  padding: 4px 9px;
-  display: flex;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
-  border-radius: var(--radius-md);
-  background: var(--bg-cavern);
-  border: 1px solid var(--border-muted);
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, hsl(28, 18%, 21%), hsl(24, 16%, 12%));
+  border: 1.5px solid hsla(34, 24%, 40%, 0.65);
   color: var(--text-sand);
-  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+  box-shadow: 0 3px 10px hsla(20, 30%, 4%, 0.55);
+  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+}
+
+.map-node-btn.node-kind-combat {
+  border-color: hsla(156, 48%, 44%, 0.58);
+  background: radial-gradient(circle at 38% 30%, hsl(160, 26%, 19%), hsl(162, 18%, 11%));
 }
 
 .map-node-btn.node-kind-boss {
-  width: 176px;
+  width: 64px;
+  height: 64px;
+  border-width: 2px;
+  border-color: hsla(38, 84%, 56%, 0.8);
+  background: radial-gradient(circle at 38% 30%, hsl(14, 46%, 24%), hsl(12, 34%, 12%));
+}
+
+.map-node-btn.node-kind-elite {
+  border-color: hsla(8, 66%, 48%, 0.68);
+  background: radial-gradient(circle at 38% 30%, hsl(8, 38%, 21%), hsl(10, 24%, 12%));
+}
+
+.map-node-btn.node-kind-rest {
+  border-color: hsla(26, 70%, 50%, 0.64);
+  background: radial-gradient(circle at 38% 30%, hsl(24, 34%, 21%), hsl(22, 22%, 12%));
+}
+
+.map-node-btn.node-kind-shop {
+  border-color: hsla(45, 72%, 50%, 0.64);
+  background: radial-gradient(circle at 38% 30%, hsl(42, 34%, 21%), hsl(34, 22%, 12%));
+}
+
+.map-node-btn.node-kind-event {
+  border-color: hsla(268, 56%, 54%, 0.62);
+  background: radial-gradient(circle at 38% 30%, hsl(268, 28%, 21%), hsl(262, 22%, 12%));
+}
+
+.map-node-btn.node-kind-treasure {
+  border-color: hsla(42, 82%, 54%, 0.75);
+  background: radial-gradient(circle at 38% 30%, hsl(38, 44%, 22%), hsl(32, 26%, 12%));
 }
 
 .map-node-btn[aria-disabled='true'] {
-  cursor: default;
+  cursor: pointer;
 }
 
 .map-node-btn[aria-disabled='true'][data-tooltip-desc] {
@@ -526,104 +562,104 @@ button:disabled {
 }
 
 .map-node-btn.unreachable {
-  opacity: 0.42;
+  opacity: 0.36;
+  filter: saturate(0.45);
   color: var(--text-ash);
 }
 
 .map-node-btn.visited {
-  background: hsl(28, 12%, 17%);
-  border-color: hsla(152, 42%, 44%, 0.48);
-  color: var(--text-sand);
+  border-color: hsla(152, 54%, 48%, 0.68);
   opacity: 0.88;
 }
 
 .map-node-btn.current-pos {
-  background: linear-gradient(180deg, hsl(154, 28%, 21%), hsl(152, 22%, 15%));
-  border-color: hsl(152, 62%, 56%);
+  background: radial-gradient(circle at 35% 30%, hsl(154, 38%, 26%), hsl(152, 28%, 14%));
+  border-color: hsl(152, 72%, 58%);
+  border-width: 2px;
   color: var(--text-ivory);
   opacity: 1;
-  box-shadow: 0 0 0 2px hsla(152, 62%, 52%, 0.28);
+  box-shadow: 0 0 0 3px hsla(152, 72%, 54%, 0.42), 0 0 16px hsla(152, 70%, 48%, 0.36);
 }
 
 .map-node-btn.available {
-  background: linear-gradient(180deg, hsl(32, 24%, 25%), hsl(28, 18%, 18%));
-  border-color: hsl(40, 74%, 56%);
+  border-color: hsl(42, 92%, 62%);
+  border-width: 2px;
   color: var(--text-ivory);
-  box-shadow: var(--shadow-soft), var(--bevel-highlight);
+  box-shadow: 0 0 0 2px hsla(42, 92%, 58%, 0.32), var(--shadow-soft), var(--bevel-highlight);
 }
 
 .map-node-btn.available:hover {
-  transform: translate(-50%, calc(-50% - 2px));
-  background: linear-gradient(180deg, hsl(34, 30%, 29%), hsl(30, 22%, 21%));
+  transform: translate(-50%, -50%) scale(1.1);
 }
 
 .node-icon-wrap {
-  width: 28px;
-  height: 28px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-abyss);
-  border: 1px solid hsla(34, 22%, 40%, 0.45);
+  background: transparent;
+  border: none;
   color: var(--accent-brass);
   flex-shrink: 0;
 }
 
+.node-icon-wrap svg {
+  width: 28px;
+  height: 28px;
+}
+
+.map-node-btn.node-kind-boss .node-icon-wrap svg {
+  width: 36px;
+  height: 36px;
+}
+
 .node-icon-wrap.node-type-combat {
-  color: hsl(156, 56%, 64%);
-  border-color: hsla(156, 46%, 44%, 0.55);
+  color: hsl(156, 62%, 66%);
 }
 
 .node-icon-wrap.node-type-elite {
-  color: hsl(8, 86%, 66%);
-  border-color: hsla(8, 74%, 52%, 0.7);
-  background: radial-gradient(circle, hsl(8, 42%, 18%), var(--bg-abyss));
+  color: hsl(8, 90%, 66%);
 }
 
 .node-icon-wrap.node-type-rest {
-  color: hsl(26, 92%, 64%);
-  border-color: hsla(26, 72%, 48%, 0.58);
+  color: hsl(26, 96%, 64%);
 }
 
 .node-icon-wrap.node-type-shop {
-  color: hsl(45, 94%, 64%);
-  border-color: hsla(45, 72%, 48%, 0.58);
+  color: hsl(45, 96%, 64%);
 }
 
 .node-icon-wrap.node-type-event {
-  color: hsl(268, 78%, 76%);
-  border-color: hsla(268, 56%, 52%, 0.58);
+  color: hsl(268, 82%, 76%);
 }
 
 .node-icon-wrap.node-type-treasure {
-  color: hsl(44, 96%, 66%);
-  border-color: hsla(44, 84%, 54%, 0.74);
-  background: radial-gradient(circle, hsl(38, 48%, 19%), var(--bg-abyss));
+  color: hsl(44, 98%, 66%);
 }
 
 .node-icon-wrap.node-type-boss {
-  color: hsl(40, 98%, 66%);
-  border-color: hsla(38, 84%, 56%, 0.8);
-  background: radial-gradient(circle, hsl(14, 48%, 20%), var(--bg-abyss));
+  color: hsl(40, 100%, 68%);
 }
 
-.node-text {
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-}
-
-.node-title {
-  font-size: 0.85rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.node-hint {
-  font-size: 0.71rem;
-  color: var(--text-sand);
-  line-height: 1.2;
+.node-visited-check {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(152, 58%, 34%);
+  border: 1.5px solid hsl(152, 74%, 64%);
+  color: hsl(0, 0%, 100%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* === Combat Arena === */
@@ -4345,13 +4381,14 @@ body.spire-dragging {
   }
 
   .map-node-btn {
-    width: 118px;
-    padding: 4px 6px;
-    gap: 5px;
+    width: 48px;
+    height: 48px;
+    padding: 0;
   }
 
   .map-node-btn.node-kind-boss {
-    width: 146px;
+    width: 60px;
+    height: 60px;
   }
 
   .combat-arena {
@@ -4694,26 +4731,24 @@ body.spire-dragging {
   }
 
   .map-node-btn {
-    width: 86px;
-    padding: 4px 5px;
-    gap: 4px;
+    width: 46px;
+    height: 46px;
+    padding: 0;
   }
 
   .map-node-btn.node-kind-boss {
-    width: 118px;
+    width: 58px;
+    height: 58px;
   }
 
-  .node-icon-wrap {
-    width: 22px;
-    height: 22px;
+  .node-icon-wrap svg {
+    width: 26px;
+    height: 26px;
   }
 
-  .node-title {
-    font-size: 0.74rem;
-  }
-
-  .node-hint {
-    display: none;
+  .map-node-btn.node-kind-boss .node-icon-wrap svg {
+    width: 34px;
+    height: 34px;
   }
 
   .combat-arena {
@@ -5093,37 +5128,31 @@ body.spire-dragging {
   }
 
   .map-node-btn {
-    width: 62px;
-    min-height: 36px;
-    padding: 4px 4px;
-    gap: 3px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
     justify-content: center;
   }
 
   .map-node-btn.node-kind-boss {
-    width: 92px;
+    width: 56px;
+    height: 56px;
   }
 
   .node-icon-wrap {
-    width: 18px;
-    height: 18px;
+    width: 100%;
+    height: 100%;
   }
 
   .node-icon-wrap svg {
-    width: 13px;
-    height: 13px;
+    width: 24px;
+    height: 24px;
   }
 
-  .node-title {
-    display: none;
-  }
-
-  .node-short-title {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 700;
-    line-height: 1.15;
-    white-space: nowrap;
+  .map-node-btn.node-kind-boss .node-icon-wrap svg {
+    width: 32px;
+    height: 32px;
   }
 
   .combat-arena {
@@ -6406,6 +6435,7 @@ body.spire-dragging {
   opacity: 1 !important;
   filter: none !important;
   z-index: 4;
+  transform: translate(-50%, -50%) scale(1.1);
   color: var(--text-ivory);
   border-color: hsl(46, 100%, 70%) !important;
   background: linear-gradient(180deg, hsl(36, 36%, 28%), hsl(30, 26%, 18%)) !important;
@@ -6432,7 +6462,7 @@ body.spire-dragging {
   filter: none !important;
   z-index: 3;
   color: var(--text-ivory);
-  transform: translate(-50%, -50%) scale(1.05);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 .map-board.has-type-filter .map-node-btn.map-node-type-match.node-kind-combat {
@@ -6468,6 +6498,52 @@ body.spire-dragging {
 .map-board.has-type-filter .map-node-btn.map-node-type-match.node-kind-boss {
   border-color: hsl(352, 90%, 66%);
   box-shadow: 0 0 0 2.5px hsla(352, 90%, 62%, 0.5), 0 0 18px hsla(352, 86%, 54%, 0.42);
+}
+
+/* === Combat Hand Golden Condition-Met Highlight (Original StS Gold Border Glow) === */
+@keyframes cardConditionPulse {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+#hand-tray .game-card.playable.condition-active {
+  border-color: hsl(45, 100%, 64%) !important;
+  box-shadow:
+    0 0 0 2.5px hsla(45, 100%, 64%, 0.94),
+    0 0 22px hsla(43, 100%, 54%, 0.62),
+    var(--shadow-card) !important;
+}
+
+#hand-tray .game-card.playable.condition-active::before {
+  background: linear-gradient(90deg, hsl(38, 96%, 52%), hsl(50, 100%, 78%), hsl(38, 96%, 52%));
+}
+
+#hand-tray .game-card.playable.condition-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid hsla(48, 100%, 74%, 0.88);
+  box-shadow: inset 0 0 16px hsla(44, 100%, 58%, 0.38);
+  pointer-events: none;
+  animation: cardConditionPulse 1.8s ease-in-out infinite;
+}
+
+#hand-tray .game-card.playable.condition-active.selected-card {
+  box-shadow:
+    0 0 0 3px hsla(48, 100%, 68%, 1),
+    0 0 28px hsla(44, 100%, 56%, 0.78),
+    0 14px 28px hsla(20, 35%, 3%, 0.82) !important;
+}
+
+[data-anim-speed='off'] #hand-tray .game-card.playable.condition-active::after {
+  animation: none;
+  opacity: 0.9;
 }
 
 @media (max-width: 720px) {
@@ -6507,6 +6583,7 @@ body.spire-dragging {
     font-size: 0.64rem;
   }
 }
+
 
 
 

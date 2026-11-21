@@ -45,6 +45,7 @@ import {
 } from '../src/engine/math.js';
 import {
   computeCardSynergies,
+  isCardBonusConditionMet,
   previewCardDamageOnEnemy,
   previewPotionDamageOnEnemy,
 } from '../src/engine/tactics.js';
@@ -3055,4 +3056,78 @@ test('Interactive Headbutt (discard_to_draw), Meditate+ (up to 2), Well-Laid Pla
   assert.ok(wmRun.player.deck.some((c) => c.cardId === 'parasite'), 'Writhing Mass Implant added Parasite curse to deck');
   assert.equal(wmRun.player.maxHp, maxHpPreImplant + 6, 'Darkstone Periapt triggered +6 Max HP on Parasite curse');
 });
+
+test('Golden condition-met hand highlight (isCardBonusConditionMet) covers all 15 conditional cards across Watcher/Ironclad/Silent/Colorless', () => {
+  const st = setupCustomCombat(44001, ENCOUNTERS.floor1[0]);
+  const enemy = st.combat.enemies[0];
+  enemy.hp = 50;
+  enemy.statuses = {};
+  enemy.intent = { id: 'defend', name: '防守', type: 'defend', block: 8 };
+  st.combat.lastCardTypePlayed = null;
+  st.combat.stance = 'neutral';
+  st.combat.discardedThisTurn = 0;
+
+  const mk = (cardId) => ({ instanceId: `m_${cardId}`, cardId, upgraded: false });
+
+  // 1. Last-card-type combos: Sash Whip, Follow-Up (attack) vs Crush Joints, Sanctity (skill)
+  assert.equal(isCardBonusConditionMet(st, mk('sash_whip')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('follow_up')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('crush_joints')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('sanctity')), false);
+
+  st.combat.lastCardTypePlayed = 'attack';
+  assert.equal(isCardBonusConditionMet(st, mk('sash_whip')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('follow_up')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('crush_joints')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('sanctity')), false);
+
+  st.combat.lastCardTypePlayed = 'skill';
+  assert.equal(isCardBonusConditionMet(st, mk('sash_whip')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('follow_up')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('crush_joints')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('sanctity')), true);
+
+  // 2. Enemy status / intent / threshold combos
+  assert.equal(isCardBonusConditionMet(st, mk('dropkick')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('heel_hook')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('bane')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('spot_weakness')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('fear_no_evil')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('judgment')), false);
+
+  enemy.statuses = { vulnerable: 2, weak: 1, poison: 4 };
+  enemy.intent = { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 };
+  enemy.hp = 25;
+  assert.equal(isCardBonusConditionMet(st, mk('dropkick')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('heel_hook')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('bane')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('spot_weakness')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('fear_no_evil')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('judgment')), true);
+
+  // 3. Stance, discard & hand-composition combos
+  assert.equal(isCardBonusConditionMet(st, mk('halt')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('inner_peace')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('indignation')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('sneaky_strike')), false);
+
+  st.combat.stance = 'wrath';
+  assert.equal(isCardBonusConditionMet(st, mk('halt')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('indignation')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('inner_peace')), false);
+
+  st.combat.stance = 'calm';
+  assert.equal(isCardBonusConditionMet(st, mk('inner_peace')), true);
+  assert.equal(isCardBonusConditionMet(st, mk('halt')), false);
+
+  st.combat.discardedThisTurn = 1;
+  assert.equal(isCardBonusConditionMet(st, mk('sneaky_strike')), true);
+
+  st.combat.hand = [mk('impatience'), mk('defend')];
+  assert.equal(isCardBonusConditionMet(st, mk('impatience')), true);
+  st.combat.hand = [mk('impatience'), mk('strike')];
+  assert.equal(isCardBonusConditionMet(st, mk('impatience')), false);
+  assert.equal(isCardBonusConditionMet(st, mk('strike')), false);
+});
+
 

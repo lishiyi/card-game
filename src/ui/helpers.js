@@ -133,6 +133,7 @@ export function renderCardHtml(cardInstance, options = {}) {
     `rarity-${stats.rarity}`,
     isColorless ? 'card-colorless' : '',
     options.playable ? 'playable' : '',
+    options.conditionActive ? 'condition-active' : '',
     options.selected ? 'selected-card' : '',
     options.dimmed ? 'unplayable-dim' : '',
     options.discardSelectable ? 'discard-selectable' : '',
@@ -276,6 +277,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       data-character="${escapeHtml(stats.character)}"
       data-action="${escapeHtml(actionName)}"
       data-instance-id="${escapeHtml(cardInstance.instanceId)}"
+      ${options.conditionActive ? 'data-condition-active="true"' : ''}
       ${options.unplayableReason ? `data-unplayable-reason="${escapeHtml(options.unplayableReason)}"` : ''}
       ${options.offerIndex !== undefined ? `data-offer-index="${options.offerIndex}"` : ''}
       ${disabledAttr}

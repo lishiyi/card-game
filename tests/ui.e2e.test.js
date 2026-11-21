@@ -1506,13 +1506,15 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     await new Promise((r) => setTimeout(r, 350));
     await launchHeroFromCharacterSelect(cdp, 'ironclad');
 
-    // 1. Mobile 390x844 Map viewport audit: zero page horizontal overflow, compact node labels visible, zero overlapping nodes
+    // 1. Mobile 390x844 Map viewport audit: zero page horizontal overflow, enlarged icon-only medallions, zero overlapping nodes
     const mobileMapAudit = await cdp.evaluate(`(() => {
       const docScrollWidth = document.documentElement.scrollWidth;
       const innerWidth = window.innerWidth;
       const boardRect = document.querySelector('.map-board').getBoundingClientRect();
-      const shortTitleDisplay = getComputedStyle(document.querySelector('.node-short-title')).display;
-      const fullTitleDisplay = getComputedStyle(document.querySelector('.node-title')).display;
+      const hasNodeText = Boolean(document.querySelector('.map-node-btn .node-text'));
+      const sampleNode = document.querySelector('.map-node-btn:not(.node-kind-boss)');
+      const sampleRect = sampleNode.getBoundingClientRect();
+      const sampleSvgRect = sampleNode.querySelector('.node-icon-wrap svg').getBoundingClientRect();
 
       let overlapCount = 0;
       let outOfBoundsCount = 0;
@@ -1542,8 +1544,10 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       return {
         docScrollWidth,
         innerWidth,
-        shortTitleDisplay,
-        fullTitleDisplay,
+        hasNodeText,
+        nodeWidth: Math.round(sampleRect.width),
+        nodeHeight: Math.round(sampleRect.height),
+        svgWidth: Math.round(sampleSvgRect.width),
         overlapCount,
         outOfBoundsCount,
         tipShownOnFirstTap,
@@ -1554,8 +1558,9 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       mobileMapAudit.docScrollWidth <= mobileMapAudit.innerWidth,
       `Mobile map overflowed horizontally: ${mobileMapAudit.docScrollWidth} > ${mobileMapAudit.innerWidth}`
     );
-    assert.notEqual(mobileMapAudit.shortTitleDisplay, 'none');
-    assert.equal(mobileMapAudit.fullTitleDisplay, 'none');
+    assert.equal(mobileMapAudit.hasNodeText, false, 'Map rooms must render icon-only without inline text labels');
+    assert.ok(mobileMapAudit.nodeWidth >= 42 && mobileMapAudit.nodeHeight >= 42, `Mobile map icon button must be >=42px touch target, got ${mobileMapAudit.nodeWidth}x${mobileMapAudit.nodeHeight}`);
+    assert.ok(mobileMapAudit.svgWidth >= 22, `Mobile map room SVG icon must be enlarged >=22px, got ${mobileMapAudit.svgWidth}px`);
     assert.equal(mobileMapAudit.overlapCount, 0, 'Map nodes must never overlap on 390px mobile screen');
     assert.equal(mobileMapAudit.outOfBoundsCount, 0, 'Map nodes must stay within .map-board on 390px screen');
     assert.equal(mobileMapAudit.tipShownOnFirstTap, true);
@@ -5564,6 +5569,92 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       );
     }
 
+    // === 2b. Golden Condition-Met Hand Glow (Sash Whip, Crush Joints, Halt, Fear No Evil, 0-Energy Suppression) ===
+    const condGlowAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.combat.lastCardTypePlayed = null;
+      st.combat.stance = 'neutral';
+      st.combat.enemies[0].intent = { id: 'chomp', name: '猛咬', type: 'attack', damage: 11, hits: 1 };
+      st.combat.hand = [
+        { instanceId: 'cg_strike', cardId: 'strike', upgraded: false },
+        { instanceId: 'cg_defend', cardId: 'defend', upgraded: false },
+        { instanceId: 'cg_sash', cardId: 'sash_whip', upgraded: false },
+        { instanceId: 'cg_crush', cardId: 'crush_joints', upgraded: false },
+        { instanceId: 'cg_fear', cardId: 'fear_no_evil', upgraded: false },
+        { instanceId: 'cg_halt', cardId: 'halt', upgraded: false },
+      ];
+      st.player.energy = 3;
+      app.render();
+
+      const hasGlow = (id) => document.getElementById('hand-card-' + id)?.classList.contains('condition-active') ?? false;
+      const beforeAny = {
+        sash: hasGlow('cg_sash'),
+        crush: hasGlow('cg_crush'),
+        fear: hasGlow('cg_fear'),
+        halt: hasGlow('cg_halt'),
+      };
+
+      // Simulate last played Attack -> Sash Whip lights up gold! Crush Joints stays off!
+      st.combat.lastCardTypePlayed = 'attack';
+      st.combat.stance = 'wrath';
+      app.render();
+      const afterAttackAndWrath = {
+        sash: hasGlow('cg_sash'),
+        sashAttr: document.getElementById('hand-card-cg_sash')?.dataset.conditionActive || '',
+        crush: hasGlow('cg_crush'),
+        fear: hasGlow('cg_fear'),
+        halt: hasGlow('cg_halt'),
+      };
+
+      // Switch last played to Skill -> Crush Joints lights up gold, Sash Whip turns off!
+      st.combat.lastCardTypePlayed = 'skill';
+      st.combat.stance = 'neutral';
+      app.render();
+      const afterSkill = {
+        sash: hasGlow('cg_sash'),
+        crush: hasGlow('cg_crush'),
+        halt: hasGlow('cg_halt'),
+      };
+
+      // When 0 energy -> Crush Joints (cost 1) is unplayable so MUST NOT glow gold!
+      st.player.energy = 0;
+      app.render();
+      const atZeroEnergy = {
+        crush: hasGlow('cg_crush'),
+        halt: hasGlow('cg_halt'),
+      };
+
+      // Restore iconic glowing hand for visual screenshot: Attack played + Wrath + attacking enemy
+      st.player.energy = 3;
+      st.combat.lastCardTypePlayed = 'attack';
+      st.combat.stance = 'wrath';
+      app.render();
+
+      return { beforeAny, afterAttackAndWrath, afterSkill, atZeroEnergy };
+    })()`);
+
+    assert.equal(condGlowAudit.beforeAny.sash, false, 'Sash Whip must not glow before an Attack is played');
+    assert.equal(condGlowAudit.beforeAny.crush, false, 'Crush Joints must not glow before a Skill is played');
+    assert.equal(condGlowAudit.beforeAny.fear, true, 'Fear No Evil must glow gold when enemy intends to attack');
+    assert.equal(condGlowAudit.beforeAny.halt, false, 'Halt must not glow outside Wrath');
+    assert.equal(condGlowAudit.afterAttackAndWrath.sash, true, 'Sash Whip must glow gold after playing an Attack');
+    assert.equal(condGlowAudit.afterAttackAndWrath.sashAttr, 'true');
+    assert.equal(condGlowAudit.afterAttackAndWrath.crush, false, 'Crush Joints must not glow after playing an Attack');
+    assert.equal(condGlowAudit.afterAttackAndWrath.halt, true, 'Halt must glow gold in Wrath stance');
+    assert.equal(condGlowAudit.afterSkill.sash, false, 'Sash Whip glow must clear after playing a Skill');
+    assert.equal(condGlowAudit.afterSkill.crush, true, 'Crush Joints must glow gold after playing a Skill');
+    assert.equal(condGlowAudit.atZeroEnergy.crush, false, 'Unplayable 1-cost card must not glow gold at 0 Energy');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      await new Promise((r) => setTimeout(r, 340));
+      const shotGlow = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'desktop_condition_gold_glow.png'),
+        Buffer.from(shotGlow.data, 'base64')
+      );
+    }
+
     // Also verify Deck modal passive cards still allow tapping .card-kw-trigger
     const deckKwAudit = await cdp.evaluate(`(() => {
       document.getElementById('btn-open-deck').click();
@@ -5605,7 +5696,7 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(modalMapAudit.edgeCount, modalMapAudit.connectedCount);
     assert.ok(modalMapAudit.eliteMatched > 0, 'Read-only Map modal room-type filter must highlight all elites');
 
-    // === 4. Mobile 390x844 touch viewport: Map filter + click direct connection + zero overflow ===
+    // === 4. Mobile 390x844 touch viewport: Icon-only enlarged medallions + Map filter + click direct connection + zero overflow ===
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 390,
       height: 844,
@@ -5630,9 +5721,14 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
 
       const board = document.querySelector('.map-board');
       const filterBar = document.querySelector('.map-type-filter-bar');
+      const nodeRect = midBtn.getBoundingClientRect();
+      const iconSvgRect = midBtn.querySelector('.node-icon-wrap svg').getBoundingClientRect();
       return {
         docOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
         filterBarVisible: Boolean(filterBar && filterBar.getBoundingClientRect().height > 0),
+        hasNodeText: Boolean(board.querySelector('.node-text')),
+        nodeSize: Math.round(nodeRect.width),
+        iconSize: Math.round(iconSvgRect.width),
         restMatched: board.querySelectorAll('.map-node-btn.map-node-type-match[data-node-type="rest"]').length,
         inspected: midBtn.classList.contains('map-node-inspected'),
         connectedCount: board.querySelectorAll('.map-node-btn.map-node-connected').length,
@@ -5641,6 +5737,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
 
     assert.equal(mobileMapAudit.docOverflow, false, 'Mobile 390px map with filter bar must not overflow horizontally');
     assert.equal(mobileMapAudit.filterBarVisible, true);
+    assert.equal(mobileMapAudit.hasNodeText, false, 'Icon-only map rooms must not render text labels');
+    assert.ok(mobileMapAudit.nodeSize >= 42, `Mobile icon-only room medallion must be >=42px, got ${mobileMapAudit.nodeSize}`);
+    assert.ok(mobileMapAudit.iconSize >= 22, `Mobile room icon SVG must be >=22px, got ${mobileMapAudit.iconSize}`);
     assert.ok(mobileMapAudit.restMatched > 0, 'Mobile campfire filter highlights all campfire rooms');
     assert.equal(mobileMapAudit.inspected, true, 'Mobile touch tap on non-available room must highlight it');
     assert.ok(mobileMapAudit.connectedCount >= 2, 'Mobile touch tap must highlight directly connected upstream/downstream rooms');
