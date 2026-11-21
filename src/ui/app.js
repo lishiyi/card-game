@@ -397,12 +397,18 @@ export function mountSpireApp(rootEl) {
     }
   })();
 
+  function isCompactHudViewport() {
+    return typeof window !== 'undefined' && window.innerWidth <= 768;
+  }
+
   const ui = {
     debugMode: initialDebugMode,
     showCharacterSelect: initialShowCharacterSelect,
     selectedCharacterId: state?.characterId || meta.selectedCharacterId || 'ironclad',
     selectedCardId: null,
     selectedPotionSlot: null,
+    activePotionPopoverSlot: null,
+    hudMenuOpen: false,
     hoveredCardId: null,
     hoveredPotionSlot: null,
     hoveredEnemyId: null,
@@ -542,6 +548,16 @@ export function mountSpireApp(rootEl) {
       (!state || ui.showCharacterSelect || state.screen === 'map' || state.screen === 'game_over')
     ) {
       ui.modal = null;
+    }
+    if (!state || ui.showCharacterSelect || ui.modal) {
+      ui.hudMenuOpen = false;
+      ui.activePotionPopoverSlot = null;
+    }
+    if (
+      ui.activePotionPopoverSlot !== null &&
+      (!state?.player?.potions?.[ui.activePotionPopoverSlot] || !isCompactHudViewport())
+    ) {
+      ui.activePotionPopoverSlot = null;
     }
     if (!state || ui.showCharacterSelect || state.screen !== 'combat' || !state.combat) {
       clearCombatSelection();
@@ -683,6 +699,10 @@ export function mountSpireApp(rootEl) {
     const prevScreen = lastRenderedScreen;
     const screenChanged = Boolean(prevScreen && prevScreen !== state.screen);
     lastRenderedScreen = state.screen;
+    if (screenChanged) {
+      ui.hudMenuOpen = false;
+      ui.activePotionPopoverSlot = null;
+    }
     if (state.screen !== 'combat') {
       fxLayerEl.innerHTML = '';
     }
@@ -1263,6 +1283,22 @@ export function mountSpireApp(rootEl) {
     onSyncTactics: (override) => syncCombatTactics(override),
   });
 
+  function executePotionSlotAction(slot) {
+    const potionId = state?.player?.potions?.[slot];
+    const pot = POTION_LIBRARY[potionId];
+    if (!pot) return;
+
+    ui.selectedCardId = null;
+    const alive = state.combat ? getAliveEnemies(state.combat) : [];
+    if (pot.target === 'enemy' && alive.length > 1) {
+      ui.selectedPotionSlot = ui.selectedPotionSlot === slot ? null : slot;
+      soundEngine.play('ui_click');
+      render();
+      return;
+    }
+    executePotionWithFx(slot, pot.target === 'enemy' ? alive[0]?.id : null);
+  }
+
   rootEl.addEventListener('click', (event) => {
     if (dragController.shouldSuppressClick()) return;
     const targetEl = event.target instanceof Element ? event.target : null;
@@ -1273,6 +1309,35 @@ export function mountSpireApp(rootEl) {
       event.target !== rawTarget;
     const target = isBackdropInnerClick ? null : rawTarget;
     const tipAnchor = targetEl ? targetEl.closest('[data-tooltip-desc]') : null;
+    const filledPotionAnchor = targetEl
+      ? targetEl.closest('.potion-tooltip-anchor[data-filled-potion-slot]')
+      : null;
+
+    if (isCompactHudViewport() && filledPotionAnchor && !target) {
+      const slot = Number(filledPotionAnchor.dataset.filledPotionSlot);
+      if (Number.isInteger(slot) && state?.player?.potions?.[slot]) {
+        ui.activePotionPopoverSlot = ui.activePotionPopoverSlot === slot ? null : slot;
+        ui.hudMenuOpen = false;
+        hideTooltip();
+        soundEngine.play('ui_click');
+        render();
+        return;
+      }
+    }
+
+    const clickedInsideHudMenu = Boolean(targetEl?.closest('.top-actions-more-wrap'));
+    const clickedInsidePotionPopover = Boolean(
+      targetEl?.closest('#hud-potion-popover, .potion-tooltip-anchor[data-filled-potion-slot]')
+    );
+    let dismissedHudOverlay = false;
+    if (ui.hudMenuOpen && !clickedInsideHudMenu) {
+      ui.hudMenuOpen = false;
+      dismissedHudOverlay = true;
+    }
+    if (ui.activePotionPopoverSlot !== null && !clickedInsidePotionPopover) {
+      ui.activePotionPopoverSlot = null;
+      dismissedHudOverlay = true;
+    }
 
     // Nested inspect chips (relic, potion, starter-deck badges, enemy next-intent trigger, card keyword chip) inspect cleanly without triggering parent action
     const isNestedInspectChip =
@@ -1291,6 +1356,11 @@ export function mountSpireApp(rootEl) {
       (target.dataset.action === 'click-enemy' && !ui.selectedCardId && ui.selectedPotionSlot === null);
 
     if (isPassiveClick) {
+      if (dismissedHudOverlay) {
+        hideTooltip();
+        render();
+        return;
+      }
       if (tipAnchor) {
         if (activeTooltipAnchor === tipAnchor && !tooltipEl.hidden && tooltipPinnedByTap) {
           hideTooltip();
@@ -1339,6 +1409,8 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'new-run': {
+        ui.hudMenuOpen = false;
+        ui.activePotionPopoverSlot = null;
         if (state && state.screen !== 'game_over' && target.id !== 'btn-restart-gameover') {
           ui.modal = 'confirm_new_run';
           soundEngine.play('ui_click');
@@ -1676,11 +1748,26 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'toggle-hud-menu': {
+        ui.hudMenuOpen = !ui.hudMenuOpen;
+        ui.activePotionPopoverSlot = null;
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
+      case 'close-potion-popover': {
+        ui.activePotionPopoverSlot = null;
+        soundEngine.play('ui_click');
+        render();
+        break;
+      }
       case 'open-modal': {
         const nextModal = target.dataset.modal || null;
         if (nextModal === 'settings') {
           ui.backupFeedback = '';
         }
+        ui.hudMenuOpen = false;
+        ui.activePotionPopoverSlot = null;
         ui.modal = nextModal;
         soundEngine.play('ui_click');
         render();
@@ -1850,22 +1937,35 @@ export function mountSpireApp(rootEl) {
       case 'use-potion': {
         const slot = Number(target.dataset.slot);
         const potionId = state.player.potions[slot];
-        const pot = POTION_LIBRARY[potionId];
-        if (!pot) break;
+        if (!POTION_LIBRARY[potionId]) break;
 
-        ui.selectedCardId = null;
-        const alive = state.combat ? getAliveEnemies(state.combat) : [];
-        if (pot.target === 'enemy' && alive.length > 1) {
-          ui.selectedPotionSlot = ui.selectedPotionSlot === slot ? null : slot;
+        if (isCompactHudViewport()) {
+          if (ui.selectedPotionSlot === slot) {
+            ui.selectedPotionSlot = null;
+          } else {
+            ui.activePotionPopoverSlot = ui.activePotionPopoverSlot === slot ? null : slot;
+          }
+          ui.hudMenuOpen = false;
           soundEngine.play('ui_click');
           render();
           break;
         }
-        executePotionWithFx(slot, pot.target === 'enemy' ? alive[0]?.id : null);
+        executePotionSlotAction(slot);
+        break;
+      }
+      case 'confirm-use-potion': {
+        const slot = Number(target.dataset.slot);
+        ui.activePotionPopoverSlot = null;
+        executePotionSlotAction(slot);
         break;
       }
       case 'discard-potion': {
-        discardPotion(state, Number(target.dataset.slot));
+        const slot = Number(target.dataset.slot);
+        discardPotion(state, slot);
+        ui.activePotionPopoverSlot = null;
+        if (ui.selectedPotionSlot === slot) {
+          ui.selectedPotionSlot = null;
+        }
         soundEngine.play('ui_click');
         setNotice('已丢弃一瓶药水。');
         render();
@@ -2487,6 +2587,10 @@ export function mountSpireApp(rootEl) {
       }
       if (ui.modal) {
         dismissActiveModal();
+      } else if (ui.hudMenuOpen || ui.activePotionPopoverSlot !== null) {
+        ui.hudMenuOpen = false;
+        ui.activePotionPopoverSlot = null;
+        render();
       } else if (ui.selectedCardId || ui.selectedPotionSlot !== null) {
         clearCombatSelection();
         render();

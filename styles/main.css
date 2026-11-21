@@ -277,28 +277,65 @@ button:disabled {
 }
 
 .potion-slot {
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 9px;
   font-size: 0.78rem;
   border-radius: var(--radius-sm);
   background: var(--bg-cavern);
   border: 1px solid var(--border-stone);
   color: var(--text-sand);
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.potion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.potion-icon-svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+.potion-icon-svg.is-empty {
+  filter: none;
+  opacity: 0.72;
 }
 
 .potion-tooltip-anchor .potion-slot:disabled {
   pointer-events: none;
 }
 
+.potion-slot.empty {
+  border-style: dashed;
+  border-color: hsla(36, 18%, 46%, 0.45);
+}
+
 .potion-slot.filled {
   color: var(--text-ivory);
-  background: var(--surface-parchment);
+  background: linear-gradient(180deg, hsl(30, 16%, 22%), hsl(26, 16%, 15%));
+  border-color: color-mix(in srgb, var(--potion-accent, var(--border-stone)) 68%, transparent);
+  box-shadow: inset 0 1px 0 hsla(42, 60%, 88%, 0.12);
+}
+
+.potion-slot.filled.popover-active {
+  border-color: var(--accent-brass);
+  box-shadow:
+    0 0 0 2px hsla(40, 86%, 58%, 0.38),
+    inset 0 1px 0 hsla(48, 90%, 88%, 0.25);
 }
 
 .potion-slot.filled:hover:not(:disabled),
 .potion-tooltip-anchor:hover .potion-slot.filled {
   transform: translateY(-1px);
   background: hsl(32, 18%, 26%);
+  border-color: var(--potion-accent, var(--accent-brass));
 }
 
 .top-actions {
@@ -3886,10 +3923,17 @@ body.spire-dragging {
 }
 
 /* === HUD Containers & Mobile Helper Bars (Desktop Defaults) === */
-.vitals-top-row,
 .vitals-numbers-row,
-.hud-gear-scroll {
+.hud-gear-scroll,
+.top-actions-primary,
+.top-actions-more-wrap,
+.top-actions-secondary {
   display: contents;
+}
+
+.hud-more-btn,
+.hud-menu-divider {
+  display: none;
 }
 
 .potion-slot-group {
@@ -3897,6 +3941,113 @@ body.spire-dragging {
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
+}
+
+.hud-potion-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  right: 10px;
+  max-width: 360px;
+  margin: 0 auto;
+  z-index: 70;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, hsl(26, 22%, 17%), hsl(24, 24%, 11%));
+  border: 1.5px solid color-mix(in srgb, var(--potion-accent, var(--accent-brass)) 72%, hsl(36, 40%, 64%));
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 hsla(44, 72%, 86%, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: hudPopoverPop 0.14s ease-out;
+}
+
+@keyframes hudPopoverPop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hud-potion-popover-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-potion-popover-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: hsla(26, 24%, 10%, 0.75);
+  border: 1px solid color-mix(in srgb, var(--potion-accent, var(--border-stone)) 65%, transparent);
+  flex-shrink: 0;
+}
+
+.hud-potion-popover-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hud-potion-popover-title {
+  font-size: 0.92rem;
+  color: var(--text-ivory);
+  line-height: 1.2;
+}
+
+.hud-potion-popover-tag {
+  font-size: 0.7rem;
+  color: var(--text-sand);
+}
+
+.hud-popover-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid hsla(36, 20%, 44%, 0.48);
+  background: hsla(24, 18%, 14%, 0.75);
+  color: var(--text-sand);
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hud-potion-popover-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: hsl(38, 30%, 84%);
+}
+
+.hud-potion-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-potion-popover-actions button {
+  flex: 1;
+  min-height: 34px;
+  font-size: 0.8rem;
+}
+
+.btn-danger-subtle {
+  border-color: hsla(8, 62%, 52%, 0.55);
+  color: hsl(10, 82%, 78%);
 }
 
 .mobile-hand-bar,
@@ -4563,6 +4714,17 @@ body.spire-dragging {
     padding: 7px 10px;
   }
 
+  .top-hud.run-hud {
+    position: relative;
+    z-index: 25;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    align-items: center;
+    gap: 5px 6px;
+    padding: 7px 10px;
+  }
+
   .brand-cluster,
   .vitals-cluster,
   .top-actions {
@@ -4580,41 +4742,37 @@ body.spire-dragging {
     padding-bottom: 1px;
   }
 
+  .top-hud.run-hud .brand-cluster {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
   .brand-cluster > * {
     white-space: nowrap;
     flex-shrink: 0;
   }
 
-  /* Mobile vitals: HP/Gold + Relic carousel on row 2; Potions pinned exclusively on row 3 */
-  .vitals-cluster {
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 5px 6px;
-    overflow: hidden;
+  /* Mobile Option A + C: Row 2 = HP/Gold + Potion icons + Quick Actions; Row 3 = Full-width Relics */
+  .top-hud.run-hud .vitals-cluster {
+    display: contents;
   }
 
-  .vitals-top-row {
-    flex: 0 0 100%;
-    width: 100%;
+  .top-hud.run-hud .vitals-numbers-row {
     display: flex;
+    grid-column: 1;
+    grid-row: 2;
     align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .vitals-numbers-row {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+    gap: 4px;
     flex-shrink: 0;
   }
 
-  .hud-gear-scroll {
+  .top-hud.run-hud .hud-gear-scroll {
     display: flex;
+    grid-column: 1 / -1;
+    grid-row: 3;
     align-items: center;
     gap: 6px;
-    flex: 1 1 0%;
+    width: 100%;
     min-width: 0;
     overflow-x: auto;
     flex-wrap: nowrap;
@@ -4636,14 +4794,19 @@ body.spire-dragging {
     gap: 4px;
   }
 
-  .potion-strip {
-    flex: 0 0 100%;
-    width: 100%;
+  .top-hud.run-hud .potion-strip {
+    grid-column: 2;
+    grid-row: 2;
+    width: auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    gap: 5px;
+    gap: 4px;
+    padding: 1px 2px;
   }
 
   .relic-badge,
@@ -4659,6 +4822,17 @@ body.spire-dragging {
     padding-bottom: 1px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+  }
+
+  .top-hud.run-hud .top-actions {
+    grid-column: 3;
+    grid-row: 2;
+    width: auto;
+    overflow: visible;
+    justify-content: flex-end;
+    gap: 4px;
+    padding-bottom: 0;
+    flex-shrink: 0;
   }
 
   .top-actions button {
@@ -6146,7 +6320,7 @@ body.spire-dragging {
 
 @media (max-width: 768px) {
   .top-hud .hud-gear-scroll {
-    padding: 3px 2px 4px;
+    padding: 2px 2px 3px;
   }
 
   .top-hud .relic-strip {
@@ -6201,6 +6375,129 @@ body.spire-dragging {
     display: inline;
   }
 
+  /* Option C: Compact icon-only SVG potion bottles on mobile */
+  .top-hud.run-hud .potion-slot {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 0;
+    gap: 0;
+    border-radius: 7px;
+    border-width: 1.5px;
+  }
+
+  .top-hud.run-hud .potion-slot .potion-name-label {
+    display: none;
+  }
+
+  .top-hud.run-hud .potion-slot .potion-icon-svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .top-hud.run-hud .potion-slot.filled {
+    background: radial-gradient(
+      circle at 50% 62%,
+      color-mix(in srgb, var(--potion-accent, hsl(36, 40%, 40%)) 24%, hsl(26, 18%, 16%)),
+      hsl(24, 18%, 12%)
+    );
+  }
+
+  .top-hud.run-hud .potion-discard-inline {
+    display: none;
+  }
+
+  /* Option A: Right-pinned quick actions + collapsible More menu drawer */
+  .top-hud.run-hud .top-actions-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .top-hud.run-hud .top-actions-more-wrap {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+  }
+
+  .top-hud.run-hud .hud-quick-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 8px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border-radius: 7px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .top-hud.run-hud .hud-more-btn {
+    display: inline-flex;
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+    font-size: 0.92rem;
+    line-height: 1;
+  }
+
+  .top-hud.run-hud .hud-more-btn.active {
+    border-color: var(--accent-brass);
+    color: hsl(44, 96%, 80%);
+    background: linear-gradient(180deg, hsl(32, 26%, 24%), hsl(26, 22%, 15%));
+  }
+
+  .top-hud.run-hud .top-actions-secondary {
+    display: none;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    position: absolute;
+    top: calc(100% + 7px);
+    right: 0;
+    min-width: 164px;
+    padding: 7px;
+    border-radius: 11px;
+    background: linear-gradient(180deg, hsl(26, 22%, 17%), hsl(24, 24%, 11%));
+    border: 1.5px solid hsla(40, 62%, 56%, 0.72);
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.75),
+      inset 0 1px 0 hsla(44, 72%, 86%, 0.14);
+    z-index: 68;
+    animation: hudPopoverPop 0.13s ease-out;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open button {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 0.82rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    text-align: left;
+    border-radius: 7px;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open .hud-btn-long {
+    display: inline;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open .hud-menu-divider {
+    display: block;
+    height: 1px;
+    margin: 2px 4px;
+    background: hsla(38, 30%, 56%, 0.24);
+  }
+
   .enemy-side .next-intent-hint {
     display: none;
   }
@@ -6250,19 +6547,56 @@ body.spire-dragging {
 }
 
 @media (max-width: 520px) {
-  .top-actions {
-    gap: 2px;
+  .character-select-hud .top-actions {
+    gap: 3px;
   }
 
-  .top-actions button {
-    padding: 4px 3.5px;
-    font-size: 0.62rem;
+  .character-select-hud .top-actions button {
+    padding: 4px 6px;
+    font-size: 0.68rem;
     min-height: 29px;
+  }
+
+  .top-hud.run-hud .top-actions {
+    gap: 3px;
+  }
+
+  .top-hud.run-hud .top-actions-primary {
+    gap: 3px;
+  }
+
+  .top-hud.run-hud .top-actions-primary .nav-btn-label,
+  .top-hud.run-hud .top-actions-primary .nav-btn-paren {
+    display: none;
+  }
+
+  .top-hud.run-hud .hud-deck-btn {
+    height: 28px;
+    min-height: 28px;
+    padding: 0 7px;
+    font-size: 0.72rem;
+    gap: 3px;
+  }
+
+  .top-hud.run-hud .hud-map-btn,
+  .top-hud.run-hud .hud-more-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    min-height: 28px;
+    padding: 0;
+    font-size: 0.86rem;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open button {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 0.82rem;
   }
 
   .nav-btn-emoji {
     margin-right: 0;
-    font-size: 0.84em;
+    font-size: 0.92em;
   }
 }
 

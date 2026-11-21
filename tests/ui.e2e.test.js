@@ -3849,17 +3849,28 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     })()`);
     await new Promise((r) => setTimeout(r, 120));
 
-    // 1. 390px Combat HUD (Potion-only row + New Run in Deck/Map row) & Combat Dock (Restart far-left above Energy, Piles right-aligned, End Turn right-aligned)
+    // 1. 390px Combat HUD (Option A+C 3-row HUD: Row 2 = Vitals + SVG Potion icons + Deck/Map/More; Row 3 = Full-width Relics) & Combat Dock
     const combat390 = await cdp.evaluate(`(() => {
       const hud = document.querySelector('.top-hud').getBoundingClientRect();
+      const hpRect = document.getElementById('hud-player-hp').getBoundingClientRect();
       const potionStripEl = document.querySelector('.potion-strip');
       const potionStrip = potionStripEl.getBoundingClientRect();
-      const potions = [...document.querySelectorAll('.potion-strip .potion-slot')].map((el) => el.getBoundingClientRect());
+      const potions = [...document.querySelectorAll('.potion-strip .potion-slot:not(.potion-discard-inline)')].map((el) => el.getBoundingClientRect());
       const topActionsEl = document.querySelector('.top-actions');
       const topActions = topActionsEl.getBoundingClientRect();
       const deckBtn = document.getElementById('btn-open-deck').getBoundingClientRect();
       const mapBtn = document.getElementById('btn-open-map').getBoundingClientRect();
+      const moreBtn = document.getElementById('btn-hud-more')?.getBoundingClientRect();
+      const relicScrollRect = document.querySelector('.hud-gear-scroll').getBoundingClientRect();
+      const menuClosedInitially = getComputedStyle(document.getElementById('hud-more-menu')).display === 'none';
+
+      // Open More menu and confirm New Run & secondary actions are visibly inside viewport
+      document.getElementById('btn-hud-more').click();
+      const menuOpen = document.getElementById('hud-more-menu').classList.contains('open');
       const newRunBtn = document.getElementById('btn-new-run')?.getBoundingClientRect();
+      const newRunVisibleInMenu = Boolean(newRunBtn) && newRunBtn.width > 0 && newRunBtn.right <= window.innerWidth && newRunBtn.left >= 0;
+      document.getElementById('btn-hud-more').click();
+
       const dock = document.querySelector('.dock-controls').getBoundingClientRect();
       const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
       const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
@@ -3876,12 +3887,19 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
           (el) => el.classList.contains('potion-tooltip-anchor') || el.classList.contains('potion-slot-group')
         ),
         allPotionsFitStrip: potions.every((p) => p.left >= potionStrip.left - 1 && p.right <= potionStrip.right + 1),
+        row2Aligned:
+          Boolean(moreBtn) &&
+          Math.abs(hpRect.top - potions[0].top) <= 6 &&
+          Math.abs(potions[0].top - deckBtn.top) <= 6 &&
+          Math.abs(deckBtn.top - mapBtn.top) <= 4 &&
+          Math.abs(mapBtn.top - moreBtn.top) <= 4,
+        moreVisibleInHud: Boolean(moreBtn) && moreBtn.right <= topActions.right + 1 && moreBtn.right <= hud.right + 1,
+        relicsFullWidthRow3:
+          relicScrollRect.top >= deckBtn.bottom - 1 && relicScrollRect.width >= hud.width - 28,
         newRunInTopActions: Boolean(topActionsEl.querySelector('#btn-new-run')),
-        newRunSameRowAsDeckMap:
-          Boolean(newRunBtn) &&
-          Math.abs(newRunBtn.top - deckBtn.top) <= 2 &&
-          Math.abs(newRunBtn.top - mapBtn.top) <= 2,
-        newRunVisibleWithoutScroll: Boolean(newRunBtn) && newRunBtn.right <= topActions.right + 1 && newRunBtn.right <= hud.right + 1,
+        menuClosedInitially,
+        menuOpen,
+        newRunVisibleInMenu,
         restartInCombatDock: Boolean(document.querySelector('.combat-dock #btn-restart-combat')),
         restartNotInHud: !document.querySelector('.top-hud #btn-restart-combat'),
         restartLeftAlignedDock: Boolean(restartBtn) && Math.abs(restartBtn.left - dock.left) <= 2,
@@ -3901,13 +3919,17 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
       };
     })()`);
     assert.ok(combat390.docScrollWidth <= combat390.innerWidth, `390px combat overflowed: ${combat390.docScrollWidth} > ${combat390.innerWidth}`);
-    assert.ok(combat390.hudHeight <= 170, `390px HUD too tall: ${combat390.hudHeight}px`);
+    assert.ok(combat390.hudHeight <= 125, `390px 3-row HUD should stay ultra-compact (<=125px), got ${combat390.hudHeight}px`);
     assert.equal(combat390.potionCount, 3);
-    assert.equal(combat390.potionStripOnlyPotions, true, 'Potion row must contain only potion slots');
-    assert.equal(combat390.allPotionsFitStrip, true, 'All 3 potion slots must fit inside potion strip at 390px');
-    assert.equal(combat390.newRunInTopActions, true, 'New run button must sit in .top-actions');
-    assert.equal(combat390.newRunSameRowAsDeckMap, true, 'New run button must share the Deck/Map row');
-    assert.equal(combat390.newRunVisibleWithoutScroll, true, 'New run button must stay visible inside top-actions at 390px');
+    assert.equal(combat390.potionStripOnlyPotions, true, 'Potion strip must contain only potion slots');
+    assert.equal(combat390.allPotionsFitStrip, true, 'All 3 icon potion slots must fit inside potion strip at 390px');
+    assert.equal(combat390.row2Aligned, true, 'HP/Gold, Potions, Deck, Map, and More button must align cleanly on Row 2');
+    assert.equal(combat390.moreVisibleInHud, true, 'More menu trigger must fit cleanly inside 390px HUD');
+    assert.equal(combat390.relicsFullWidthRow3, true, 'Relic strip must occupy full-width dedicated Row 3 below Row 2');
+    assert.equal(combat390.newRunInTopActions, true, 'New run button must remain inside .top-actions');
+    assert.equal(combat390.menuClosedInitially, true, 'Mobile More menu starts collapsed');
+    assert.equal(combat390.menuOpen, true, 'Tapping ☰ opens mobile More menu');
+    assert.equal(combat390.newRunVisibleInMenu, true, 'New run button must be visible inside open More menu at 390px');
     assert.equal(combat390.restartInCombatDock, true, 'Restart combat button must live inside .combat-dock');
     assert.equal(combat390.restartNotInHud, true, 'Restart combat button must not be inside .top-hud');
     assert.equal(combat390.restartLeftAlignedDock, true, 'Restart combat button must align to far left of combat dock');
@@ -4048,18 +4070,18 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
       const energy = document.getElementById('energy-orb').getBoundingClientRect();
       const restartBtn = document.getElementById('btn-restart-combat').getBoundingClientRect();
       const deckBtn = document.getElementById('btn-open-deck').getBoundingClientRect();
-      const newRunBtn = document.getElementById('btn-new-run').getBoundingClientRect();
+      const moreBtn = document.getElementById('btn-hud-more').getBoundingClientRect();
       return {
         endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
         pilesRightAligned: Math.abs(dock.right - exhaust.right) <= 2 && draw.right <= discard.left && discard.right <= exhaust.left,
         restartAboveEnergy: restartBtn.bottom <= energy.top + 1 && Math.abs(restartBtn.left - dock.left) <= 2,
-        newRunSameRowAsDeck: Math.abs(newRunBtn.top - deckBtn.top) <= 2,
+        moreSameRowAsDeck: Math.abs(moreBtn.top - deckBtn.top) <= 2 && moreBtn.width > 0,
       };
     })()`);
     assert.equal(combat640.endTurnRightAligned, true, '640px End Turn button must align to right edge');
     assert.equal(combat640.pilesRightAligned, true, '640px Draw/Discard/Exhaust pile buttons must align to right edge');
     assert.equal(combat640.restartAboveEnergy, true, '640px Restart Combat button must sit far-left above Energy');
-    assert.equal(combat640.newRunSameRowAsDeck, true, '640px New Run button must share the Deck/Map row');
+    assert.equal(combat640.moreSameRowAsDeck, true, '640px More menu button must share the Deck/Map row');
 
     // 4. Post-combat Reward screen ("继续前进 →") aligned right at both 640px and 390px
     await cdp.evaluate(`(() => {
@@ -5249,9 +5271,13 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
       trigger.click();
 
       const hasRegrowingEl = Boolean(document.querySelector('#enemy-unit-dk_0.regrowing'));
-      const newRunRect = document.getElementById('btn-new-run').getBoundingClientRect();
+      const moreRect = document.getElementById('btn-hud-more').getBoundingClientRect();
       const topActionsRect = document.querySelector('.top-actions').getBoundingClientRect();
-      const newRunFits = newRunRect.right <= topActionsRect.right + 1;
+      const moreFits = moreRect.width > 0 && moreRect.right <= topActionsRect.right + 1;
+      document.getElementById('btn-hud-more').click();
+      const newRunRect = document.getElementById('btn-new-run').getBoundingClientRect();
+      const newRunFits = newRunRect.width > 0 && newRunRect.right <= window.innerWidth + 1;
+      document.getElementById('btn-hud-more').click();
 
       // SW update banner test
       window.__SPIRE_SHOW_SW_UPDATE__({ postMessage: () => {} });
@@ -5273,6 +5299,7 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
         intentTipTag,
         wmHpUnchanged: wmHpBefore === wmHpAfter,
         hasRegrowingEl,
+        moreFits,
         newRunFits,
         swBannerOpen,
         swBannerText,
@@ -5291,7 +5318,8 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
     assert.equal(mobileV2Audit.intentTipTag, '行动预判');
     assert.equal(mobileV2Audit.wmHpUnchanged, true, 'Tapping next-intent trigger must never attack enemy');
     assert.equal(mobileV2Audit.hasRegrowingEl, true, 'Downed Darkling renders .regrowing state');
-    assert.equal(mobileV2Audit.newRunFits, true, 'All 7 emoji nav buttons fit inside 390px .top-actions');
+    assert.equal(mobileV2Audit.moreFits, true, 'Mobile ☰ More button fits inside 390px .top-actions');
+    assert.equal(mobileV2Audit.newRunFits, true, 'Mobile More drawer displays New Run cleanly within 390px viewport');
     assert.equal(mobileV2Audit.swBannerOpen, true);
     assert.ok(mobileV2Audit.swBannerText.includes('发现新版本'));
     assert.equal(mobileV2Audit.swBannerClosed, true);
@@ -5883,6 +5911,136 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.ok(hudVitalsAudit.hpAria.includes('生命'), 'HUD HP chip keeps accessible aria-label');
     assert.ok(hudVitalsAudit.goldAria.includes('金币'), 'HUD Gold chip keeps accessible aria-label');
     assert.equal(hudVitalsAudit.tipTitle, '当前生命值', 'Tapping HUD HP chip opens explanatory tooltip');
+
+    // === 7. Mobile Option A+C HUD: SVG potion icons, Potion Action Popover, More Menu Drawer, Full-Width Relics & 360px Fit ===
+    const hudAcAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.potions = ['fire_potion', 'block_potion', null];
+      st.player.relics = [
+        'burning_blood', 'vajra', 'anchor', 'lantern', 'akabeko',
+        'paper_phrog', 'pen_nib', 'happy_flower', 'nunchaku', 'girya',
+      ];
+      if (st.combat?.enemies?.[0]) {
+        st.combat.enemies[0].hp = 60;
+        st.combat.enemies[0].maxHp = 60;
+        st.combat.enemies[0].block = 0;
+      }
+      app.render();
+
+      const hudRect = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
+      const pot0 = document.getElementById('potion-slot-0');
+      const pot0Rect = pot0.getBoundingClientRect();
+      const pot0Svg = pot0.querySelector('svg[data-potion-icon="fire_potion"]');
+      const pot2Svg = document.getElementById('potion-slot-2')?.querySelector('svg[data-potion-icon="empty"]');
+      const potLabelHidden = getComputedStyle(pot0.querySelector('.potion-name-label')).display === 'none';
+      const visibleRelics = [...document.querySelectorAll('.top-hud .relic-badge')]
+        .filter((el) => el.getBoundingClientRect().right <= hudRect.right + 1).length;
+
+      // 7a. Tapping filled potion icon on 390px opens Potion Popover without consuming it immediately
+      pot0.click();
+      const popoverEl = document.getElementById('hud-potion-popover');
+      const popoverTitle = popoverEl?.querySelector('.hud-potion-popover-title')?.textContent?.trim() || '';
+      const stillOwnedAfterFirstTap = st.player.potions[0] === 'fire_potion';
+      const drinkBtn = document.getElementById('btn-popover-drink-potion');
+      const discardBtn = document.getElementById('btn-popover-discard-potion');
+
+      // Confirm drink from popover
+      const enemyHpBefore = st.combat.enemies[0].hp;
+      drinkBtn.click();
+      const enemyHpAfter = st.combat.enemies[0].hp;
+      const consumedAfterDrink = st.player.potions[0] === null;
+      const popoverClosedAfterDrink = !document.getElementById('hud-potion-popover');
+
+      // 7b. Discard slot 1 from popover outside combat (disabled button -> tap anchor)
+      const prevScreen = st.screen;
+      st.screen = 'shop';
+      app.render();
+      const slot1Anchor = document.querySelector('.potion-tooltip-anchor[data-filled-potion-slot="1"]');
+      slot1Anchor.click();
+      const shopPopoverOpen = Boolean(document.getElementById('hud-potion-popover'));
+      const shopDrinkDisabled = Boolean(document.getElementById('btn-popover-drink-potion')?.disabled);
+      document.getElementById('btn-popover-discard-potion').click();
+      const slot1Discarded = st.player.potions[1] === null;
+      st.screen = prevScreen;
+      app.render();
+
+      // 7c. More menu opens with all 5 unbroken Chinese labels and closes on outside tap
+      document.getElementById('btn-hud-more').click();
+      const menuOpen = document.getElementById('hud-more-menu')?.classList.contains('open');
+      const menuLabels = [...document.querySelectorAll('#hud-more-menu button')].map((b) =>
+        b.textContent.replace(/\s+/g, ' ').trim()
+      );
+      document.querySelector('.combat-header-bar, .stage-viewport')?.click();
+      const menuClosedAfterOutsideTap = !document.getElementById('hud-more-menu')?.classList.contains('open');
+
+      return {
+        hudHeight: Math.round(hudRect.height),
+        pot0Width: Math.round(pot0Rect.width),
+        pot0Height: Math.round(pot0Rect.height),
+        hasFireSvg: Boolean(pot0Svg),
+        hasEmptySvg: Boolean(pot2Svg),
+        potLabelHidden,
+        visibleRelics,
+        popoverOpen: Boolean(popoverEl),
+        popoverTitle,
+        stillOwnedAfterFirstTap,
+        hasDrinkAndDiscard: Boolean(drinkBtn && discardBtn),
+        enemyTookFireDamage: enemyHpAfter < enemyHpBefore,
+        consumedAfterDrink,
+        popoverClosedAfterDrink,
+        shopPopoverOpen,
+        shopDrinkDisabled,
+        slot1Discarded,
+        menuOpen,
+        menuLabels,
+        menuClosedAfterOutsideTap,
+      };
+    })()`);
+
+    assert.ok(hudAcAudit.hudHeight <= 125, `Option A+C mobile HUD must be <= 125px tall, got ${hudAcAudit.hudHeight}px`);
+    assert.ok(hudAcAudit.pot0Width <= 32 && hudAcAudit.pot0Height <= 32, `Mobile potion icon must be compact <=32px, got ${hudAcAudit.pot0Width}x${hudAcAudit.pot0Height}`);
+    assert.equal(hudAcAudit.hasFireSvg, true, 'Fire potion renders dedicated SVG bottle');
+    assert.equal(hudAcAudit.hasEmptySvg, true, 'Empty potion slot renders empty glass flask SVG');
+    assert.equal(hudAcAudit.potLabelHidden, true, 'Mobile potion icon hides long name label');
+    assert.ok(hudAcAudit.visibleRelics >= 9, `Dedicated Row 3 relic bar should display >= 9 relics on 390px, got ${hudAcAudit.visibleRelics}`);
+    assert.equal(hudAcAudit.popoverOpen, true, 'Tapping mobile potion icon opens Potion Action Popover');
+    assert.equal(hudAcAudit.popoverTitle, '火焰药水');
+    assert.equal(hudAcAudit.stillOwnedAfterFirstTap, true, 'Opening mobile potion popover must not accidentally consume potion');
+    assert.equal(hudAcAudit.hasDrinkAndDiscard, true, 'Potion popover renders Drink and Discard actions');
+    assert.equal(hudAcAudit.enemyTookFireDamage, true, 'Confirming Drink from popover damages enemy');
+    assert.equal(hudAcAudit.consumedAfterDrink, true, 'Potion slot clears after confirming Drink');
+    assert.equal(hudAcAudit.popoverClosedAfterDrink, true, 'Popover closes automatically after Drink');
+    assert.equal(hudAcAudit.shopPopoverOpen, true, 'Tapping filled potion icon outside combat opens Potion Popover');
+    assert.equal(hudAcAudit.shopDrinkDisabled, true, 'Drink button inside popover is disabled outside combat');
+    assert.equal(hudAcAudit.slot1Discarded, true, 'Discard button inside popover discards potion cleanly');
+    assert.equal(hudAcAudit.menuOpen, true, 'Tapping ☰ opens More menu drawer');
+    assert.equal(hudAcAudit.menuLabels.length, 5, 'More menu holds all 5 secondary navigation items');
+    assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('新的一局')), `Expected unbroken '新的一局' label, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
+    assert.equal(hudAcAudit.menuClosedAfterOutsideTap, true, 'Tapping outside dismisses More menu drawer');
+
+    // 7d. 360px small-phone viewport zero overflow & full Row 2 fit
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360,
+      height: 760,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const hud360Audit = await cdp.evaluate(`(() => {
+      window.__SPIRE_APP__.render();
+      const hud = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
+      const pot2 = document.getElementById('potion-slot-2').getBoundingClientRect();
+      const deck = document.getElementById('btn-open-deck').getBoundingClientRect();
+      const more = document.getElementById('btn-hud-more').getBoundingClientRect();
+      return {
+        overflow: document.documentElement.scrollWidth > window.innerWidth,
+        pot2Fits: pot2.right <= deck.left + 1,
+        moreFits: more.right <= hud.right + 1,
+      };
+    })()`);
+    assert.equal(hud360Audit.overflow, false, '360px small phone HUD must never overflow horizontally');
+    assert.equal(hud360Audit.pot2Fits, true, 'All 3 potion icons fit left of Deck button on 360px phone');
+    assert.equal(hud360Audit.moreFits, true, '☰ More trigger fits inside 360px HUD');
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
