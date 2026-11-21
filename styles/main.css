@@ -2092,17 +2092,64 @@ body.spire-modal-open {
 
 .neow-outcome-banner {
   margin-bottom: 12px;
-  padding: 9px 13px;
+  padding: 10px 14px;
   border-radius: var(--radius-md);
-  background: linear-gradient(180deg, hsla(148, 28%, 16%, 0.88), hsla(24, 16%, 11%, 0.94));
-  border: 1px solid hsla(148, 50%, 46%, 0.58);
-  font-size: 0.83rem;
+  background: linear-gradient(180deg, hsla(152, 30%, 17%, 0.92), hsla(24, 18%, 11%, 0.96));
+  border: 1px solid hsla(148, 56%, 48%, 0.68);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42), 0 0 16px hsla(148, 58%, 46%, 0.16);
+  font-size: 0.84rem;
   color: var(--text-ivory);
-  line-height: 1.45;
+  line-height: 1.5;
+  scroll-margin-bottom: 18px;
+}
+
+.neow-outcome-banner.neow-outcome-bottom {
+  margin-top: 14px;
+  margin-bottom: 4px;
+  animation: neowOutcomePop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.neow-outcome-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 4px;
+}
+
+.neow-outcome-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .neow-outcome-banner strong {
   color: var(--jade-upgrade);
+  font-size: 0.88rem;
+}
+
+.neow-outcome-next-hint {
+  font-size: 0.74rem;
+  color: hsl(42, 82%, 74%);
+  font-weight: 600;
+}
+
+.neow-outcome-text {
+  color: var(--text-ivory);
+}
+
+@keyframes neowOutcomePop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    box-shadow: 0 0 0 2px hsla(148, 72%, 56%, 0.65), 0 10px 26px rgba(0, 0, 0, 0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42), 0 0 16px hsla(148, 58%, 46%, 0.16);
+  }
 }
 
 .challenge-current-save-note {

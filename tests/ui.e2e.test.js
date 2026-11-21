@@ -1561,14 +1561,45 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     assert.equal(mobileMapAudit.tipShownOnFirstTap, true);
     assert.equal(mobileMapAudit.tipHiddenOnSecondTap, true);
 
-    // 2. Mobile 390x844 Combat audit: resolve Floor 0 Neow blessing on mobile, zero horizontal page overflow, left-player / right-enemies across 1v1, 1v2, 1v3, scrollable hand tray, tap-to-inspect next-turn intent
-    const mobileCombatAudit = await cdp.evaluate(`(() => {
+    // 2. Mobile 390x844 Combat audit: resolve Floor 0 Neow blessing on mobile -> verify outcome banner + F1 are BOTH immediately visible in viewport without manual scrolling -> enter combat
+    const mobileNeowOutcomeAudit = await cdp.evaluate(`(() => {
       if (document.getElementById('neow-blessing-panel')) {
         document.getElementById('neow-choice-0').click();
         if (document.getElementById('neow-action-modal')) {
           document.querySelector('#neow-action-modal [data-action="complete-neow-action"]').click();
         }
       }
+      const bannerEl = document.getElementById('neow-outcome-banner');
+      const f1El = document.querySelector('.map-node-btn.available');
+      const bannerRect = bannerEl ? bannerEl.getBoundingClientRect() : null;
+      const f1Rect = f1El ? f1El.getBoundingClientRect() : null;
+      const hudHeight = document.querySelector('.top-hud')?.getBoundingClientRect()?.bottom || 0;
+      return {
+        hasBanner: Boolean(bannerEl),
+        bannerInViewport: Boolean(
+          bannerRect && bannerRect.top >= hudHeight - 2 && bannerRect.bottom <= window.innerHeight + 4
+        ),
+        f1InViewport: Boolean(
+          f1Rect && f1Rect.top >= hudHeight - 2 && f1Rect.bottom <= window.innerHeight + 4
+        ),
+        bannerBelowF1: Boolean(bannerRect && f1Rect && bannerRect.top >= f1Rect.bottom - 2),
+      };
+    })()`);
+    assert.equal(mobileNeowOutcomeAudit.hasBanner, true, 'Neow outcome banner must render after choosing blessing');
+    assert.equal(mobileNeowOutcomeAudit.bannerInViewport, true, 'Neow outcome banner must stay visible inside 390x844 mobile viewport without manual scrolling');
+    assert.equal(mobileNeowOutcomeAudit.f1InViewport, true, 'F1 starting node must also be visible inside 390x844 mobile viewport');
+    assert.equal(mobileNeowOutcomeAudit.bannerBelowF1, true, 'Neow outcome banner must sit directly below F1 starting nodes');
+
+    if (process.env.SCRATCH_SCREENSHOT_DIR) {
+      fs.mkdirSync(process.env.SCRATCH_SCREENSHOT_DIR, { recursive: true });
+      const shotNeowMob = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(
+        path.join(process.env.SCRATCH_SCREENSHOT_DIR, 'mobile_neow_outcome.png'),
+        Buffer.from(shotNeowMob.data, 'base64')
+      );
+    }
+
+    const mobileCombatAudit = await cdp.evaluate(`(() => {
       document.querySelector('.map-node-btn.available').click();
       const docScrollWidth = document.documentElement.scrollWidth;
       const innerWidth = window.innerWidth;
@@ -1829,16 +1860,24 @@ test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seed
 
       // Now choose Boss Swap (#neow-choice-3)
       document.getElementById('neow-choice-3').click();
-      const outcomeBanner = document.getElementById('neow-outcome-banner')?.textContent?.trim() || '';
-      const f1Unlocked = document.getElementById('map-node-f1_c0')?.getAttribute('aria-disabled') === 'false';
+      const bannerEl = document.getElementById('neow-outcome-banner');
+      const f1El = document.getElementById('map-node-f1_c0');
+      const outcomeBanner = bannerEl?.textContent?.trim() || '';
+      const f1Unlocked = f1El?.getAttribute('aria-disabled') === 'false';
+      const bannerRect = bannerEl ? bannerEl.getBoundingClientRect() : null;
+      const f1Rect = f1El ? f1El.getBoundingClientRect() : null;
+      const bannerInViewport = Boolean(bannerRect && bannerRect.top >= 0 && bannerRect.bottom <= window.innerHeight + 4);
+      const f1InViewport = Boolean(f1Rect && f1Rect.top >= 0 && f1Rect.bottom <= window.innerHeight + 4);
       const relics = [...app.getState().player.relics];
-      return { modalOpened, modalClosedAfterEsc, stillPendingAfterEsc, outcomeBanner, f1Unlocked, relics };
+      return { modalOpened, modalClosedAfterEsc, stillPendingAfterEsc, outcomeBanner, f1Unlocked, bannerInViewport, f1InViewport, relics };
     })()`);
     assert.equal(neowFlowAudit.modalOpened, true);
     assert.equal(neowFlowAudit.modalClosedAfterEsc, true);
     assert.equal(neowFlowAudit.stillPendingAfterEsc, true);
     assert.ok(neowFlowAudit.outcomeBanner.includes('涅奥换核成功'));
     assert.equal(neowFlowAudit.f1Unlocked, true);
+    assert.equal(neowFlowAudit.bannerInViewport, true, 'Desktop Neow outcome banner must be immediately visible in viewport after Boss Swap');
+    assert.equal(neowFlowAudit.f1InViewport, true, 'Desktop F1 node must remain immediately visible above Neow outcome banner');
     assert.equal(neowFlowAudit.relics.includes('burning_blood'), false);
     assert.equal(neowFlowAudit.relics.includes('black_blood'), false);
     assert.equal(neowFlowAudit.relics.length, 1);

@@ -3190,7 +3190,8 @@ export function chooseNeowOption(state, optionId) {
       neow.resolved = true;
       neow.chosenId = option.id;
       neow.pendingAction = null;
-      neow.outcomeText = `涅奥赐福生效：承受诅咒【${getCardStats(curseCard).name}】，换得 250 金币！`;
+      const curseStats = getCardStats(curseCard);
+      neow.outcomeText = `涅奥赐福生效：承受诅咒【${curseStats.name}】（${curseStats.description}），换得 250 金币！`;
       return { ok: true, resolved: true, outcomeText: neow.outcomeText };
     }
 
@@ -3416,7 +3417,8 @@ export function completeNeowAction(state, instanceId) {
     neow.resolved = true;
     neow.chosenId = action.optionId;
     neow.pendingAction = null;
-    neow.outcomeText = `涅奥赐福生效：【${oldName}】变化为全新卡牌【${getCardStats(created).name}】！`;
+    const createdStats = getCardStats(created);
+    neow.outcomeText = `涅奥赐福生效：【${oldName}】变化为全新卡牌【${createdStats.name}】（${createdStats.description}）！`;
     return { ok: true, resolved: true, card: created, outcomeText: neow.outcomeText };
   }
 

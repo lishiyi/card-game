@@ -691,11 +691,17 @@ export function mountSpireApp(rootEl) {
             window.scrollTo(0, 0);
           }
         } else {
+          const outcomeEl = !state.currentNodeId
+            ? rootEl.querySelector('#neow-outcome-banner')
+            : null;
           const focusEl = state.currentNodeId
             ? rootEl.querySelector(`#map-node-${CSS.escape(state.currentNodeId)}`)
-            : rootEl.querySelector('.map-node-btn.available');
+            : outcomeEl || rootEl.querySelector('.map-node-btn.available');
           if (focusEl && typeof focusEl.scrollIntoView === 'function') {
-            focusEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+            focusEl.scrollIntoView({
+              block: outcomeEl && focusEl === outcomeEl ? 'end' : 'center',
+              behavior: 'auto',
+            });
           }
         }
       }

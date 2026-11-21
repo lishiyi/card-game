@@ -241,7 +241,8 @@ export function renderMapScreen({ state, settings, ui }) {
   const showNewbieBanner =
     !state.currentNodeId && (state.act ?? 1) === 1 && !settings?.tutorialDismissed;
 
-  let neowSectionHtml = '';
+  let neowPanelHtml = '';
+  let neowOutcomeHtml = '';
   if (pendingNeow && state.neowState) {
     const neow = state.neowState;
     const pendingAct = neow.pendingAction;
@@ -265,7 +266,7 @@ export function renderMapScreen({ state, settings, ui }) {
       })
       .join('');
 
-    neowSectionHtml = `
+    neowPanelHtml = `
       <div class="neow-panel" id="neow-blessing-panel" aria-label="第 0 层鲸鱼赐福">
         <div class="neow-panel-header">
           <div class="neow-crest" aria-hidden="true">
@@ -296,9 +297,13 @@ export function renderMapScreen({ state, settings, ui }) {
     state.neowState?.resolved &&
     state.neowState.outcomeText
   ) {
-    neowSectionHtml = `
-      <div class="neow-outcome-banner" id="neow-outcome-banner">
-        <strong>鲸鱼赐福已生效：</strong>${escapeHtml(state.neowState.outcomeText)}
+    neowOutcomeHtml = `
+      <div class="neow-outcome-banner neow-outcome-bottom" id="neow-outcome-banner" role="status" aria-live="polite">
+        <div class="neow-outcome-head">
+          <span class="neow-outcome-title"><span aria-hidden="true">🐋</span> <strong>鲸鱼赐福已生效</strong></span>
+          <span class="neow-outcome-next-hint">↑ 点击上方 F1 发光节点出发</span>
+        </div>
+        <div class="neow-outcome-text">${escapeHtml(state.neowState.outcomeText)}</div>
       </div>
     `;
   }
@@ -354,7 +359,7 @@ export function renderMapScreen({ state, settings, ui }) {
           : ''
       }
 
-      ${neowSectionHtml}
+      ${neowPanelHtml}
 
       ${
         showNewbieBanner
@@ -382,6 +387,8 @@ export function renderMapScreen({ state, settings, ui }) {
       </div>
 
       ${renderMapBoardHtml(state, { interactive: true, idPrefix: 'map-node' })}
+
+      ${neowOutcomeHtml}
     </section>
   `;
 }
