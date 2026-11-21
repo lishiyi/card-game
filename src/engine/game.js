@@ -128,7 +128,7 @@ export function createNewRun(options = {}) {
   const characterId = normalizeCharacterId(dailySpec ? dailySpec.characterId : options.characterId);
   const charDef = getCharacterDef(characterId);
   const ascension = dailySpec
-    ? 0
+    ? Math.max(0, Math.min(MAX_ASCENSION, Math.floor(dailySpec.ascension ?? 0)))
     : Math.max(0, Math.min(MAX_ASCENSION, Math.floor(options.ascension ?? 0)));
   const unlockedTier = dailySpec ? 3 : options.unlockedTier ?? 3;
   const unlockAllOverride = dailySpec ? true : Boolean(options.unlockAllOverride);
@@ -158,6 +158,8 @@ export function createNewRun(options = {}) {
           dateKey: dailySpec.dateKey,
           seedCode: dailySpec.seedCode,
           characterId: dailySpec.characterId,
+          ascension: dailySpec.ascension,
+          noNeow: true,
           modifierIds: [...dailySpec.modifierIds],
         }
       : null,
@@ -233,7 +235,7 @@ export function createNewRun(options = {}) {
 
   state.map = generateSpireMap(state);
   state.bossEncounterId = pickRandom(state, ENCOUNTERS.boss).id;
-  state.neowState = options.skipNeow ? null : generateNeowState(state);
+  state.neowState = options.skipNeow || dailySpec ? null : generateNeowState(state);
 
   if (state.dailyChallenge) {
     applyDailyStartModifiers(state);

@@ -309,7 +309,7 @@ export function renderMapScreen({ state, settings, ui }) {
   const dailyActiveBarHtml =
     dailyMods.length > 0
       ? `<div class="daily-active-strip" id="map-daily-modifiers" aria-label="每日挑战生效词条">
-          <span class="daily-active-label">每日挑战 ${escapeHtml(state.dailyChallenge.dateKey)} 生效词条：</span>
+          <span class="daily-active-label">每日挑战 ${escapeHtml(state.dailyChallenge.dateKey)}（进阶 ${escapeHtml(state.ascension ?? 0)} · 无鲸鱼赐福）：</span>
           <div class="daily-mod-row">
             ${dailyMods
               .map(
@@ -360,7 +360,11 @@ export function renderMapScreen({ state, settings, ui }) {
         showNewbieBanner
           ? `<div class="newbie-guide-banner" id="newbie-guide-banner">
               <div class="newbie-guide-text">
-                <strong>初入尖塔提示：</strong>先完成上方 <strong>第 0 层鲸鱼赐福</strong>，再从最底部 <strong>F1</strong> 任选发光节点出发！随时点击顶部【词典/引导】查阅力量、易伤、消耗、混乱等词条。
+                <strong>初入尖塔提示：</strong>${
+                  pendingNeow
+                    ? '先完成上方 <strong>第 0 层鲸鱼赐福</strong>，再从最底部 <strong>F1</strong> 任选发光节点出发！'
+                    : '直接从最底部 <strong>F1</strong> 任选发光节点出发！'
+                }随时点击顶部【词典/引导】查阅力量、易伤、消耗、混乱等词条。
               </div>
               <div class="newbie-guide-actions">
                 <button type="button" id="btn-open-tutorial" class="btn-brass btn-compact" data-action="open-help-tab" data-help-tab="tutorial">三步新手引导</button>

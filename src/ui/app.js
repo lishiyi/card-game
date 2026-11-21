@@ -172,7 +172,7 @@ function readIncomingChallengeFromLocation() {
       return {
         seed: spec.seed,
         seedCode: spec.seedCode,
-        ascension: 0,
+        ascension: spec.ascension,
         characterId: spec.characterId,
         isDaily: true,
         dailyDateKey: spec.dateKey,
@@ -237,7 +237,7 @@ export function mountSpireApp(rootEl) {
       const spec = getDailyChallengeSpec(incomingChallenge.dailyDateKey);
       state = createNewRun(buildNewRunOptions({ dailyDateKey: spec.dateKey }));
       const modNames = spec.modifiers.map((m) => m.name).join(' · ');
-      initialNotice = `已通过直连进入每日挑战【${spec.dateKey} · ${spec.characterName}】（词条：${modNames}）！`;
+      initialNotice = `已通过直连进入每日挑战【${spec.dateKey} · ${spec.characterName} · 进阶 ${spec.ascension}】（无鲸鱼赐福 · 词条：${modNames}）！`;
     } else {
       const chChar = normalizeCharacterId(incomingChallenge.characterId);
       const chCharDef = getCharacterDef(chChar);
@@ -816,7 +816,7 @@ export function mountSpireApp(rootEl) {
     });
     const modNames = spec.modifiers.map((m) => m.name).join(' · ');
     soundEngine.play('upgrade');
-    setNotice(`已开启每日挑战【${spec.dateKey} · ${spec.characterName}】（词条：${modNames}）！`);
+    setNotice(`已开启每日挑战【${spec.dateKey} · ${spec.characterName} · 进阶 ${spec.ascension}】（无鲸鱼赐福 · 词条：${modNames}）！`);
     render();
   }
 

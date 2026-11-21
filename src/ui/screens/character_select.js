@@ -208,6 +208,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
 
   const ascDef = ASCENSION_DEFS[selectedAsc] || ASCENSION_DEFS[0];
   const dailySpec = getDailyChallengeSpec();
+  const dailyAscDef = ASCENSION_DEFS[dailySpec.ascension] || ASCENSION_DEFS[0];
   const dailyBest = meta.dailyRecords?.[dailySpec.dateKey] || null;
   const dailyModsHtml = dailySpec.modifiers
     .map(
@@ -229,7 +230,7 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
       <div class="stage-header character-select-header">
         <div>
           <h2 id="char-select-heading" class="stage-heading">选择你的尖塔攀登者</h2>
-          <p class="stage-subtitle">每位角色拥有专属牌库、初始遗物、专属药水与截然不同的核心流派。选定角色后即可进入第 0 层鲸鱼赐福。</p>
+          <p class="stage-subtitle">每位角色拥有专属牌库、初始遗物、专属药水与截然不同的核心流派。常规模式开局进入第 0 层鲸鱼赐福，每日挑战则由随机进阶（A0–A6）与当日词条统一开局。</p>
         </div>
       </div>
 
@@ -240,11 +241,20 @@ export function renderCharacterSelectScreen({ meta, ui, hasActiveRun }) {
           <div class="daily-banner-top">
             <span class="daily-pill">每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
             <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
+            <span
+              class="ascension-pill"
+              id="daily-banner-ascension-pill"
+              tabindex="0"
+              data-tooltip-title="${escapeHtml(dailyAscDef.name)}"
+              data-tooltip-tag="今日随机进阶（A0–A6）· 无鲸鱼赐福"
+              data-tooltip-desc="${escapeHtml(`${dailyAscDef.description}（每日挑战不提供初始鲸鱼赐福，全网同日同进阶同起点。）`)}"
+              data-tooltip-tone="${dailySpec.ascension > 0 ? 'debuff' : 'buff'}"
+            >进阶 ${escapeHtml(dailySpec.ascension)}</span>
             <code class="seed-code-tag">${escapeHtml(dailySpec.seedCode)}</code>
             ${
               dailyBest
                 ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)}) · 已战 ${escapeHtml(dailyBest.attempts)} 次</span>`
-                : `<span class="daily-best-pill fresh">全网同图同词条 · 结算评分与分享</span>`
+                : `<span class="daily-best-pill fresh">无鲸鱼赐福 · 全网同图同进阶冲分</span>`
             }
           </div>
           <div class="daily-mod-row">${dailyModsHtml}</div>

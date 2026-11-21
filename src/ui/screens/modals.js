@@ -278,10 +278,18 @@ function renderMetaModal({ state, meta, ui }) {
                 <div class="daily-banner-top">
                   <span class="daily-pill">今日每日挑战 · ${escapeHtml(dailySpec.dateKey)}</span>
                   <span class="character-hud-pill char-${escapeHtml(dailySpec.characterId)}">${escapeHtml(dailySpec.characterName)}</span>
+                  <span
+                    class="ascension-pill"
+                    tabindex="0"
+                    data-tooltip-title="${escapeHtml((ASCENSION_DEFS[dailySpec.ascension] || ASCENSION_DEFS[0]).name)}"
+                    data-tooltip-tag="今日随机进阶（A0–A6）· 无鲸鱼赐福"
+                    data-tooltip-desc="${escapeHtml(`${(ASCENSION_DEFS[dailySpec.ascension] || ASCENSION_DEFS[0]).description}（每日挑战不提供初始鲸鱼赐福。）`)}"
+                    data-tooltip-tone="${dailySpec.ascension > 0 ? 'debuff' : 'buff'}"
+                  >进阶 ${escapeHtml(dailySpec.ascension)}</span>
                   ${
                     dailyBest
                       ? `<span class="daily-best-pill">今日最高 ${escapeHtml(dailyBest.bestScore.toLocaleString())} 分 (${escapeHtml(dailyBest.bestGrade)})</span>`
-                      : `<span class="daily-best-pill fresh">今日尚未挑战</span>`
+                      : `<span class="daily-best-pill fresh">无鲸鱼赐福 · 今日尚未挑战</span>`
                   }
                 </div>
                 <div class="daily-mod-row">${dailyModsHtml}</div>
@@ -920,7 +928,7 @@ export function renderModal({ state, meta, settings, ui }) {
       const spec = getDailyChallengeSpec(req.dailyDateKey);
       headingText = `收到每日挑战邀请（${spec.dateKey}）！`;
       const modText = spec.modifiers.map((m) => `【${m.name}】`).join('、');
-      descHtml = `挑战角色：<strong>${escapeHtml(spec.characterName)}</strong> · 日期种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(spec.seedCode)}</strong> · 规则词条：<strong>${escapeHtml(modText)}</strong>。`;
+      descHtml = `挑战角色：<strong>${escapeHtml(spec.characterName)}</strong> · 难度：<strong>进阶 ${escapeHtml(spec.ascension)}</strong>（无鲸鱼赐福） · 日期种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(spec.seedCode)}</strong> · 规则词条：<strong>${escapeHtml(modText)}</strong>。`;
     } else {
       const ascLabel = `进阶 ${req.ascension ?? 0}`;
       const reqCharDef = getCharacterDef(req.characterId);

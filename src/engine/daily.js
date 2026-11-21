@@ -5,7 +5,10 @@
  */
 
 import { CHARACTER_IDS, getCharacterDef } from '../data/characters.js';
-import { formatSeedCode, parseSeedInput, pickRandom } from './rng.js';
+import { formatSeedCode, parseSeedInput, pickRandom, randomInt } from './rng.js';
+
+export const DAILY_MIN_ASCENSION = 0;
+export const DAILY_MAX_ASCENSION = 6;
 
 function deepFreeze(obj) {
   if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
@@ -146,6 +149,7 @@ export function getDailyChallengeSpec(dateKey = getLocalDateKey()) {
   const modBuild = pickRandom(localRng, BUILD_MOD_IDS);
   const modTwist = pickRandom(localRng, TWIST_MOD_IDS);
   const modChallenge = pickRandom(localRng, CHALLENGE_MOD_IDS);
+  const ascension = randomInt(localRng, DAILY_MIN_ASCENSION, DAILY_MAX_ASCENSION);
   const modifierIds = [modBuild, modTwist, modChallenge];
   const modifiers = modifierIds.map((id) => DAILY_MODIFIERS[id]).filter(Boolean);
 
@@ -155,7 +159,8 @@ export function getDailyChallengeSpec(dateKey = getLocalDateKey()) {
     seedCode,
     characterId: charDef.id,
     characterName: charDef.name,
-    ascension: 0,
+    ascension,
+    noNeow: true,
     modifierIds,
     modifiers,
   };

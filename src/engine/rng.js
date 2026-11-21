@@ -80,7 +80,7 @@ export function parseChallengeInput(rawInput, maxAscension = 10) {
       return {
         seed,
         seedCode: formatSeedCode(seed),
-        ascension: 0,
+        ascension: null,
         characterId: null,
         isDaily: true,
         dailyDateKey: rawDaily,

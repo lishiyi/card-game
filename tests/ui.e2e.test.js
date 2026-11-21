@@ -2533,21 +2533,25 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 1. Desktop Character Select displays Daily Challenge Banner with 3 modifiers -> capture screenshot
+    // 1. Desktop Character Select displays Daily Challenge Banner with A0-A6 Ascension & 3 modifiers -> capture screenshot
     const charDailyAudit = await cdp.evaluate(`(() => {
       const banner = document.getElementById('daily-challenge-banner');
       const launchBtn = document.getElementById('btn-start-daily-challenge');
+      const ascPill = document.getElementById('daily-banner-ascension-pill');
       const modChips = [...document.querySelectorAll('#daily-challenge-banner .daily-mod-chip')];
       return {
         hasBanner: Boolean(banner),
         hasLaunchBtn: Boolean(launchBtn),
         dailyDate: launchBtn?.dataset?.dailyDate || '',
+        ascPillText: ascPill?.textContent?.trim() || '',
         modCount: modChips.length,
       };
     })()`);
     assert.equal(charDailyAudit.hasBanner, true);
     assert.equal(charDailyAudit.hasLaunchBtn, true);
     assert.match(charDailyAudit.dailyDate, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(charDailyAudit.ascPillText, /^进阶 [0-6]$/);
+    const expectedDailyAsc = Number(charDailyAudit.ascPillText.replace('进阶 ', ''));
     assert.equal(charDailyAudit.modCount, 3);
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
@@ -2559,13 +2563,19 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       );
     }
 
-    // 2. Launch Today's Daily Challenge -> verify HUD Daily pill & Map modifier bar
+    // 2. Launch Today's Daily Challenge -> verify HUD Daily pill, daily Ascension, NO Neow Blessing, & Map modifier bar
     await cdp.evaluate(`document.getElementById('btn-start-daily-challenge').click()`);
     const dailyStartAudit = await cdp.evaluate(`(() => {
       const st = window.__SPIRE_APP__.getState();
       return {
         hasHudDailyPill: Boolean(document.getElementById('hud-daily-pill')),
         hudDailyText: document.getElementById('hud-daily-pill')?.textContent?.trim() || '',
+        hasHudAscPill: Boolean(document.getElementById('hud-ascension-pill')),
+        hudAscText: document.getElementById('hud-ascension-pill')?.textContent?.trim() || '',
+        stateAscension: st.ascension,
+        hasNeowState: Boolean(st.neowState),
+        hasNeowPanel: Boolean(document.getElementById('neow-blessing-panel')),
+        mapDailyLabel: document.querySelector('#map-daily-modifiers .daily-active-label')?.textContent?.trim() || '',
         mapModCount: document.querySelectorAll('#map-daily-modifiers .daily-mod-chip').length,
         dailyDateKey: st.dailyChallenge?.dateKey || '',
         copySeedDailyAttr: document.getElementById('btn-copy-seed')?.dataset?.dailyDate || '',
@@ -2573,6 +2583,15 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       };
     })()`);
     assert.equal(dailyStartAudit.hasHudDailyPill, true);
+    assert.equal(dailyStartAudit.stateAscension, expectedDailyAsc);
+    assert.equal(dailyStartAudit.hasHudAscPill, expectedDailyAsc > 0);
+    if (expectedDailyAsc > 0) {
+      assert.equal(dailyStartAudit.hudAscText, `进阶 ${expectedDailyAsc}`);
+    }
+    assert.equal(dailyStartAudit.hasNeowState, false, 'Daily Challenge must not generate Neow Blessing');
+    assert.equal(dailyStartAudit.hasNeowPanel, false, 'Daily Challenge map must not show Neow Blessing panel');
+    assert.ok(dailyStartAudit.mapDailyLabel.includes(`进阶 ${expectedDailyAsc}`));
+    assert.ok(dailyStartAudit.mapDailyLabel.includes('无鲸鱼赐福'));
     assert.equal(dailyStartAudit.mapModCount, 3);
     assert.equal(dailyStartAudit.dailyDateKey, charDailyAudit.dailyDate);
     assert.equal(dailyStartAudit.copySeedDailyAttr, charDailyAudit.dailyDate);
@@ -2793,13 +2812,18 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
         title,
         desc,
         acceptedDateKey: st.dailyChallenge?.dateKey || '',
+        acceptedAsc: st.ascension,
+        acceptedHasNeow: Boolean(st.neowState),
         acceptedModCount: st.dailyChallenge?.modifierIds?.length ?? 0,
       };
     })()`);
     assert.equal(dailyInviteAudit.hasInvite, true);
     assert.ok(dailyInviteAudit.title.includes('2026-11-19'));
+    assert.ok(dailyInviteAudit.desc.includes('无鲸鱼赐福'));
     assert.ok(dailyInviteAudit.desc.includes('规则词条'));
     assert.equal(dailyInviteAudit.acceptedDateKey, '2026-11-19');
+    assert.ok(dailyInviteAudit.acceptedAsc >= 0 && dailyInviteAudit.acceptedAsc <= 6);
+    assert.equal(dailyInviteAudit.acceptedHasNeow, false);
     assert.equal(dailyInviteAudit.acceptedModCount, 3);
 
     // 7. Mobile 390x844 Experience Upgrade Audits (Touch Emulation ON)

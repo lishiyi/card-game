@@ -449,7 +449,7 @@ export function formatShareableBattleReport(report, shareUrl = '') {
   if (!report) return '';
   const isWin = report.outcome === 'victory';
   const modeHeader = report.dailyDateKey
-    ? `每日挑战 ${report.dailyDateKey}`
+    ? `每日挑战 ${report.dailyDateKey} · 进阶 ${report.ascension ?? 0}`
     : (report.ascension ?? 0) > 0
       ? `进阶 ${report.ascension}`
       : '标准攀登';

@@ -28,7 +28,13 @@ import {
   RELIC_LIBRARY,
 } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
-import { DAILY_MODIFIERS, getDailyChallengeSpec, isValidDailyDateKey } from '../src/engine/daily.js';
+import {
+  DAILY_MAX_ASCENSION,
+  DAILY_MIN_ASCENSION,
+  DAILY_MODIFIERS,
+  getDailyChallengeSpec,
+  isValidDailyDateKey,
+} from '../src/engine/daily.js';
 import {
   buyShopCard,
   buyShopColorlessCard,
@@ -1111,11 +1117,20 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.equal(isValidDailyDateKey('2026-02-30'), false);
   assert.equal(isValidDailyDateKey('not-a-date'), false);
 
-  // 1. Deterministic spec for same date + alternating heroes + 3 non-conflicting modifier categories
+  // 1. Deterministic spec for same date + alternating heroes + A0-A6 deterministic Ascension + noNeow + 3 non-conflicting modifier categories
+  assert.equal(DAILY_MIN_ASCENSION, 0);
+  assert.equal(DAILY_MAX_ASCENSION, 6);
   const specA = getDailyChallengeSpec('2026-11-19');
   const specB = getDailyChallengeSpec('2026-11-19');
   const specNextDay = getDailyChallengeSpec('2026-11-20');
   assert.deepEqual(specA, specB);
+  assert.equal(specA.noNeow, true);
+  assert.ok(
+    Number.isInteger(specA.ascension) &&
+      specA.ascension >= DAILY_MIN_ASCENSION &&
+      specA.ascension <= DAILY_MAX_ASCENSION,
+    `Daily Ascension must be in [${DAILY_MIN_ASCENSION}, ${DAILY_MAX_ASCENSION}], got ${specA.ascension}`
+  );
   assert.equal(specA.modifierIds.length, 3);
   assert.deepEqual(
     specA.modifiers.map((m) => m.category),
@@ -1130,55 +1145,80 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.equal(parsedDaily.isDaily, true);
   assert.equal(parsedDaily.dailyDateKey, '2026-11-19');
   assert.equal(parsedDaily.seed, specA.seed);
-  assert.equal(parsedDaily.ascension, 0);
+  assert.equal(parsedDaily.ascension, null);
   assert.equal(parsedDaily.isUrlLike, true);
   assert.equal(getDailyChallengeSpec(parsedDaily.dailyDateKey).characterId, specA.characterId);
+  assert.equal(getDailyChallengeSpec(parsedDaily.dailyDateKey).ascension, specA.ascension);
   assert.equal(parseChallengeInput('?daily=invalid-date'), null);
 
   const parsedQueryDaily = parseChallengeInput('?daily=2026-11-20');
   assert.equal(parsedQueryDaily.dailyDateKey, '2026-11-20');
   assert.equal(parsedQueryDaily.seed, specNextDay.seed);
 
-  // 3. Verify all 10 daily modifiers across deterministic dates (plus explicit modifier checks)
+  // 3. Verify all 10 daily modifiers & all A0-A6 Ascension levels across deterministic dates + no Neow Blessing
   const seenModIds = new Set();
+  const seenAscLevels = new Set();
   const sampleDateForMod = new Map();
+  const sampleDateForAsc = new Map();
   for (let day = 1; day <= 90; day += 1) {
     const dt = new Date(Date.UTC(2026, 0, day));
     const dateKey = dt.toISOString().slice(0, 10);
     const sp = getDailyChallengeSpec(dateKey);
+    assert.ok(
+      Number.isInteger(sp.ascension) && sp.ascension >= 0 && sp.ascension <= 6,
+      `Daily ${dateKey} ascension out of A0-A6 range: ${sp.ascension}`
+    );
+    seenAscLevels.add(sp.ascension);
+    if (!sampleDateForAsc.has(sp.ascension)) sampleDateForAsc.set(sp.ascension, dateKey);
     for (const mid of sp.modifierIds) {
       seenModIds.add(mid);
       if (!sampleDateForMod.has(mid)) sampleDateForMod.set(mid, dateKey);
     }
   }
   assert.equal(seenModIds.size, 10, 'All 10 daily modifiers should be reachable across calendar rotation');
+  assert.equal(seenAscLevels.size, 7, 'All 7 daily Ascension levels (A0-A6) should be reachable across calendar rotation');
+
+  // Verify Daily Challenge never generates Neow Blessing even without skipNeow, and applies its rolled Ascension (e.g. A6)
+  const dailyA6Run = createNewRun({ dailyDateKey: sampleDateForAsc.get(6) });
+  assert.equal(dailyA6Run.ascension, 6);
+  assert.equal(dailyA6Run.dailyChallenge.ascension, 6);
+  assert.equal(dailyA6Run.neowState, null, 'Daily Challenge must not generate Neow Blessing');
+  assert.equal(hasPendingNeowBlessing(dailyA6Run), false);
+  assert.equal(dailyA6Run.player.potions.length, 2, 'Daily A6 must apply 2-slot potion limit');
+  assert.ok(dailyA6Run.player.hp < dailyA6Run.player.maxHp, 'Daily A6 must apply 10% damaged start');
+  assert.ok(
+    dailyA6Run.player.deck.some((c) => c.cardId === 'clumsy'),
+    'Daily A6 must include A5 Clumsy curse'
+  );
 
   // 3a. Starting deck/relic/gold modifiers: all_star, shiny, heirloom, specialized, hoarder_gold, cursed_run
-  const allStarRun = createNewRun({ dailyDateKey: sampleDateForMod.get('all_star'), skipNeow: true });
+  const allStarRun = createNewRun({ dailyDateKey: sampleDateForMod.get('all_star') });
+  assert.equal(allStarRun.neowState, null);
   const allStarColorless = allStarRun.player.deck.filter((c) => getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless');
   assert.equal(allStarColorless.length, 2, 'all_star must add 2 colorless cards');
   assert.equal(allStarColorless.filter((c) => CARD_LIBRARY[c.cardId].rarity === 'uncommon').length, 1);
   assert.equal(allStarColorless.filter((c) => CARD_LIBRARY[c.cardId].rarity === 'rare').length, 1);
 
-  const shinyRun = createNewRun({ dailyDateKey: sampleDateForMod.get('shiny'), skipNeow: true });
+  const shinyRun = createNewRun({ dailyDateKey: sampleDateForMod.get('shiny') });
   const shinyRares = shinyRun.player.deck.filter(
     (c) => CARD_LIBRARY[c.cardId].rarity === 'rare' && getCardCharacter(CARD_LIBRARY[c.cardId]) === shinyRun.characterId
   );
   assert.equal(shinyRares.length, 2, 'shiny must add 2 class rare cards');
 
-  const heirloomRun = createNewRun({ dailyDateKey: sampleDateForMod.get('heirloom'), skipNeow: true });
+  const heirloomRun = createNewRun({ dailyDateKey: sampleDateForMod.get('heirloom') });
   assert.equal(heirloomRun.player.relics.length, 2, 'heirloom must add 1 extra relic');
   assert.equal(RELIC_LIBRARY[heirloomRun.player.relics[1]].tier, 'rare');
 
-  const specRun = createNewRun({ dailyDateKey: sampleDateForMod.get('specialized'), skipNeow: true });
+  const specRun = createNewRun({ dailyDateKey: sampleDateForMod.get('specialized') });
   assert.equal(specRun.player.deck.filter((c) => c.upgraded).length, 4, 'specialized must upgrade 4 starter cards');
 
-  const hoarderRun = createNewRun({ dailyDateKey: sampleDateForMod.get('hoarder_gold'), skipNeow: true });
+  const hoarderRun = createNewRun({ dailyDateKey: sampleDateForMod.get('hoarder_gold') });
   assert.equal(hoarderRun.player.gold, 99 + 150, 'hoarder_gold must add +150 starting gold');
-  assert.equal(getCurrentPurgeCost(hoarderRun), Math.round(75 * 1.15), 'hoarder_gold must increase purge cost by 15%');
+  const expectedHoarderPurge = Math.round(75 * (hoarderRun.ascension >= 5 ? 1.15 : 1) * 1.15);
+  assert.equal(getCurrentPurgeCost(hoarderRun), expectedHoarderPurge, 'hoarder_gold must increase purge cost by 15% (stacking with A5 if active)');
 
   // 3b. midas: +65% combat gold & blocks restUpgradeCard
-  const midasRun = createNewRun({ dailyDateKey: sampleDateForMod.get('midas'), skipNeow: true });
+  const midasRun = createNewRun({ dailyDateKey: sampleDateForMod.get('midas') });
   midasRun.screen = 'rest';
   midasRun.restState = { completed: false, lastAction: null, featherHealed: 0 };
   const midasSmith = restUpgradeCard(midasRun, midasRun.player.deck[0].instanceId);
@@ -1197,7 +1237,7 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.ok(midasGoldRun.reward.gold > Math.round(baseGoldRun.reward.gold * 1.5), 'midas must significantly boost combat gold');
 
   // 3c. big_game_hunter: >= 6 elites on map & +35 elite gold
-  const bghRun = createNewRun({ dailyDateKey: sampleDateForMod.get('big_game_hunter'), skipNeow: true });
+  const bghRun = createNewRun({ dailyDateKey: sampleDateForMod.get('big_game_hunter') });
   const bghElites = bghRun.map.flat().filter((n) => n.type === 'elite').length;
   assert.ok(bghElites >= 6, `big_game_hunter expected >= 6 elites, got ${bghElites}`);
   const normalEliteRun = createNewRun({ seed: 8888, skipNeow: true });
@@ -1236,7 +1276,7 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.equal(getScoreGrade(200), 'C');
 
   const meta = createDefaultMeta();
-  const dailyAttempt1 = createNewRun({ dailyDateKey: '2026-11-19', skipNeow: true });
+  const dailyAttempt1 = createNewRun({ dailyDateKey: '2026-11-19' });
   dailyAttempt1.act = 1;
   dailyAttempt1.floor = 10;
   dailyAttempt1.stats.floorsCleared = 10;
@@ -1267,7 +1307,7 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.equal(meta.dailyRecords['2026-11-19'].attempts, 1);
 
   // Second attempt on same daily date winning Act 2 beats personal best & does NOT advance maxAscensionUnlocked
-  const dailyAttempt2 = createNewRun({ dailyDateKey: '2026-11-19', skipNeow: true });
+  const dailyAttempt2 = createNewRun({ dailyDateKey: '2026-11-19' });
   dailyAttempt2.act = 2;
   dailyAttempt2.floor = 16;
   dailyAttempt2.stats.floorsCleared = 32;
@@ -1289,10 +1329,10 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.ok(meta.dailyRecords['2026-11-19'].bestScore > score1.totalScore);
   assert.equal(meta.bestScore, meta.dailyRecords['2026-11-19'].bestScore);
 
-  // Shareable battle report contains key highlights & share URL
+  // Shareable battle report contains key highlights, daily Ascension & share URL
   const report = buildRunReportFromState(dailyAttempt2);
   const text = formatShareableBattleReport(report, dailyUrl);
-  assert.ok(text.includes('每日挑战 2026-11-19'));
+  assert.ok(text.includes(`每日挑战 2026-11-19 · 进阶 ${dailyAttempt2.ascension}`));
   assert.ok(text.includes(report.grade));
   assert.ok(text.includes('今日词条：'));
   assert.ok(text.includes('总输出 1850'));

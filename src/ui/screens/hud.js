@@ -129,7 +129,7 @@ export function renderTopHud({ state, ui }) {
         <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
         ${
           daily
-            ? `<span class="daily-pill" id="hud-daily-pill" tabindex="0" data-tooltip-title="每日挑战 · ${escapeHtml(daily.dateKey)}" data-tooltip-tag="今日 3 条规则词条" data-tooltip-desc="${escapeHtml(dailyTooltipDesc)}" data-tooltip-tone="relic">每日 ${escapeHtml(daily.dateKey.slice(5))}</span>`
+            ? `<span class="daily-pill" id="hud-daily-pill" tabindex="0" data-tooltip-title="每日挑战 · ${escapeHtml(daily.dateKey)}" data-tooltip-tag="今日进阶 ${escapeHtml(asc)} · 无鲸鱼赐福" data-tooltip-desc="${escapeHtml(dailyTooltipDesc)}" data-tooltip-tone="relic">每日 ${escapeHtml(daily.dateKey.slice(5))}</span>`
             : ''
         }
         ${
