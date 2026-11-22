@@ -46,6 +46,8 @@ export function createSoundEngine(getSettings) {
   let noiseBuffer = null;
   let dryBus = null;
   let wetBus = null;
+  let lastCue = null;
+  const recentCues = [];
 
   function setupAudioGraph(audioCtx) {
     if (dryBus) return;
@@ -294,6 +296,9 @@ export function createSoundEngine(getSettings) {
   function play(cue, opts = {}) {
     const baseGain = getMasterGainValue();
     if (baseGain <= 0.0005) return;
+    lastCue = cue;
+    recentCues.push(cue);
+    if (recentCues.length > 24) recentCues.shift();
     const audioCtx = ensureContext();
     if (!audioCtx) return;
 
@@ -1205,5 +1210,14 @@ export function createSoundEngine(getSettings) {
     }
   }
 
-  return { play, cues: AUDIO_CUES };
+  return {
+    play,
+    cues: AUDIO_CUES,
+    getLastCue: () => lastCue,
+    getRecentCues: () => [...recentCues],
+    clearRecentCues: () => {
+      lastCue = null;
+      recentCues.length = 0;
+    },
+  };
 }

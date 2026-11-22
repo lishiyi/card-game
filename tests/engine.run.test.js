@@ -19,6 +19,7 @@ import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
+import { getStatusSvg, STATUS_NEGATIVE_SVG_ART, STATUS_SVG_ART } from '../src/ui/status_art.js';
 import {
   EVENT_IDS,
   EVENT_LIBRARY,
@@ -33,6 +34,7 @@ import {
   getRelicPoolsForCharacter,
   NON_STARTER_RELIC_IDS,
   RELIC_LIBRARY,
+  STATUS_METADATA,
 } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
 import {
@@ -2892,4 +2894,48 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
   const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
+});
+
+test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
+  const metaKeys = Object.keys(STATUS_METADATA);
+  const artKeys = Object.keys(STATUS_SVG_ART);
+  assert.equal(metaKeys.length, 97, `Expected 97 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
+
+  const seenIds = new Map();
+  for (const key of metaKeys) {
+    assert.ok(STATUS_SVG_ART[key], `Missing bespoke SVG for status "${key}"`);
+    const svg = getStatusSvg(key, { polarity: STATUS_METADATA[key].polarity });
+    assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Status "${key}" must return valid SVG`);
+    assert.ok(svg.includes('viewBox="0 0 24 24"'), `Status "${key}" must use 24x24 viewBox`);
+    assert.ok(svg.includes(`data-status-svg="${key}"`), `Status "${key}" must expose data-status-svg="${key}"`);
+
+    const defsIds = [...svg.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(defsIds.length >= 1, `Status "${key}" must define background gradient ID`);
+    for (const gid of defsIds) {
+      assert.equal(seenIds.has(gid), false, `Duplicate gradient ID "${gid}" shared by "${seenIds.get(gid)}" and "${key}"`);
+      seenIds.set(gid, key);
+    }
+
+    const scoped = getStatusSvg(key, { polarity: STATUS_METADATA[key].polarity, scope: 'enemy_0', className: 'gloss-sm' });
+    assert.ok(scoped.includes('class="status-svg gloss-sm"'), `Status "${key}" must support custom className`);
+    for (const gid of defsIds) {
+      assert.ok(scoped.includes(`id="${gid}-enemy_0"`), `Status "${key}" must scope gradient id="${gid}"`);
+      assert.ok(scoped.includes(`url(#${gid}-enemy_0)`), `Status "${key}" must rewrite url(#${gid})`);
+    }
+  }
+
+  // Negative Strength & Dexterity variants
+  assert.ok(STATUS_NEGATIVE_SVG_ART.strength && STATUS_NEGATIVE_SVG_ART.dexterity);
+  const negStr = getStatusSvg('strength', { polarity: 'debuff', scope: 'player' });
+  const negDex = getStatusSvg('dexterity', { polarity: 'debuff', scope: 'player' });
+  assert.ok(negStr.includes('data-status-svg="strength_down"') && negStr.includes('-player'));
+  assert.ok(negDex.includes('data-status-svg="dexterity_down"') && negDex.includes('-player'));
+
+  // Fallbacks & sw.js precache
+  assert.ok(getStatusSvg('unknown_status', { polarity: 'buff' }).includes('data-status-svg="fallback_buff"'));
+  assert.ok(getStatusSvg('unknown_status', { polarity: 'debuff' }).includes('data-status-svg="fallback_debuff"'));
+  const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
+  assert.ok(swText.includes("'./src/ui/status_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/status_art.js');
 });

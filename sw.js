@@ -40,6 +40,7 @@ const PRECACHE_URLS = [
   './src/ui/icons.js',
   './src/ui/relic_art.js',
   './src/ui/settings.js',
+  './src/ui/status_art.js',
   './src/ui/screens/character_select.js',
   './src/ui/screens/combat.js',
   './src/ui/screens/event.js',

@@ -11,6 +11,7 @@ import {
 import { STATUS_METADATA } from '../data/relics.js';
 import { getCardArtSvg } from './card_art.js';
 import { getCardTypeIconSvg } from './icons.js';
+import { getStatusSvg, STATUS_NO_COUNT_IF_ONE } from './status_art.js';
 
 export const CARD_TYPE_LABELS = Object.freeze({
   attack: '攻击',
@@ -322,6 +323,7 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
   if (entries.length === 0) {
     return '<div class="status-row"></div>';
   }
+  const entityScope = entity?.id || (ownerLabel === '自身' ? 'player' : 'unit');
   const chips = entries
     .map(([key, val]) => {
       const metaInfo = STATUS_METADATA[key] || {
@@ -334,15 +336,20 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
       const displayVal = key === 'slow' ? `+${(entity?.slowStacks ?? 0) * 10}%` : `${val}`;
       const descText = metaInfo.describe(val, entity?.slowStacks ?? 0);
+      const hideCount = STATUS_NO_COUNT_IF_ONE.has(key) && val === 1;
+      const svgMarkup = getStatusSvg(key, { polarity, scope: entityScope });
       return `<span
-        class="status-chip ${escapeHtml(polarity)}"
+        class="status-chip ${escapeHtml(polarity)}${hideCount ? ' icon-only' : ''}"
         data-status-key="${escapeHtml(key)}"
         tabindex="0"
+        aria-label="${escapeHtml(`${metaInfo.name} ${displayVal}`)}"
         data-tooltip-title="${escapeHtml(`${metaInfo.name} (${displayVal})`)}"
         data-tooltip-tag="${escapeHtml(`${ownerLabel} · ${polarityLabel}`)}"
         data-tooltip-desc="${escapeHtml(descText)}"
         data-tooltip-tone="${escapeHtml(polarity)}"
-      >${escapeHtml(metaInfo.name)} ${escapeHtml(displayVal)}</span>`;
+      ><span class="status-icon" aria-hidden="true">${svgMarkup}</span>${
+        hideCount ? '' : `<span class="status-val">${escapeHtml(displayVal)}</span>`
+      }</span>`;
     })
     .join('');
   return `<div class="status-row">${chips}</div>`;

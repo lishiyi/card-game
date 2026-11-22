@@ -33,6 +33,7 @@ import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { getRelicSvg, getUndiscoveredRelicSvg } from '../relic_art.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
+import { getStatusSvg } from '../status_art.js';
 import { renderMapBoardHtml, renderMapTypeFilterBar } from './map.js';
 
 function formatRunDate(ts) {
@@ -76,10 +77,16 @@ export function renderGlossaryItemsHtml(ui) {
           : item.category === 'debuffs'
             ? 'tone-debuff'
             : 'tone-mechanic';
+      const iconHtml = item.statusKey
+        ? `<span class="glossary-status-icon" aria-hidden="true">${getStatusSvg(item.statusKey, {
+            polarity: item.polarity,
+            scope: 'gloss',
+          })}</span>`
+        : '';
       return `
         <article class="glossary-card ${toneCls}">
           <div class="glossary-card-head">
-            <strong class="glossary-card-title">${escapeHtml(item.name)}</strong>
+            <strong class="glossary-card-title">${iconHtml}<span>${escapeHtml(item.name)}</span></strong>
             <span class="glossary-card-tag">${escapeHtml(item.tag)}</span>
           </div>
           <p class="glossary-card-desc">${escapeHtml(item.description)}</p>

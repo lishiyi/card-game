@@ -1992,8 +1992,10 @@ test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seed
         app.render();
       }
       const handCount = document.querySelectorAll('#hand-tray .game-card').length;
-      const hasConfusedChip = [...document.querySelectorAll('#player-unit .status-chip')].some((el) =>
-        el.textContent.includes('混乱')
+      const confusedChip = document.querySelector('#player-unit .status-chip[data-status-key="confused"]');
+      const hasConfusedChip = Boolean(
+        confusedChip?.querySelector('svg[data-status-svg="confused"]') &&
+          (confusedChip.dataset.tooltipTitle || '').includes('混乱')
       );
       const hasIncreasedCostBadge = Boolean(document.querySelector('#hand-tray .card-cost.cost-increased'));
       const hasReducedCostBadge = Boolean(document.querySelector('#hand-tray .card-cost.upgraded'));
@@ -4372,7 +4374,11 @@ test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive 
       st.combat.enemies = [byrd, spheric, snake];
       app.render();
       const svgCount3 = document.querySelectorAll('.enemy-side .unit-figure svg').length;
-      const statusTexts = [...document.querySelectorAll('.enemy-side .status-chip')].map((el) => el.textContent.trim());
+      const statusBadges = [...document.querySelectorAll('.enemy-side .status-chip')].map((el) => ({
+        key: el.dataset.statusKey || '',
+        svgKey: el.querySelector('svg.status-svg')?.dataset?.statusSvg || '',
+        tip: el.dataset.tooltipTitle || '',
+      }));
       const nextHintCount3 = document.querySelectorAll('.enemy-side .next-intent-hint').length;
 
       st.combat.enemies = [leader];
@@ -4380,13 +4386,22 @@ test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive 
       const leaderSvg = Boolean(document.querySelector('.enemy-side .unit-figure svg'));
       const leaderNextHint = document.querySelector('.enemy-side .next-intent-hint')?.textContent?.trim() || '';
 
-      return { svgCount3, statusTexts, nextHintCount3, leaderSvg, leaderNextHint };
+      return { svgCount3, statusBadges, nextHintCount3, leaderSvg, leaderNextHint };
     })()`);
 
     assert.equal(act2EnemiesAudit.svgCount3, 3);
-    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('飞行')), `Expected Flight badge, got ${act2EnemiesAudit.statusTexts}`);
-    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('壁垒')), `Expected Barricade badge, got ${act2EnemiesAudit.statusTexts}`);
-    assert.ok(act2EnemiesAudit.statusTexts.some((t) => t.includes('可塑护甲')), `Expected Malleable badge, got ${act2EnemiesAudit.statusTexts}`);
+    assert.ok(
+      act2EnemiesAudit.statusBadges.some((b) => b.key === 'flight' && b.svgKey === 'flight' && b.tip.includes('飞行')),
+      `Expected Flight SVG badge, got ${JSON.stringify(act2EnemiesAudit.statusBadges)}`
+    );
+    assert.ok(
+      act2EnemiesAudit.statusBadges.some((b) => b.key === 'barricade' && b.svgKey === 'barricade' && b.tip.includes('壁垒')),
+      `Expected Barricade SVG badge, got ${JSON.stringify(act2EnemiesAudit.statusBadges)}`
+    );
+    assert.ok(
+      act2EnemiesAudit.statusBadges.some((b) => b.key === 'malleable' && b.svgKey === 'malleable' && b.tip.includes('可塑护甲')),
+      `Expected Malleable SVG badge, got ${JSON.stringify(act2EnemiesAudit.statusBadges)}`
+    );
     assert.equal(act2EnemiesAudit.nextHintCount3, 3);
     assert.equal(act2EnemiesAudit.leaderSvg, true);
     assert.ok(act2EnemiesAudit.leaderNextHint.startsWith('下回合：'));
@@ -7234,6 +7249,242 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
     assert.ok(mobileAudit.maxBadgeW <= 34 && mobileAudit.maxBadgeH <= 34, `Mobile HUD relic badges must remain compact <=34px, got ${mobileAudit.maxBadgeW}x${mobileAudit.maxBadgeH}`);
     assert.ok(mobileAudit.minSvgW >= 20, `Mobile HUD relic SVGs must stay crisp >=20px, got ${mobileAudit.minSvgW}px`);
     assert.ok(mobileAudit.mobileOverflow <= 1, `390px mobile screen with 12 relic SVGs must have zero horizontal overflow, got ${mobileAudit.mobileOverflow}px`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SVG icon chips (Desktop & 390px Mobile)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Verify smith audio parity across Campfire, War Paint (Reward), Whetstone (Shop), and Events (direct + interactive)
+    const audioAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      window.localStorage.clear();
+      app.render();
+      document.getElementById('btn-menu-standard')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const st = app.getState();
+      st.neowState = null;
+      st.player.gold = 999;
+
+      // 1a. Campfire Smith baseline
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+      app.clearRecentAudioCues();
+      document.getElementById('btn-rest-smith')?.click();
+      document.querySelector('#modal-backdrop [data-action="confirm-smith"]')?.click();
+      const campfireCue = app.getLastAudioCue();
+
+      // 1b. War Paint claimed from Reward -> smith cue!
+      st.screen = 'reward';
+      st.reward = {
+        source: 'combat',
+        gold: 0,
+        goldClaimed: true,
+        relicId: 'war_paint',
+        relicClaimed: false,
+        extraRelicId: null,
+        extraRelicClaimed: true,
+        potionId: null,
+        potionClaimed: true,
+        cardChoices: [],
+        cardClaimed: true,
+      };
+      app.render();
+      app.clearRecentAudioCues();
+      document.getElementById('btn-claim-relic')?.click();
+      const warPaintCue = app.getLastAudioCue();
+      document.getElementById('btn-close-upgrade-reveal')?.click();
+
+      // 1c. Whetstone bought in Shop -> smith cue!
+      st.screen = 'shop';
+      st.shop = {
+        cards: [],
+        colorlessCards: [],
+        relicOffer: { relicId: 'whetstone', price: 150, sold: false },
+        shopRelicOffer: null,
+        potionOffer: null,
+        purgeCost: 75,
+        purgeUsed: false,
+        mealTicketHealed: 0,
+      };
+      app.render();
+      app.clearRecentAudioCues();
+      document.getElementById('btn-buy-relic')?.click();
+      const whetstoneCue = app.getLastAudioCue();
+      document.getElementById('btn-close-upgrade-reveal')?.click();
+
+      // 1d. Direct Event upgrade (Shining Light -> enter_light) -> smith cue!
+      st.screen = 'event';
+      st.eventState = { eventId: 'shining_light', resolved: false, outcomeText: '', upgradedCardIds: [] };
+      app.render();
+      app.clearRecentAudioCues();
+      document.querySelector('[data-action="choose-event"][data-choice-id="enter_light"]')?.click();
+      const directEventCue = app.getLastAudioCue();
+
+      // 1e. Interactive Event upgrade (Living Wall -> wall_grow -> pick card) -> smith cue!
+      st.screen = 'event';
+      st.eventState = { eventId: 'living_wall', resolved: false, outcomeText: '', upgradedCardIds: [] };
+      app.render();
+      app.clearRecentAudioCues();
+      document.querySelector('[data-action="choose-event"][data-choice-id="wall_grow"]')?.click();
+      document.querySelector('[data-action="confirm-event-card-action"]')?.click();
+      const interactiveEventCue = app.getLastAudioCue();
+
+      return { campfireCue, warPaintCue, whetstoneCue, directEventCue, interactiveEventCue };
+    })()`);
+
+    assert.equal(audioAudit.campfireCue, 'smith', 'Campfire smith must play smith cue');
+    assert.equal(audioAudit.warPaintCue, 'smith', 'War Paint relic upgrade must play identical smith cue');
+    assert.equal(audioAudit.whetstoneCue, 'smith', 'Whetstone shop relic upgrade must play identical smith cue');
+    assert.equal(audioAudit.directEventCue, 'smith', 'Direct Event card upgrade (Shining Light) must play identical smith cue');
+    assert.equal(audioAudit.interactiveEventCue, 'smith', 'Interactive Event card upgrade (Living Wall) must play identical smith cue');
+
+    // 2. Combat Buff/Debuff SVG Icon Chips (Desktop 1280px) + Glossary Visual Legend
+    const desktopStatusAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      app.render();
+      document.getElementById('map-node-f1_c0')?.click();
+
+      const c = app.getState().combat;
+      c.enemies = [c.enemies[0]];
+      const enemy = c.enemies[0];
+      app.getState().player.statuses = {
+        strength: 3,
+        dexterity: -2,
+        vulnerable: 2,
+        barricade: 1,
+        metallicize: 4,
+      };
+      enemy.statuses = {
+        strength: -1,
+        poison: 6,
+        weak: 2,
+        flight: 3,
+        malleable: 3,
+        slow: 1,
+      };
+      enemy.slowStacks = 3;
+      app.render();
+
+      const allChips = [...document.querySelectorAll('.status-chip')];
+      const anyChineseText = allChips.some((el) => /[\u4e00-\u9fff]/.test(el.textContent || ''));
+      const allHaveSvg = allChips.every((el) => {
+        const svg = el.querySelector('svg.status-svg');
+        const r = svg ? svg.getBoundingClientRect() : null;
+        return Boolean(svg?.dataset?.statusSvg && r && r.width >= 14 && r.height >= 14);
+      });
+      const negDexSvg = document.querySelector('#player-unit .status-chip[data-status-key="dexterity"] svg.status-svg')?.dataset?.statusSvg || '';
+      const negStrSvg = document.querySelector('.enemy-side .status-chip[data-status-key="strength"] svg.status-svg')?.dataset?.statusSvg || '';
+      const barricadeChip = document.querySelector('#player-unit .status-chip[data-status-key="barricade"]');
+      const barricadeIconOnly = Boolean(barricadeChip?.classList.contains('icon-only') && (barricadeChip.textContent || '').trim() === '');
+      const slowVal = document.querySelector('.enemy-side .status-chip[data-status-key="slow"] .status-val')?.textContent?.trim() || '';
+
+      // Tap player Dexterity debuff chip -> verifies rich Chinese tooltip preserved!
+      const dexChip = document.querySelector('#player-unit .status-chip[data-status-key="dexterity"]');
+      dexChip?.click();
+      const tipOpen = !document.getElementById('spire-tooltip').hidden;
+      const tipTitle = document.querySelector('#spire-tooltip .spire-tooltip-title')?.textContent?.trim() || '';
+      dexChip?.click();
+
+      // Open Glossary modal simultaneously -> verify matching status SVG icons & zero duplicate SVG gradient IDs!
+      document.getElementById('btn-open-help')?.click();
+      document.querySelector('[data-action="set-glossary-cat"][data-category="buffs"]')?.click();
+      const glossIconsCount = document.querySelectorAll('.glossary-status-icon svg.status-svg').length;
+      const statusDefIds = [...document.querySelectorAll('svg.status-svg defs [id]')].map((el) => el.id);
+      const dupDefIds = statusDefIds.length - new Set(statusDefIds).size;
+      document.querySelector('#modal-backdrop [data-action="close-modal"]')?.click();
+
+      const pTop = document.getElementById('player-unit')?.getBoundingClientRect().top ?? -1;
+      const eTop = document.getElementById('enemy-unit-' + enemy.id)?.getBoundingClientRect().top ?? -1;
+
+      return {
+        chipCount: allChips.length,
+        anyChineseText,
+        allHaveSvg,
+        negDexSvg,
+        negStrSvg,
+        barricadeIconOnly,
+        slowVal,
+        tipOpen,
+        tipTitle,
+        glossIconsCount,
+        dupDefIds,
+        desktopAlignDiff: Math.abs(pTop - eTop),
+      };
+    })()`);
+
+    assert.equal(desktopStatusAudit.chipCount, 11, 'Expected 5 player + 6 enemy status SVG chips');
+    assert.equal(desktopStatusAudit.anyChineseText, false, 'Combat status chips must replace Chinese labels with SVG icons');
+    assert.equal(desktopStatusAudit.allHaveSvg, true, 'Every combat status chip must render a visible bespoke SVG icon');
+    assert.equal(desktopStatusAudit.negDexSvg, 'dexterity_down', 'Negative Dexterity must render dedicated dexterity_down SVG');
+    assert.equal(desktopStatusAudit.negStrSvg, 'strength_down', 'Negative Strength must render dedicated strength_down SVG');
+    assert.equal(desktopStatusAudit.barricadeIconOnly, true, 'Boolean flag status (Barricade) must render compact icon-only chip without redundant 1');
+    assert.equal(desktopStatusAudit.slowVal, '+30%', 'Slow status must keep its +30% stack counter beside SVG icon');
+    assert.equal(desktopStatusAudit.tipOpen, true, 'Tapping SVG status chip must open full Chinese tooltip');
+    assert.ok(desktopStatusAudit.tipTitle.includes('敏捷 (-2)'), `Expected tooltip title 敏捷 (-2), got ${desktopStatusAudit.tipTitle}`);
+    assert.ok(desktopStatusAudit.glossIconsCount >= 40, `Glossary buffs tab must display matching status SVG icons, got ${desktopStatusAudit.glossIconsCount}`);
+    assert.equal(desktopStatusAudit.dupDefIds, 0, 'Simultaneous Player + Enemy + Glossary status SVGs must have zero duplicate gradient IDs');
+    assert.ok(desktopStatusAudit.desktopAlignDiff <= 1, `Desktop player/enemy cards must remain top-aligned, got diff=${desktopStatusAudit.desktopAlignDiff}px`);
+
+    // 3. 390px Mobile: Compact SVG status chips with 0px alignment & zero horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 120));
+    const mobileStatusAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.render();
+      const enemyId = app.getState().combat.enemies[0].id;
+      const pTop = document.getElementById('player-unit')?.getBoundingClientRect().top ?? -1;
+      const eTop = document.getElementById('enemy-unit-' + enemyId)?.getBoundingClientRect().top ?? -1;
+      const svgs = [...document.querySelectorAll('.status-chip svg.status-svg')];
+      const minW = Math.min(...svgs.map((el) => Math.round(el.getBoundingClientRect().width)));
+      const overflow = document.documentElement.scrollWidth - window.innerWidth;
+      return {
+        alignDiff: Math.abs(pTop - eTop),
+        minW,
+        overflow,
+      };
+    })()`);
+
+    assert.ok(mobileStatusAudit.alignDiff <= 1, `390px mobile status SVG chips must keep 0px alignment, got diff=${mobileStatusAudit.alignDiff}px`);
+    assert.ok(mobileStatusAudit.minW >= 14, `390px mobile status SVGs must remain crisp >=14px, got ${mobileStatusAudit.minW}px`);
+    assert.ok(mobileStatusAudit.overflow <= 1, `390px mobile combat with 11 status SVG chips must have zero horizontal overflow, got ${mobileStatusAudit.overflow}px`);
 
     cdp.ws.close();
   } finally {

@@ -194,6 +194,8 @@ export function getGlossaryEntries() {
     const isDebuff = meta.polarity === 'debuff';
     return {
       id: `status_${meta.id}`,
+      statusKey: meta.id,
+      polarity: meta.polarity,
       name: meta.name,
       category: isDebuff ? 'debuffs' : 'buffs',
       tag: isDebuff ? '负面状态 (Debuff)' : '正面状态 (Buff)',

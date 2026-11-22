@@ -864,7 +864,9 @@ export function mountSpireApp(rootEl) {
     render();
 
     if (res.ok) {
-      if (card?.cardId === 'shiv' || (stats?.addShivs ?? 0) > 0) soundEngine.play('shiv');
+      if (card?.cardId === 'apotheosis' || (card?.cardId === 'armaments' && card?.upgraded)) {
+        soundEngine.play('smith');
+      } else if (card?.cardId === 'shiv' || (stats?.addShivs ?? 0) > 0) soundEngine.play('shiv');
       else if (
         stats?.type === 'skill' &&
         ((stats?.applyEnemyStatuses?.poison ?? 0) > 0 ||
@@ -1323,7 +1325,8 @@ export function mountSpireApp(rootEl) {
     if (summary) {
       setNotice(`✨ ${summary}！`);
     }
-    soundEngine.play('upgrade');
+    const didUpgrade = Array.isArray(pickup.upgradedCards) && pickup.upgradedCards.length > 0;
+    soundEngine.play(didUpgrade ? 'smith' : 'upgrade');
     return true;
   }
 
@@ -1617,6 +1620,7 @@ export function mountSpireApp(rootEl) {
       }
       case 'choose-neow': {
         const prevSeq = state?._relicPickupSeq || 0;
+        const prevUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
         const res = chooseNeowOption(state, target.dataset.optionId);
         if (!res.ok) {
           setNotice(res.reason, 'warn');
@@ -1627,7 +1631,8 @@ export function mountSpireApp(rootEl) {
         } else {
           ui.modal = null;
           if (!maybeShowRelicUpgradeReveal(prevSeq)) {
-            soundEngine.play('upgrade');
+            const nextUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
+            soundEngine.play(nextUpgradedCount > prevUpgradedCount ? 'smith' : 'upgrade');
             setNotice('');
           }
         }
@@ -1643,12 +1648,14 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'complete-neow-action': {
+        const prevUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
         const res = completeNeowAction(state, target.dataset.instanceId);
         if (!res.ok) {
           setNotice(res.reason, 'warn');
         } else if (res.resolved) {
           ui.modal = null;
-          soundEngine.play('upgrade');
+          const nextUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
+          soundEngine.play(nextUpgradedCount > prevUpgradedCount ? 'smith' : 'upgrade');
           setNotice('');
         } else {
           soundEngine.play('card_attack');
@@ -2377,15 +2384,22 @@ export function mountSpireApp(rootEl) {
       case 'choose-event': {
         const prevSeq = state?._relicPickupSeq || 0;
         const prevCurseCount = (state?.player?.deck || []).filter((c) => getCardStats(c)?.type === 'curse').length;
+        const prevUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
         const prevHp = state?.player?.hp ?? 0;
         const prevGold = state?.player?.gold ?? 0;
         const res = chooseEventOption(state, target.dataset.choiceId);
         if (res.ok) {
           if (!maybeShowRelicUpgradeReveal(prevSeq)) {
             const nextCurseCount = (state?.player?.deck || []).filter((c) => getCardStats(c)?.type === 'curse').length;
+            const nextUpgradedCount = (state?.player?.deck || []).filter((c) => c.upgraded).length;
+            const didEventUpgrade =
+              (Array.isArray(state?.eventState?.upgradedCardIds) && state.eventState.upgradedCardIds.length > 0) ||
+              nextUpgradedCount > prevUpgradedCount;
             if (state.screen === 'combat') {
               const role = state.combat?.role;
               soundEngine.play(role === 'boss' || role === 'elite' ? 'boss_intro' : 'card_draw');
+            } else if (didEventUpgrade) {
+              soundEngine.play('smith');
             } else if (nextCurseCount > prevCurseCount) {
               soundEngine.play('curse');
             } else if ((state?.player?.hp ?? 0) > prevHp) {
@@ -2896,6 +2910,9 @@ export function mountSpireApp(rootEl) {
     getMeta: () => meta,
     getSettings: () => settings,
     getLastCopiedReport: () => ui.lastCopiedReport,
+    getLastAudioCue: () => soundEngine.getLastCue(),
+    getRecentAudioCues: () => soundEngine.getRecentCues(),
+    clearRecentAudioCues: () => soundEngine.clearRecentCues(),
     isCharacterSelect: () => Boolean(ui.showCharacterSelect || !state),
     render,
     openModal: (modalName) => {
