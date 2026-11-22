@@ -864,10 +864,23 @@ export function mountSpireApp(rootEl) {
     render();
 
     if (res.ok) {
-      if (stats?.type === 'power') soundEngine.play('card_power');
+      if (card?.cardId === 'shiv' || (stats?.addShivs ?? 0) > 0) soundEngine.play('shiv');
+      else if (
+        stats?.type === 'skill' &&
+        ((stats?.applyEnemyStatuses?.poison ?? 0) > 0 ||
+          (stats?.applyAllEnemiesStatuses?.poison ?? 0) > 0)
+      ) {
+        soundEngine.play('poison');
+      } else if (stats?.type === 'power') soundEngine.play('card_power');
       else if (stats?.type === 'skill') soundEngine.play('card_skill');
       else soundEngine.play('card_attack');
-      fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
+      fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine, {
+        cardId: card?.cardId,
+        cardStats: stats,
+        targetEnemyId,
+      });
+    } else {
+      soundEngine.play('error');
     }
   }
 
@@ -883,8 +896,18 @@ export function mountSpireApp(rootEl) {
     setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
-      soundEngine.play(pending?.mode === 'upgrade' ? 'upgrade' : 'card_skill');
+      const cue =
+        pending?.mode === 'upgrade'
+          ? 'smith'
+          : pending?.mode === 'exhaust'
+            ? 'exhaust'
+            : pending?.mode === 'discard'
+              ? 'card_draw'
+              : 'card_skill';
+      soundEngine.play(cue);
       fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
+    } else {
+      soundEngine.play('error');
     }
   }
 
@@ -894,7 +917,7 @@ export function mountSpireApp(rootEl) {
     }
     const res = runToggleScryCard(state, instanceId);
     if (res.ok) {
-      soundEngine.play('ui_click');
+      soundEngine.play('card_select');
       render();
     }
   }
@@ -909,7 +932,7 @@ export function mountSpireApp(rootEl) {
     setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
-      soundEngine.play('card_skill');
+      soundEngine.play('card_draw');
       fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
     }
   }
@@ -918,10 +941,11 @@ export function mountSpireApp(rootEl) {
     if (!state || state.screen !== 'combat' || !state.combat?.pendingCardChoice) return;
     const res = runTogglePendingCardChoice(state, instanceId);
     if (res.ok) {
-      soundEngine.play('ui_click');
+      soundEngine.play('card_select');
       setNotice('');
       render();
     } else if (res.reason) {
+      soundEngine.play('error');
       setNotice(res.reason, 'warn');
       render();
     }
@@ -936,7 +960,7 @@ export function mountSpireApp(rootEl) {
     setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
-      soundEngine.play(mode === 'retain' ? 'ui_click' : 'card_skill');
+      soundEngine.play(mode === 'retain' ? 'end_turn' : 'card_draw');
       fxManager.reconcileCombatFx(prevSnap, state, mode === 'retain' ? 'endTurn' : 'card', soundEngine);
     }
   }
@@ -946,7 +970,7 @@ export function mountSpireApp(rootEl) {
     if (!check.ok) {
       ui.backupFeedback = `导入失败：${check.reason}`;
       ui.backupFeedbackTone = 'warn';
-      soundEngine.play('ui_click');
+      soundEngine.play('error');
       render();
       return false;
     }
@@ -996,6 +1020,8 @@ export function mountSpireApp(rootEl) {
     if (res.ok) {
       soundEngine.play('potion');
       fxManager.reconcileCombatFx(prevSnap, state, 'potion', soundEngine);
+    } else {
+      soundEngine.play('error');
     }
   }
 
@@ -1006,7 +1032,7 @@ export function mountSpireApp(rootEl) {
     setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
-      soundEngine.play('ui_click');
+      soundEngine.play('end_turn');
       if (!res.awaitingRetainChoice) {
         fxManager.reconcileCombatFx(prevSnap, state, 'endTurn', soundEngine);
       }
@@ -1037,6 +1063,7 @@ export function mountSpireApp(rootEl) {
     ui.selectedPotionSlot = null;
     const check = canPlayCard(state, instanceId);
     if (!check.playable) {
+      soundEngine.play('error');
       setNotice(check.reason, 'warn');
       render();
       return;
@@ -1047,7 +1074,7 @@ export function mountSpireApp(rootEl) {
 
     if (stats.target === 'enemy' && alive.length > 1) {
       ui.selectedCardId = ui.selectedCardId === instanceId ? null : instanceId;
-      soundEngine.play('ui_click');
+      soundEngine.play('card_select');
       setNotice('');
       render();
       return;
@@ -1056,7 +1083,7 @@ export function mountSpireApp(rootEl) {
     // Optional two-tap confirmation mode for mobile anti-misclick
     if (settings.mobileTapConfirm && ui.selectedCardId !== instanceId) {
       ui.selectedCardId = instanceId;
-      soundEngine.play('ui_click');
+      soundEngine.play('card_select');
       setNotice('');
       render();
       return;
@@ -1937,7 +1964,16 @@ export function mountSpireApp(rootEl) {
         }
         clearMapInspectState({ clearTypeFilter: true });
         const res = selectMapNode(state, nodeId);
-        if (res.ok) soundEngine.play('ui_click');
+        if (res.ok) {
+          if (state.screen === 'combat') {
+            const role = state.combat?.role;
+            soundEngine.play(role === 'boss' || role === 'elite' ? 'boss_intro' : 'card_draw');
+          } else {
+            soundEngine.play('ui_click');
+          }
+        } else {
+          soundEngine.play('error');
+        }
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
@@ -2044,7 +2080,7 @@ export function mountSpireApp(rootEl) {
         const prevSeq = state?._relicPickupSeq || 0;
         openTreasureChest(state);
         if (!maybeShowRelicUpgradeReveal(prevSeq)) {
-          soundEngine.play('gold');
+          soundEngine.play('chest_open');
           setNotice('');
         }
         render();
@@ -2116,13 +2152,14 @@ export function mountSpireApp(rootEl) {
       case 'claim-potion': {
         const res = claimRewardPotion(state);
         if (res.ok) soundEngine.play('potion');
+        else soundEngine.play('error');
         setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
       }
       case 'claim-card': {
         const res = claimRewardCard(state, target.dataset.instanceId);
-        if (res.ok) soundEngine.play('card_skill');
+        if (res.ok) soundEngine.play('card_draw');
         setNotice(res.ok ? '已将该卡牌加入牌组！' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
@@ -2186,6 +2223,7 @@ export function mountSpireApp(rootEl) {
           soundEngine.play('heal');
           setNotice('');
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2194,9 +2232,10 @@ export function mountSpireApp(rootEl) {
       case 'rest-lift': {
         const res = liftAtCampfire(state);
         if (res.ok) {
-          soundEngine.play('upgrade');
+          soundEngine.play('buff');
           setNotice(`🏋️ 完成【壶铃】举重锻炼（${res.lifts}/3）！之后每场战斗初始获得 +${res.lifts} 点力量。`);
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2205,9 +2244,10 @@ export function mountSpireApp(rootEl) {
       case 'rest-dig': {
         const res = digAtCampfire(state);
         if (res.ok) {
-          soundEngine.play('gold');
+          soundEngine.play('dig');
           setNotice(`⛏️ 使用【铲子】挖出了遗物【${res.relicName}】，点击下方牌匾即可拾取！`);
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2217,13 +2257,14 @@ export function mountSpireApp(rootEl) {
         const res = tokeAtCampfire(state, target.dataset.instanceId);
         if (res.ok) {
           ui.modal = null;
-          soundEngine.play('card_attack');
+          soundEngine.play('exhaust');
           setNotice(
             res.lostMaxHp > 0
               ? `🪈 已使用【宁静烟斗】永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
               : '🪈 已使用【宁静烟斗】永久移除 1 张卡牌！'
           );
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2233,9 +2274,10 @@ export function mountSpireApp(rootEl) {
         const res = restUpgradeCard(state, target.dataset.instanceId);
         if (res.ok) {
           ui.modal = null;
-          soundEngine.play('upgrade');
+          soundEngine.play('smith');
           setNotice('');
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2250,6 +2292,7 @@ export function mountSpireApp(rootEl) {
       case 'buy-shop-card': {
         const res = buyShopCard(state, Number(target.dataset.offerIndex));
         if (res.ok) soundEngine.play('gold');
+        else soundEngine.play('error');
         setNotice(res.ok ? '购买成功，卡牌已加入牌组！' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
@@ -2257,6 +2300,7 @@ export function mountSpireApp(rootEl) {
       case 'buy-shop-colorless-card': {
         const res = buyShopColorlessCard(state, Number(target.dataset.offerIndex));
         if (res.ok) soundEngine.play('upgrade');
+        else soundEngine.play('error');
         setNotice(
           res.ok ? '已购入商店专属无色秘牌，卡牌已加入牌组！' : res.reason,
           res.ok ? 'normal' : 'warn'
@@ -2273,6 +2317,7 @@ export function mountSpireApp(rootEl) {
             setNotice('已购入遗物！');
           }
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2291,6 +2336,7 @@ export function mountSpireApp(rootEl) {
             setNotice(msg);
           }
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2299,6 +2345,7 @@ export function mountSpireApp(rootEl) {
       case 'buy-shop-potion': {
         const res = buyShopPotion(state);
         if (res.ok) soundEngine.play('gold');
+        else soundEngine.play('error');
         setNotice(res.ok ? '已购入药水！' : res.reason, res.ok ? 'normal' : 'warn');
         render();
         break;
@@ -2307,13 +2354,14 @@ export function mountSpireApp(rootEl) {
         const res = buyShopPurge(state, target.dataset.instanceId);
         if (res.ok) {
           ui.modal = null;
-          soundEngine.play('card_attack');
+          soundEngine.play('exhaust');
           setNotice(
             res.lostMaxHp > 0
               ? `已永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
               : '已永久移除 1 张卡牌！'
           );
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2328,13 +2376,29 @@ export function mountSpireApp(rootEl) {
       }
       case 'choose-event': {
         const prevSeq = state?._relicPickupSeq || 0;
+        const prevCurseCount = (state?.player?.deck || []).filter((c) => getCardStats(c)?.type === 'curse').length;
+        const prevHp = state?.player?.hp ?? 0;
+        const prevGold = state?.player?.gold ?? 0;
         const res = chooseEventOption(state, target.dataset.choiceId);
         if (res.ok) {
           if (!maybeShowRelicUpgradeReveal(prevSeq)) {
-            soundEngine.play('ui_click');
+            const nextCurseCount = (state?.player?.deck || []).filter((c) => getCardStats(c)?.type === 'curse').length;
+            if (state.screen === 'combat') {
+              const role = state.combat?.role;
+              soundEngine.play(role === 'boss' || role === 'elite' ? 'boss_intro' : 'card_draw');
+            } else if (nextCurseCount > prevCurseCount) {
+              soundEngine.play('curse');
+            } else if ((state?.player?.hp ?? 0) > prevHp) {
+              soundEngine.play('heal');
+            } else if ((state?.player?.gold ?? 0) > prevGold) {
+              soundEngine.play('gold');
+            } else {
+              soundEngine.play('ui_click');
+            }
             setNotice('');
           }
         } else {
+          soundEngine.play('error');
           setNotice(res.reason, 'warn');
         }
         render();
@@ -2342,14 +2406,14 @@ export function mountSpireApp(rootEl) {
       }
       case 'confirm-event-purge': {
         completeEventPurge(state, target.dataset.instanceId);
-        soundEngine.play('card_attack');
+        soundEngine.play('exhaust');
         setNotice('');
         render();
         break;
       }
       case 'confirm-event-card-action': {
         completeEventCardAction(state, target.dataset.instanceId);
-        soundEngine.play('upgrade');
+        soundEngine.play('smith');
         setNotice('');
         render();
         break;

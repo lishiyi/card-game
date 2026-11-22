@@ -1,13 +1,13 @@
 /**
- * Rich inline SVG card illustration system covering all 233 cards:
- * - 175+ bespoke signature illustrations (100% of Rare, Special, Status, Curse & core class staples)
- * - 25 layered class-themed archetype illustrations (including dynamic hero-tinted Strike & Defend)
- * Uses framed 120×44 compositions with radial spotlights, depth vignettes, and unique `ca-*` IDs
- * so cards look vivid and unmistakable on both desktop and 390px mobile without bloating the bundle.
+ * Rich inline SVG card illustration system covering all 233 cards with 100% bespoke artwork:
+ * - 231 bespoke signature illustrations (100% of every non-shared card in CARD_LIBRARY)
+ * - 6 class-specific hero illustrations for shared Strike & Defend (Ironclad / Silent / Watcher)
+ * Uses framed 120×44 compositions with radial spotlights, distant Spire depth silhouette,
+ * etched corner filigree, rim speculars, and unique `ca-*` IDs so cards look vivid on desktop & 390px mobile.
  */
 
 function wrapArtSvg(key, bg1, bg2, inner, accent = 'rgba(255,255,255,0.14)') {
-  return `<svg viewBox="0 0 120 44" class="card-art-svg" data-card-art="${key}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="ca-${key}-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient><radialGradient id="ca-${key}-spot" cx="50%" cy="46%" r="58%"><stop offset="0%" stop-color="${accent}"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient><linearGradient id="ca-${key}-vig" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,248,230,0.08)"/><stop offset="22%" stop-color="rgba(0,0,0,0)"/><stop offset="76%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,0.34)"/></linearGradient></defs><rect width="120" height="44" fill="url(#ca-${key}-bg)"/><rect width="120" height="44" fill="url(#ca-${key}-spot)"/><path d="M-4 44 L36 0 L52 0 L12 44 Z" fill="rgba(255,255,255,0.04)"/>${inner}<rect width="120" height="44" fill="url(#ca-${key}-vig)"/></svg>`;
+  return `<svg viewBox="0 0 120 44" class="card-art-svg" data-card-art="${key}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="ca-${key}-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient><radialGradient id="ca-${key}-spot" cx="50%" cy="46%" r="58%"><stop offset="0%" stop-color="${accent}"/><stop offset="100%" stop-color="rgba(0,0,0,0)"/></radialGradient><linearGradient id="ca-${key}-vig" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,248,230,0.1)"/><stop offset="22%" stop-color="rgba(0,0,0,0)"/><stop offset="76%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,0.36)"/></linearGradient></defs><rect width="120" height="44" fill="url(#ca-${key}-bg)"/><rect width="120" height="44" fill="url(#ca-${key}-spot)"/><path d="M0 44 L0 36 L14 31 L28 37 L46 29 L68 36 L88 30 L106 36 L120 32 L120 44 Z" fill="rgba(0,0,0,0.16)"/><path d="M-4 44 L36 0 L52 0 L12 44 Z" fill="rgba(255,255,255,0.045)"/>${inner}<rect width="120" height="44" fill="url(#ca-${key}-vig)"/><path d="M3 9 V3 H9 M117 9 V3 H111 M3 35 V41 H9 M117 35 V41 H111" fill="none" stroke="rgba(255,245,220,0.22)" stroke-width="0.9" stroke-linecap="square"/></svg>`;
 }
 
 export const SIGNATURE_CARD_ART = Object.freeze({
@@ -1885,18 +1885,224 @@ export const SIGNATURE_CARD_ART = Object.freeze({
      <path d="M38 14 L34 8 M58 28 L56 35 M76 26 L78 33" stroke="hsl(140, 86%, 58%)" stroke-width="1.8" stroke-linecap="round"/>`,
     'hsla(296, 86%, 52%, 0.26)'
   ),
+  // === 100% BESPOKE COMPLETION SET (REMAINING 19 CARDS) ===
+  steadfast_guard: wrapArtSvg(
+    'steadfast_guard',
+    'hsl(214, 44%, 20%)',
+    'hsl(24, 34%, 11%)',
+    `<path d="M16 40 L34 33 L86 33 L104 40 Z" fill="hsl(26, 20%, 26%)" stroke="hsl(36, 36%, 44%)" stroke-width="1.2"/>
+     <path d="M44 7 H76 V23 C76 31 68 36 60 39 C52 36 44 31 44 23 Z" fill="hsl(212, 34%, 34%)" stroke="hsl(44, 86%, 68%)" stroke-width="1.8"/>
+     <path d="M48 11 H72 M60 11 V34" stroke="hsl(200, 88%, 78%)" stroke-width="1.8" stroke-linecap="round"/>
+     <circle cx="60" cy="21" r="4.2" fill="hsl(46, 98%, 72%)" stroke="hsl(24, 44%, 22%)" stroke-width="1.2"/>
+     <path d="M26 24 L36 24 M84 24 L94 24" stroke="hsl(44, 92%, 68%)" stroke-width="1.8" stroke-linecap="round" opacity="0.72"/>`,
+    'hsla(204, 88%, 58%, 0.24)'
+  ),
+  wild_strike: wrapArtSvg(
+    'wild_strike',
+    'hsl(4, 66%, 22%)',
+    'hsl(350, 56%, 10%)',
+    `<path d="M14 38 Q48 12 104 8" stroke="hsl(18, 98%, 62%)" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.72"/>
+     <path d="M22 36 L68 9 L80 18 L38 40 Z" fill="hsl(36, 30%, 84%)" stroke="hsl(6, 78%, 42%)" stroke-width="1.5"/>
+     <path d="M62 14 L88 12 L74 26 L98 28 L76 36" fill="none" stroke="hsl(42, 100%, 72%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+     <polygon points="94,10 102,16 93,20" fill="hsl(354, 94%, 58%)"/>
+     <polygon points="24,14 33,18 26,24" fill="hsl(354, 92%, 56%)" opacity="0.85"/>`,
+    'hsla(10, 96%, 54%, 0.28)'
+  ),
+  ambush_slash: wrapArtSvg(
+    'ambush_slash',
+    'hsl(356, 62%, 20%)',
+    'hsl(228, 44%, 10%)',
+    `<path d="M10 34 Q42 26 98 10" stroke="hsl(44, 100%, 76%)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+     <path d="M18 38 Q52 30 104 18" stroke="hsl(8, 96%, 60%)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8"/>
+     <polygon points="88,6 108,10 92,22 95,13" fill="hsl(46, 100%, 86%)"/>
+     <path d="M26 10 L30 18 L38 20 L30 22 L26 30 L22 22 L14 20 L22 18 Z" fill="hsl(46, 98%, 74%)" opacity="0.85"/>`,
+    'hsla(36, 96%, 58%, 0.26)'
+  ),
+  power_through: wrapArtSvg(
+    'power_through',
+    'hsl(206, 48%, 20%)',
+    'hsl(356, 48%, 11%)',
+    `<path d="M40 9 Q60 4 80 9 L77 35 Q60 40 43 35 Z" fill="hsl(210, 42%, 34%)" stroke="hsl(44, 88%, 70%)" stroke-width="1.9"/>
+     <path d="M60 11 V34 M47 22 H73" stroke="hsl(198, 94%, 78%)" stroke-width="2" stroke-linecap="round"/>
+     <polygon points="14,14 36,20 20,26" fill="hsl(354, 92%, 58%)" stroke="hsl(38, 92%, 72%)" stroke-width="1"/>
+     <polygon points="106,16 84,22 100,28" fill="hsl(354, 92%, 58%)" stroke="hsl(38, 92%, 72%)" stroke-width="1"/>
+     <path d="M35 16 L40 22 L34 28 M85 16 L80 22 L86 28" stroke="hsl(46, 100%, 76%)" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+    'hsla(202, 88%, 58%, 0.24)'
+  ),
+  tactician: wrapArtSvg(
+    'tactician',
+    'hsl(164, 52%, 18%)',
+    'hsl(206, 48%, 10%)',
+    `<rect x="26" y="10" width="68" height="24" rx="3" fill="hsl(38, 36%, 24%)" stroke="hsl(44, 82%, 64%)" stroke-width="1.4"/>
+     <path d="M34 16 H50 M34 22 H46 M34 28 H52" stroke="hsl(42, 62%, 72%)" stroke-width="1.5" stroke-linecap="round" opacity="0.75"/>
+     <circle cx="72" cy="22" r="9.5" fill="hsla(152, 92%, 44%, 0.3)" stroke="hsl(148, 96%, 68%)" stroke-width="1.6"/>
+     <polygon points="72,14 76,22 72,30 68,22" fill="hsl(48, 100%, 74%)"/>
+     <path d="M84 12 L94 8 M86 32 L96 36" stroke="hsl(148, 96%, 68%)" stroke-width="1.6" stroke-linecap="round"/>`,
+    'hsla(152, 92%, 52%, 0.24)'
+  ),
+  reflex: wrapArtSvg(
+    'reflex',
+    'hsl(158, 54%, 18%)',
+    'hsl(198, 48%, 10%)',
+    `<path d="M18 32 Q42 8 64 20 Q84 30 102 12" fill="none" stroke="hsl(148, 96%, 66%)" stroke-width="2.4" stroke-linecap="round"/>
+     <rect x="34" y="11" width="17" height="23" rx="2.5" transform="rotate(-16 42 22)" fill="hsl(164, 46%, 26%)" stroke="hsl(152, 90%, 66%)" stroke-width="1.3"/>
+     <rect x="52" y="9" width="17" height="23" rx="2.5" fill="hsl(156, 54%, 34%)" stroke="hsl(48, 98%, 74%)" stroke-width="1.5"/>
+     <rect x="69" y="11" width="17" height="23" rx="2.5" transform="rotate(16 77 22)" fill="hsl(170, 46%, 26%)" stroke="hsl(152, 90%, 66%)" stroke-width="1.3"/>
+     <circle cx="60.5" cy="20.5" r="3.2" fill="hsl(144, 100%, 78%)"/>`,
+    'hsla(150, 92%, 54%, 0.24)'
+  ),
+  escape_plan: wrapArtSvg(
+    'escape_plan',
+    'hsl(176, 48%, 18%)',
+    'hsl(218, 48%, 10%)',
+    `<circle cx="34" cy="30" r="10" fill="hsla(172, 34%, 56%, 0.34)" stroke="hsl(168, 56%, 68%)" stroke-width="1.2"/>
+     <circle cx="48" cy="33" r="8" fill="hsla(176, 32%, 52%, 0.3)"/>
+     <path d="M24 34 L86 10" stroke="hsl(44, 86%, 72%)" stroke-width="2.2" stroke-dasharray="4 2" stroke-linecap="round"/>
+     <path d="M82 12 L94 7 L90 19 M86 10 L96 15" fill="none" stroke="hsl(164, 86%, 82%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+     <path d="M54 24 Q62 12 72 22 Q64 28 54 24 Z" fill="hsl(158, 62%, 34%)" stroke="hsl(150, 90%, 68%)" stroke-width="1.3"/>`,
+    'hsla(172, 84%, 56%, 0.22)'
+  ),
+  concentrate: wrapArtSvg(
+    'concentrate',
+    'hsl(166, 54%, 18%)',
+    'hsl(214, 52%, 9%)',
+    `<circle cx="60" cy="22" r="15" fill="none" stroke="hsl(152, 90%, 62%)" stroke-width="1.7" stroke-dasharray="6 3"/>
+     <path d="M26 22 Q60 6 94 22 Q60 38 26 22 Z" fill="hsl(168, 52%, 22%)" stroke="hsl(148, 92%, 68%)" stroke-width="1.6"/>
+     <circle cx="60" cy="22" r="6.5" fill="hsl(46, 98%, 66%)" stroke="hsl(152, 100%, 78%)" stroke-width="1.3"/>
+     <circle cx="60" cy="22" r="2.4" fill="hsl(168, 62%, 14%)"/>
+     <path d="M18 12 L28 17 M102 12 L92 17 M18 32 L28 27 M102 32 L92 27" stroke="hsl(48, 98%, 72%)" stroke-width="1.5" stroke-linecap="round"/>`,
+    'hsla(154, 92%, 54%, 0.25)'
+  ),
+  perseverance: wrapArtSvg(
+    'perseverance',
+    'hsl(274, 54%, 20%)',
+    'hsl(224, 50%, 11%)',
+    `<circle cx="60" cy="22" r="16" fill="hsla(286, 84%, 56%, 0.2)" stroke="hsl(46, 96%, 72%)" stroke-width="1.8"/>
+     <path d="M60 7 L74 14 V24 C74 31 68 36 60 39 C52 36 46 31 46 24 V14 Z" fill="hsl(276, 54%, 34%)" stroke="hsl(292, 92%, 76%)" stroke-width="1.6"/>
+     <path d="M52 15 H68 L60 22 L68 29 H52 L60 22 Z" fill="hsl(46, 98%, 74%)" opacity="0.9"/>
+     <path d="M24 22 H38 M82 22 H96" stroke="hsl(194, 94%, 72%)" stroke-width="1.8" stroke-linecap="round"/>`,
+    'hsla(288, 88%, 62%, 0.25)'
+  ),
+  reckless_charge: wrapArtSvg(
+    'reckless_charge',
+    'hsl(10, 68%, 22%)',
+    'hsl(354, 56%, 10%)',
+    `<path d="M12 28 H84 M18 18 H72 M22 36 H76" stroke="hsl(28, 98%, 64%)" stroke-width="2.4" stroke-linecap="round" opacity="0.72"/>
+     <polygon points="48,10 96,22 48,34 62,22" fill="hsl(38, 96%, 72%)" stroke="hsl(8, 88%, 48%)" stroke-width="1.6"/>
+     <path d="M96 22 L106 14 M96 22 L108 22 M96 22 L106 30" stroke="hsl(48, 100%, 82%)" stroke-width="2.2" stroke-linecap="round"/>
+     <circle cx="28" cy="12" r="2.2" fill="hsl(206, 90%, 78%)"/><circle cx="38" cy="8" r="1.8" fill="hsl(48, 100%, 80%)"/>`,
+    'hsla(18, 98%, 54%, 0.28)'
+  ),
+  sentinel: wrapArtSvg(
+    'sentinel',
+    'hsl(208, 48%, 20%)',
+    'hsl(278, 44%, 11%)',
+    `<path d="M60 6 L77 13 V24 C77 32 69 37 60 40 C51 37 43 32 43 24 V13 Z" fill="hsl(214, 48%, 34%)" stroke="hsl(46, 94%, 70%)" stroke-width="1.8"/>
+     <polygon points="60,12 66,22 60,32 54,22" fill="hsl(194, 98%, 74%)" stroke="hsl(48, 100%, 82%)" stroke-width="1.2"/>
+     <path d="M24 34 Q32 20 40 28 M96 34 Q88 20 80 28" stroke="hsl(286, 92%, 70%)" stroke-width="2" fill="none" stroke-linecap="round"/>
+     <circle cx="28" cy="14" r="2.4" fill="hsl(46, 100%, 76%)"/><circle cx="92" cy="14" r="2.4" fill="hsl(46, 100%, 76%)"/>`,
+    'hsla(204, 90%, 60%, 0.25)'
+  ),
+  outmaneuver: wrapArtSvg(
+    'outmaneuver',
+    'hsl(152, 54%, 18%)',
+    'hsl(204, 48%, 10%)',
+    `<path d="M16 36 Q48 6 90 14" fill="none" stroke="hsl(148, 96%, 66%)" stroke-width="2.8" stroke-linecap="round"/>
+     <polygon points="78,7 96,14 82,24 85,15" fill="hsl(48, 100%, 76%)"/>
+     <path d="M46 36 L56 18 L64 26 L74 10" fill="none" stroke="hsl(48, 100%, 74%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+     <polygon points="22,38 30,26 38,38" fill="hsl(172, 34%, 34%)" stroke="hsl(158, 60%, 56%)" stroke-width="1.1"/>`,
+    'hsla(148, 94%, 56%, 0.24)'
+  ),
+  all_out_attack: wrapArtSvg(
+    'all_out_attack',
+    'hsl(148, 52%, 17%)',
+    'hsl(352, 48%, 10%)',
+    `<path d="M14 28 L104 10 M16 20 L102 24 M18 12 L98 36" stroke="hsl(150, 94%, 72%)" stroke-width="2.4" stroke-linecap="round"/>
+     <polygon points="94,7 108,10 96,17" fill="hsl(46, 98%, 76%)"/>
+     <polygon points="92,19 106,24 93,29" fill="hsl(146, 100%, 74%)"/>
+     <polygon points="88,30 102,37 87,39" fill="hsl(356, 94%, 64%)"/>
+     <rect x="26" y="25" width="12" height="15" rx="2" transform="rotate(-24 32 32)" fill="hsl(164, 44%, 28%)" stroke="hsl(46, 92%, 70%)" stroke-width="1.2" opacity="0.88"/>`,
+    'hsla(152, 92%, 52%, 0.25)'
+  ),
+  expertise: wrapArtSvg(
+    'expertise',
+    'hsl(168, 52%, 18%)',
+    'hsl(210, 48%, 10%)',
+    `<rect x="26" y="13" width="14" height="22" rx="2" transform="rotate(-24 33 24)" fill="hsl(168, 44%, 28%)" stroke="hsl(152, 86%, 64%)" stroke-width="1.2"/>
+     <rect x="40" y="10" width="14" height="22" rx="2" transform="rotate(-10 47 21)" fill="hsl(164, 48%, 32%)" stroke="hsl(152, 86%, 64%)" stroke-width="1.2"/>
+     <rect x="54" y="8" width="14" height="22" rx="2" fill="hsl(158, 54%, 38%)" stroke="hsl(46, 96%, 72%)" stroke-width="1.5"/>
+     <rect x="68" y="10" width="14" height="22" rx="2" transform="rotate(10 75 21)" fill="hsl(164, 48%, 32%)" stroke="hsl(152, 86%, 64%)" stroke-width="1.2"/>
+     <rect x="81" y="13" width="14" height="22" rx="2" transform="rotate(24 88 24)" fill="hsl(168, 44%, 28%)" stroke="hsl(152, 86%, 64%)" stroke-width="1.2"/>
+     <circle cx="61" cy="19" r="3" fill="hsl(48, 100%, 78%)"/>`,
+    'hsla(156, 90%, 54%, 0.24)'
+  ),
+  swivel: wrapArtSvg(
+    'swivel',
+    'hsl(278, 56%, 21%)',
+    'hsl(326, 48%, 11%)',
+    `<ellipse cx="60" cy="22" rx="34" ry="13" fill="none" stroke="hsl(292, 92%, 74%)" stroke-width="2.4" stroke-dasharray="28 8"/>
+     <ellipse cx="60" cy="22" rx="20" ry="8" fill="hsla(46, 96%, 68%, 0.22)" stroke="hsl(46, 98%, 74%)" stroke-width="1.8"/>
+     <polygon points="88,12 99,18 89,25" fill="hsl(48, 100%, 80%)"/>
+     <polygon points="32,32 21,26 31,19" fill="hsl(294, 96%, 76%)"/>
+     <circle cx="60" cy="22" r="4.5" fill="hsl(50, 100%, 88%)"/>`,
+    'hsla(292, 92%, 62%, 0.26)'
+  ),
+  deep_breath: wrapArtSvg(
+    'deep_breath',
+    'hsl(206, 36%, 22%)',
+    'hsl(228, 38%, 11%)',
+    `<path d="M16 26 Q38 10 60 22 Q82 34 104 16" fill="none" stroke="hsl(196, 86%, 78%)" stroke-width="2.6" stroke-linecap="round"/>
+     <path d="M22 32 Q46 18 66 26 Q86 34 100 24" fill="none" stroke="hsl(214, 72%, 82%)" stroke-width="1.6" stroke-linecap="round" opacity="0.72"/>
+     <circle cx="60" cy="22" r="9.5" fill="hsla(198, 92%, 72%, 0.2)" stroke="hsl(46, 86%, 78%)" stroke-width="1.5" stroke-dasharray="4 3"/>
+     <circle cx="60" cy="22" r="3.4" fill="hsl(194, 100%, 88%)"/>`,
+    'hsla(198, 86%, 72%, 0.22)'
+  ),
+  swift_strike: wrapArtSvg(
+    'swift_strike',
+    'hsl(216, 28%, 24%)',
+    'hsl(232, 30%, 11%)',
+    `<path d="M14 34 L104 10" stroke="hsl(48, 92%, 84%)" stroke-width="3.2" stroke-linecap="round"/>
+     <path d="M22 38 L94 18" stroke="hsl(202, 88%, 78%)" stroke-width="2" stroke-linecap="round"/>
+     <polygon points="90,6 108,10 94,19" fill="hsl(48, 100%, 90%)"/>
+     <path d="M36 12 L39 18 L45 20 L39 22 L36 28 L33 22 L27 20 L33 18 Z" fill="hsl(200, 96%, 84%)" opacity="0.88"/>`,
+    'hsla(206, 76%, 74%, 0.24)'
+  ),
+  good_instincts: wrapArtSvg(
+    'good_instincts',
+    'hsl(214, 30%, 23%)',
+    'hsl(234, 30%, 11%)',
+    `<path d="M56 7 L76 14 V24 C76 32 68 37 56 40 C44 37 36 32 36 24 V14 Z" fill="hsla(208, 62%, 44%, 0.42)" stroke="hsl(46, 92%, 76%)" stroke-width="1.8"/>
+     <path d="M84 14 L104 8 M84 22 L106 22 M84 30 L102 36" stroke="hsl(200, 92%, 78%)" stroke-width="2" stroke-linecap="round"/>
+     <circle cx="56" cy="22" r="5" fill="hsl(46, 98%, 78%)" stroke="hsl(210, 60%, 24%)" stroke-width="1.3"/>
+     <path d="M20 22 Q28 14 36 22" fill="none" stroke="hsl(202, 88%, 80%)" stroke-width="1.8" stroke-linecap="round"/>`,
+    'hsla(208, 72%, 72%, 0.22)'
+  ),
+  impatience: wrapArtSvg(
+    'impatience',
+    'hsl(220, 28%, 22%)',
+    'hsl(344, 32%, 11%)',
+    `<path d="M46 7 H74 L62 22 L74 37 H46 L58 22 Z" fill="hsla(44, 78%, 68%, 0.24)" stroke="hsl(46, 90%, 74%)" stroke-width="1.6"/>
+     <path d="M60 12 L55 21 H64 L58 32" fill="none" stroke="hsl(14, 98%, 68%)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+     <rect x="20" y="13" width="15" height="20" rx="2" transform="rotate(-12 27 23)" fill="hsl(216, 32%, 34%)" stroke="hsl(46, 88%, 74%)" stroke-width="1.3"/>
+     <rect x="85" y="13" width="15" height="20" rx="2" transform="rotate(12 92 23)" fill="hsl(216, 32%, 34%)" stroke="hsl(46, 88%, 74%)" stroke-width="1.3"/>`,
+    'hsla(36, 84%, 66%, 0.24)'
+  ),
 });
 
 export const CARD_THEME_ART = Object.freeze({
-  // === IRONCLAD THEMES ===
+  // === IRONCLAD THEMES (BESPOKE IRONCLAD STRIKE & DEFEND) ===
   iron_slash: wrapArtSvg(
     'iron_slash',
-    'hsl(8, 54%, 21%)',
-    'hsl(20, 44%, 10%)',
-    `<path d="M22 36 Q56 14 96 10" stroke="hsl(28, 96%, 64%)" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.72"/>
-     <polygon points="34,34 80,10 86,15 40,38" fill="hsl(36, 26%, 82%)" stroke="hsl(14, 46%, 32%)" stroke-width="1.3"/>
-     <rect x="28" y="31" width="14" height="4" rx="1.5" transform="rotate(-28 35 33)" fill="hsl(42, 82%, 58%)"/>`,
-    'hsla(14, 88%, 52%, 0.2)'
+    'hsl(8, 60%, 22%)',
+    'hsl(20, 48%, 10%)',
+    `<path d="M16 37 Q54 11 102 8" stroke="hsl(28, 98%, 64%)" stroke-width="3.8" stroke-linecap="round" fill="none" opacity="0.78"/>
+     <path d="M22 39 Q60 18 100 16" stroke="hsl(8, 96%, 56%)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.62"/>
+     <polygon points="32,35 84,8 92,14 40,39" fill="hsl(38, 32%, 86%)" stroke="hsl(14, 52%, 28%)" stroke-width="1.4"/>
+     <line x1="40" y1="34" x2="84" y2="12" stroke="hsl(48, 100%, 88%)" stroke-width="1.2" opacity="0.8"/>
+     <path d="M56 24 L62 21 M66 19 L72 16" stroke="hsl(22, 100%, 60%)" stroke-width="1.6" stroke-linecap="round"/>
+     <rect x="26" y="30" width="16" height="4.5" rx="1.5" transform="rotate(-30 34 32)" fill="hsl(44, 92%, 62%)" stroke="hsl(24, 48%, 22%)" stroke-width="1"/>
+     <circle cx="96" cy="12" r="2.4" fill="hsl(46, 100%, 82%)"/><circle cx="88" cy="24" r="1.8" fill="hsl(24, 100%, 66%)"/>`,
+    'hsla(16, 94%, 54%, 0.26)'
   ),
   iron_heavy: wrapArtSvg(
     'iron_heavy',
@@ -1917,11 +2123,14 @@ export const CARD_THEME_ART = Object.freeze({
   ),
   iron_shield: wrapArtSvg(
     'iron_shield',
-    'hsl(214, 42%, 20%)',
-    'hsl(226, 40%, 10%)',
-    `<path d="M60 6 L78 13 V24 C78 32 70 37 60 40 C50 37 42 32 42 24 V13 Z" fill="hsl(214, 46%, 36%)" stroke="hsl(42, 78%, 66%)" stroke-width="1.8"/>
-     <path d="M60 12 V33 M50 22 H70" stroke="hsl(204, 86%, 76%)" stroke-width="2" stroke-linecap="round"/>`,
-    'hsla(206, 84%, 58%, 0.2)'
+    'hsl(214, 46%, 20%)',
+    'hsl(8, 36%, 10%)',
+    `<path d="M60 5 L80 12 V24 C80 33 71 38 60 41 C49 38 40 33 40 24 V12 Z" fill="hsl(214, 42%, 34%)" stroke="hsl(44, 86%, 68%)" stroke-width="1.9"/>
+     <path d="M60 9 L75 14.5 V23.5 C75 30 68 34 60 36.5 C52 34 45 30 45 23.5 V14.5 Z" fill="hsl(8, 52%, 32%)" stroke="hsl(42, 74%, 60%)" stroke-width="1"/>
+     <path d="M60 11 V34 M48 22 H72" stroke="hsl(44, 92%, 72%)" stroke-width="2.2" stroke-linecap="round"/>
+     <circle cx="60" cy="22" r="4.2" fill="hsl(46, 98%, 74%)" stroke="hsl(22, 46%, 20%)" stroke-width="1.2"/>
+     <path d="M24 14 L34 19 M22 26 L34 25 M96 14 L86 19" stroke="hsl(200, 94%, 76%)" stroke-width="1.8" stroke-linecap="round" opacity="0.72"/>`,
+    'hsla(204, 88%, 58%, 0.24)'
   ),
   iron_flame: wrapArtSvg(
     'iron_flame',
@@ -1967,14 +2176,18 @@ export const CARD_THEME_ART = Object.freeze({
     'hsla(38, 94%, 56%, 0.24)'
   ),
 
-  // === SILENT THEMES ===
+  // === SILENT THEMES (BESPOKE SILENT STRIKE & DEFEND) ===
   silent_shiv: wrapArtSvg(
     'silent_shiv',
-    'hsl(160, 50%, 18%)',
-    'hsl(182, 46%, 10%)',
-    `<polygon points="28,32 76,10 84,14 36,36" fill="hsl(164, 34%, 88%)" stroke="hsl(150, 86%, 56%)" stroke-width="1.3"/>
-     <polygon points="48,36 90,14 96,18 54,39" fill="hsl(164, 34%, 82%)" stroke="hsl(150, 86%, 56%)" stroke-width="1.2" opacity="0.82"/>`,
-    'hsla(152, 88%, 52%, 0.2)'
+    'hsl(158, 54%, 18%)',
+    'hsl(186, 50%, 9%)',
+    `<path d="M16 34 Q54 12 102 10" stroke="hsl(148, 96%, 62%)" stroke-width="2.4" stroke-linecap="round" fill="none" opacity="0.65"/>
+     <path d="M24 34 Q48 16 86 9 L92 15 Q58 26 34 38 Z" fill="hsl(164, 38%, 88%)" stroke="hsl(150, 90%, 54%)" stroke-width="1.3"/>
+     <path d="M36 28 Q58 18 86 12" stroke="hsl(136, 100%, 72%)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+     <path d="M44 37 Q66 24 98 16 L102 21 Q74 31 52 40 Z" fill="hsl(164, 34%, 78%)" stroke="hsl(150, 86%, 54%)" stroke-width="1.2" opacity="0.88"/>
+     <rect x="20" y="32" width="12" height="3.8" rx="1.4" transform="rotate(-24 26 34)" fill="hsl(32, 54%, 44%)"/>
+     <circle cx="96" cy="12" r="2.2" fill="hsl(132, 100%, 76%)"/>`,
+    'hsla(150, 92%, 52%, 0.24)'
   ),
   silent_poison: wrapArtSvg(
     'silent_poison',
@@ -1987,11 +2200,13 @@ export const CARD_THEME_ART = Object.freeze({
   ),
   silent_cloak: wrapArtSvg(
     'silent_cloak',
-    'hsl(172, 48%, 18%)',
-    'hsl(200, 44%, 10%)',
-    `<path d="M60 6 L78 13 V24 C78 32 70 37 60 40 C50 37 42 32 42 24 V13 Z" fill="hsl(166, 52%, 30%)" stroke="hsl(154, 86%, 64%)" stroke-width="1.7"/>
-     <path d="M26 28 Q60 12 94 28" fill="none" stroke="hsl(164, 88%, 68%)" stroke-width="1.8" opacity="0.7"/>`,
-    'hsla(164, 86%, 54%, 0.2)'
+    'hsl(172, 52%, 18%)',
+    'hsl(204, 48%, 9%)',
+    `<path d="M22 36 Q38 14 60 11 Q82 14 98 36 Q78 28 60 36 Q42 28 22 36 Z" fill="hsl(168, 48%, 22%)" stroke="hsl(152, 84%, 58%)" stroke-width="1.5"/>
+     <path d="M60 6 L77 13 V24 C77 32 69 37 60 40 C51 37 43 32 43 24 V13 Z" fill="hsla(166, 58%, 32%, 0.88)" stroke="hsl(150, 92%, 68%)" stroke-width="1.7"/>
+     <path d="M52 19 L68 25 M68 19 L52 25" stroke="hsl(48, 92%, 74%)" stroke-width="1.8" stroke-linecap="round"/>
+     <path d="M18 24 Q60 8 102 24" fill="none" stroke="hsl(156, 92%, 70%)" stroke-width="1.7" opacity="0.72"/>`,
+    'hsla(160, 88%, 54%, 0.24)'
   ),
   silent_discard: wrapArtSvg(
     'silent_discard',
@@ -2020,7 +2235,7 @@ export const CARD_THEME_ART = Object.freeze({
     'hsla(148, 90%, 54%, 0.22)'
   ),
 
-  // === WATCHER THEMES ===
+  // === WATCHER THEMES (BESPOKE WATCHER STRIKE & DEFEND) ===
   watcher_wrath: wrapArtSvg(
     'watcher_wrath',
     'hsl(348, 60%, 20%)',
@@ -2031,12 +2246,14 @@ export const CARD_THEME_ART = Object.freeze({
   ),
   watcher_calm: wrapArtSvg(
     'watcher_calm',
-    'hsl(198, 56%, 20%)',
-    'hsl(258, 48%, 12%)',
-    `<circle cx="60" cy="22" r="14" fill="hsla(194, 92%, 60%, 0.26)" stroke="hsl(194, 96%, 72%)" stroke-width="1.8"/>
-     <path d="M24 28 Q42 22 60 28 Q78 34 96 28" stroke="hsl(192, 96%, 74%)" stroke-width="2" fill="none"/>
-     <circle cx="60" cy="22" r="4.5" fill="hsl(190, 100%, 84%)"/>`,
-    'hsla(194, 94%, 60%, 0.22)'
+    'hsl(200, 58%, 20%)',
+    'hsl(264, 52%, 11%)',
+    `<circle cx="60" cy="21" r="15" fill="hsla(194, 94%, 60%, 0.2)" stroke="hsl(194, 98%, 74%)" stroke-width="1.8"/>
+     <path d="M60 8 Q68 17 60 28 Q52 17 60 8 Z" fill="hsl(288, 84%, 68%)" stroke="hsl(46, 98%, 76%)" stroke-width="1.2"/>
+     <path d="M46 21 Q54 17 60 27 Q66 17 74 21" fill="none" stroke="hsl(192, 100%, 82%)" stroke-width="1.7" stroke-linecap="round"/>
+     <path d="M18 32 Q39 27 60 32 Q81 37 102 32" stroke="hsl(192, 98%, 74%)" stroke-width="1.9" fill="none" stroke-linecap="round"/>
+     <circle cx="60" cy="18" r="2.6" fill="hsl(50, 100%, 92%)"/>`,
+    'hsla(194, 96%, 62%, 0.26)'
   ),
   watcher_divinity: wrapArtSvg(
     'watcher_divinity',
@@ -2065,12 +2282,14 @@ export const CARD_THEME_ART = Object.freeze({
   ),
   watcher_martial: wrapArtSvg(
     'watcher_martial',
-    'hsl(280, 52%, 20%)',
-    'hsl(326, 46%, 12%)',
-    `<path d="M24 32 Q54 14 94 12" stroke="hsl(294, 92%, 72%)" stroke-width="2.6" stroke-linecap="round" fill="none"/>
-     <path d="M32 36 Q62 22 96 24" stroke="hsl(46, 96%, 70%)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8"/>
-     <circle cx="88" cy="14" r="5" fill="hsl(46, 100%, 72%)" opacity="0.85"/>`,
-    'hsla(292, 90%, 62%, 0.22)'
+    'hsl(280, 56%, 21%)',
+    'hsl(328, 50%, 11%)',
+    `<path d="M16 34 Q52 14 98 11" stroke="hsl(294, 94%, 74%)" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.82"/>
+     <path d="M26 38 Q58 24 98 24" stroke="hsl(46, 98%, 72%)" stroke-width="2.1" stroke-linecap="round" fill="none" opacity="0.85"/>
+     <line x1="22" y1="36" x2="86" y2="14" stroke="hsl(42, 86%, 64%)" stroke-width="3.4" stroke-linecap="round"/>
+     <path d="M86 14 Q96 7 100 18 Q90 19 86 14 Z" fill="hsl(294, 94%, 74%)" stroke="hsl(48, 100%, 82%)" stroke-width="1.3"/>
+     <circle cx="88" cy="14" r="4" fill="hsl(50, 100%, 88%)"/>`,
+    'hsla(292, 92%, 64%, 0.26)'
   ),
   watcher_mark: wrapArtSvg(
     'watcher_mark',

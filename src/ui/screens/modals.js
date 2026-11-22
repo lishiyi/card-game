@@ -1469,6 +1469,7 @@ export function renderModal({ state, meta, settings, ui }) {
                 playable: true,
                 disabled: false,
                 showUpgradePreview,
+                characterId: state?.characterId,
               })
             )
             .join('')
@@ -1558,6 +1559,7 @@ export function renderModal({ state, meta, settings, ui }) {
                 action: 'noop',
                 playable: false,
                 disabled: false,
+                characterId: state?.characterId,
               })
             )
             .join('')}</div>`
@@ -1782,6 +1784,7 @@ export function renderModal({ state, meta, settings, ui }) {
               disabled: !playable,
               showUpgradePreview,
               stackCount: stackCopies ? item.count : undefined,
+              characterId: state?.characterId,
             })
           )
           .join('')

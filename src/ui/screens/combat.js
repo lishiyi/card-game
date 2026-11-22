@@ -70,10 +70,20 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             ? enemy.intent?.name || `复苏中 (${enemy.darklingRegrowTurns}回合)`
             : '已击败';
 
+      const enemyAuraClasses = [
+        enemy.hp > 0 && enemy.block > 0 ? 'has-block' : '',
+        enemy.hp > 0 && (enemy.statuses?.poison ?? 0) > 0 ? 'is-poisoned' : '',
+        enemy.hp > 0 && ((enemy.statuses?.strength ?? 0) > 0 || (enemy.statuses?.ritual ?? 0) > 0)
+          ? 'is-empowered'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+
       return `
         <div
           id="enemy-unit-${escapeHtml(enemy.id)}"
-          class="fighter-unit ${enemy.hp <= 0 ? (isRegrowing ? 'regrowing' : 'dead') : ''} ${targetable ? 'enemy-targetable' : ''}"
+          class="fighter-unit ${enemy.hp <= 0 ? (isRegrowing ? 'regrowing' : 'dead') : ''} ${targetable ? 'enemy-targetable' : ''} ${enemyAuraClasses}"
           data-action="${enemy.hp > 0 ? 'click-enemy' : 'noop'}"
           data-enemy-id="${escapeHtml(enemy.id)}"
           role="${targetable ? 'button' : 'group'}"
@@ -378,6 +388,17 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
   const restartsSoFar = state.stats?.combatRestarts ?? 0;
 
+  const playerAuraClasses = [
+    currentStance !== 'neutral' ? `stance-${escapeHtml(currentStance)}` : '',
+    state.player.block > 0 ? 'has-block' : '',
+    (state.player.statuses?.poison ?? 0) > 0 ? 'is-poisoned' : '',
+    (state.player.statuses?.strength ?? 0) > 0 || (state.player.statuses?.vigor ?? 0) > 0
+      ? 'is-empowered'
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return `
     <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}${
       bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
@@ -391,7 +412,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     <section class="combat-arena" id="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
       <div class="synergy-callout-bar" id="synergy-callout-bar" aria-live="polite" hidden></div>
       <div class="fighters-group player-side">
-        <div class="fighter-unit ${currentStance !== 'neutral' ? `stance-${escapeHtml(currentStance)}` : ''}" id="player-unit" data-stance="${escapeHtml(currentStance)}">
+        <div class="fighter-unit ${playerAuraClasses}" id="player-unit" data-stance="${escapeHtml(currentStance)}">
           <div class="intent-stack">
             <div class="intent-badge">第 ${escapeHtml(combat.turn)} 回合</div>
             ${

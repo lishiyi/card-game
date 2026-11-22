@@ -6757,16 +6757,27 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
     await cdp.send('Page.enable');
 
     // Visit during v1 with max-age=600 headers -> Wait until SW v1 activates and controls page
+    const evalSafe = (expr) =>
+      Promise.race([
+        cdp.evaluate(expr).catch(() => null),
+        new Promise((r) => setTimeout(() => r(null), 900)),
+      ]);
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 200));
+    let v1Ready = false;
     for (let i = 0; i < 60; i += 1) {
-      const ready = await cdp.evaluate(`(async () => {
+      const ready = await evalSafe(`(async () => {
         const reg = await navigator.serviceWorker?.getRegistration?.();
         return Boolean(navigator.serviceWorker?.controller && reg?.active?.state === 'activated' && document.querySelector('.main-menu-subtitle'));
       })()`);
-      if (ready) break;
+      if (ready) {
+        v1Ready = true;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 80));
     }
-    const v1Sub = await cdp.evaluate(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
+    assert.equal(v1Ready, true, 'Service Worker v1 must activate and control page');
+    const v1Sub = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
     assert.equal(v1Sub, 'OLD_V1_SUBTITLE_MARKER');
 
     // Simulate new GitHub Pages deployment (still returning Cache-Control: max-age=600!)
@@ -6774,9 +6785,11 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
 
     // Returning browser simply reloads WITHOUT clearing cache or opening incognito
     await cdp.send('Page.reload', { ignoreCache: false });
+    await new Promise((r) => setTimeout(r, 200));
     let upgradedText = '';
     for (let i = 0; i < 60; i += 1) {
-      upgradedText = await cdp.evaluate(`document.querySelector('.main-menu-subtitle')?.textContent || ''`).catch(() => '');
+      const cur = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
+      if (cur) upgradedText = cur;
       if (upgradedText === '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅') break;
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -6785,6 +6798,207 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
       '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅',
       `Returning browser tab must auto-upgrade past max-age=600 SW cache, still got: ${upgradedText}`
     );
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('E2E: Combat SVG Impact VFX, Attacker Lunge & Hit-Flash, Persistent Status/Stance Auras (0px Alignment), animSpeed=off & Bespoke Class Card Art', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Start Silent run -> enter F1 combat -> verify Silent bespoke Strike/Defend art + Poison/Block aura + SVG impact VFX + 0px alignment
+    const silentAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      window.localStorage.clear();
+      app.render();
+      document.getElementById('btn-menu-standard')?.click();
+      document.querySelector('[data-action="select-character"][data-character-id="silent"]')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const st = app.getState();
+      st.neowState = null;
+      app.render();
+      document.getElementById('map-node-f1_c0')?.click();
+
+      const c = app.getState().combat;
+      c.enemies = [c.enemies[0]];
+      const enemy = c.enemies[0];
+      enemy.hp = 80;
+      enemy.maxHp = 80;
+      enemy.block = 0;
+      enemy.statuses = {};
+      // Put bespoke Strike, Defend, Deadly Poison, and Shiv into hand
+      c.hand = [
+        { instanceId: 'fx_s1', cardId: 'strike', upgraded: false },
+        { instanceId: 'fx_d1', cardId: 'defend', upgraded: false },
+        { instanceId: 'fx_p1', cardId: 'deadly_poison', upgraded: false },
+        { instanceId: 'fx_sh1', cardId: 'shiv', upgraded: false },
+      ];
+      app.getState().player.energy = 6;
+      app.render();
+
+      const strikeArt = document.querySelector('#hand-card-fx_s1 .card-art-svg')?.dataset?.cardArt || '';
+      const defendArt = document.querySelector('#hand-card-fx_d1 .card-art-svg')?.dataset?.cardArt || '';
+
+      // Play card cleanly (supports both 1-tap and 2-tap mobileTapConfirm modes)
+      const playCard = (id) => {
+        const el = document.getElementById('hand-card-' + id);
+        el?.click();
+        const stillThere = document.getElementById('hand-card-' + id);
+        if (stillThere) stillThere.click();
+      };
+
+      playCard('fx_d1');
+      const blockImpact = Boolean(document.querySelector('#spire-fx-layer .fx-impact-svg[data-fx-type="block"]'));
+      const playerHasBlockAura = document.getElementById('player-unit')?.classList.contains('has-block');
+
+      playCard('fx_p1');
+      const poisonImpact = Boolean(document.querySelector('#spire-fx-layer .fx-impact-svg[data-fx-type="poison"]'));
+      const enemyHasPoisonAura = document.getElementById('enemy-unit-' + enemy.id)?.classList.contains('is-poisoned');
+
+      playCard('fx_sh1');
+      const shivImpact = Boolean(document.querySelector('#spire-fx-layer .fx-impact-svg[data-fx-type="shiv"]'));
+      const playerLunged = document.getElementById('player-unit')?.classList.contains('fx-lunge-right');
+      const enemyHitFlashed = document.getElementById('enemy-unit-' + enemy.id)?.classList.contains('fx-hit-flash');
+
+      // Check 0px vertical alignment on 390px mobile WITH persistent block + poison auras active!
+      const pTop = document.getElementById('player-unit')?.getBoundingClientRect().top ?? -1;
+      const eTop = document.getElementById('enemy-unit-' + enemy.id)?.getBoundingClientRect().top ?? -1;
+      const mobileAlignDiff = Math.abs(pTop - eTop);
+      const mobileOverflow = document.documentElement.scrollWidth - window.innerWidth;
+
+      // Also verify Deck modal renders Silent's bespoke Strike/Defend art outside combat
+      document.getElementById('btn-open-deck')?.click();
+      const modalArtKeys = [...document.querySelectorAll('#modal-backdrop .card-art-svg')].map((el) => el.dataset.cardArt);
+      document.querySelector('#modal-backdrop [data-action="close-modal"]')?.click();
+
+      return {
+        strikeArt,
+        defendArt,
+        blockImpact,
+        playerHasBlockAura,
+        poisonImpact,
+        enemyHasPoisonAura,
+        shivImpact,
+        playerLunged,
+        enemyHitFlashed,
+        mobileAlignDiff,
+        mobileOverflow,
+        modalHasSilentStrike: modalArtKeys.includes('silent_shiv'),
+        modalHasSilentDefend: modalArtKeys.includes('silent_cloak'),
+      };
+    })()`);
+
+    assert.equal(silentAudit.strikeArt, 'silent_shiv', 'Silent Strike must use bespoke Silent dagger art');
+    assert.equal(silentAudit.defendArt, 'silent_cloak', 'Silent Defend must use bespoke Silent cloak art');
+    assert.equal(silentAudit.blockImpact, true, 'Playing Defend must spawn SVG block Aegis impact overlay');
+    assert.equal(silentAudit.playerHasBlockAura, true, 'Player unit must gain persistent .has-block aura class');
+    assert.equal(silentAudit.poisonImpact, true, 'Applying poison must spawn SVG venom splash overlay');
+    assert.equal(silentAudit.enemyHasPoisonAura, true, 'Poisoned enemy must gain persistent .is-poisoned aura class');
+    assert.equal(silentAudit.shivImpact, true, 'Playing Shiv must spawn SVG shiv dart streak overlay');
+    assert.equal(silentAudit.playerLunged, true, 'Player unit must trigger attacker lunge animation (.fx-lunge-right)');
+    assert.equal(silentAudit.enemyHitFlashed, true, 'Struck enemy must trigger hit-flash animation (.fx-hit-flash)');
+    assert.ok(silentAudit.mobileAlignDiff <= 1, `Persistent status auras must preserve 0px mobile alignment, got diff=${silentAudit.mobileAlignDiff}px`);
+    assert.ok(silentAudit.mobileOverflow <= 1, `Mobile combat with auras must have zero horizontal overflow, got ${silentAudit.mobileOverflow}px`);
+    assert.equal(silentAudit.modalHasSilentStrike, true, 'Deck modal must render bespoke Silent Strike art');
+    assert.equal(silentAudit.modalHasSilentDefend, true, 'Deck modal must render bespoke Silent Defend art');
+
+    // 2. Verify Watcher bespoke Strike/Defend art + Wrath Stance SVG ring & animSpeed='off' suppression on Desktop 1280px
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.evaluate(`window.localStorage.clear();`);
+    await cdp.send('Page.reload', { ignoreCache: true });
+    await new Promise((r) => setTimeout(r, 420));
+    const watcherAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      document.getElementById('btn-menu-standard')?.click();
+      document.querySelector('[data-action="select-character"][data-character-id="watcher"]')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const st = app.getState();
+      st.neowState = null;
+      app.render();
+      document.getElementById('map-node-f1_c0')?.click();
+
+      const c = app.getState().combat;
+      c.enemies = [c.enemies[0]];
+      const enemy = c.enemies[0];
+      enemy.hp = 90;
+      enemy.maxHp = 90;
+      enemy.block = 0;
+      enemy.statuses = {};
+      c.hand = [
+        { instanceId: 'wt_s1', cardId: 'strike', upgraded: false },
+        { instanceId: 'wt_d1', cardId: 'defend', upgraded: false },
+        { instanceId: 'wt_e1', cardId: 'eruption', upgraded: true },
+      ];
+      app.getState().player.energy = 5;
+      app.render();
+
+      const watcherStrikeArt = document.querySelector('#hand-card-wt_s1 .card-art-svg')?.dataset?.cardArt || '';
+      const watcherDefendArt = document.querySelector('#hand-card-wt_d1 .card-art-svg')?.dataset?.cardArt || '';
+
+      document.getElementById('hand-card-wt_e1')?.click();
+      const stanceWrathFx = Boolean(document.querySelector('#spire-fx-layer .fx-impact-svg[data-fx-type="stance_wrath"]'));
+      const playerWrathClass = document.getElementById('player-unit')?.classList.contains('stance-wrath');
+      const pTop = document.getElementById('player-unit')?.getBoundingClientRect().top ?? -1;
+      const eTop = document.getElementById('enemy-unit-' + enemy.id)?.getBoundingClientRect().top ?? -1;
+      const desktopAlignDiff = Math.abs(pTop - eTop);
+
+      // Turn animations OFF via Settings modal -> playing Strike spawns ZERO impact SVGs
+      document.getElementById('spire-fx-layer').innerHTML = '';
+      document.getElementById('btn-open-settings')?.click();
+      document.querySelector('[data-action="set-anim-speed"][data-speed="off"]')?.click();
+      document.querySelector('#modal-backdrop [data-action="close-modal"]')?.click();
+      document.getElementById('hand-card-wt_s1')?.click();
+      const fxCountWhenOff = document.querySelectorAll('#spire-fx-layer .fx-impact-svg').length;
+
+      return {
+        watcherStrikeArt,
+        watcherDefendArt,
+        stanceWrathFx,
+        playerWrathClass,
+        desktopAlignDiff,
+        fxCountWhenOff,
+      };
+    })()`);
+
+    assert.equal(watcherAudit.watcherStrikeArt, 'watcher_martial', 'Watcher Strike must use bespoke Watcher martial staff art');
+    assert.equal(watcherAudit.watcherDefendArt, 'watcher_calm', 'Watcher Defend must use bespoke Watcher lotus calm art');
+    assert.equal(watcherAudit.stanceWrathFx, true, 'Entering Wrath must spawn stance_wrath SVG burst');
+    assert.equal(watcherAudit.playerWrathClass, true, 'Player unit must render persistent .stance-wrath aura class');
+    assert.ok(watcherAudit.desktopAlignDiff <= 1, `Watcher stance aura must preserve 0px desktop alignment, got diff=${watcherAudit.desktopAlignDiff}px`);
+    assert.equal(watcherAudit.fxCountWhenOff, 0, 'Setting animSpeed=off must suppress all combat SVG impact overlays');
 
     cdp.ws.close();
   } finally {

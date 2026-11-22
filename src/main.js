@@ -81,7 +81,7 @@ if (
     }
   });
 
-  window.addEventListener('load', () => {
+  const registerSpireServiceWorker = () => {
     navigator.serviceWorker
       .register('./sw.js', { scope: './', updateViaCache: 'none' })
       .then((registration) => {
@@ -121,5 +121,10 @@ if (
       .catch(() => {
         // Ignore SW registration failures on restricted contexts
       });
-  });
+  };
+  if (document.readyState === 'complete') {
+    registerSpireServiceWorker();
+  } else {
+    window.addEventListener('load', registerSpireServiceWorker, { once: true });
+  }
 }

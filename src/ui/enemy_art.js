@@ -535,6 +535,7 @@ export function getEnemySvg(artKey, mode = 'normal') {
             </defs>
             <circle cx="60" cy="58" r="54" fill="url(#ea-gd-aura)" class="svg-pulse" />
             <ellipse cx="60" cy="110" rx="44" ry="7" fill="hsla(0,0%,0%,0.58)" />
+            <ellipse cx="60" cy="110" rx="50" ry="8.5" fill="none" stroke="hsla(190, 96%, 68%, 0.5)" stroke-width="1.3" stroke-dasharray="7 4" />
             <!-- Spinning spiked fortress barrier -->
             <g class="svg-spin-slow">
               <polygon points="60,5 69,26 51,26" fill="hsl(42, 82%, 74%)" stroke="hsl(24, 34%, 20%)" stroke-width="1.4" />
@@ -580,17 +581,18 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="58" r="54" fill="url(#ea-gu-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="111" rx="48" ry="7.2" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="111" rx="53" ry="8.8" fill="none" stroke="hsla(44, 92%, 68%, 0.45)" stroke-width="1.3" stroke-dasharray="8 5" />
           <g class="svg-breathe">
             <!-- Twin articulated scythe-blade wings -->
             <path d="M27 34 L5 64 L18 99 L34 69 Z" fill="url(#ea-gu-blade)" stroke="hsl(24, 30%, 18%)" stroke-width="1.8" />
-            <path d="M25 40 L11 64 L19 88" stroke="hsla(48, 92%, 94%, 0.55)" stroke-width="1.5" fill="none" />
+            <path d="M25 40 L11 64 L19 88" stroke="hsla(48, 92%, 94%, 0.65)" stroke-width="1.6" fill="none" />
             <path d="M93 34 L115 64 L102 99 L86 69 Z" fill="url(#ea-gu-blade)" stroke="hsl(24, 30%, 18%)" stroke-width="1.8" />
-            <path d="M95 40 L109 64 L101 88" stroke="hsla(48, 92%, 94%, 0.45)" stroke-width="1.5" fill="none" />
+            <path d="M95 40 L109 64 L101 88" stroke="hsla(48, 92%, 94%, 0.55)" stroke-width="1.6" fill="none" />
             <!-- Faceted gilded titan chassis -->
             <polygon points="27,34 60,9 93,34 87,97 60,108 33,97" fill="url(#ea-gu-frame)" stroke="hsl(44, 84%, 72%)" stroke-width="2.5" />
-            <polygon points="60,9 93,34 60,34" fill="hsla(46, 96%, 88%, 0.22)" />
+            <polygon points="60,9 93,34 60,34" fill="hsla(46, 96%, 88%, 0.26)" />
             <polygon points="33,97 60,108 60,86" fill="hsla(220, 48%, 10%, 0.34)" />
-            <!-- Riveted shoulder plates & glowing magma vents -->
+            <!-- Riveted shoulder plates & glowing plasma vents -->
             <path d="M32 50 L46 56 M88 50 L74 56 M34 82 L47 76 M86 82 L73 76" stroke="hsl(190, 96%, 68%)" stroke-width="2" stroke-linecap="round" opacity="0.85" />
             <!-- Armored visor slit & twin scanner eyes -->
             <path d="M38 33 L82 33 L75 43 L45 43 Z" fill="hsl(218, 42%, 11%)" stroke="hsl(42, 74%, 62%)" stroke-width="1.4" />
@@ -601,6 +603,8 @@ export function getEnemySvg(artKey, mode = 'normal') {
             <polygon points="60,48 75,66 60,84 45,66" fill="url(#ea-gu-core)" stroke="hsl(188, 100%, 86%)" stroke-width="1.4" class="svg-pulse" />
             <circle cx="60" cy="66" r="5.8" fill="hsl(0, 0%, 100%)" />
           </g>
+          <circle cx="16" cy="26" r="1.8" fill="hsl(188, 100%, 78%)" opacity="0.82" class="svg-float" />
+          <circle cx="104" cy="28" r="1.8" fill="hsl(46, 100%, 76%)" opacity="0.82" class="svg-float" />
         </svg>
       `;
 
@@ -626,10 +630,11 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="58" r="56" fill="url(#ea-hx-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="112" rx="42" ry="6" fill="hsla(164, 74%, 12%, 0.65)" />
+          <ellipse cx="60" cy="112" rx="50" ry="7.8" fill="none" stroke="hsla(154, 98%, 68%, 0.48)" stroke-width="1.3" stroke-dasharray="6 4" />
           <!-- Rotating spectral hexagram & 6 roaring soul-flames -->
           <g class="svg-spin-slow">
             <polygon points="60,15 97,36.5 97,79.5 60,101 23,79.5 23,36.5" fill="none" stroke="hsl(160, 88%, 60%)" stroke-width="2" stroke-dasharray="6 4" opacity="0.82" />
-            <circle cx="60" cy="58" r="42" fill="none" stroke="hsla(156, 96%, 74%, 0.28)" stroke-width="1.2" />
+            <circle cx="60" cy="58" r="42" fill="none" stroke="hsla(156, 96%, 74%, 0.34)" stroke-width="1.3" />
             <path d="M60 4 Q69 15 60 26 Q51 15 60 4 Z" fill="url(#ea-hx-flame)" />
             <path d="M98 25 Q107 36 98 46 Q89 36 98 25 Z" fill="url(#ea-hx-flame)" />
             <path d="M98 69 Q107 80 98 90 Q89 80 98 69 Z" fill="url(#ea-hx-flame)" />
@@ -640,12 +645,12 @@ export function getEnemySvg(artKey, mode = 'normal') {
           <!-- Central spectral inferno visage -->
           <g class="svg-float">
             <path d="M44 38 Q52 24 60 32 Q68 22 76 38 Q87 48 85 64 Q80 86 60 88 Q40 86 35 64 Q33 48 44 38 Z" fill="url(#ea-hx-body)" stroke="hsl(152, 100%, 78%)" stroke-width="2.4" />
-            <circle cx="60" cy="59" r="20" fill="none" stroke="hsla(152, 100%, 88%, 0.45)" stroke-width="1.5" />
+            <circle cx="60" cy="59" r="20" fill="none" stroke="hsla(152, 100%, 88%, 0.5)" stroke-width="1.5" />
             <!-- Haunting hollow eye sockets & wailing spectral maw -->
             <path d="M45 50 L56 54 L47 61 Z" fill="hsl(180, 72%, 9%)" />
             <path d="M75 50 L64 54 L73 61 Z" fill="hsl(180, 72%, 9%)" />
-            <circle cx="50" cy="55" r="2.2" fill="hsl(148, 100%, 88%)" class="svg-pulse" />
-            <circle cx="70" cy="55" r="2.2" fill="hsl(148, 100%, 88%)" class="svg-pulse" />
+            <circle cx="50" cy="55" r="2.4" fill="hsl(148, 100%, 88%)" class="svg-pulse" />
+            <circle cx="70" cy="55" r="2.4" fill="hsl(148, 100%, 88%)" class="svg-pulse" />
             <path d="M49 69 Q54 75 60 71 Q66 75 71 69 Q66 79 60 77 Q54 79 49 69 Z" fill="hsl(180, 72%, 9%)" />
           </g>
         </svg>
@@ -672,15 +677,16 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="68" r="54" fill="url(#ea-slb-aura)" />
           <ellipse cx="60" cy="109" rx="50" ry="7.8" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="109" rx="54" ry="9" fill="none" stroke="hsla(124, 90%, 56%, 0.44)" stroke-width="1.3" stroke-dasharray="7 5" />
           <g class="svg-breathe">
             <!-- Colossal dripping gelatinous boss mass -->
             <path d="M10 96 Q10 35 60 35 Q110 35 110 96 Q94 106 78 101 Q60 108 42 101 Q24 106 10 96 Z" fill="url(#ea-slb-body)" stroke="hsl(124, 86%, 68%)" stroke-width="2.6" />
-            <!-- Suspended inner skeleton rib / bubbles & specular gloss -->
+            <!-- Suspended inner bubbles & specular gloss -->
             <ellipse cx="60" cy="84" rx="34" ry="13" fill="hsla(154, 70%, 10%, 0.26)" />
-            <path d="M24 55 Q38 42 56 44" stroke="hsla(0,0%,100%,0.48)" stroke-width="4" stroke-linecap="round" fill="none" />
-            <circle cx="90" cy="67" r="5.5" fill="hsla(0,0%,100%,0.22)" stroke="hsla(0,0%,100%,0.35)" stroke-width="0.9" />
-            <circle cx="27" cy="84" r="4.4" fill="hsla(0,0%,100%,0.2)" />
-            <circle cx="84" cy="88" r="3" fill="hsla(0,0%,100%,0.22)" />
+            <path d="M24 55 Q38 42 56 44" stroke="hsla(0,0%,100%,0.56)" stroke-width="4.2" stroke-linecap="round" fill="none" />
+            <circle cx="90" cy="67" r="5.5" fill="hsla(0,0%,100%,0.26)" stroke="hsla(0,0%,100%,0.4)" stroke-width="0.9" />
+            <circle cx="27" cy="84" r="4.4" fill="hsla(0,0%,100%,0.22)" />
+            <circle cx="84" cy="88" r="3" fill="hsla(0,0%,100%,0.24)" />
             <!-- Dapper bowler hat with golden band & feather -->
             <path d="M78 24 Q92 14 96 19 Q88 26 78 28 Z" fill="hsl(352, 82%, 58%)" stroke="hsl(44, 92%, 72%)" stroke-width="1" />
             <ellipse cx="60" cy="36" rx="31" ry="7" fill="hsl(28, 46%, 18%)" stroke="hsl(44, 84%, 64%)" stroke-width="1.9" />
@@ -696,6 +702,8 @@ export function getEnemySvg(artKey, mode = 'normal') {
             <polygon points="44,85 48,91 52,86" fill="hsl(48, 72%, 94%)" />
             <polygon points="68,86 72,91 76,85" fill="hsl(48, 72%, 94%)" />
           </g>
+          <circle cx="18" cy="48" r="2.2" fill="hsl(124, 100%, 72%)" opacity="0.78" class="svg-float" />
+          <circle cx="104" cy="54" r="1.9" fill="hsl(132, 100%, 70%)" opacity="0.72" class="svg-float" />
         </svg>
       `;
 
@@ -1032,9 +1040,10 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="60" r="56" fill="url(#ea-ba-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="111" rx="48" ry="7.2" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="111" rx="53" ry="8.8" fill="none" stroke="hsla(188, 96%, 68%, 0.48)" stroke-width="1.3" stroke-dasharray="8 5" />
           <!-- Twin hovering bronze sentry orbs with tether arcs -->
           <g class="svg-float">
-            <path d="M22 44 Q30 48 34 52 M98 44 Q90 48 86 52" stroke="hsla(188, 96%, 68%, 0.5)" stroke-width="1.4" stroke-dasharray="3 3" fill="none" />
+            <path d="M22 44 Q30 48 34 52 M98 44 Q90 48 86 52" stroke="hsla(188, 96%, 68%, 0.56)" stroke-width="1.5" stroke-dasharray="3 3" fill="none" />
             <circle cx="15" cy="40" r="10" fill="url(#ea-ba-brass)" stroke="hsl(188, 96%, 72%)" stroke-width="2" />
             <circle cx="15" cy="40" r="4.5" fill="url(#ea-ba-beam)" />
             <circle cx="105" cy="40" r="10" fill="url(#ea-ba-brass)" stroke="hsl(188, 96%, 72%)" stroke-width="2" />
@@ -1042,10 +1051,10 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </g>
           <g class="svg-breathe">
             <!-- Ornate back gear halo -->
-            <circle cx="60" cy="46" r="34" fill="none" stroke="hsl(42, 68%, 54%)" stroke-width="3" stroke-dasharray="6 6" opacity="0.45" class="svg-spin-slow" />
+            <circle cx="60" cy="46" r="34" fill="none" stroke="hsl(42, 68%, 54%)" stroke-width="3" stroke-dasharray="6 6" opacity="0.48" class="svg-spin-slow" />
             <!-- Colossal broad-shouldered clockwork colossus -->
             <polygon points="22,31 98,31 87,104 33,104" fill="url(#ea-ba-brass)" stroke="hsl(48, 90%, 76%)" stroke-width="2.4" />
-            <polygon points="22,31 60,31 60,104 33,104" fill="hsla(48, 96%, 88%, 0.1)" />
+            <polygon points="22,31 60,31 60,104 33,104" fill="hsla(48, 96%, 88%, 0.14)" />
             <!-- Articulated bronze shoulder guards & rivets -->
             <path d="M18 34 L34 26 L38 48 L22 50 Z" fill="url(#ea-ba-brass)" stroke="hsl(46, 86%, 74%)" stroke-width="1.6" />
             <path d="M102 34 L86 26 L82 48 L98 50 Z" fill="url(#ea-ba-brass)" stroke="hsl(46, 86%, 74%)" stroke-width="1.6" />
@@ -1088,6 +1097,7 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="58" r="56" fill="url(#ea-tc-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="111" rx="46" ry="7.2" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="111" rx="53" ry="8.8" fill="none" stroke="hsla(156, 94%, 62%, 0.46)" stroke-width="1.3" stroke-dasharray="6 4" />
           <!-- Twin towering gothic soul-braziers -->
           <rect x="17" y="34" width="13" height="70" rx="3" fill="hsl(260, 42%, 16%)" stroke="hsl(160, 76%, 56%)" stroke-width="1.6" />
           <path d="M14 34 L33 34 L30 41 L17 41 Z" fill="hsl(44, 78%, 54%)" stroke="hsl(28, 48%, 22%)" stroke-width="1.1" />
@@ -1096,22 +1106,22 @@ export function getEnemySvg(artKey, mode = 'normal') {
           <g class="svg-float">
             <path d="M23.5 9 Q33 23 23.5 35 Q14 23 23.5 9 Z" fill="url(#ea-tc-fire)" />
             <path d="M96.5 9 Q106 23 96.5 35 Q87 23 96.5 9 Z" fill="url(#ea-tc-fire)" />
-            <circle cx="38" cy="19" r="2.2" fill="hsl(154, 100%, 74%)" opacity="0.8" />
-            <circle cx="82" cy="19" r="2.2" fill="hsl(154, 100%, 74%)" opacity="0.8" />
+            <circle cx="38" cy="19" r="2.2" fill="hsl(154, 100%, 74%)" opacity="0.85" />
+            <circle cx="82" cy="19" r="2.2" fill="hsl(154, 100%, 74%)" opacity="0.85" />
           </g>
           <g class="svg-breathe">
             <!-- Royal necromancer cloak with embroidered gold trim -->
             <path d="M30 42 Q60 28 90 42 L96 105 Q78 100 60 107 Q42 100 24 105 Z" fill="url(#ea-tc-cloak)" stroke="hsl(280, 72%, 66%)" stroke-width="2" />
-            <path d="M36 46 Q60 36 84 46" stroke="hsla(286, 94%, 84%, 0.42)" stroke-width="1.6" fill="none" />
-            <path d="M45 45 L60 100 L75 45" fill="none" stroke="hsl(46, 88%, 66%)" stroke-width="2.2" opacity="0.85" />
+            <path d="M36 46 Q60 36 84 46" stroke="hsla(286, 94%, 84%, 0.5)" stroke-width="1.7" fill="none" />
+            <path d="M45 45 L60 100 L75 45" fill="none" stroke="hsl(46, 88%, 66%)" stroke-width="2.2" opacity="0.88" />
             <polygon points="60,64 67,74 60,84 53,74" fill="hsl(158, 94%, 56%)" stroke="hsl(46, 92%, 72%)" stroke-width="1.4" class="svg-pulse" />
             <!-- Horned golden monarch crown & abyssal shadow visage -->
             <polygon points="41,25 47,7 55,19 60,6 65,19 73,7 79,25" fill="hsl(46, 94%, 66%)" stroke="hsl(28, 48%, 22%)" stroke-width="1.3" />
             <ellipse cx="60" cy="36" rx="15" ry="14" fill="hsl(262, 58%, 9%)" stroke="hsl(284, 68%, 62%)" stroke-width="1.9" />
-            <circle cx="53.5" cy="35" r="5.2" fill="hsla(154, 100%, 64%, 0.36)" class="svg-pulse" />
-            <circle cx="53.5" cy="35" r="3.2" fill="hsl(152, 100%, 70%)" />
-            <circle cx="66.5" cy="35" r="5.2" fill="hsla(154, 100%, 64%, 0.36)" class="svg-pulse" />
-            <circle cx="66.5" cy="35" r="3.2" fill="hsl(152, 100%, 70%)" />
+            <circle cx="53.5" cy="35" r="5.2" fill="hsla(154, 100%, 64%, 0.38)" class="svg-pulse" />
+            <circle cx="53.5" cy="35" r="3.2" fill="hsl(152, 100%, 72%)" />
+            <circle cx="66.5" cy="35" r="5.2" fill="hsla(154, 100%, 64%, 0.38)" class="svg-pulse" />
+            <circle cx="66.5" cy="35" r="3.2" fill="hsl(152, 100%, 72%)" />
           </g>
         </svg>
       `;
@@ -1143,12 +1153,13 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="58" cy="58" r="56" fill="url(#ea-ch-aura)" />
           <ellipse cx="60" cy="111" rx="48" ry="7.2" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="111" rx="53" ry="8.8" fill="none" stroke="hsla(44, 96%, 68%, 0.48)" stroke-width="1.3" stroke-dasharray="8 4" />
           <!-- Sweeping royal arena crimson cape -->
           <path d="M22 44 L10 104 L30 99 L44 105 L74 105 L90 99 L106 104 L94 44 Z" fill="url(#ea-ch-cape)" stroke="url(#ea-ch-gold)" stroke-width="1.6" />
           <g class="svg-breathe">
             <!-- Plated gladiator cuirass & spiked pauldrons -->
             <path d="M29 42 Q58 31 87 42 L83 102 L33 102 Z" fill="url(#ea-ch-steel)" stroke="hsl(212, 42%, 84%)" stroke-width="2" />
-            <path d="M35 46 Q58 38 81 46" stroke="hsla(0,0%,100%,0.45)" stroke-width="1.6" fill="none" />
+            <path d="M35 46 Q58 38 81 46" stroke="hsla(0,0%,100%,0.55)" stroke-width="1.7" fill="none" />
             <path d="M18 48 Q28 33 43 43 L38 59 Q24 60 18 48 Z" fill="url(#ea-ch-steel)" stroke="url(#ea-ch-gold)" stroke-width="1.6" />
             <path d="M98 48 Q88 33 73 43 L78 59 Q92 60 98 48 Z" fill="url(#ea-ch-steel)" stroke="url(#ea-ch-gold)" stroke-width="1.6" />
             <!-- Battle scar across breastplate & gilded Champion's Belt -->
@@ -1165,10 +1176,12 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </g>
           <!-- Colossal double-edged arena greatsword -->
           <path d="M97 10 L106 6 L104 79 L92 79 Z" fill="hsl(212, 32%, 90%)" stroke="hsl(216, 26%, 30%)" stroke-width="1.5" />
-          <path d="M100 13 L98 75" stroke="hsla(0,0%,100%,0.75)" stroke-width="1.8" />
+          <path d="M100 13 L98 75" stroke="hsla(0,0%,100%,0.82)" stroke-width="1.9" />
           <path d="M84 76 Q98 72 112 76 L110 83 Q98 81 86 83 Z" fill="url(#ea-ch-gold)" stroke="hsl(26, 46%, 22%)" stroke-width="1.3" />
           <rect x="94.5" y="83" width="7" height="15" rx="2" fill="hsl(10, 56%, 26%)" stroke="url(#ea-ch-gold)" stroke-width="1" />
           <circle cx="98" cy="100" r="4.5" fill="url(#ea-ch-gold)" stroke="hsl(26, 46%, 22%)" stroke-width="1.2" />
+          <circle cx="109" cy="24" r="1.9" fill="hsl(48, 100%, 82%)" opacity="0.85" class="svg-float" />
+          <circle cx="18" cy="34" r="1.8" fill="hsl(16, 100%, 64%)" opacity="0.78" class="svg-float" />
         </svg>
       `;
 
@@ -1499,6 +1512,7 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="58" r="56" fill="url(#ea-te-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="111" rx="48" ry="7.2" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="111" rx="54" ry="8.8" fill="none" stroke="hsla(192, 96%, 68%, 0.48)" stroke-width="1.3" stroke-dasharray="6 4" />
           <!-- Colossal astral pocket-watch with 12-tick rune halo -->
           <g>
             <circle cx="82" cy="48" r="27" fill="url(#ea-te-clock)" stroke="hsl(46, 94%, 70%)" stroke-width="3" />
@@ -1524,6 +1538,8 @@ export function getEnemySvg(artKey, mode = 'normal') {
             <circle cx="53.5" cy="34" r="4.6" fill="hsla(48, 100%, 68%, 0.36)" class="svg-pulse" />
             <circle cx="53.5" cy="34" r="2.8" fill="hsl(48, 100%, 72%)" />
           </g>
+          <circle cx="18" cy="24" r="1.9" fill="hsl(48, 100%, 80%)" opacity="0.82" class="svg-float" />
+          <circle cx="107" cy="24" r="1.8" fill="hsl(192, 100%, 76%)" opacity="0.82" class="svg-float" />
         </svg>
       `;
 
@@ -1549,19 +1565,20 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="54" r="56" fill="url(#ea-aw-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="111" rx="48" ry="7.2" fill="hsla(198, 76%, 10%, 0.62)" />
+          <ellipse cx="60" cy="111" rx="54" ry="8.8" fill="none" stroke="hsla(188, 98%, 72%, 0.5)" stroke-width="1.3" stroke-dasharray="7 4" />
           <!-- Eldritch rotating ritual halo -->
-          <circle cx="60" cy="40" r="36" fill="none" stroke="hsla(190, 96%, 68%, 0.35)" stroke-width="1.6" stroke-dasharray="5 5" class="svg-spin-slow" />
+          <circle cx="60" cy="40" r="36" fill="none" stroke="hsla(190, 96%, 68%, 0.42)" stroke-width="1.6" stroke-dasharray="5 5" class="svg-spin-slow" />
           <g class="svg-breathe">
             <!-- Layered sweeping obsidian-cyan crow wings -->
             <path d="M44 48 L4 22 L12 52 L6 66 L22 72 L16 84 L40 77 Z" fill="url(#ea-aw-wing)" stroke="hsl(188, 96%, 76%)" stroke-width="1.8" />
-            <path d="M38 54 L13 38 M37 64 L16 62" stroke="hsla(186, 100%, 88%, 0.45)" stroke-width="1.3" />
+            <path d="M38 54 L13 38 M37 64 L16 62" stroke="hsla(186, 100%, 88%, 0.55)" stroke-width="1.4" />
             <path d="M76 48 L116 22 L108 52 L114 66 L98 72 L104 84 L80 77 Z" fill="url(#ea-aw-wing)" stroke="hsl(188, 96%, 76%)" stroke-width="1.8" />
-            <path d="M82 54 L107 38 M83 64 L104 62" stroke="hsla(186, 100%, 88%, 0.45)" stroke-width="1.3" />
+            <path d="M82 54 L107 38 M83 64 L104 62" stroke="hsla(186, 100%, 88%, 0.55)" stroke-width="1.4" />
             <!-- Armored feathered torso -->
             <path d="M36 42 Q60 30 84 42 L88 105 L32 105 Z" fill="url(#ea-aw-body)" stroke="hsl(190, 90%, 72%)" stroke-width="2" />
-            <path d="M42 52 L60 62 L78 52 M42 88 L60 96 L78 88" stroke="hsla(188, 96%, 76%, 0.4)" stroke-width="1.5" fill="none" />
+            <path d="M42 52 L60 62 L78 52 M42 88 L60 96 L78 88" stroke="hsla(188, 96%, 76%, 0.48)" stroke-width="1.5" fill="none" />
             <!-- Pierced glowing crimson ritual dagger in chest -->
-            <circle cx="60" cy="68" r="14" fill="hsla(354, 96%, 54%, 0.24)" class="svg-pulse" />
+            <circle cx="60" cy="68" r="14" fill="hsla(354, 96%, 54%, 0.28)" class="svg-pulse" />
             <polygon points="60,50 66,70 60,86 54,70" fill="hsl(354, 96%, 62%)" stroke="hsl(46, 100%, 80%)" stroke-width="1.4" />
             <rect x="52" y="54" width="16" height="3.6" rx="1.5" fill="hsl(46, 94%, 68%)" />
             <!-- Crowned pale crow-god skull & blazing crimson eyes -->
@@ -1597,8 +1614,9 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="56" r="56" fill="url(#ea-dn-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="110" rx="44" ry="6.8" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="110" rx="50" ry="8.4" fill="none" stroke="hsla(48, 98%, 72%, 0.48)" stroke-width="1.3" stroke-dasharray="6 4" />
           <!-- Orbiting solar rune ring -->
-          <circle cx="60" cy="56" r="47" fill="none" stroke="hsla(46, 98%, 72%, 0.44)" stroke-width="1.8" stroke-dasharray="6 5" class="svg-spin-slow" />
+          <circle cx="60" cy="56" r="47" fill="none" stroke="hsla(46, 98%, 72%, 0.48)" stroke-width="1.8" stroke-dasharray="6 5" class="svg-spin-slow" />
           <g class="svg-float">
             <!-- Floating geometric sandstone arms -->
             <path d="M12 46 Q4 56 12 66 L20 62 L20 50 Z" fill="url(#ea-dn-gold)" stroke="hsl(48, 98%, 80%)" stroke-width="1.4" />
@@ -1638,12 +1656,13 @@ export function getEnemySvg(artKey, mode = 'normal') {
           </defs>
           <circle cx="60" cy="56" r="56" fill="url(#ea-dc-aura)" class="svg-pulse" />
           <ellipse cx="60" cy="110" rx="44" ry="6.8" fill="hsla(0,0%,0%,0.58)" />
+          <ellipse cx="60" cy="110" rx="50" ry="8.4" fill="none" stroke="hsla(194, 98%, 70%, 0.48)" stroke-width="1.3" stroke-dasharray="6 4" />
           <!-- Orbiting diamond rune halo -->
-          <polygon points="60,5 111,56 60,107 9,56" fill="none" stroke="hsla(194, 96%, 70%, 0.44)" stroke-width="1.8" stroke-dasharray="6 5" class="svg-spin-slow" />
+          <polygon points="60,5 111,56 60,107 9,56" fill="none" stroke="hsla(194, 96%, 70%, 0.48)" stroke-width="1.8" stroke-dasharray="6 5" class="svg-spin-slow" />
           <g class="svg-float">
             <!-- Faceted ancient bastion octahedron with light/shadow planes -->
             <polygon points="60,11 105,56 60,101 15,56" fill="url(#ea-dc-shell)" stroke="hsl(46, 92%, 72%)" stroke-width="2.8" />
-            <polygon points="60,11 105,56 60,56" fill="hsla(198, 92%, 82%, 0.2)" />
+            <polygon points="60,11 105,56 60,56" fill="hsla(198, 92%, 82%, 0.24)" />
             <polygon points="60,101 15,56 60,56" fill="hsla(234, 62%, 8%, 0.34)" />
             <!-- Corner shield plates -->
             <polygon points="60,16 68,26 52,26" fill="hsl(46, 92%, 70%)" />
@@ -1652,7 +1671,7 @@ export function getEnemySvg(artKey, mode = 'normal') {
             <polygon points="100,56 90,48 90,64" fill="hsl(46, 92%, 70%)" />
             <!-- Inner gilded bastion frame & glowing plasma eye -->
             <rect x="39" y="35" width="42" height="42" rx="6" fill="hsl(226, 54%, 11%)" stroke="hsl(194, 96%, 70%)" stroke-width="2.4" />
-            <rect x="44" y="40" width="32" height="32" rx="3.5" fill="none" stroke="hsla(46, 92%, 72%, 0.5)" stroke-width="1.2" />
+            <rect x="44" y="40" width="32" height="32" rx="3.5" fill="none" stroke="hsla(46, 92%, 72%, 0.55)" stroke-width="1.2" />
             <circle cx="60" cy="56" r="12" fill="url(#ea-dc-core)" class="svg-pulse" />
             <circle cx="60" cy="56" r="4.6" fill="hsl(0, 0%, 100%)" />
           </g>

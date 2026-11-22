@@ -24,6 +24,7 @@ export function renderEventScreen({ state, ui }) {
           idPrefix: 'event-purge-card',
           action: 'confirm-event-purge',
           playable: true,
+          characterId: state?.characterId,
         })
       )
       .join('');
@@ -51,6 +52,7 @@ export function renderEventScreen({ state, ui }) {
           action: 'confirm-event-card-action',
           playable: true,
           showUpgradePreview: isUpgrade,
+          characterId: state?.characterId,
         })
       )
       .join('');
@@ -80,6 +82,7 @@ export function renderEventScreen({ state, ui }) {
           idPrefix: 'event-library-card',
           action: 'pick-event-library-card',
           playable: true,
+          characterId: state?.characterId,
         })
       )
       .join('');
@@ -103,6 +106,7 @@ export function renderEventScreen({ state, ui }) {
               renderCardHtml(c, {
                 idPrefix: 'event-upgraded-card',
                 action: 'noop',
+                characterId: state?.characterId,
               })
             )
             .join('')}</div>`
@@ -115,6 +119,7 @@ export function renderEventScreen({ state, ui }) {
               renderCardHtml(c, {
                 idPrefix: 'event-added-card',
                 action: 'noop',
+                characterId: state?.characterId,
               })
             )
             .join('')}</div>`

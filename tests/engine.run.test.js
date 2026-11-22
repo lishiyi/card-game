@@ -14,6 +14,7 @@ import {
   getCardStats,
 } from '../src/data/cards.js';
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
+import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
 import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
@@ -2126,7 +2127,7 @@ test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients &
   const cardEntries = Object.entries(CARD_LIBRARY);
   assert.equal(cardEntries.length, 233);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.ok(sigKeys.length >= 200, `Expected >=200 bespoke signature card arts, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 231, `Expected 100% bespoke signature art for all 231 non-shared cards, got ${sigKeys.length}`);
   const seenCardGradIds = new Set();
   for (const sigId of sigKeys) {
     assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
@@ -2137,7 +2138,7 @@ test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients &
   }
   const artBucketCounts = {};
   for (const [cid, cardDef] of cardEntries) {
-    if (cardDef.rarity === 'rare' || cardDef.type === 'status' || cardDef.type === 'curse') {
+    if (cid !== 'strike' && cid !== 'defend') {
       assert.ok(SIGNATURE_CARD_ART[cid], `Card ${cid} (${cardDef.rarity}/${cardDef.type}) must have bespoke signature art`);
     }
     const stats = getCardStats({ instanceId: `art_${cid}`, cardId: cid, upgraded: false });
@@ -2147,7 +2148,7 @@ test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients &
     assert.ok(svg.includes('class="card-art-svg"') && svg.includes('</svg>'), `Card ${cid} must render valid vector art`);
   }
   const maxSharedCount = Math.max(...Object.values(artBucketCounts));
-  assert.ok(maxSharedCount <= 8, `No card art template should be shared by >8 cards (got max=${maxSharedCount})`);
+  assert.equal(maxSharedCount, 1, `Every card must map to a unique bespoke illustration (got maxShared=${maxSharedCount})`);
 
   // Shared Strike/Defend tint dynamically by active hero
   const strikeStats = getCardStats({ instanceId: 's', cardId: 'strike', upgraded: false });
@@ -2745,4 +2746,102 @@ test('Official Simplified Chinese relic names (103 unique) & War Paint / Whetsto
   assert.equal(grantRelicToPlayer(maxedRun, 'war_paint'), true);
   assert.equal(maxedRun.lastRelicPickup.upgradedCards.length, 0);
   assert.ok(formatRelicUpgradeSummary(maxedRun.lastRelicPickup).includes('暂无可升级的技能牌'));
+});
+
+test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and all 35 procedural sound cues execute cleanly', () => {
+  assert.ok(AUDIO_CUES.length >= 35, `Expected >=35 audio cues, got ${AUDIO_CUES.length}`);
+  const stats = {
+    compressors: 0,
+    delays: 0,
+    oscillators: 0,
+    noiseSources: 0,
+    filters: 0,
+    gains: 0,
+  };
+  const makeParam = (init = 0) => ({
+    value: init,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+  });
+  const makeNode = () => ({
+    connect() {
+      return this;
+    },
+    start() {},
+    stop() {},
+  });
+
+  class MockAudioContext {
+    constructor() {
+      this.currentTime = 0;
+      this.sampleRate = 44100;
+      this.state = 'running';
+      this.destination = { __dest: true };
+    }
+    resume() {
+      return Promise.resolve();
+    }
+    createGain() {
+      stats.gains += 1;
+      return { ...makeNode(), gain: makeParam(1) };
+    }
+    createDynamicsCompressor() {
+      stats.compressors += 1;
+      return {
+        ...makeNode(),
+        threshold: makeParam(-14),
+        knee: makeParam(18),
+        ratio: makeParam(6),
+        attack: makeParam(0.003),
+        release: makeParam(0.14),
+      };
+    }
+    createDelay() {
+      stats.delays += 1;
+      return { ...makeNode(), delayTime: makeParam(0.03) };
+    }
+    createBiquadFilter() {
+      stats.filters += 1;
+      return { ...makeNode(), type: 'lowpass', frequency: makeParam(1200), Q: makeParam(1) };
+    }
+    createOscillator() {
+      stats.oscillators += 1;
+      return { ...makeNode(), type: 'sine', frequency: makeParam(440) };
+    }
+    createBuffer(channels, length) {
+      return {
+        getChannelData() {
+          return new Float32Array(length);
+        },
+      };
+    }
+    createBufferSource() {
+      stats.noiseSources += 1;
+      return { ...makeNode(), buffer: null };
+    }
+  }
+
+  const prevWindow = globalThis.window;
+  try {
+    globalThis.window = { AudioContext: MockAudioContext };
+    const engine = createSoundEngine(() => ({ soundEnabled: true, volume: 75 }));
+    for (const cue of AUDIO_CUES) {
+      engine.play(cue, { hits: 3 });
+    }
+    assert.equal(stats.compressors, 1, 'Audio graph must initialize a master DynamicsCompressorNode');
+    assert.equal(stats.delays, 2, 'Audio graph must initialize a two-tap stone-hall reverb delay pair');
+    assert.ok(stats.oscillators >= 50, `Expected rich multi-voice synthesis across all cues, got ${stats.oscillators} oscillators`);
+    assert.ok(stats.noiseSources >= 12, `Expected filtered noise synthesis cues, got ${stats.noiseSources} noise sources`);
+
+    // Muted engine produces zero additional nodes
+    const beforeOsc = stats.oscillators;
+    const mutedEngine = createSoundEngine(() => ({ soundEnabled: false, volume: 75 }));
+    mutedEngine.play('hit_heavy');
+    mutedEngine.play('boss_intro');
+    assert.equal(stats.oscillators, beforeOsc, 'Muted engine must not synthesize audio nodes');
+  } finally {
+    if (prevWindow === undefined) delete globalThis.window;
+    else globalThis.window = prevWindow;
+  }
 });
