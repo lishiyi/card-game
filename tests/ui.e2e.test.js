@@ -6693,3 +6693,101 @@ test('E2E: Original Slay the Spire two-level Main Menu Hall, pure Standard Chara
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-updates returning tab across deploys', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  let deployPhase = 'v1';
+  const server = http.createServer((req, res) => {
+    const urlPath = (req.url || '/').split('?')[0];
+    const relPath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
+    const fullPath = path.resolve(ROOT_DIR, relPath);
+    if (!fullPath.startsWith(ROOT_DIR) || !fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    const ext = path.extname(fullPath);
+    let body = fs.readFileSync(fullPath);
+    if (relPath === 'sw.js') {
+      body = Buffer.from(
+        body.toString('utf8').replace('__SW_CACHE_VERSION__', `test-${deployPhase}`),
+        'utf8'
+      );
+    } else if (relPath === 'src/ui/screens/character_select.js' && deployPhase === 'v1') {
+      body = Buffer.from(
+        body.toString('utf8').replace('构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅', 'OLD_V1_SUBTITLE_MARKER'),
+        'utf8'
+      );
+    }
+    const etag = `"${deployPhase}-${relPath}"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, {
+        'Cache-Control': 'max-age=600',
+        ETag: etag,
+      });
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Cache-Control': 'max-age=600',
+      ETag: etag,
+    });
+    res.end(body);
+  });
+  await new Promise((resolve, reject) => {
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const port = server.address().port;
+
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+
+    // Visit during v1 with max-age=600 headers -> Wait until SW v1 activates and controls page
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    for (let i = 0; i < 60; i += 1) {
+      const ready = await cdp.evaluate(`(async () => {
+        const reg = await navigator.serviceWorker?.getRegistration?.();
+        return Boolean(navigator.serviceWorker?.controller && reg?.active?.state === 'activated' && document.querySelector('.main-menu-subtitle'));
+      })()`);
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    const v1Sub = await cdp.evaluate(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
+    assert.equal(v1Sub, 'OLD_V1_SUBTITLE_MARKER');
+
+    // Simulate new GitHub Pages deployment (still returning Cache-Control: max-age=600!)
+    deployPhase = 'v2';
+
+    // Returning browser simply reloads WITHOUT clearing cache or opening incognito
+    await cdp.send('Page.reload', { ignoreCache: false });
+    let upgradedText = '';
+    for (let i = 0; i < 60; i += 1) {
+      upgradedText = await cdp.evaluate(`document.querySelector('.main-menu-subtitle')?.textContent || ''`).catch(() => '');
+      if (upgradedText === '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅') break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(
+      upgradedText,
+      '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅',
+      `Returning browser tab must auto-upgrade past max-age=600 SW cache, still got: ${upgradedText}`
+    );
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});

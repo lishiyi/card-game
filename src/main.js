@@ -51,31 +51,71 @@ if (typeof window !== 'undefined') {
 if (
   typeof window !== 'undefined' &&
   'serviceWorker' in navigator &&
-  (window.location.protocol === 'https:' || window.location.hostname === 'localhost') &&
+  (window.location.protocol === 'https:' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1') &&
   !window.location.pathname.endsWith('slay_the_spire_lite.html')
 ) {
+  const pageBootAt = Date.now();
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let swRefreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+
+  function triggerSwReload(worker = null) {
     if (swRefreshing) return;
     swRefreshing = true;
+    if (worker && typeof worker.postMessage === 'function') {
+      worker.postMessage({ type: 'SKIP_WAITING' });
+    }
     window.location.reload();
+  }
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // Only auto-reload when replacing a previously active SW so fresh visits never double-load
+    if (!hadController) return;
+    const isBootWindow = Date.now() - pageBootAt < 20000;
+    const onMenuScreen = Boolean(window.__SPIRE_APP__?.isCharacterSelect?.());
+    if (isBootWindow || onMenuScreen) {
+      triggerSwReload();
+    } else {
+      showSwUpdateBanner(navigator.serviceWorker.controller);
+    }
   });
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('./sw.js', { scope: './' })
+      .register('./sw.js', { scope: './', updateViaCache: 'none' })
       .then((registration) => {
+        registration.update().catch(() => {});
+
         if (registration.waiting && navigator.serviceWorker.controller) {
-          showSwUpdateBanner(registration.waiting);
+          if (Date.now() - pageBootAt < 20000) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          } else {
+            showSwUpdateBanner(registration.waiting);
+          }
         }
+
         registration.addEventListener('updatefound', () => {
           const installing = registration.installing;
           if (!installing) return;
           installing.addEventListener('statechange', () => {
             if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-              showSwUpdateBanner(registration.waiting || installing);
+              const isBootWindow = Date.now() - pageBootAt < 20000;
+              if (isBootWindow) {
+                installing.postMessage({ type: 'SKIP_WAITING' });
+              } else {
+                showSwUpdateBanner(registration.waiting || installing);
+              }
             }
           });
+        });
+
+        let lastCheck = Date.now();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && Date.now() - lastCheck > 60000) {
+            lastCheck = Date.now();
+            registration.update().catch(() => {});
+          }
         });
       })
       .catch(() => {

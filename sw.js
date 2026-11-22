@@ -1,7 +1,8 @@
 /**
  * Service Worker for Slay the Spire Lite (PWA offline play + fresh online deploys).
- * Strategy: Network-first with automatic cache update for same-origin app assets,
- * falling back seamlessly to cached resources when offline.
+ * Strategy: Network-first with HTTP cache revalidation (`no-cache` on fetch, `reload` on precache)
+ * and immediate `skipWaiting()` + `clients.claim()` so GitHub Pages `max-age=600` never traps
+ * returning browsers on stale JS/CSS versions across deploys.
  */
 
 const CACHE_VERSION = '__SW_CACHE_VERSION__';
@@ -47,18 +48,22 @@ const PRECACHE_URLS = [
   './src/ui/screens/outpost.js',
 ];
 
+async function precacheFreshAssets() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(
+    PRECACHE_URLS.map(async (url) => {
+      const freshReq = new Request(url, { cache: 'reload', credentials: 'same-origin' });
+      const res = await fetch(freshReq);
+      if (res && res.ok) {
+        await cache.put(url, res);
+      }
+    })
+  );
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => {
-        // Activate immediately on first install; on updates, wait for user confirmation via SKIP_WAITING
-        if (!self.registration.active) {
-          return self.skipWaiting();
-        }
-        return undefined;
-      })
+    precacheFreshAssets().then(() => self.skipWaiting())
   );
 });
 
@@ -85,11 +90,16 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // For navigations (including ?seed= / ?daily= / ?debug=1), normalize cache fallback to ./index.html
+  // For navigations (including ?seed= / ?daily= / ?debug=1), normalize offline cache key to ./index.html
   const isNav = req.mode === 'navigate';
+  const networkReq = isNav
+    ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : req.cache === 'only-if-cached' && req.mode !== 'same-origin'
+      ? req
+      : new Request(req, { cache: 'no-cache' });
 
   event.respondWith(
-    fetch(req)
+    fetch(networkReq)
       .then((res) => {
         if (res && res.ok) {
           const clone = res.clone();
@@ -101,7 +111,7 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(async () => {
         const cache = await caches.open(CACHE_NAME);
-        const exact = await cache.match(req);
+        const exact = (await cache.match(req)) || (await cache.match(req, { ignoreSearch: true }));
         if (exact) return exact;
         if (isNav) {
           return (await cache.match('./index.html')) || (await cache.match('./'));

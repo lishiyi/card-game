@@ -61,7 +61,8 @@ jobs:
           cp -r styles src icons _site/
           BUILD_VER="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
           sed -i "s/__SW_CACHE_VERSION__/${BUILD_VER}/g" _site/sw.js
-          echo "Injected SW cache version: ${BUILD_VER}"
+          sed -i "s|\./styles/main\.css|./styles/main.css?v=${BUILD_VER}|g; s|\./src/main\.js|./src/main.js?v=${BUILD_VER}|g" _site/index.html
+          echo "Injected SW & asset cache version: ${BUILD_VER}"
           node scripts/build-standalone.mjs _site/slay_the_spire_lite.html
           touch _site/.nojekyll
 
