@@ -38,7 +38,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   pure_water: {
     id: 'pure_water',
-    name: '纯洁之水',
+    name: '至纯之水',
     tier: 'starter',
     character: 'watcher',
     price: 150,
@@ -55,7 +55,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   oddly_smooth_stone: {
     id: 'oddly_smooth_stone',
-    name: '光滑石头',
+    name: '意外光滑的石头',
     tier: 'common',
     price: 145,
     description: '每场战斗开始时，获得 1 点敏捷。',
@@ -76,7 +76,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   lantern: {
     id: 'lantern',
-    name: '提灯',
+    name: '灯笼',
     tier: 'common',
     price: 140,
     description: '每场战斗第 1 回合额外获得 1 点能量。',
@@ -97,7 +97,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   blood_vial: {
     id: 'blood_vial',
-    name: '鲜血小瓶',
+    name: '小血瓶',
     tier: 'common',
     price: 142,
     description: '每场战斗开始时，回复 2 点生命。',
@@ -112,7 +112,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   damaru: {
     id: 'damaru',
-    name: '法鼓',
+    name: '手摇鼓',
     tier: 'common',
     character: 'watcher',
     price: 155,
@@ -172,7 +172,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   paper_phrog: {
     id: 'paper_phrog',
-    name: '折纸青蛙',
+    name: '纸蛙',
     tier: 'uncommon',
     character: 'ironclad',
     price: 215,
@@ -202,7 +202,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   ornamental_fan: {
     id: 'ornamental_fan',
-    name: '装饰折扇',
+    name: '精致折扇',
     tier: 'uncommon',
     price: 215,
     description: '每当你单回合内打出 3 张攻击牌时，立即获得 4 点格挡。',
@@ -217,14 +217,14 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   mummified_hand: {
     id: 'mummified_hand',
-    name: '木乃伊之手',
+    name: '干瘪之手',
     tier: 'uncommon',
     price: 225,
     description: '每当你打出一张【能力牌】时，随机使手中 1 张牌在本回合内费用变为 0。',
   },
   teardrop_locket: {
     id: 'teardrop_locket',
-    name: '泪滴吊坠',
+    name: '泪滴吊坠盒',
     tier: 'uncommon',
     character: 'watcher',
     price: 215,
@@ -232,7 +232,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   duality: {
     id: 'duality',
-    name: '二元性',
+    name: '两仪',
     tier: 'uncommon',
     character: 'watcher',
     price: 215,
@@ -242,7 +242,7 @@ export const RELIC_LIBRARY = deepFreeze({
   // === Rare ===
   captains_wheel: {
     id: 'captains_wheel',
-    name: '船长舵轮',
+    name: '舵盘',
     tier: 'rare',
     price: 270,
     description: '每场战斗第 3 回合开始时，获得 18 点格挡。',
@@ -271,7 +271,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   tough_bandages: {
     id: 'tough_bandages',
-    name: '坚韧绷带',
+    name: '结实绷带',
     tier: 'rare',
     character: 'silent',
     price: 275,
@@ -287,7 +287,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   the_specimen: {
     id: 'the_specimen',
-    name: '毒标本',
+    name: '生物样本',
     tier: 'rare',
     character: 'silent',
     price: 280,
@@ -295,7 +295,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   golden_eye: {
     id: 'golden_eye',
-    name: '黄金之眼',
+    name: '黄金眼',
     tier: 'rare',
     character: 'watcher',
     price: 275,
@@ -311,14 +311,14 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   fossilized_helix: {
     id: 'fossilized_helix',
-    name: '化石螺旋',
+    name: '螺类化石',
     tier: 'rare',
     price: 290,
     description: '每场战斗开始时获得 1 层【缓冲】，免疫下一次即将受到的生命损失。',
   },
   calipers: {
     id: 'calipers',
-    name: '卡尺',
+    name: '外卡钳',
     tier: 'rare',
     price: 285,
     description: '你的回合开始时，未耗尽的格挡不再直接清零，而是仅扣除最多 15 点。',
@@ -341,14 +341,14 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   chemical_x: {
     id: 'chemical_x',
-    name: '化学物 X',
+    name: '化学物X',
     tier: 'shop',
     price: 155,
     description: '商店专属：你打出的所有【X 费卡牌】效果次数额外 +2。',
   },
   medical_kit: {
     id: 'medical_kit',
-    name: '医疗箱',
+    name: '医药箱',
     tier: 'shop',
     price: 160,
     description: '商店专属：手牌中不可打出的【状态牌】（伤口/灼伤/晕眩）变为 0 费可打出，并立即【消耗】。',
@@ -362,7 +362,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   lees_waffle: {
     id: 'lees_waffle',
-    name: '李氏华夫饼',
+    name: '李家华夫饼',
     tier: 'shop',
     price: 165,
     maxHpBonus: 7,
@@ -373,38 +373,38 @@ export const RELIC_LIBRARY = deepFreeze({
   // === Event-Exclusive Pool (4) ===
   golden_idol_relic: {
     id: 'golden_idol_relic',
-    name: '黄金神像',
+    name: '金神像',
     tier: 'event',
     price: 200,
     description: '事件专属：所有战斗胜利掉落的金币奖励永久额外增加 25%。',
   },
   red_mask: {
     id: 'red_mask',
-    name: '红头罩',
+    name: '红面具',
     tier: 'event',
     price: 190,
     description: '事件专属：每场战斗开始时，给予所有敌人 1 层【虚弱】。',
   },
   enchiridion: {
     id: 'enchiridion',
-    name: '魔导抄本',
+    name: '英雄宝典',
     tier: 'event',
     price: 220,
     description: '事件专属：每场战斗第 1 回合开始时，随机将 1 张本回合 0 费的【能力牌】加入手牌。',
   },
   bloody_idol: {
     id: 'bloody_idol',
-    name: '染血神像',
+    name: '鲜血神像',
     tier: 'event',
     price: 240,
     replacesRelic: 'golden_idol_relic',
-    description: '事件专属（替代黄金神像）：每当你获得金币时，回复 5 点生命值。',
+    description: '事件专属（替代金神像）：每当你获得金币时，回复 5 点生命值。',
   },
 
   // === Boss ===
   black_blood: {
     id: 'black_blood',
-    name: '漆黑之血',
+    name: '黑暗之血',
     tier: 'boss',
     character: 'ironclad',
     price: 320,
@@ -414,7 +414,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   ring_of_the_serpent: {
     id: 'ring_of_the_serpent',
-    name: '蛇王戒指',
+    name: '长蛇戒指',
     tier: 'boss',
     character: 'silent',
     price: 320,
@@ -430,11 +430,11 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 320,
     requiresRelic: 'pure_water',
     replacesRelic: 'pure_water',
-    description: '替换【纯洁之水】：每场战斗第 1 回合开始时，将 3 张【奇迹】加入手牌。',
+    description: '替换【至纯之水】：每场战斗第 1 回合开始时，将 3 张【奇迹】加入手牌。',
   },
   violet_lotus: {
     id: 'violet_lotus',
-    name: '紫莲花',
+    name: '紫色莲花',
     tier: 'boss',
     character: 'watcher',
     price: 320,
@@ -442,7 +442,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   wrist_blade: {
     id: 'wrist_blade',
-    name: '腕刃',
+    name: '袖剑',
     tier: 'boss',
     character: 'silent',
     price: 320,
@@ -458,7 +458,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   velvet_choker: {
     id: 'velvet_choker',
-    name: '天鹅绒项圈',
+    name: '天鹅绒颈圈',
     tier: 'boss',
     price: 320,
     energyBonus: 1,
@@ -487,7 +487,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   coffee_dripper: {
     id: 'coffee_dripper',
-    name: '咖啡滤滴器',
+    name: '咖啡滤杯',
     tier: 'boss',
     price: 320,
     energyBonus: 1,
@@ -519,7 +519,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   ceramic_fish: {
     id: 'ceramic_fish',
-    name: '陶瓷鱼',
+    name: '陶瓷小鱼',
     tier: 'common',
     price: 145,
     description: '每当你将 1 张新卡牌加入牌组时，获得 9 金币。',
@@ -533,7 +533,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   toy_ornithopter: {
     id: 'toy_ornithopter',
-    name: '玩具扑翼机',
+    name: '玩具扑翼飞机',
     tier: 'common',
     price: 148,
     description: '每当你饮用 1 瓶药水时，立即回复 5 点生命。',
@@ -554,7 +554,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   preserved_insect: {
     id: 'preserved_insect',
-    name: '保存完好的昆虫',
+    name: '昆虫标本',
     tier: 'common',
     price: 152,
     description: '精英战斗开始时，所有精英敌人的最大生命与当前生命减少 25%。',
@@ -568,7 +568,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   bronze_scales: {
     id: 'bronze_scales',
-    name: '青铜鳞片',
+    name: '铜制鳞片',
     tier: 'common',
     price: 152,
     description: '每场战斗开始时，获得 3 层【荆棘】（受攻击时反击伤害）。',
@@ -583,7 +583,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   war_paint: {
     id: 'war_paint',
-    name: '战纹颜料',
+    name: '战纹涂料',
     tier: 'common',
     price: 150,
     upgradeOnPickup: { type: 'skill', count: 2 },
@@ -593,7 +593,7 @@ export const RELIC_LIBRARY = deepFreeze({
   // === P1 Expansion: Uncommon Relics (+12) ===
   self_forming_clay: {
     id: 'self_forming_clay',
-    name: '自塑黏土',
+    name: '自成型黏土',
     tier: 'uncommon',
     character: 'ironclad',
     price: 215,
@@ -601,7 +601,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   letter_opener: {
     id: 'letter_opener',
-    name: '拆信刀',
+    name: '开信刀',
     tier: 'uncommon',
     price: 210,
     description: '同一回合内每打出 3 张技能牌，对所有敌人造成 5 点固定伤害。',
@@ -629,7 +629,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   paper_krane: {
     id: 'paper_krane',
-    name: '折纸鹤',
+    name: '纸鹤',
     tier: 'uncommon',
     character: 'silent',
     price: 225,
@@ -637,7 +637,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   ninja_scroll: {
     id: 'ninja_scroll',
-    name: '忍者卷轴',
+    name: '忍术卷轴',
     tier: 'uncommon',
     character: 'silent',
     price: 215,
@@ -645,7 +645,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   gremlin_horn: {
     id: 'gremlin_horn',
-    name: '地精角',
+    name: '地精之角',
     tier: 'uncommon',
     price: 220,
     description: '每当有敌人阵亡时，立即获得 1 点能量并抽 1 张牌。',
@@ -659,7 +659,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   melange: {
     id: 'melange',
-    name: '混响香料',
+    name: '美琅脂',
     tier: 'uncommon',
     character: 'watcher',
     price: 218,
@@ -683,7 +683,7 @@ export const RELIC_LIBRARY = deepFreeze({
   // === P1 Expansion: Rare Relics (+7) ===
   dead_branch: {
     id: 'dead_branch',
-    name: '枯树枝',
+    name: '枯木树枝',
     tier: 'rare',
     price: 295,
     description: '每当你在战斗中消耗 1 张牌，随机将 1 张本职业非初始卡牌加入手牌！',
@@ -753,7 +753,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   clockwork_souvenir: {
     id: 'clockwork_souvenir',
-    name: '发条纪念品',
+    name: '齿轮工艺品',
     tier: 'shop',
     price: 185,
     description: '每场战斗开始时，获得 1 层【人工制品】（免疫下 1 次负面状态）。',
@@ -770,7 +770,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   hovering_kite: {
     id: 'hovering_kite',
-    name: '浮空风筝',
+    name: '悬浮风筝',
     tier: 'boss',
     character: 'silent',
     price: 320,
@@ -785,7 +785,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   slavers_collar: {
     id: 'slavers_collar',
-    name: '奴隶主项圈',
+    name: '奴隶贩子颈环',
     tier: 'boss',
     price: 320,
     description: '精英战斗与首领战斗中，每回合开始时额外获得 1 点能量（零负面代价）。',
@@ -808,7 +808,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   peace_pipe: {
     id: 'peace_pipe',
-    name: '和平烟斗',
+    name: '宁静烟斗',
     tier: 'rare',
     price: 300,
     description: '现在你可以在篝火营地选择「吞云」，从牌组中永久移除 1 张卡牌！',
@@ -1856,7 +1856,7 @@ export const STANCE_METADATA = deepFreeze({
     name: '平静',
     shortLabel: '平静 · 出态 +2能',
     tone: 'calm',
-    description: '心如止水：当你离开【平静】姿态（切换至其他姿态或无姿态）时，立即获得 2 点能量（持有【紫莲花】时为 3 点）。',
+    description: '心如止水：当你离开【平静】姿态（切换至其他姿态或无姿态）时，立即获得 2 点能量（持有【紫色莲花】时为 3 点）。',
   },
   wrath: {
     id: 'wrath',

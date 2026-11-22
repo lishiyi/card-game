@@ -243,7 +243,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         ? ''
         : check.reason.includes('能量')
           ? 'energy'
-          : check.reason.includes('天鹅绒项圈')
+          : check.reason.includes('天鹅绒颈圈')
             ? 'choker'
             : 'unplayable';
       const conditionMet = check.playable && isCardBonusConditionMet(state, card);

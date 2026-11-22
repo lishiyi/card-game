@@ -13,6 +13,7 @@ import { TOTAL_FLOORS } from '../../data/events.js';
 import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
+  formatRelicUpgradeSummary,
   getCurrentBossName,
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
@@ -1531,6 +1532,61 @@ export function renderModal({ state, meta, settings, ui }) {
     `;
   }
 
+  if (ui.modal === 'relic_upgrade_reveal') {
+    const pickup = ui.relicUpgradeReveal || state?.lastRelicPickup;
+    if (!pickup || !pickup.upgradeType) {
+      ui.modal = null;
+      return '';
+    }
+    const relicIcon = getRelicIcon(pickup.relicId);
+    const summaryText = formatRelicUpgradeSummary(pickup);
+    const upgradedDeckCards = (pickup.upgradedCards || []).map((entry) => {
+      return (
+        state?.player?.deck?.find((c) => c.instanceId === entry.instanceId) || {
+          instanceId: entry.instanceId,
+          cardId: entry.cardId,
+          upgraded: true,
+        }
+      );
+    });
+    const cardsHtml =
+      upgradedDeckCards.length > 0
+        ? `<div class="card-showcase" id="relic-upgrade-reveal-cards">${upgradedDeckCards
+            .map((c) =>
+              renderCardHtml(c, {
+                idPrefix: 'relic-upgraded-card',
+                action: 'noop',
+                playable: false,
+                disabled: false,
+              })
+            )
+            .join('')}</div>`
+        : '<p class="stage-subtitle" style="margin:6px 0 0;">当前牌组中暂无尚未升级的对应类型卡牌。</p>';
+
+    return `
+      <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="relic-upgrade-reveal-summary">
+        <div class="modal-sheet modal-upgrade-reveal-sheet" id="relic-upgrade-reveal-modal">
+          <div class="modal-header">
+            <div>
+              <h2 id="modal-title" class="stage-heading" style="color: var(--jade-upgrade);">
+                ${escapeHtml(relicIcon)} 【${escapeHtml(pickup.relicName)}】升级卡牌
+              </h2>
+              <p id="relic-upgrade-reveal-summary" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);">
+                ${escapeHtml(summaryText)}
+              </p>
+            </div>
+            <button type="button" id="btn-close-upgrade-reveal" class="btn-brass" style="white-space:nowrap;" data-action="close-modal">
+              确认 (Esc)
+            </button>
+          </div>
+          <div class="modal-body">
+            ${cardsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   let title = '牌组总览';
   let subtitle = '';
   let cards = [];
@@ -1567,7 +1623,7 @@ export function renderModal({ state, meta, settings, ui }) {
     playable = true;
   } else if (ui.modal === 'rest_toke') {
     cards = state.player.deck;
-    title = `🪈 和平烟斗 · 选择 1 张卡牌永久移除（共 ${cards.length} 张）`;
+    title = `🪈 宁静烟斗 · 选择 1 张卡牌永久移除（共 ${cards.length} 张）`;
     subtitle = '点击任意一张卡牌将其从牌组中永久移除（合并堆点击将移除其中 1 张）。';
     cardAction = 'confirm-rest-toke';
     playable = true;

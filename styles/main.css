@@ -280,9 +280,11 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 4px 9px;
-  font-size: 0.78rem;
+  gap: 6px;
+  padding: 5px 11px;
+  min-height: 32px;
+  font-size: 0.85rem;
+  font-weight: 600;
   border-radius: var(--radius-sm);
   background: var(--bg-cavern);
   border: 1px solid var(--border-stone);
@@ -734,7 +736,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.55fr);
   gap: 20px;
-  align-items: end;
+  align-items: stretch;
   padding: 40px 22px 16px;
   background:
     radial-gradient(ellipse 38% 48% at 24% 82%, hsla(30, 28%, 22%, 0.42), transparent 72%),
@@ -788,7 +790,7 @@ button:disabled {
 
 .fighters-group {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: center;
   gap: 14px;
   min-width: 0;
@@ -815,6 +817,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 6px;
   transition: transform 0.16s ease, background-color 0.16s ease;
 }
@@ -902,8 +905,10 @@ button:disabled {
   gap: 4px;
   width: 100%;
   min-width: 0;
+  min-height: 22px;
   font-size: 0.86rem;
   font-weight: 700;
+  line-height: 1.25;
 }
 
 .unit-name-text {
@@ -921,6 +926,7 @@ button:disabled {
   color: hsl(198, 86%, 82%);
   font-size: 0.75rem;
   font-weight: 700;
+  line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
 
@@ -957,17 +963,22 @@ button:disabled {
 }
 
 .status-row {
-  min-height: 22px;
+  min-height: 24px;
   width: 100%;
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
   gap: 4px;
 }
 
 .status-chip {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 7px;
   font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1.25;
   border-radius: 4px;
   background: var(--surface-parchment);
   color: var(--text-ivory);
@@ -2323,10 +2334,12 @@ body.spire-modal-open {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  min-height: 50px;
 }
 
 .next-intent-hint {
@@ -4002,24 +4015,24 @@ body.spire-dragging {
 }
 
 .hud-potion-popover-title {
-  font-size: 0.92rem;
+  font-size: 0.96rem;
   color: var(--text-ivory);
   line-height: 1.2;
 }
 
 .hud-potion-popover-tag {
-  font-size: 0.7rem;
+  font-size: 0.74rem;
   color: var(--text-sand);
 }
 
 .hud-popover-close {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 7px;
   border: 1px solid hsla(36, 20%, 44%, 0.48);
   background: hsla(24, 18%, 14%, 0.75);
   color: var(--text-sand);
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4028,8 +4041,8 @@ body.spire-dragging {
 
 .hud-potion-popover-desc {
   margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
+  font-size: 0.85rem;
+  line-height: 1.48;
   color: hsl(38, 30%, 84%);
 }
 
@@ -4041,8 +4054,22 @@ body.spire-dragging {
 
 .hud-potion-popover-actions button {
   flex: 1;
-  min-height: 34px;
+  min-height: 38px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.loot-upgrade-summary {
+  display: block;
+  margin-top: 4px;
   font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--jade-upgrade);
+  line-height: 1.35;
+}
+
+.modal-upgrade-reveal-sheet {
+  max-width: 680px;
 }
 
 .btn-danger-subtle {
@@ -4995,6 +5022,10 @@ body.spire-dragging {
     height: 74px;
   }
 
+  .intent-stack {
+    min-height: 24px;
+  }
+
   .intent-badge {
     min-height: 24px;
     padding: 2px 7px;
@@ -5003,6 +5034,7 @@ body.spire-dragging {
   }
 
   .unit-name-row {
+    min-height: 21px;
     font-size: 0.8rem;
   }
 
@@ -5445,7 +5477,7 @@ body.spire-dragging {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
-    align-items: end;
+    align-items: stretch;
   }
 
   .combat-arena[data-enemy-count='3'] .fighter-unit {
@@ -5460,6 +5492,10 @@ body.spire-dragging {
   .combat-arena[data-enemy-count='3'] .unit-figure {
     width: 48px;
     height: 48px;
+  }
+
+  .intent-stack {
+    min-height: 22px;
   }
 
   .intent-badge {
@@ -5477,6 +5513,7 @@ body.spire-dragging {
   }
 
   .unit-name-row {
+    min-height: 20px;
     font-size: 0.74rem;
   }
 
@@ -5494,13 +5531,14 @@ body.spire-dragging {
   }
 
   .status-row {
-    min-height: 18px;
+    min-height: 22px;
     gap: 3px;
   }
 
   .status-chip {
     padding: 1px 4px;
     font-size: 0.64rem;
+    line-height: 1.25;
   }
 
   .next-intent-hint {
@@ -6375,15 +6413,25 @@ body.spire-dragging {
     display: inline;
   }
 
-  /* Option C: Compact icon-only SVG potion bottles on mobile */
+  /* Option C: Compact icon-only SVG potion bottles on mobile — larger tap targets */
+  .top-hud.run-hud .vital-chip {
+    font-size: 0.86rem;
+    gap: 4px;
+  }
+
+  .top-hud.run-hud .vital-icon-svg {
+    width: 16px;
+    height: 16px;
+  }
+
   .top-hud.run-hud .potion-slot {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
     padding: 0;
     gap: 0;
-    border-radius: 7px;
+    border-radius: 8px;
     border-width: 1.5px;
   }
 
@@ -6392,8 +6440,8 @@ body.spire-dragging {
   }
 
   .top-hud.run-hud .potion-slot .potion-icon-svg {
-    width: 19px;
-    height: 19px;
+    width: 22px;
+    height: 22px;
   }
 
   .top-hud.run-hud .potion-slot.filled {
@@ -6412,7 +6460,7 @@ body.spire-dragging {
   .top-hud.run-hud .top-actions-primary {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
   }
 
   .top-hud.run-hud .top-actions-more-wrap {
@@ -6425,22 +6473,22 @@ body.spire-dragging {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    height: 28px;
-    min-height: 28px;
-    padding: 0 8px;
-    font-size: 0.74rem;
+    gap: 4px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.84rem;
     font-weight: 700;
-    border-radius: 7px;
+    border-radius: 8px;
     font-variant-numeric: tabular-nums;
   }
 
   .top-hud.run-hud .hud-more-btn {
     display: inline-flex;
-    width: 28px;
-    min-width: 28px;
+    width: 34px;
+    min-width: 34px;
     padding: 0;
-    font-size: 0.92rem;
+    font-size: 1.04rem;
     line-height: 1;
   }
 
@@ -6462,7 +6510,7 @@ body.spire-dragging {
     position: absolute;
     top: calc(100% + 7px);
     right: 0;
-    min-width: 164px;
+    min-width: 170px;
     padding: 7px;
     border-radius: 11px;
     background: linear-gradient(180deg, hsl(26, 22%, 17%), hsl(24, 24%, 11%));
@@ -6476,9 +6524,9 @@ body.spire-dragging {
 
   .top-hud.run-hud .top-actions-secondary.open button {
     width: 100%;
-    min-height: 36px;
+    min-height: 38px;
     padding: 7px 11px;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     display: flex;
     align-items: center;
     justify-content: flex-start;
@@ -6558,18 +6606,23 @@ body.spire-dragging {
   }
 
   .top-hud.run-hud {
-    gap: 4px 5px;
-    padding: 6px 8px;
+    gap: 5px 4px;
+    padding: 6px 7px;
   }
 
   .top-hud.run-hud .vitals-numbers-row {
-    gap: 3px;
+    gap: 2px;
   }
 
   .top-hud.run-hud .vital-chip {
-    font-size: 0.72rem;
-    padding: 1px 2px;
+    font-size: 0.8rem;
+    padding: 1px 1px;
     gap: 2px;
+  }
+
+  .top-hud.run-hud .vital-icon-svg {
+    width: 15px;
+    height: 15px;
   }
 
   .top-hud.run-hud .potion-strip {
@@ -6578,15 +6631,16 @@ body.spire-dragging {
   }
 
   .top-hud.run-hud .potion-slot {
-    width: 26px;
-    height: 26px;
-    min-width: 26px;
-    min-height: 26px;
+    width: 30px;
+    height: 32px;
+    min-width: 30px;
+    min-height: 32px;
+    border-radius: 8px;
   }
 
   .top-hud.run-hud .potion-slot .potion-icon-svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
   }
 
   .top-hud.run-hud .top-actions {
@@ -6603,32 +6657,102 @@ body.spire-dragging {
   }
 
   .top-hud.run-hud .hud-deck-btn {
-    height: 26px;
-    min-height: 26px;
+    height: 32px;
+    min-height: 32px;
     padding: 0 6px;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
+    gap: 2px;
+    border-radius: 8px;
+  }
+
+  .top-hud.run-hud .hud-map-btn,
+  .top-hud.run-hud .hud-more-btn {
+    width: 30px;
+    min-width: 30px;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    font-size: 0.96rem;
+    border-radius: 8px;
+  }
+
+  .top-hud.run-hud .hud-more-btn {
+    font-size: 1.02rem;
+  }
+
+  .top-hud.run-hud .top-actions-secondary.open button {
+    min-height: 38px;
+    padding: 7px 11px;
+    font-size: 0.85rem;
+  }
+
+  .nav-btn-emoji {
+    margin-right: 0;
+    font-size: 0.96em;
+  }
+}
+
+@media (max-width: 375px) {
+  .top-hud.run-hud {
+    gap: 4px 3px;
+    padding: 6px 6px;
+  }
+
+  .top-hud.run-hud .vitals-numbers-row {
+    gap: 2px;
+  }
+
+  .top-hud.run-hud .vital-chip {
+    font-size: 0.78rem;
+    padding: 1px 1px;
+    gap: 2px;
+  }
+
+  .top-hud.run-hud .vital-icon-svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .top-hud.run-hud .potion-strip {
+    gap: 2px;
+  }
+
+  .top-hud.run-hud .potion-slot {
+    width: 28px;
+    height: 30px;
+    min-width: 28px;
+    min-height: 30px;
+  }
+
+  .top-hud.run-hud .potion-slot .potion-icon-svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .top-hud.run-hud .top-actions,
+  .top-hud.run-hud .top-actions-primary {
+    gap: 2px;
+  }
+
+  .top-hud.run-hud .hud-deck-btn {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 5px;
+    font-size: 0.78rem;
     gap: 2px;
   }
 
   .top-hud.run-hud .hud-map-btn,
   .top-hud.run-hud .hud-more-btn {
-    width: 26px;
-    min-width: 26px;
-    height: 26px;
-    min-height: 26px;
-    padding: 0;
-    font-size: 0.82rem;
+    width: 28px;
+    min-width: 28px;
+    height: 30px;
+    min-height: 30px;
+    font-size: 0.92rem;
   }
 
-  .top-hud.run-hud .top-actions-secondary.open button {
-    min-height: 36px;
-    padding: 7px 11px;
-    font-size: 0.82rem;
-  }
-
-  .nav-btn-emoji {
-    margin-right: 0;
-    font-size: 0.92em;
+  .top-hud.run-hud .hud-more-btn {
+    font-size: 0.98rem;
   }
 }
 

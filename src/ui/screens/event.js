@@ -217,9 +217,9 @@ export function renderEventScreen({ state, ui }) {
             (evDef.id === 'moai_head' && ch.id === 'offer_golden_idol')) &&
           !hasGoldenIdol
         ) {
-          blockedReason = '（需持有黄金神像）';
+          blockedReason = '（需持有金神像）';
         } else if (evDef.id === 'vampires_den' && ch.id === 'trade_blood_vial' && !hasBloodVial) {
-          blockedReason = '（需持有鲜血小瓶）';
+          blockedReason = '（需持有小血瓶）';
         } else if (evDef.id === 'tomb_of_red_mask' && ch.id === 'wear_red_mask' && !hasRedMask) {
           blockedReason = '（需持有红面具）';
         }

@@ -39,6 +39,7 @@ import {
   createNewRun,
   digAtCampfire,
   discardPotion,
+  formatRelicUpgradeSummary,
   getStarterPotionSlotCount,
   hasPendingNeowBlessing,
   leaveRestSite,
@@ -413,6 +414,7 @@ export function mountSpireApp(rootEl) {
     hoveredPotionSlot: null,
     hoveredEnemyId: null,
     modal: initialModal,
+    relicUpgradeReveal: null,
     pendingChallenge: initialPendingChallenge,
     inspectedHistoryIdx: null,
     mobileLogExpanded: false,
@@ -1265,12 +1267,38 @@ export function mountSpireApp(rootEl) {
     if (ui.modal === 'confirm_challenge') {
       ui.pendingChallenge = null;
     }
+    if (ui.modal === 'relic_upgrade_reveal') {
+      ui.relicUpgradeReveal = null;
+    }
     if (ui.modal === 'map') {
       clearMapInspectState({ clearTypeFilter: true });
     }
     ui.modal = null;
     soundEngine.play('ui_click');
     render();
+  }
+
+  function showRelicUpgradePickup(pickup) {
+    if (!pickup || !pickup.upgradeType) return false;
+    ui.relicUpgradeReveal = pickup;
+    ui.modal = 'relic_upgrade_reveal';
+    const summary = formatRelicUpgradeSummary(pickup);
+    if (summary) {
+      setNotice(`✨ ${summary}！`);
+    }
+    soundEngine.play('upgrade');
+    return true;
+  }
+
+  function maybeShowRelicUpgradeReveal(prevSeq) {
+    if (
+      state &&
+      (state._relicPickupSeq || 0) > prevSeq &&
+      state.lastRelicPickup?.upgradeType
+    ) {
+      return showRelicUpgradePickup(state.lastRelicPickup);
+    }
+    return false;
   }
 
   const dragController = createCombatDragController({
@@ -1523,6 +1551,7 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'choose-neow': {
+        const prevSeq = state?._relicPickupSeq || 0;
         const res = chooseNeowOption(state, target.dataset.optionId);
         if (!res.ok) {
           setNotice(res.reason, 'warn');
@@ -1532,8 +1561,10 @@ export function mountSpireApp(rootEl) {
           setNotice('');
         } else {
           ui.modal = null;
-          soundEngine.play('upgrade');
-          setNotice('');
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('upgrade');
+            setNotice('');
+          }
         }
         render();
         break;
@@ -1972,9 +2003,12 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'open-treasure': {
+        const prevSeq = state?._relicPickupSeq || 0;
         openTreasureChest(state);
-        soundEngine.play('gold');
-        setNotice('');
+        if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+          soundEngine.play('gold');
+          setNotice('');
+        }
         render();
         break;
       }
@@ -2022,16 +2056,22 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'claim-relic': {
+        const prevSeq = state?._relicPickupSeq || 0;
         claimRewardRelic(state);
-        soundEngine.play('upgrade');
-        setNotice('');
+        if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+          soundEngine.play('upgrade');
+          setNotice('');
+        }
         render();
         break;
       }
       case 'claim-extra-relic': {
+        const prevSeq = state?._relicPickupSeq || 0;
         claimRewardExtraRelic(state);
-        soundEngine.play('upgrade');
-        setNotice('');
+        if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+          soundEngine.play('upgrade');
+          setNotice('');
+        }
         render();
         break;
       }
@@ -2071,21 +2111,34 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'claim-important-and-proceed': {
+        let upgradePickup = null;
         if (state.reward) {
           if (!state.reward.goldClaimed && state.reward.gold > 0) {
             claimRewardGold(state);
           }
           if (state.reward.relicId && !state.reward.relicClaimed) {
+            const seqBefore = state._relicPickupSeq || 0;
             claimRewardRelic(state);
+            if ((state._relicPickupSeq || 0) > seqBefore && state.lastRelicPickup?.upgradeType) {
+              upgradePickup = state.lastRelicPickup;
+            }
           }
           if (state.reward.extraRelicId && !state.reward.extraRelicClaimed) {
+            const seqBefore = state._relicPickupSeq || 0;
             claimRewardExtraRelic(state);
+            if ((state._relicPickupSeq || 0) > seqBefore && state.lastRelicPickup?.upgradeType) {
+              upgradePickup = state.lastRelicPickup;
+            }
           }
         }
         proceedFromReward(state, { force: true });
         ui.modal = null;
-        soundEngine.play('gold');
-        setNotice('');
+        if (upgradePickup) {
+          showRelicUpgradePickup(upgradePickup);
+        } else {
+          soundEngine.play('gold');
+          setNotice('');
+        }
         render();
         break;
       }
@@ -2115,7 +2168,7 @@ export function mountSpireApp(rootEl) {
         const res = digAtCampfire(state);
         if (res.ok) {
           soundEngine.play('gold');
-          setNotice(`⛏️ 使用【铲子】在篝火旁发掘出遗物【${res.relicName}】！`);
+          setNotice(`⛏️ 使用【铲子】挖出了遗物【${res.relicName}】，点击下方牌匾即可拾取！`);
         } else {
           setNotice(res.reason, 'warn');
         }
@@ -2129,8 +2182,8 @@ export function mountSpireApp(rootEl) {
           soundEngine.play('card_attack');
           setNotice(
             res.lostMaxHp > 0
-              ? `🪈 已使用【和平烟斗】永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
-              : '🪈 已使用【和平烟斗】永久移除 1 张卡牌！'
+              ? `🪈 已使用【宁静烟斗】永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
+              : '🪈 已使用【宁静烟斗】永久移除 1 张卡牌！'
           );
         } else {
           setNotice(res.reason, 'warn');
@@ -2174,21 +2227,34 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'buy-shop-relic': {
+        const prevSeq = state?._relicPickupSeq || 0;
         const res = buyShopRelic(state);
-        if (res.ok) soundEngine.play('gold');
-        setNotice(res.ok ? '已购入遗物！' : res.reason, res.ok ? 'normal' : 'warn');
+        if (res.ok) {
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('gold');
+            setNotice('已购入遗物！');
+          }
+        } else {
+          setNotice(res.reason, 'warn');
+        }
         render();
         break;
       }
       case 'buy-shop-exclusive-relic': {
+        const prevSeq = state?._relicPickupSeq || 0;
         const res = buyShopExclusiveRelic(state);
-        if (res.ok) soundEngine.play('upgrade');
-        const msg = res.ok
-          ? res.relicId === 'membership_card'
-            ? '已购入【会员卡】！商店内其余所有在售商品与移除服务立享 50% 折扣！'
-            : '已购入商店专属遗物！'
-          : res.reason;
-        setNotice(msg, res.ok ? 'normal' : 'warn');
+        if (res.ok) {
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('upgrade');
+            const msg =
+              res.relicId === 'membership_card'
+                ? '已购入【会员卡】！商店内其余所有在售商品与移除服务立享 50% 折扣！'
+                : '已购入商店专属遗物！';
+            setNotice(msg);
+          }
+        } else {
+          setNotice(res.reason, 'warn');
+        }
         render();
         break;
       }
@@ -2223,9 +2289,16 @@ export function mountSpireApp(rootEl) {
         break;
       }
       case 'choose-event': {
+        const prevSeq = state?._relicPickupSeq || 0;
         const res = chooseEventOption(state, target.dataset.choiceId);
-        if (res.ok) soundEngine.play('ui_click');
-        setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+        if (res.ok) {
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('ui_click');
+            setNotice('');
+          }
+        } else {
+          setNotice(res.reason, 'warn');
+        }
         render();
         break;
       }

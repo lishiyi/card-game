@@ -102,7 +102,7 @@ export const EVENT_LIBRARY = deepFreeze({
   },
   golden_idol: {
     id: 'golden_idol',
-    title: '黄金神像',
+    title: '金神像',
     maxAct: 1,
     description:
       '机关基座上供奉着一尊璀璨纯金神像。四周岩壁布满暗孔与咒文，强行取走必会触发古老禁制。',
@@ -110,7 +110,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'smash_trap',
         label: '硬抗机关夺宝',
-        detail: '获得 135 金币与事件遗物【黄金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 14 点生命。',
+        detail: '获得 135 金币与事件遗物【金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 14 点生命。',
       },
       {
         id: 'accept_curse_gold',
@@ -331,8 +331,8 @@ export const EVENT_LIBRARY = deepFreeze({
     choices: [
       {
         id: 'offer_golden_idol',
-        label: '献祭【黄金神像】',
-        detail: '需要持有【黄金神像】：将其升华为事件遗物【染血神像】（每次获得金币回复 5 点生命）并立即回满生命！',
+        label: '献祭【金神像】',
+        detail: '需要持有【金神像】：将其升华为事件遗物【鲜血神像】（每次获得金币回复 5 点生命）并立即回满生命！',
       },
       {
         id: 'shed_blood_altar',
@@ -625,8 +625,8 @@ export const EVENT_LIBRARY = deepFreeze({
       },
       {
         id: 'trade_blood_vial',
-        label: '献出【鲜血小瓶】（若有）',
-        detail: '需持有【鲜血小瓶】：无损失去它以换取全血回复 + 随机升级 2 张攻击牌！',
+        label: '献出【小血瓶】（若有）',
+        detail: '需持有【小血瓶】：无损失去它以换取全血回复 + 随机升级 2 张攻击牌！',
       },
       {
         id: 'refuse_vampires',
@@ -762,8 +762,8 @@ export const EVENT_LIBRARY = deepFreeze({
       },
       {
         id: 'offer_golden_idol',
-        label: '献祭【黄金神像】（若有）',
-        detail: '需持有【黄金神像】：献出它以换取 333 枚沉甸甸的金币！',
+        label: '献祭【金神像】（若有）',
+        detail: '需持有【金神像】：献出它以换取 333 枚沉甸甸的金币！',
       },
       {
         id: 'leave_moai',
@@ -932,7 +932,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
       take_coins: `安全获得 ${t.thornCoinsGold} 金币。`,
     },
     golden_idol: {
-      smash_trap: `获得 ${t.idolSmashGold} 金币与事件遗物【黄金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 ${t.idolSmashHpLoss} 点生命。`,
+      smash_trap: `获得 ${t.idolSmashGold} 金币与事件遗物【金神像】（战斗掉落金币 +25%），但被滚石擦伤失去 ${t.idolSmashHpLoss} 点生命。`,
       accept_curse_gold: `获得 ${t.idolCurseGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
     },
     cursed_tome: {

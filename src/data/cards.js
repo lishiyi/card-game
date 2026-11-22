@@ -2944,7 +2944,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       Array.isArray(player?.relics) &&
       player.relics.includes('medical_kit')
     ) {
-      parts.push('【医疗箱】可 0 费打出并消耗。');
+      parts.push('【医药箱】可 0 费打出并消耗。');
     } else {
       parts.push('不能被打出。');
     }

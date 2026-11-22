@@ -111,6 +111,19 @@ export function getCurrentBossName(state) {
   return ENEMY_TEMPLATES[tplId]?.name || enc?.name || '尖塔首领';
 }
 
+export function formatRelicUpgradeSummary(pickup) {
+  if (!pickup || !pickup.upgradeType) return '';
+  const typeLabel =
+    pickup.upgradeType === 'attack' ? '攻击' : pickup.upgradeType === 'skill' ? '技能' : '';
+  const list = Array.isArray(pickup.upgradedCards) ? pickup.upgradedCards : [];
+  if (list.length > 0) {
+    return `【${pickup.relicName}】随机永久升级了 ${list.length} 张${typeLabel}牌：${list
+      .map((c) => `【${c.name}】`)
+      .join('、')}`;
+  }
+  return `【${pickup.relicName}】生效（当前牌组暂无可升级的${typeLabel}牌）`;
+}
+
 export function grantRelicToPlayer(state, relicId) {
   if (!relicId || !RELIC_LIBRARY[relicId] || hasRelic(state, relicId)) return false;
   const def = RELIC_LIBRARY[relicId];
@@ -135,6 +148,7 @@ export function grantRelicToPlayer(state, relicId) {
   if (def.healFullOnPickup) {
     state.player.hp = state.player.maxHp;
   }
+  const upgradedCards = [];
   if (def.upgradeOnPickup && Array.isArray(state.player.deck)) {
     const matching = state.player.deck.filter(
       (c) => canUpgradeCard(c) && getCardStats(c).type === def.upgradeOnPickup.type
@@ -142,6 +156,11 @@ export function grantRelicToPlayer(state, relicId) {
     const chosen = pickDistinct(state, matching, def.upgradeOnPickup.count ?? 2);
     for (const c of chosen) {
       c.upgraded = true;
+      upgradedCards.push({
+        instanceId: c.instanceId,
+        cardId: c.cardId,
+        name: getCardStats(c).name,
+      });
     }
   }
   if (relicId === 'smiling_mask' && state.shop && !state.shop.purgeUsed) {
@@ -150,6 +169,14 @@ export function grantRelicToPlayer(state, relicId) {
   if (relicId === 'black_star') {
     addPlayerGold(state, 75);
   }
+  state._relicPickupSeq = (state._relicPickupSeq || 0) + 1;
+  state.lastRelicPickup = {
+    seq: state._relicPickupSeq,
+    relicId,
+    relicName: def.name,
+    upgradeType: def.upgradeOnPickup?.type || null,
+    upgradedCards,
+  };
   return true;
 }
 
@@ -1042,8 +1069,14 @@ export function openTreasureChest(state) {
       : 0
     : 85;
 
+  let upgradedCards = [];
+  let upgradeSummary = '';
   if (relicId) {
     grantRelicToPlayer(state, relicId);
+    if (state.lastRelicPickup?.relicId === relicId && state.lastRelicPickup.upgradeType) {
+      upgradedCards = state.lastRelicPickup.upgradedCards || [];
+      upgradeSummary = formatRelicUpgradeSummary(state.lastRelicPickup);
+    }
   }
   if (gold > 0) {
     addPlayerGold(state, gold);
@@ -1058,6 +1091,7 @@ export function openTreasureChest(state) {
 
   const parts = [];
   if (relicId) parts.push(`获得遗物【${RELIC_LIBRARY[relicId].name}】`);
+  if (upgradeSummary) parts.push(upgradeSummary);
   if (gold > 0) parts.push(`获得 ${gold} 金币`);
   if (curseCard) {
     parts.push(`受【诅咒钥匙】影响，牌组加入了诅咒【${getCardStats(curseCard).name}】`);
@@ -1069,9 +1103,10 @@ export function openTreasureChest(state) {
   ts.relicId = relicId;
   ts.gold = gold;
   ts.curseCardId = curseCard?.instanceId ?? null;
+  ts.upgradedCardIds = upgradedCards.map((c) => c.instanceId);
   ts.outcomeText = `${chestLabel}开启：${parts.join('，')}！`;
 
-  return { ok: true, chestTier, chestLabel, relicId, gold, curseCard };
+  return { ok: true, chestTier, chestLabel, relicId, gold, curseCard, upgradedCards };
 }
 
 export function leaveTreasureRoom(state) {
@@ -1182,14 +1217,34 @@ export function claimRewardRelic(state) {
     return { ok: false, reason: '当前不在战利品界面' };
   }
   if (!state.reward.relicClaimed && state.reward.relicId) {
-    grantRelicToPlayer(state, state.reward.relicId);
+    const relicId = state.reward.relicId;
+    grantRelicToPlayer(state, relicId);
     state.reward.relicClaimed = true;
-    return { ok: true };
+    const pickup = state.lastRelicPickup?.relicId === relicId ? state.lastRelicPickup : null;
+    if (pickup?.upgradeType) {
+      state.reward.relicUpgradeSummary = formatRelicUpgradeSummary(pickup);
+    }
+    return {
+      ok: true,
+      relicId,
+      relicName: RELIC_LIBRARY[relicId]?.name || relicId,
+      upgradedCards: pickup?.upgradedCards || [],
+    };
   }
   if (!state.reward.extraRelicClaimed && state.reward.extraRelicId) {
-    grantRelicToPlayer(state, state.reward.extraRelicId);
+    const extraRelicId = state.reward.extraRelicId;
+    grantRelicToPlayer(state, extraRelicId);
     state.reward.extraRelicClaimed = true;
-    return { ok: true };
+    const pickup = state.lastRelicPickup?.relicId === extraRelicId ? state.lastRelicPickup : null;
+    if (pickup?.upgradeType) {
+      state.reward.extraRelicUpgradeSummary = formatRelicUpgradeSummary(pickup);
+    }
+    return {
+      ok: true,
+      relicId: extraRelicId,
+      relicName: RELIC_LIBRARY[extraRelicId]?.name || extraRelicId,
+      upgradedCards: pickup?.upgradedCards || [],
+    };
   }
   return { ok: false, reason: '没有可领取的遗物' };
 }
@@ -1201,9 +1256,19 @@ export function claimRewardExtraRelic(state) {
   if (state.reward.extraRelicClaimed || !state.reward.extraRelicId) {
     return { ok: false, reason: '没有可领取的额外遗物' };
   }
-  grantRelicToPlayer(state, state.reward.extraRelicId);
+  const extraRelicId = state.reward.extraRelicId;
+  grantRelicToPlayer(state, extraRelicId);
   state.reward.extraRelicClaimed = true;
-  return { ok: true };
+  const pickup = state.lastRelicPickup?.relicId === extraRelicId ? state.lastRelicPickup : null;
+  if (pickup?.upgradeType) {
+    state.reward.extraRelicUpgradeSummary = formatRelicUpgradeSummary(pickup);
+  }
+  return {
+    ok: true,
+    relicId: extraRelicId,
+    relicName: RELIC_LIBRARY[extraRelicId]?.name || extraRelicId,
+    upgradedCards: pickup?.upgradedCards || [],
+  };
 }
 
 export function claimRewardPotion(state) {
@@ -1319,7 +1384,7 @@ export function restHeal(state) {
     return { ok: false, reason: '当前不能在营地休息' };
   }
   if (hasRelic(state, 'coffee_dripper')) {
-    return { ok: false, reason: '持有遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命' };
+    return { ok: false, reason: '持有遗物【咖啡滤杯】，无法在篝火营地通过休息回复生命' };
   }
   const healPct = 0.3;
   const healAmount = Math.max(1, Math.floor(state.player.maxHp * healPct));
@@ -1391,11 +1456,24 @@ export function digAtCampfire(state) {
   if (!relicId) {
     return { ok: false, reason: '已收集全部可发掘遗物，暂无更多遗物可挖' };
   }
-  grantRelicToPlayer(state, relicId);
   const relicName = RELIC_LIBRARY[relicId]?.name || relicId;
   state.restState.completed = true;
   state.restState.lastAction = `挖掘发现了遗物【${relicName}】`;
-  state.screen = 'map';
+  state.reward = {
+    source: 'campfire_dig',
+    gold: 0,
+    goldClaimed: true,
+    relicId,
+    relicClaimed: false,
+    extraRelicId: null,
+    extraRelicClaimed: true,
+    potionId: null,
+    potionClaimed: true,
+    cardChoices: [],
+    cardClaimed: true,
+    pickedCardId: null,
+  };
+  state.screen = 'reward';
   return { ok: true, relicId, relicName };
 }
 
@@ -1404,7 +1482,7 @@ export function tokeAtCampfire(state, instanceId) {
     return { ok: false, reason: '当前不能在营地吞云移除卡牌' };
   }
   if (!hasRelic(state, 'peace_pipe')) {
-    return { ok: false, reason: '需要持有遗物【和平烟斗】才能在营地移除卡牌' };
+    return { ok: false, reason: '需要持有遗物【宁静烟斗】才能在营地移除卡牌' };
   }
   if (state.player.deck.length <= 1) {
     return { ok: false, reason: '牌组至少需要保留 1 张卡牌' };
@@ -1487,7 +1565,13 @@ export function buyShopRelic(state) {
   if (offer.relicId === 'membership_card') {
     applyShopMembershipDiscount(state);
   }
-  return { ok: true, relicId: offer.relicId };
+  const pickup = state.lastRelicPickup?.relicId === offer.relicId ? state.lastRelicPickup : null;
+  return {
+    ok: true,
+    relicId: offer.relicId,
+    relicName: RELIC_LIBRARY[offer.relicId]?.name || offer.relicId,
+    upgradedCards: pickup?.upgradedCards || [],
+  };
 }
 
 export function buyShopExclusiveRelic(state) {
@@ -1507,7 +1591,13 @@ export function buyShopExclusiveRelic(state) {
   if (offer.relicId === 'membership_card') {
     applyShopMembershipDiscount(state);
   }
-  return { ok: true, relicId: offer.relicId };
+  const pickup = state.lastRelicPickup?.relicId === offer.relicId ? state.lastRelicPickup : null;
+  return {
+    ok: true,
+    relicId: offer.relicId,
+    relicName: RELIC_LIBRARY[offer.relicId]?.name || offer.relicId,
+    upgradedCards: pickup?.upgradedCards || [],
+  };
 }
 
 export function buyShopPotion(state) {
@@ -1579,6 +1669,36 @@ function upgradeRandomCardsInEvent(state, count) {
 }
 
 export function chooseEventOption(state, choiceId) {
+  const prevSeq = state?._relicPickupSeq || 0;
+  const res = chooseEventOptionCore(state, choiceId);
+  if (
+    res?.ok &&
+    (state._relicPickupSeq || 0) > prevSeq &&
+    state.lastRelicPickup?.upgradeType
+  ) {
+    const pickup = state.lastRelicPickup;
+    const summary = formatRelicUpgradeSummary(pickup);
+    if (state.eventState) {
+      if (summary) {
+        state.eventState.outcomeText = state.eventState.outcomeText
+          ? `${state.eventState.outcomeText} ${summary}！`
+          : `${summary}！`;
+      }
+      if (Array.isArray(pickup.upgradedCards) && pickup.upgradedCards.length > 0) {
+        const existing = Array.isArray(state.eventState.upgradedCardIds)
+          ? state.eventState.upgradedCardIds
+          : [];
+        state.eventState.upgradedCardIds = [
+          ...new Set([...existing, ...pickup.upgradedCards.map((c) => c.instanceId)]),
+        ];
+      }
+    }
+    return { ...res, upgradedCards: pickup.upgradedCards || [] };
+  }
+  return res;
+}
+
+function chooseEventOptionCore(state, choiceId) {
   if (state.screen !== 'event' || !state.eventState || state.eventState.resolved) {
     return { ok: false, reason: '当前事件已结算或不在事件界面' };
   }
@@ -1711,7 +1831,7 @@ export function chooseEventOption(state, choiceId) {
         const gotIdol = grantRelicToPlayer(state, 'golden_idol_relic');
         state.eventState.resolved = true;
         state.eventState.outcomeText = gotIdol
-          ? `你夺下纯金神像冲出滚石通道（-${tune.idolSmashHpLoss} 生命），获得 ${tune.idolSmashGold} 金币与事件遗物【黄金神像】！`
+          ? `你夺下纯金神像冲出滚石通道（-${tune.idolSmashHpLoss} 生命），获得 ${tune.idolSmashGold} 金币与事件遗物【金神像】！`
           : `你夺下纯金神像冲出滚石通道（-${tune.idolSmashHpLoss} 生命），获得 ${tune.idolSmashGold} 金币！`;
         return { ok: true };
       }
@@ -2056,13 +2176,13 @@ export function chooseEventOption(state, choiceId) {
     case 'forgotten_altar': {
       if (choiceId === 'offer_golden_idol') {
         if (!hasRelic(state, 'golden_idol_relic')) {
-          return { ok: false, reason: '需要持有事件遗物【黄金神像】' };
+          return { ok: false, reason: '需要持有事件遗物【金神像】' };
         }
         grantRelicToPlayer(state, 'bloody_idol');
         const before = state.player.hp;
         state.player.hp = state.player.maxHp;
         state.eventState.resolved = true;
-        state.eventState.outcomeText = `【黄金神像】在鲜血祭坛上升华为【染血神像】（每次获金回复 5 点生命），并为你回满生命（+${state.player.hp - before}）！`;
+        state.eventState.outcomeText = `【金神像】在鲜血祭坛上升华为【鲜血神像】（每次获金回复 5 点生命），并为你回满生命（+${state.player.hp - before}）！`;
         return { ok: true };
       }
       if (choiceId === 'shed_blood_altar') {
@@ -2488,7 +2608,7 @@ export function chooseEventOption(state, choiceId) {
       }
       if (choiceId === 'trade_blood_vial') {
         if (!hasRelic(state, 'blood_vial')) {
-          return { ok: false, reason: '需要持有遗物【鲜血小瓶】' };
+          return { ok: false, reason: '需要持有遗物【小血瓶】' };
         }
         const idx = state.player.relics.indexOf('blood_vial');
         if (idx !== -1) state.player.relics.splice(idx, 1);
@@ -2497,8 +2617,8 @@ export function chooseEventOption(state, choiceId) {
         state.eventState.resolved = true;
         state.eventState.outcomeText =
           upgraded.length > 0
-            ? `血族欣然收下【鲜血小瓶】，为你全额回满生命并淬炼升级了 ${upgraded.map((c) => `【${getCardStats(c).name}】`).join('、')}！`
-            : '血族欣然收下【鲜血小瓶】，为你全额回满生命！';
+            ? `血族欣然收下【小血瓶】，为你全额回满生命并淬炼升级了 ${upgraded.map((c) => `【${getCardStats(c).name}】`).join('、')}！`
+            : '血族欣然收下【小血瓶】，为你全额回满生命！';
         return { ok: true };
       }
       if (choiceId === 'refuse_vampires') {
@@ -2680,13 +2800,13 @@ export function chooseEventOption(state, choiceId) {
       }
       if (choiceId === 'offer_golden_idol') {
         if (!hasRelic(state, 'golden_idol_relic')) {
-          return { ok: false, reason: '需要持有事件遗物【黄金神像】' };
+          return { ok: false, reason: '需要持有事件遗物【金神像】' };
         }
         const idx = state.player.relics.indexOf('golden_idol_relic');
         if (idx !== -1) state.player.relics.splice(idx, 1);
         addPlayerGold(state, 333);
         state.eventState.resolved = true;
-        state.eventState.outcomeText = '摩艾巨像吞下【黄金神像】，喷涌出整整 333 枚沉甸甸的金币！';
+        state.eventState.outcomeText = '摩艾巨像吞下【金神像】，喷涌出整整 333 枚沉甸甸的金币！';
         return { ok: true };
       }
       if (choiceId === 'leave_moai') {
@@ -3114,6 +3234,30 @@ export function generateNeowState(state) {
 }
 
 export function chooseNeowOption(state, optionId) {
+  const prevSeq = state?._relicPickupSeq || 0;
+  const res = chooseNeowOptionCore(state, optionId);
+  if (
+    res?.ok &&
+    (state._relicPickupSeq || 0) > prevSeq &&
+    state.lastRelicPickup?.upgradeType
+  ) {
+    const pickup = state.lastRelicPickup;
+    const summary = formatRelicUpgradeSummary(pickup);
+    if (summary && state.neowState) {
+      state.neowState.outcomeText = state.neowState.outcomeText
+        ? `${state.neowState.outcomeText}；${summary}！`
+        : `${summary}！`;
+    }
+    return {
+      ...res,
+      outcomeText: state.neowState?.outcomeText || res.outcomeText,
+      upgradedCards: pickup.upgradedCards || [],
+    };
+  }
+  return res;
+}
+
+function chooseNeowOptionCore(state, optionId) {
   if (state.screen !== 'map' || !hasPendingNeowBlessing(state)) {
     return { ok: false, reason: '当前没有待选择的鲸鱼赐福' };
   }

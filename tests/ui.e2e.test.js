@@ -1993,7 +1993,7 @@ test('Real Chromium E2E: Floor 0 Neow Blessing UI (cancel & Boss Swap), URL Seed
       return { healBtnDisabled, healBtnText, handCount, hasConfusedChip, hasIncreasedCostBadge, hasReducedCostBadge };
     })()`);
     assert.equal(relicUiAudit.healBtnDisabled, true);
-    assert.ok(relicUiAudit.healBtnText.includes('咖啡滤滴器'));
+    assert.ok(relicUiAudit.healBtnText.includes('咖啡滤杯'));
     assert.equal(relicUiAudit.handCount, 7, 'Snecko Eye should draw 7 cards on Turn 1');
     assert.equal(relicUiAudit.hasConfusedChip, true);
     assert.equal(relicUiAudit.hasIncreasedCostBadge, true);
@@ -3511,7 +3511,7 @@ test('Real Chromium E2E: New-Run Confirmation, Tiered Chests, Dual Shop Relics +
       app.render();
 
       const woundEl = document.getElementById('hand-card-' + wId);
-      const woundPlayable = Boolean(woundEl && !woundEl.disabled && woundEl.textContent.includes('医疗箱'));
+      const woundPlayable = Boolean(woundEl && !woundEl.disabled && woundEl.textContent.includes('医药箱'));
       const hasHappyCounter = Boolean(document.querySelector('[data-relic-id="happy_flower"] .relic-counter-pill'));
       const hasShopTierClass = Boolean(document.querySelector('.relic-badge.tier-shop'));
       const hasEventTierClass = Boolean(document.querySelector('.relic-badge.tier-event'));
@@ -5130,6 +5130,13 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
       app.render();
       const relicsBeforeDig = st.player.relics.length;
       document.getElementById('btn-rest-dig').click();
+      const digOpenedRewardScreen = st.screen === 'reward' && st.reward?.source === 'campfire_dig';
+      const hasDigClaimBtn = Boolean(document.getElementById('btn-claim-relic'));
+      const relicsBeforeClaim = st.player.relics.length;
+      document.getElementById('btn-claim-relic').click();
+      if (document.getElementById('btn-close-upgrade-reveal')) {
+        document.getElementById('btn-close-upgrade-reveal').click();
+      }
       const relicsAfterDig = st.player.relics.length;
 
       st.screen = 'rest';
@@ -5140,12 +5147,28 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
       const tokeModalOpen = Boolean(document.getElementById('modal-backdrop'));
       document.querySelector('#modal-backdrop [data-action="confirm-rest-toke"]').click();
       const deckAfterToke = st.player.deck.length;
-      return { hasLift, hasDig, hasToke, giryaAfterLift, relicsBeforeDig, relicsAfterDig, tokeModalOpen, deckBeforeToke, deckAfterToke };
+      return {
+        hasLift,
+        hasDig,
+        hasToke,
+        giryaAfterLift,
+        digOpenedRewardScreen,
+        hasDigClaimBtn,
+        relicsBeforeDig,
+        relicsBeforeClaim,
+        relicsAfterDig,
+        tokeModalOpen,
+        deckBeforeToke,
+        deckAfterToke,
+      };
     })()`);
     assert.equal(campAudit.hasLift, true);
     assert.equal(campAudit.hasDig, true);
     assert.equal(campAudit.hasToke, true);
     assert.equal(campAudit.giryaAfterLift, 1);
+    assert.equal(campAudit.digOpenedRewardScreen, true);
+    assert.equal(campAudit.hasDigClaimBtn, true);
+    assert.equal(campAudit.relicsBeforeClaim, campAudit.relicsBeforeDig);
     assert.equal(campAudit.relicsAfterDig, campAudit.relicsBeforeDig + 1);
     assert.equal(campAudit.tokeModalOpen, true);
     assert.equal(campAudit.deckAfterToke, campAudit.deckBeforeToke - 1);
@@ -6097,4 +6120,351 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
   }
 });
 
+test('E2E: Larger potion row tap targets, clickable campfire dig loot, War Paint/Whetstone upgrade modal, combat buff alignment, and official ZHS relic names', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+    await new Promise((r) => setTimeout(r, 120));
 
+    // 1. Desktop (1280px): Larger potion slot buttons + official ZHS relic names in HUD & Compendium
+    const desktopAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.potions = ['fire_potion', 'block_potion', null];
+      st.player.relics.push('war_paint', 'whetstone', 'pure_water', 'peace_pipe', 'mummified_hand', 'coffee_dripper', 'velvet_choker');
+      app.render();
+      const pot0 = document.getElementById('potion-slot-0');
+      const potRect = pot0.getBoundingClientRect();
+      const potFs = parseFloat(getComputedStyle(pot0).fontSize);
+
+      document.getElementById('btn-open-compendium').click();
+      document.querySelector('[data-action="set-compendium-tab"][data-tab="relics"]').click();
+      const compText = document.getElementById('compendium-modal')?.textContent || '';
+      document.getElementById('btn-close-modal').click();
+      return {
+        potHeight: Math.round(potRect.height),
+        potFs,
+        hasWarPaintZhs: compText.includes('战纹涂料'),
+        hasWhetstoneZhs: compText.includes('磨刀石'),
+        hasPureWaterZhs: compText.includes('至纯之水'),
+        hasPeacePipeZhs: compText.includes('宁静烟斗'),
+        hasMummifiedHandZhs: compText.includes('干瘪之手'),
+        hasCoffeeDripperZhs: compText.includes('咖啡滤杯'),
+        hasVelvetChokerZhs: compText.includes('天鹅绒颈圈'),
+      };
+    })()`);
+    assert.ok(desktopAudit.potHeight >= 31, `Desktop potion button should be >= 31px tall, got ${desktopAudit.potHeight}px`);
+    assert.ok(desktopAudit.potFs >= 13.4, `Desktop potion font-size should be >= 13.4px, got ${desktopAudit.potFs}px`);
+    assert.equal(desktopAudit.hasWarPaintZhs, true);
+    assert.equal(desktopAudit.hasWhetstoneZhs, true);
+    assert.equal(desktopAudit.hasPureWaterZhs, true);
+    assert.equal(desktopAudit.hasPeacePipeZhs, true);
+    assert.equal(desktopAudit.hasMummifiedHandZhs, true);
+    assert.equal(desktopAudit.hasCoffeeDripperZhs, true);
+    assert.equal(desktopAudit.hasVelvetChokerZhs, true);
+
+    // 2. Campfire Dig -> Clickable Relic Reward Screen + Unclaimed Confirmation
+    const digFlowAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (!st.player.relics.includes('shovel')) st.player.relics.push('shovel');
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+
+      const relicsBefore = st.player.relics.length;
+      document.getElementById('btn-rest-dig').click();
+      const heading = document.getElementById('reward-heading')?.textContent || '';
+      const hasGoldCard = Boolean(document.getElementById('btn-claim-gold'));
+      const hasCardChoices = document.querySelectorAll('[data-action="claim-card"]').length > 0;
+      const hasRelicCard = Boolean(document.getElementById('btn-claim-relic'));
+      const relicsBeforeClick = st.player.relics.length;
+
+      // Attempting to leave before clicking relic opens unclaimed-loot warning
+      document.getElementById('btn-proceed-reward').click();
+      const unclaimedModalOpen = Boolean(document.getElementById('reward-unclaimed-modal'));
+      document.getElementById('btn-cancel-skip-reward').click();
+
+      // Clicking relic plaque claims it, then Proceed returns to map
+      document.getElementById('btn-claim-relic').click();
+      if (document.getElementById('btn-close-upgrade-reveal')) {
+        document.getElementById('btn-close-upgrade-reveal').click();
+      }
+      const relicsAfterClick = st.player.relics.length;
+      const hasClaimedPlaque = Boolean(document.querySelector('.loot-kind-relic.loot-claimed'));
+      document.getElementById('btn-proceed-reward').click();
+      const returnedToMap = st.screen === 'map';
+
+      return {
+        heading,
+        hasGoldCard,
+        hasCardChoices,
+        hasRelicCard,
+        relicsBefore,
+        relicsBeforeClick,
+        unclaimedModalOpen,
+        relicsAfterClick,
+        hasClaimedPlaque,
+        returnedToMap,
+      };
+    })()`);
+    assert.ok(digFlowAudit.heading.includes('营地挖掘'), `Expected campfire dig heading, got ${digFlowAudit.heading}`);
+    assert.equal(digFlowAudit.hasGoldCard, false, 'Campfire dig reward screen should omit gold card');
+    assert.equal(digFlowAudit.hasCardChoices, false, 'Campfire dig reward screen should omit card choices');
+    assert.equal(digFlowAudit.hasRelicCard, true, 'Campfire dig reward screen renders clickable relic plaque');
+    assert.equal(digFlowAudit.relicsBeforeClick, digFlowAudit.relicsBefore);
+    assert.equal(digFlowAudit.unclaimedModalOpen, true, 'Proceeding without claiming dug relic shows confirmation modal');
+    assert.equal(digFlowAudit.relicsAfterClick, digFlowAudit.relicsBefore + 1);
+    assert.equal(digFlowAudit.hasClaimedPlaque, true);
+    assert.equal(digFlowAudit.returnedToMap, true);
+
+    // 3. War Paint (战纹涂料) from Reward & Whetstone (磨刀石) from Shop both reveal exact upgraded cards
+    const upgradeModalAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      // Reset deck upgrades & remove war_paint/whetstone if randomly dug above
+      st.player.relics = st.player.relics.filter((id) => id !== 'war_paint' && id !== 'whetstone');
+      for (const c of st.player.deck) c.upgraded = false;
+
+      // 3a. Claim War Paint from reward plaque
+      st.screen = 'reward';
+      st.reward = {
+        source: 'campfire_dig',
+        gold: 0,
+        goldClaimed: true,
+        relicId: 'war_paint',
+        relicClaimed: false,
+        extraRelicId: null,
+        extraRelicClaimed: true,
+        potionId: null,
+        potionClaimed: true,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+      };
+      app.render();
+      document.getElementById('btn-claim-relic').click();
+      const wpModalOpen = Boolean(document.getElementById('relic-upgrade-reveal-modal'));
+      const wpSummary = document.getElementById('relic-upgrade-reveal-summary')?.textContent || '';
+      const wpCards = [...document.querySelectorAll('#relic-upgrade-reveal-cards .card-name')].map(
+        (el) => el.textContent.trim()
+      );
+      document.getElementById('btn-close-upgrade-reveal').click();
+      const wpInlineSummary = document.querySelector('.loot-upgrade-summary')?.textContent || '';
+
+      // 3b. Buy Whetstone from shop
+      st.screen = 'shop';
+      st.player.gold = 500;
+      st.shop = {
+        cards: [],
+        colorlessCards: [],
+        relicOffer: { relicId: 'whetstone', price: 150, sold: false },
+        shopRelicOffer: null,
+        potionOffer: null,
+        purgeCost: 75,
+        purgeUsed: false,
+      };
+      app.render();
+      document.getElementById('btn-buy-relic').click();
+      const whModalOpen = Boolean(document.getElementById('relic-upgrade-reveal-modal'));
+      const whSummary = document.getElementById('relic-upgrade-reveal-summary')?.textContent || '';
+      const whCards = [...document.querySelectorAll('#relic-upgrade-reveal-cards .card-name')].map(
+        (el) => el.textContent.trim()
+      );
+      document.getElementById('btn-close-upgrade-reveal').click();
+
+      return {
+        wpModalOpen,
+        wpSummary,
+        wpCards,
+        wpInlineSummary,
+        whModalOpen,
+        whSummary,
+        whCards,
+      };
+    })()`);
+    assert.equal(upgradeModalAudit.wpModalOpen, true, 'Claiming 战纹涂料 opens upgrade reveal modal');
+    assert.ok(upgradeModalAudit.wpSummary.includes('战纹涂料'), upgradeModalAudit.wpSummary);
+    assert.equal(upgradeModalAudit.wpCards.length, 2, 'War Paint modal displays 2 upgraded skill cards');
+    assert.ok(upgradeModalAudit.wpCards.every((n) => n.endsWith('+')), JSON.stringify(upgradeModalAudit.wpCards));
+    assert.ok(upgradeModalAudit.wpInlineSummary.includes(upgradeModalAudit.wpCards[0]));
+
+    assert.equal(upgradeModalAudit.whModalOpen, true, 'Buying 磨刀石 opens upgrade reveal modal');
+    assert.ok(upgradeModalAudit.whSummary.includes('磨刀石'), upgradeModalAudit.whSummary);
+    assert.equal(upgradeModalAudit.whCards.length, 2, 'Whetstone modal displays 2 upgraded attack cards');
+    assert.ok(upgradeModalAudit.whCards.every((n) => n.endsWith('+')), JSON.stringify(upgradeModalAudit.whCards));
+
+    // 4. Combat Fighter Alignment (Desktop 1280px & Mobile 390px) across 0 buffs, 1 buff + block, and 5 wrapped buffs
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      if (st.neowState) st.neowState.resolved = true;
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 120));
+
+    const measureAlignmentExpr = `(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const snapshot = () => {
+        app.render();
+        const pUnit = document.getElementById('player-unit');
+        const eUnit = document.querySelector('.enemy-side .fighter-unit');
+        const pRect = pUnit.getBoundingClientRect();
+        const eRect = eUnit.getBoundingClientRect();
+        const pFig = pUnit.querySelector('.unit-figure').getBoundingClientRect();
+        const eFig = eUnit.querySelector('.unit-figure').getBoundingClientRect();
+        const pHp = pUnit.querySelector('.hp-track').getBoundingClientRect();
+        const eHp = eUnit.querySelector('.hp-track').getBoundingClientRect();
+        return {
+          topDiff: Math.abs(pRect.top - eRect.top),
+          heightDiff: Math.abs(pRect.height - eRect.height),
+          figTopDiff: Math.abs(pFig.top - eFig.top),
+          hpTopDiff: Math.abs(pHp.top - eHp.top),
+        };
+      };
+      // Normalize to single enemy for clean 1v1 alignment check
+      st.combat.enemies = [st.combat.enemies[0]];
+      st.combat.enemies[0].statuses = {};
+      st.combat.enemies[0].block = 0;
+
+      // Case A: 0 buffs on both
+      st.player.statuses = {};
+      st.player.block = 0;
+      const zeroBuff = snapshot();
+
+      // Case B: 1 buff + block on player vs 0 on enemy
+      st.player.statuses = { strength: 2 };
+      st.player.block = 10;
+      const oneBuff = snapshot();
+
+      // Case C: 5 buffs (wrapping 2 rows) on player vs 0 on enemy
+      st.player.statuses = { strength: 3, dexterity: 2, metallicize: 4, thorns: 3, ritual: 2 };
+      st.player.block = 12;
+      const multiBuff = snapshot();
+
+      return { zeroBuff, oneBuff, multiBuff };
+    })()`;
+
+    const desktopAlign = await cdp.evaluate(measureAlignmentExpr);
+    for (const [label, m] of Object.entries(desktopAlign)) {
+      assert.ok(m.topDiff <= 1, `Desktop ${label} topDiff=${m.topDiff}`);
+      assert.ok(m.heightDiff <= 1, `Desktop ${label} heightDiff=${m.heightDiff}`);
+      assert.ok(m.figTopDiff <= 1, `Desktop ${label} figTopDiff=${m.figTopDiff}`);
+      assert.ok(m.hpTopDiff <= 1, `Desktop ${label} hpTopDiff=${m.hpTopDiff}`);
+    }
+
+    // Switch to 390px mobile and verify BOTH combat buff alignment AND enlarged Row 2 potion/vital/nav sizing
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileAlign = await cdp.evaluate(measureAlignmentExpr);
+    for (const [label, m] of Object.entries(mobileAlign)) {
+      assert.ok(m.topDiff <= 1, `Mobile 390px ${label} topDiff=${m.topDiff}`);
+      assert.ok(m.heightDiff <= 1, `Mobile 390px ${label} heightDiff=${m.heightDiff}`);
+      assert.ok(m.figTopDiff <= 1, `Mobile 390px ${label} figTopDiff=${m.figTopDiff}`);
+      assert.ok(m.hpTopDiff <= 1, `Mobile 390px ${label} hpTopDiff=${m.hpTopDiff}`);
+    }
+
+    const mobile390Row2 = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.hp = 100;
+      st.player.maxHp = 100;
+      st.player.gold = 999;
+      st.player.potions = ['fire_potion', 'block_potion', 'energy_potion'];
+      app.render();
+      const hud = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
+      const pot0 = document.getElementById('potion-slot-0').getBoundingClientRect();
+      const pot2 = document.getElementById('potion-slot-2').getBoundingClientRect();
+      const deck = document.getElementById('btn-open-deck');
+      const deckRect = deck.getBoundingClientRect();
+      const moreRect = document.getElementById('btn-hud-more').getBoundingClientRect();
+      const vitalFs = parseFloat(getComputedStyle(document.querySelector('.vital-chip')).fontSize);
+      const deckFs = parseFloat(getComputedStyle(deck).fontSize);
+      return {
+        overflow: document.documentElement.scrollWidth > window.innerWidth,
+        potHeight: Math.round(pot0.height),
+        deckHeight: Math.round(deckRect.height),
+        vitalFs,
+        deckFs,
+        pot2Fits: pot2.right <= deckRect.left + 1,
+        moreFits: moreRect.right <= hud.right + 1,
+        slackPx: Math.round(deckRect.left - pot2.right),
+      };
+    })()`);
+    assert.equal(mobile390Row2.overflow, false, '390px Row 2 enlarged HUD must not overflow horizontally');
+    assert.ok(mobile390Row2.potHeight >= 31, `390px potion tap target should be >= 31px, got ${mobile390Row2.potHeight}px`);
+    assert.ok(mobile390Row2.deckHeight >= 31, `390px Deck button should be >= 31px, got ${mobile390Row2.deckHeight}px`);
+    assert.ok(mobile390Row2.vitalFs >= 12.6, `390px vital font-size should be >= 12.6px, got ${mobile390Row2.vitalFs}px`);
+    assert.ok(mobile390Row2.deckFs >= 12.6, `390px Deck font-size should be >= 12.6px, got ${mobile390Row2.deckFs}px`);
+    assert.equal(mobile390Row2.pot2Fits, true, `All 3 enlarged potions fit left of Deck on 390px (slack=${mobile390Row2.slackPx}px)`);
+    assert.equal(mobile390Row2.moreFits, true, 'More trigger fits inside 390px HUD');
+
+    // Switch to 360px compact phone and verify enlarged Row 2 (30px buttons) still fits worst-case 100/100 + 999
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360,
+      height: 760,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobile360Row2 = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.render();
+      const hud = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
+      const pot0 = document.getElementById('potion-slot-0').getBoundingClientRect();
+      const pot2 = document.getElementById('potion-slot-2').getBoundingClientRect();
+      const deckRect = document.getElementById('btn-open-deck').getBoundingClientRect();
+      const moreRect = document.getElementById('btn-hud-more').getBoundingClientRect();
+      return {
+        overflow: document.documentElement.scrollWidth > window.innerWidth,
+        potHeight: Math.round(pot0.height),
+        pot2Fits: pot2.right <= deckRect.left + 1,
+        moreFits: moreRect.right <= hud.right + 1,
+      };
+    })()`);
+    assert.equal(mobile360Row2.overflow, false, '360px Row 2 enlarged HUD must not overflow horizontally');
+    assert.ok(mobile360Row2.potHeight >= 30, `360px potion tap target should be >= 30px, got ${mobile360Row2.potHeight}px`);
+    assert.equal(mobile360Row2.pot2Fits, true, 'All 3 enlarged potions fit left of Deck on 360px');
+    assert.equal(mobile360Row2.moreFits, true, 'More trigger fits inside 360px HUD');
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});

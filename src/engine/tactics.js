@@ -355,7 +355,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     pushRelic('medical_kit', 'buff');
     result.callouts.push({
       tone: 'buff',
-      text: '✦ 【医疗箱】生效：可 0 费消耗打出此状态牌！',
+      text: '✦ 【医药箱】生效：可 0 费消耗打出此状态牌！',
     });
   }
 
@@ -509,7 +509,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       pushRelic('paper_phrog', 'buff');
       result.callouts.push({
         tone: 'buff',
-        text: '✦ 【折纸青蛙】+【易伤】联动：伤害增幅提升至 +75%',
+        text: '✦ 【纸蛙】+【易伤】联动：伤害增幅提升至 +75%',
       });
     }
   }
@@ -532,7 +532,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       pushRelic('wrist_blade', 'buff');
       result.callouts.push({
         tone: 'buff',
-        text: '✦ 【腕刃】生效：0 费攻击牌伤害额外 +4',
+        text: '✦ 【袖剑】生效：0 费攻击牌伤害额外 +4',
       });
     }
   } else if (createsShivs && hasRelic(state, 'wrist_blade')) {
@@ -787,7 +787,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     const discardSynergyNames = [];
     if (hasRelic(state, 'tough_bandages')) {
       pushRelic('tough_bandages', 'buff');
-      discardSynergyNames.push('坚韧绷带(+3盾/张)');
+      discardSynergyNames.push('结实绷带(+3盾/张)');
     }
     if (hasRelic(state, 'tingsha')) {
       pushRelic('tingsha', 'buff');
@@ -826,7 +826,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     if (remaining <= 1) {
       result.callouts.push({
         tone: 'warn',
-        text: `⚠ 【天鹅绒项圈】提醒：本回合仅剩最后 ${remaining} 张出牌额度`,
+        text: `⚠ 【天鹅绒颈圈】提醒：本回合仅剩最后 ${remaining} 张出牌额度`,
       });
     }
   }
@@ -979,7 +979,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     const scryParts = [];
     if (hasRelic(state, 'golden_eye')) {
       pushRelic('golden_eye', 'buff');
-      scryParts.push('黄金之眼(+2 预见)');
+      scryParts.push('黄金眼(+2 预见)');
     }
     if ((player.statuses?.nirvana ?? 0) > 0) {
       pushPlayerStatus('nirvana', 'buff');

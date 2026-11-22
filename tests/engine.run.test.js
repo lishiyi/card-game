@@ -67,6 +67,7 @@ import {
   digAtCampfire,
   discardPotion,
   findMapNode,
+  formatRelicUpgradeSummary,
   getAvailableNodeIds,
   getCurrentPurgeCost,
   getStarterPotionSlotCount,
@@ -925,7 +926,7 @@ test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cance
   dripRun.restState = { completed: false, lastAction: null, featherHealed: 6 };
   const healTry = restHeal(dripRun);
   assert.equal(healTry.ok, false);
-  assert.ok(healTry.reason.includes('咖啡滤滴器'));
+  assert.ok(healTry.reason.includes('咖啡滤杯'));
   assert.equal(dripRun.player.hp, 40);
   const upCard = getUpgradableDeckCards(dripRun)[0];
   assert.equal(restUpgradeCard(dripRun, upCard.instanceId).ok, true);
@@ -2376,14 +2377,27 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   startCombat(campRun, ENCOUNTERS.floor1[0], 'normal');
   assert.equal(campRun.player.statuses.strength, 3, 'Girya 3/3 grants +3 starting Strength in combat');
 
-  // Dig with Shovel -> adds 1 unowned relic
+  // Dig with Shovel -> opens clickable reward screen (identical to post-combat relic pickup)
   campRun.screen = 'rest';
   campRun.restState = { completed: false };
   const relicsBeforeDig = campRun.player.relics.length;
   const digRes = digAtCampfire(campRun);
   assert.equal(digRes.ok, true);
-  assert.equal(campRun.player.relics.length, relicsBeforeDig + 1);
   assert.ok(RELIC_LIBRARY[digRes.relicId], 'Shovel dug a valid relic');
+  assert.equal(campRun.screen, 'reward', 'Shovel dig opens clickable reward screen');
+  assert.equal(campRun.reward?.source, 'campfire_dig');
+  assert.equal(campRun.reward?.relicId, digRes.relicId);
+  assert.equal(campRun.reward?.relicClaimed, false);
+  assert.equal(campRun.player.relics.length, relicsBeforeDig, 'Relic is not granted until clicked');
+  assert.equal(proceedFromReward(campRun).requiresConfirm, true, 'Proceeding without claiming dug relic prompts confirmation');
+  const claimDigRes = claimRewardRelic(campRun);
+  assert.equal(claimDigRes.ok, true);
+  assert.equal(campRun.player.relics.length, relicsBeforeDig + 1);
+  assert.equal(campRun.player.relics.includes(digRes.relicId), true);
+  const leaveDigRes = proceedFromReward(campRun);
+  assert.equal(leaveDigRes.ok, true);
+  assert.equal(leaveDigRes.singingBowlGain, 0);
+  assert.equal(campRun.screen, 'map');
 
   // Toke with Peace Pipe -> removes Parasite curse and deducts 3 Max HP
   const parasiteCard = addCardToMasterDeck(campRun, createCardInstance(campRun, 'parasite'));
@@ -2605,4 +2619,130 @@ test('Official Simplified Chinese card names (233 unique) & concise card keyword
   assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
 });
 
+test('Official Simplified Chinese relic names (103 unique) & War Paint / Whetstone upgrade tracking', () => {
+  const allRelics = Object.values(RELIC_LIBRARY);
+  assert.equal(allRelics.length, 103);
+  const nameSet = new Set(allRelics.map((r) => r.name));
+  assert.equal(nameSet.size, 103, 'All 103 relics must have unique Simplified Chinese names');
 
+  const expectedOfficialRelicNames = {
+    pure_water: '至纯之水',
+    oddly_smooth_stone: '意外光滑的石头',
+    lantern: '灯笼',
+    blood_vial: '小血瓶',
+    damaru: '手摇鼓',
+    paper_phrog: '纸蛙',
+    ornamental_fan: '精致折扇',
+    mummified_hand: '干瘪之手',
+    teardrop_locket: '泪滴吊坠盒',
+    duality: '两仪',
+    captains_wheel: '舵盘',
+    tough_bandages: '结实绷带',
+    the_specimen: '生物样本',
+    golden_eye: '黄金眼',
+    fossilized_helix: '螺类化石',
+    calipers: '外卡钳',
+    chemical_x: '化学物X',
+    medical_kit: '医药箱',
+    lees_waffle: '李家华夫饼',
+    golden_idol_relic: '金神像',
+    red_mask: '红面具',
+    enchiridion: '英雄宝典',
+    bloody_idol: '鲜血神像',
+    black_blood: '黑暗之血',
+    ring_of_the_serpent: '长蛇戒指',
+    violet_lotus: '紫色莲花',
+    wrist_blade: '袖剑',
+    velvet_choker: '天鹅绒颈圈',
+    coffee_dripper: '咖啡滤杯',
+    ceramic_fish: '陶瓷小鱼',
+    toy_ornithopter: '玩具扑翼飞机',
+    preserved_insect: '昆虫标本',
+    bronze_scales: '铜制鳞片',
+    war_paint: '战纹涂料',
+    whetstone: '磨刀石',
+    self_forming_clay: '自成型黏土',
+    letter_opener: '开信刀',
+    paper_krane: '纸鹤',
+    ninja_scroll: '忍术卷轴',
+    gremlin_horn: '地精之角',
+    melange: '美琅脂',
+    dead_branch: '枯木树枝',
+    clockwork_souvenir: '齿轮工艺品',
+    hovering_kite: '悬浮风筝',
+    slavers_collar: '奴隶贩子颈环',
+    peace_pipe: '宁静烟斗',
+  };
+  for (const [id, expectedName] of Object.entries(expectedOfficialRelicNames)) {
+    assert.equal(
+      RELIC_LIBRARY[id]?.name,
+      expectedName,
+      `Expected relic ${id} to be named "${expectedName}", got "${RELIC_LIBRARY[id]?.name}"`
+    );
+  }
+
+  // 1. Reward pickup of War Paint (战纹涂料) records exact 2 upgraded Skill cards & summary
+  const st = createNewRun({ seed: 77881, characterId: 'ironclad', skipNeow: true });
+  st.screen = 'reward';
+  st.reward = {
+    source: 'campfire_dig',
+    gold: 0,
+    goldClaimed: true,
+    relicId: 'war_paint',
+    relicClaimed: false,
+    extraRelicId: null,
+    extraRelicClaimed: true,
+    potionId: null,
+    potionClaimed: true,
+    cardChoices: [],
+    cardClaimed: true,
+    pickedCardId: null,
+  };
+  const wpRes = claimRewardRelic(st);
+  assert.equal(wpRes.ok, true);
+  assert.equal(wpRes.relicName, '战纹涂料');
+  assert.equal(wpRes.upgradedCards.length, 2, 'War Paint upgrades 2 skill cards');
+  for (const entry of wpRes.upgradedCards) {
+    const deckCard = st.player.deck.find((c) => c.instanceId === entry.instanceId);
+    assert.ok(deckCard && deckCard.upgraded === true);
+    assert.equal(getCardStats(deckCard).type, 'skill');
+    assert.ok(entry.name.endsWith('+'));
+  }
+  assert.ok(st.reward.relicUpgradeSummary.includes('战纹涂料'));
+  assert.ok(st.reward.relicUpgradeSummary.includes(wpRes.upgradedCards[0].name));
+  assert.equal(st.lastRelicPickup.relicId, 'war_paint');
+  assert.equal(st.lastRelicPickup.upgradeType, 'skill');
+
+  // 2. Shop purchase of Whetstone (磨刀石) records exact 2 upgraded Attack cards
+  st.screen = 'shop';
+  st.player.gold = 500;
+  st.shop = {
+    cards: [],
+    colorlessCards: [],
+    relicOffer: { relicId: 'whetstone', price: 150, sold: false },
+    shopRelicOffer: null,
+    potionOffer: null,
+    purgeCost: 75,
+    purgeUsed: false,
+  };
+  const whRes = buyShopRelic(st);
+  assert.equal(whRes.ok, true);
+  assert.equal(whRes.relicName, '磨刀石');
+  assert.equal(whRes.upgradedCards.length, 2, 'Whetstone upgrades 2 attack cards');
+  for (const entry of whRes.upgradedCards) {
+    const deckCard = st.player.deck.find((c) => c.instanceId === entry.instanceId);
+    assert.ok(deckCard && deckCard.upgraded === true);
+    assert.equal(getCardStats(deckCard).type, 'attack');
+    assert.ok(entry.name.endsWith('+'));
+  }
+  const whSummary = formatRelicUpgradeSummary(st.lastRelicPickup);
+  assert.ok(whSummary.includes('磨刀石'));
+  assert.ok(whSummary.includes(whRes.upgradedCards[0].name));
+
+  // 3. When 0 eligible cards remain, formatRelicUpgradeSummary reports gracefully
+  const maxedRun = createNewRun({ seed: 77882, characterId: 'ironclad', skipNeow: true });
+  for (const c of maxedRun.player.deck) c.upgraded = true;
+  assert.equal(grantRelicToPlayer(maxedRun, 'war_paint'), true);
+  assert.equal(maxedRun.lastRelicPickup.upgradedCards.length, 0);
+  assert.ok(formatRelicUpgradeSummary(maxedRun.lastRelicPickup).includes('暂无可升级的技能牌'));
+});

@@ -135,6 +135,30 @@ export function renderTreasureScreen({ state }) {
       </div>
 
       ${
+        Array.isArray(ts.upgradedCardIds) && ts.upgradedCardIds.length > 0
+          ? (() => {
+              const upgradedCards = ts.upgradedCardIds
+                .map((id) => state.player.deck.find((c) => c.instanceId === id))
+                .filter(Boolean);
+              if (upgradedCards.length === 0) return '';
+              return `
+                <h3 class="reward-section-heading">✨ 遗物永久升级的卡牌：</h3>
+                <div class="card-showcase" id="treasure-upgraded-showcase" style="margin-bottom:14px;">
+                  ${upgradedCards
+                    .map((c) =>
+                      renderCardHtml(c, {
+                        idPrefix: 'treasure-upgraded-card',
+                        action: 'noop',
+                      })
+                    )
+                    .join('')}
+                </div>
+              `;
+            })()
+          : ''
+      }
+
+      ${
         curseCard
           ? `<div class="card-showcase" id="treasure-curse-showcase">${renderCardHtml(curseCard, {
               idPrefix: 'treasure-curse-card',
@@ -255,34 +279,38 @@ export function renderRewardScreen({ state, ui }) {
   const rw = state.reward;
   if (!rw) return '';
 
-  const goldCardHtml = !rw.goldClaimed
-    ? `<button
-        type="button"
-        id="btn-claim-gold"
-        class="loot-reward-card loot-kind-gold"
-        data-action="claim-gold"
-        data-tooltip-title="战利品金币 (+${escapeHtml(rw.gold)})"
-        data-tooltip-tag="金币赏金"
-        data-tooltip-desc="立即获得 ${escapeHtml(rw.gold)} 枚金币，可在神秘商人处购买卡牌、遗物、药水或净除废牌。"
-      >
-        <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
-        <span class="loot-card-body">
-          <span class="loot-card-title">
-            战利品金币 +${escapeHtml(rw.gold)}
-            <span class="loot-sub-pill">赏金</span>
+  const isCampfireDig = rw.source === 'campfire_dig';
+  const hasGold = (rw.gold ?? 0) > 0;
+  const goldCardHtml = hasGold
+    ? !rw.goldClaimed
+      ? `<button
+          type="button"
+          id="btn-claim-gold"
+          class="loot-reward-card loot-kind-gold"
+          data-action="claim-gold"
+          data-tooltip-title="战利品金币 (+${escapeHtml(rw.gold)})"
+          data-tooltip-tag="金币赏金"
+          data-tooltip-desc="立即获得 ${escapeHtml(rw.gold)} 枚金币，可在神秘商人处购买卡牌、遗物、药水或净除废牌。"
+        >
+          <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">
+              战利品金币 +${escapeHtml(rw.gold)}
+              <span class="loot-sub-pill">赏金</span>
+            </span>
+            <span class="loot-card-desc">收入囊中后可在商人处购置强力遗物、卡牌与净除服务</span>
           </span>
-          <span class="loot-card-desc">收入囊中后可在商人处购置强力遗物、卡牌与净除服务</span>
-        </span>
-        <span class="loot-claim-cta">点击拾取</span>
-      </button>`
-    : `<div class="loot-reward-card loot-kind-gold loot-claimed" aria-live="polite">
-        <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
-        <span class="loot-card-body">
-          <span class="loot-card-title">金币 +${escapeHtml(rw.gold)} 已收入囊中</span>
-          <span class="loot-card-desc">当前共持有 ${escapeHtml(state.player.gold)} 枚金币</span>
-        </span>
-        <span class="loot-claim-cta claimed">✓ 已拾取</span>
-      </div>`;
+          <span class="loot-claim-cta">点击拾取</span>
+        </button>`
+      : `<div class="loot-reward-card loot-kind-gold loot-claimed" aria-live="polite">
+          <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('gold')}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">金币 +${escapeHtml(rw.gold)} 已收入囊中</span>
+            <span class="loot-card-desc">当前共持有 ${escapeHtml(state.player.gold)} 枚金币</span>
+          </span>
+          <span class="loot-claim-cta claimed">✓ 已拾取</span>
+        </div>`
+    : '';
 
   const relicObj = rw.relicId ? RELIC_LIBRARY[rw.relicId] : null;
   const relicTierLabel = relicObj ? RELIC_TIER_LABELS[relicObj.tier] || '战利品遗物' : '';
@@ -313,6 +341,11 @@ export function renderRewardScreen({ state, ui }) {
           <span class="loot-card-body">
             <span class="loot-card-title">已装备遗物：${escapeHtml(relicObj.name)}</span>
             <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+            ${
+              rw.relicUpgradeSummary
+                ? `<span class="loot-upgrade-summary">✨ ${escapeHtml(rw.relicUpgradeSummary)}</span>`
+                : ''
+            }
           </span>
           <span class="loot-claim-cta claimed">✓ 已拾取</span>
         </div>`
@@ -349,6 +382,11 @@ export function renderRewardScreen({ state, ui }) {
           <span class="loot-card-body">
             <span class="loot-card-title">已装备黑星遗物：${escapeHtml(extraRelicObj.name)}</span>
             <span class="loot-card-desc">${escapeHtml(extraRelicObj.description)}</span>
+            ${
+              rw.extraRelicUpgradeSummary
+                ? `<span class="loot-upgrade-summary">✨ ${escapeHtml(rw.extraRelicUpgradeSummary)}</span>`
+                : ''
+            }
           </span>
           <span class="loot-claim-cta claimed">✓ 已拾取</span>
         </div>`
@@ -388,7 +426,9 @@ export function renderRewardScreen({ state, ui }) {
         </div>`
     : '';
 
-  const cardsHtml = rw.cardChoices
+  const cardChoices = Array.isArray(rw.cardChoices) ? rw.cardChoices : [];
+  const hasCardChoices = cardChoices.length > 0;
+  const cardsHtml = cardChoices
     .map((card, idx) =>
       renderCardHtml(card, {
         idPrefix: 'reward-card',
@@ -404,14 +444,20 @@ export function renderRewardScreen({ state, ui }) {
 
   const pityPct = Math.round((state.rarePityBonus ?? 0) * 100);
   const hasSingingBowl = state.player.relics.includes('singing_bowl');
-  const singingBowlReady = hasSingingBowl && !rw.cardClaimed && (rw.cardChoices?.length ?? 0) > 0;
+  const singingBowlReady = hasSingingBowl && !rw.cardClaimed && hasCardChoices;
 
   return `
     <section class="panel-stage" aria-labelledby="reward-heading">
       <div class="stage-header">
         <div>
-          <h2 id="reward-heading" class="stage-heading">战斗胜利 · 战利品结算</h2>
-          <p class="stage-subtitle">点击下方战利品牌匾收入囊中，并从 3 张卡牌中挑选 1 张加入牌组（也可跳过卡牌以保持精简构筑${singingBowlReady ? '，跳过将触发【颂钵】永久 +2 最大生命' : ''}）。</p>
+          <h2 id="reward-heading" class="stage-heading">${
+            isCampfireDig ? '⛏️ 营地挖掘 · 发现远古遗物' : '战斗胜利 · 战利品结算'
+          }</h2>
+          <p class="stage-subtitle">${
+            isCampfireDig
+              ? '使用【铲子】在篝火旁挖出了沉睡的秘宝！点击下方遗物牌匾即可拾取装备，拾取后继续前进。'
+              : `点击下方战利品牌匾收入囊中，并从 3 张卡牌中挑选 1 张加入牌组（也可跳过卡牌以保持精简构筑${singingBowlReady ? '，跳过将触发【颂钵】永久 +2 最大生命' : ''}）。`
+          }</p>
         </div>
         <button type="button" id="btn-proceed-reward" class="btn-brass" data-action="proceed-reward">
           ${singingBowlReady ? '跳过卡牌 (+2 最大生命) →' : '继续前进 →'}
@@ -420,7 +466,7 @@ export function renderRewardScreen({ state, ui }) {
 
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
 
-      <h3 class="reward-section-heading">掉落战利品（点击拾取）：</h3>
+      <h3 class="reward-section-heading">${isCampfireDig ? '发掘遗物（点击拾取）：' : '掉落战利品（点击拾取）：'}</h3>
       <div class="loot-list">
         ${goldCardHtml}
         ${relicCardHtml}
@@ -428,11 +474,17 @@ export function renderRewardScreen({ state, ui }) {
         ${potionCardHtml}
       </div>
 
-      <h3 class="reward-section-heading">
-        ${rw.cardClaimed ? '已选择加入牌组的卡牌：' : '卡牌奖励（三选一）：'}
-        ${pityPct > 0 ? `<span style="font-size:0.78rem;color:var(--accent-brass);font-weight:600;margin-left:8px;">稀有牌动态保底 +${pityPct}%</span>` : ''}
-      </h3>
-      <div class="card-showcase">${cardsHtml}</div>
+      ${
+        hasCardChoices
+          ? `
+            <h3 class="reward-section-heading">
+              ${rw.cardClaimed ? '已选择加入牌组的卡牌：' : '卡牌奖励（三选一）：'}
+              ${pityPct > 0 ? `<span style="font-size:0.78rem;color:var(--accent-brass);font-weight:600;margin-left:8px;">稀有牌动态保底 +${pityPct}%</span>` : ''}
+            </h3>
+            <div class="card-showcase">${cardsHtml}</div>
+          `
+          : ''
+      }
     </section>
   `;
 }
@@ -475,12 +527,12 @@ export function renderRestScreen({ state }) {
         >
           <span class="choice-title">${
             hasCoffeeDripper
-              ? '🔥 篝火休息（已禁用 · 咖啡滤滴器）'
+              ? '🔥 篝火休息（已禁用 · 咖啡滤杯）'
               : `🔥 篝火休息（回复 ${escapeHtml(healAmount)} 点生命）`
           }</span>
           <span class="choice-detail">${
             hasCoffeeDripper
-              ? '持有首领遗物【咖啡滤滴器】，无法在篝火营地通过休息回复生命（仍可执行其他营火操作）。'
+              ? '持有首领遗物【咖啡滤杯】，无法在篝火营地通过休息回复生命（仍可执行其他营火操作）。'
               : `回复最大生命值的 ${healPct}%（当前生命 ${escapeHtml(state.player.hp)} / ${escapeHtml(state.player.maxHp)}）。`
           }</span>
         </button>
@@ -535,7 +587,7 @@ export function renderRestScreen({ state }) {
                 data-action="rest-dig"
               >
                 <span class="choice-title">⛏️ 营地挖掘 · 铲子（发掘 1 件随机遗物）</span>
-                <span class="choice-detail">使用稀有遗物【铲子】在篝火旁深挖，立即随机获得 1 件尚未拥有的遗物！</span>
+                <span class="choice-detail">使用稀有遗物【铲子】在篝火旁深挖，发掘出 1 件随机遗物并点击拾取装备！</span>
               </button>`
             : ''
         }
@@ -550,10 +602,10 @@ export function renderRestScreen({ state }) {
                 data-modal="rest_toke"
                 ${canToke ? '' : 'disabled'}
               >
-                <span class="choice-title">🪈 吞云精简 · 和平烟斗（永久移除 1 张卡牌）</span>
+                <span class="choice-title">🪈 吞云精简 · 宁静烟斗（永久移除 1 张卡牌）</span>
                 <span class="choice-detail">${
                   canToke
-                    ? `使用稀有遗物【和平烟斗】从当前 ${escapeHtml(state.player.deck.length)} 张牌组中永久移除 1 张冗余牌或诅咒牌。`
+                    ? `使用稀有遗物【宁静烟斗】从当前 ${escapeHtml(state.player.deck.length)} 张牌组中永久移除 1 张冗余牌或诅咒牌。`
                     : '牌组至少需要保留 1 张卡牌。'
                 }</span>
               </button>`

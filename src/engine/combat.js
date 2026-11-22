@@ -1351,7 +1351,7 @@ export function changeStance(state, nextStance = 'neutral', options = {}) {
     pushCombatLog(
       combat,
       hasRelic(state, 'violet_lotus')
-        ? `退出【平静】（【紫莲花】加持）：获得 ${calmGain} 点能量！`
+        ? `退出【平静】（【紫色莲花】加持）：获得 ${calmGain} 点能量！`
         : `退出【平静】：获得 ${calmGain} 点能量！`,
       'info'
     );
@@ -1464,7 +1464,7 @@ export function initiateScry(state, amount, sourceName = '预见', options = {})
   pushCombatLog(
     combat,
     goldenEyeBonus > 0
-      ? `【${sourceName}】触发预见（【黄金之眼】+2）：检视抽牌堆顶 ${topCount} 张卡牌。`
+      ? `【${sourceName}】触发预见（【黄金眼】+2）：检视抽牌堆顶 ${topCount} 张卡牌。`
       : `【${sourceName}】触发预见：检视抽牌堆顶 ${topCount} 张卡牌。`,
     'info'
   );
@@ -2690,7 +2690,7 @@ export function canPlayCard(state, instanceId) {
   ) {
     return {
       playable: false,
-      reason: `受【天鹅绒项圈】限制，每回合最多打出 ${VELVET_CHOKER_CARD_LIMIT} 张卡牌`,
+      reason: `受【天鹅绒颈圈】限制，每回合最多打出 ${VELVET_CHOKER_CARD_LIMIT} 张卡牌`,
     };
   }
   const stats = getCardStats(cardInstance);
@@ -5059,7 +5059,7 @@ function finalizeCombatVictory(state, onVictoryCallback = null) {
     if (hasRelic(state, 'black_blood')) {
       const healed = healPlayerInCombat(state, 12);
       if (healed > 0) {
-        pushCombatLog(combat, `遗物【漆黑之血】回复了 ${healed} 点生命。`, 'victory');
+        pushCombatLog(combat, `遗物【黑暗之血】回复了 ${healed} 点生命。`, 'victory');
       }
     } else if (hasRelic(state, 'burning_blood')) {
       const healed = healPlayerInCombat(state, 6);

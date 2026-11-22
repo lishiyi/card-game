@@ -793,7 +793,7 @@ test('Curses (Clumsy, Doubt, Regret), Burn status, Relics (Paper Phrog, Torii, T
   }
   const seventhRes = playCard(state, state.combat.hand[0].instanceId, hexa.id);
   assert.equal(seventhRes.ok, false);
-  assert.ok(seventhRes.reason.includes('天鹅绒项圈'));
+  assert.ok(seventhRes.reason.includes('天鹅绒颈圈'));
 
   // Put Burn (2 non-attack dmg -> Tungsten Rod reduces to 1), Regret (3 HP loss -> Tungsten Rod reduces to 2), Doubt (1 Weak), Clumsy (Ethereal) in hand
   state.combat.hand = [
