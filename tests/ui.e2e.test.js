@@ -2473,7 +2473,9 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     const silentHudAudit = await cdp.evaluate(`(() => {
       const st = window.__SPIRE_APP__.getState();
       const neowBossSwap = document.getElementById('neow-choice-3')?.textContent || '';
-      const relicText = document.querySelector('.relic-badge')?.textContent?.trim() || '';
+      const relicEl = document.querySelector('.relic-badge');
+      const relicText = relicEl?.textContent?.trim() || '';
+      const relicSvgKey = relicEl?.querySelector('svg.relic-svg')?.dataset?.relicSvg || '';
       const potionTitle = document.getElementById('potion-slot-0')?.parentElement?.dataset?.tooltipTitle || '';
       return {
         characterId: st.characterId,
@@ -2483,6 +2485,7 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
         deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim() || '',
         heroBadgeText: document.getElementById('hud-character-pill')?.textContent?.trim() || '',
         relicText,
+        relicSvgKey,
         potionTitle,
         neowBossSwap,
       };
@@ -2493,7 +2496,8 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     assert.equal(silentHudAudit.maxHp, 70);
     assert.equal(silentHudAudit.deckBtnText, '🃏 牌组 (12)');
     assert.equal(silentHudAudit.heroBadgeText, '静默猎手');
-    assert.equal(silentHudAudit.relicText, '🐍蛇之戒指');
+    assert.equal(silentHudAudit.relicText, '蛇之戒指');
+    assert.equal(silentHudAudit.relicSvgKey, 'ring_of_the_snake');
     assert.equal(silentHudAudit.potionTitle, '剧毒药水');
     assert.ok(silentHudAudit.neowBossSwap.includes('蛇之戒指'), `Expected Silent Boss Swap text, got: ${silentHudAudit.neowBossSwap}`);
 
@@ -6999,6 +7003,237 @@ test('E2E: Combat SVG Impact VFX, Attacker Lunge & Hit-Flash, Persistent Status/
     assert.equal(watcherAudit.playerWrathClass, true, 'Player unit must render persistent .stance-wrath aura class');
     assert.ok(watcherAudit.desktopAlignDiff <= 1, `Watcher stance aura must preserve 0px desktop alignment, got diff=${watcherAudit.desktopAlignDiff}px`);
     assert.equal(watcherAudit.fxCountWhenOff, 0, 'Setting animSpeed=off must suppress all combat SVG impact overlays');
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward, Boss Altar, Shop, Campfire, Upgrade Reveal & Compendium', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Desktop: Character Select starter relic SVGs + Daily Challenge inline starter relic SVG
+    const preRunAudit = await cdp.evaluate(`(() => {
+      window.localStorage.clear();
+      window.__SPIRE_APP__.render();
+      document.getElementById('btn-menu-standard')?.click();
+      const charRelicSvgs = ['ironclad', 'silent', 'watcher'].map((cid) => {
+        const svg = document.querySelector('#char-card-' + cid + ' .relic-badge svg.relic-svg');
+        const rect = svg ? svg.getBoundingClientRect() : null;
+        return {
+          cid,
+          key: svg?.dataset?.relicSvg || '',
+          w: rect ? Math.round(rect.width) : 0,
+          h: rect ? Math.round(rect.height) : 0,
+        };
+      });
+      document.getElementById('btn-back-main-menu')?.click();
+      document.getElementById('btn-menu-daily')?.click();
+      const dailySvg = document.querySelector('#daily-challenge-screen svg.relic-svg');
+      const dailyRect = dailySvg ? dailySvg.getBoundingClientRect() : null;
+      return {
+        charRelicSvgs,
+        dailyKey: dailySvg?.dataset?.relicSvg || '',
+        dailyW: dailyRect ? Math.round(dailyRect.width) : 0,
+      };
+    })()`);
+
+    assert.deepEqual(
+      preRunAudit.charRelicSvgs.map((x) => x.key),
+      ['burning_blood', 'ring_of_the_snake', 'pure_water'],
+      'Standard Character Select must render bespoke starter relic SVGs for all 3 heroes'
+    );
+    for (const item of preRunAudit.charRelicSvgs) {
+      assert.ok(item.w >= 16 && item.h >= 16, `Character ${item.cid} starter relic SVG must be visible, got ${item.w}x${item.h}`);
+    }
+    assert.ok(preRunAudit.dailyKey.length > 0 && preRunAudit.dailyW >= 14, `Daily Challenge must render starter relic SVG, got ${preRunAudit.dailyKey} (${preRunAudit.dailyW}px)`);
+
+    // 2. Desktop: Start run -> verify Boss Relic Altar, Shop, Campfire, War Paint Reveal Modal & Compendium (zero duplicate SVG IDs!)
+    const desktopScreensAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      document.getElementById('btn-back-main-menu')?.click();
+      document.getElementById('btn-menu-standard')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const st = app.getState();
+      st.neowState = null;
+      st.player.gold = 999;
+      st.player.relics = [
+        'burning_blood', 'vajra', 'akabeko', 'shuriken', 'torii',
+        'membership_card', 'golden_idol', 'snecko_eye', 'girya', 'shovel', 'peace_pipe',
+      ];
+
+      // 2a. Boss Relic Altar
+      st.screen = 'boss_reward';
+      st.bossReward = {
+        actCleared: 1,
+        bossGold: 100,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+        relicChoices: ['velvet_choker', 'runic_pyramid', 'black_star'],
+        pickedRelicId: null,
+      };
+      app.render();
+      const bossKeys = [...document.querySelectorAll('.boss-relic-card .boss-relic-art svg.relic-svg')].map((el) => ({
+        key: el.dataset.relicSvg,
+        w: Math.round(el.getBoundingClientRect().width),
+      }));
+
+      // 2b. Merchant Shop
+      st.screen = 'shop';
+      st.shop = {
+        cards: [],
+        colorlessCards: [],
+        relicOffer: { relicId: 'whetstone', price: 150, sold: false },
+        shopRelicOffer: { relicId: 'clockwork_souvenir', price: 160, sold: false },
+        potionOffer: null,
+        purgeCost: 75,
+        purgeUsed: false,
+        mealTicketHealed: 0,
+      };
+      app.render();
+      const shopRelicKey = document.querySelector('#btn-buy-relic svg.relic-svg')?.dataset?.relicSvg || '';
+      const shopExKey = document.querySelector('#btn-buy-shop-relic svg.relic-svg')?.dataset?.relicSvg || '';
+
+      // 2c. Campfire with Girya, Shovel & Peace Pipe
+      st.screen = 'rest';
+      st.restState = { completed: false };
+      app.render();
+      const restKeys = [
+        document.querySelector('#btn-rest-lift svg.relic-svg')?.dataset?.relicSvg || '',
+        document.querySelector('#btn-rest-dig svg.relic-svg')?.dataset?.relicSvg || '',
+        document.querySelector('#btn-rest-toke svg.relic-svg')?.dataset?.relicSvg || '',
+      ];
+
+      // 2d. Combat Reward / Campfire Dig relic plaque
+      st.screen = 'reward';
+      st.reward = {
+        source: 'campfire_dig',
+        gold: 0,
+        goldClaimed: true,
+        relicId: 'war_paint',
+        relicClaimed: false,
+        extraRelicId: 'calipers',
+        extraRelicClaimed: false,
+        potionId: null,
+        potionClaimed: true,
+        cardChoices: [],
+        cardClaimed: true,
+      };
+      app.render();
+      const rewardSvg = document.querySelector('#btn-claim-relic .loot-badge-relic svg.relic-svg');
+      const extraRewardSvg = document.querySelector('#btn-claim-extra-relic .loot-badge-relic svg.relic-svg');
+      const rewardKey = rewardSvg?.dataset?.relicSvg || '';
+      const rewardW = rewardSvg ? Math.round(rewardSvg.getBoundingClientRect().width) : 0;
+      const extraRewardKey = extraRewardSvg?.dataset?.relicSvg || '';
+
+      // Claim War Paint -> triggers Relic Upgrade Reveal modal with bespoke war_paint SVG
+      document.getElementById('btn-claim-relic')?.click();
+      const revealSvg = document.querySelector('#relic-upgrade-reveal-modal .relic-modal-icon svg.relic-svg');
+      const revealKey = revealSvg?.dataset?.relicSvg || '';
+      const revealW = revealSvg ? Math.round(revealSvg.getBoundingClientRect().width) : 0;
+      document.getElementById('btn-close-upgrade-reveal')?.click();
+
+      // 2e. Compendium Relics tab open simultaneously with HUD -> verify discovered + undiscovered SVGs & zero duplicate SVG gradient IDs!
+      document.getElementById('btn-open-compendium')?.click();
+      document.getElementById('btn-comp-tab-relics')?.click();
+      const compDiscoveredCount = document.querySelectorAll('#compendium-relics-grid article[data-discovered="true"] svg.relic-svg').length;
+      const compUndiscoveredCount = document.querySelectorAll('#compendium-relics-grid article[data-discovered="false"] svg[data-relic-svg="undiscovered"]').length;
+      const allSvgDefIds = [...document.querySelectorAll('svg defs [id]')].map((el) => el.id);
+      const uniqueDefIds = new Set(allSvgDefIds).size;
+      document.querySelector('#modal-backdrop [data-action="close-modal"]')?.click();
+
+      return {
+        bossKeys,
+        shopRelicKey,
+        shopExKey,
+        restKeys,
+        rewardKey,
+        rewardW,
+        extraRewardKey,
+        revealKey,
+        revealW,
+        compDiscoveredCount,
+        compUndiscoveredCount,
+        dupSvgDefIds: allSvgDefIds.length - uniqueDefIds,
+      };
+    })()`);
+
+    assert.deepEqual(
+      desktopScreensAudit.bossKeys.map((x) => x.key),
+      ['velvet_choker', 'runic_pyramid', 'black_star'],
+      'Boss Relic Altar must render bespoke SVGs for all 3 offered boss relics'
+    );
+    assert.ok(desktopScreensAudit.bossKeys.every((x) => x.w >= 32), 'Boss Relic Altar SVGs must render >=32px');
+    assert.equal(desktopScreensAudit.shopRelicKey, 'whetstone', 'Shop general relic must render bespoke whetstone SVG');
+    assert.equal(desktopScreensAudit.shopExKey, 'clockwork_souvenir', 'Shop exclusive relic must render bespoke clockwork_souvenir SVG');
+    assert.deepEqual(desktopScreensAudit.restKeys, ['girya', 'shovel', 'peace_pipe'], 'Campfire relic actions must render bespoke Girya, Shovel & Peace Pipe SVGs');
+    assert.equal(desktopScreensAudit.rewardKey, 'war_paint', 'Reward relic plaque must render bespoke war_paint SVG');
+    assert.ok(desktopScreensAudit.rewardW >= 32, `Desktop reward relic SVG must be >=32px, got ${desktopScreensAudit.rewardW}px`);
+    assert.equal(desktopScreensAudit.extraRewardKey, 'calipers', 'Black Star extra reward plaque must render bespoke calipers SVG');
+    assert.equal(desktopScreensAudit.revealKey, 'war_paint', 'Upgrade reveal modal must render bespoke war_paint SVG');
+    assert.ok(desktopScreensAudit.revealW >= 28, `Upgrade reveal modal relic SVG must be >=28px, got ${desktopScreensAudit.revealW}px`);
+    assert.ok(desktopScreensAudit.compDiscoveredCount >= 1, 'Compendium Relics tab must render bespoke discovered relic SVGs');
+    assert.ok(desktopScreensAudit.compUndiscoveredCount >= 1, 'Compendium Relics tab must render undiscovered silhouette SVGs');
+    assert.equal(desktopScreensAudit.dupSvgDefIds, 0, 'Simultaneous HUD + Compendium relic SVGs must have zero duplicate gradient IDs');
+
+    // 3. 390px Mobile: 12 equipped relics in top HUD + Reward screen -> crisp tiles <=34px & zero horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 120));
+    const mobileAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.render();
+      const hudBadges = [...document.querySelectorAll('.top-hud .relic-badge')];
+      const maxBadgeW = Math.max(...hudBadges.map((el) => Math.round(el.getBoundingClientRect().width)));
+      const maxBadgeH = Math.max(...hudBadges.map((el) => Math.round(el.getBoundingClientRect().height)));
+      const hudSvgs = [...document.querySelectorAll('.top-hud .relic-badge svg.relic-svg')];
+      const minSvgW = Math.min(...hudSvgs.map((el) => Math.round(el.getBoundingClientRect().width)));
+      const mobileOverflow = document.documentElement.scrollWidth - window.innerWidth;
+      return {
+        badgeCount: hudBadges.length,
+        svgCount: hudSvgs.length,
+        maxBadgeW,
+        maxBadgeH,
+        minSvgW,
+        mobileOverflow,
+      };
+    })()`);
+
+    assert.ok(mobileAudit.badgeCount >= 11 && mobileAudit.svgCount === mobileAudit.badgeCount, `Every mobile HUD relic badge must render a bespoke SVG (${mobileAudit.svgCount}/${mobileAudit.badgeCount})`);
+    assert.ok(mobileAudit.maxBadgeW <= 34 && mobileAudit.maxBadgeH <= 34, `Mobile HUD relic badges must remain compact <=34px, got ${mobileAudit.maxBadgeW}x${mobileAudit.maxBadgeH}`);
+    assert.ok(mobileAudit.minSvgW >= 20, `Mobile HUD relic SVGs must stay crisp >=20px, got ${mobileAudit.minSvgW}px`);
+    assert.ok(mobileAudit.mobileOverflow <= 1, `390px mobile screen with 12 relic SVGs must have zero horizontal overflow, got ${mobileAudit.mobileOverflow}px`);
 
     cdp.ws.close();
   } finally {

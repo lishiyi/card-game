@@ -31,6 +31,7 @@ import { formatSeedCode } from '../../engine/rng.js';
 import { getEnemySvg } from '../enemy_art.js';
 import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
+import { getRelicSvg, getUndiscoveredRelicSvg } from '../relic_art.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
 import { renderMapBoardHtml, renderMapTypeFilterBar } from './map.js';
 
@@ -417,7 +418,7 @@ function renderHistoryDetailModal({ meta, ui }) {
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(r.description)}"
         data-tooltip-tone="relic"
-      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(r.name)}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${getRelicSvg(rid, { scope: 'report' })}</span><span>${escapeHtml(r.name)}</span></span>`;
     })
     .join('');
 
@@ -1178,7 +1179,7 @@ function renderCompendiumModal({ meta, ui }) {
           return `
             <article class="compendium-entry-card undiscovered" data-compendium-id="${escapeHtml(relicId)}" data-discovered="false">
               <div class="compendium-entry-head">
-                <span class="compendium-entry-name">???</span>
+                <span class="compendium-entry-name"><span class="relic-icon relic-icon-comp" aria-hidden="true">${getUndiscoveredRelicSvg(`u-${relicId}`)}</span><span>???</span></span>
                 <span class="relic-badge tier-${escapeHtml(r.tier)}">${escapeHtml(tierLabel)}</span>
               </div>
               <p class="compendium-entry-desc">尚未在尖塔冒险中发现这件遗物。</p>
@@ -1188,7 +1189,7 @@ function renderCompendiumModal({ meta, ui }) {
         return `
           <article class="compendium-entry-card" data-compendium-id="${escapeHtml(relicId)}" data-discovered="true">
             <div class="compendium-entry-head">
-              <span class="compendium-entry-name"><span class="relic-icon" aria-hidden="true">${escapeHtml(getRelicIcon(relicId))}</span> ${escapeHtml(r.name)}</span>
+              <span class="compendium-entry-name"><span class="relic-icon relic-icon-comp" aria-hidden="true">${getRelicSvg(relicId, { scope: 'comp' })}</span><span>${escapeHtml(r.name)}</span></span>
               <div class="compendium-entry-badges">
                 <span class="relic-badge tier-${escapeHtml(r.tier)}">${escapeHtml(tierLabel)}</span>
                 <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
@@ -1539,7 +1540,6 @@ export function renderModal({ state, meta, settings, ui }) {
       ui.modal = null;
       return '';
     }
-    const relicIcon = getRelicIcon(pickup.relicId);
     const summaryText = formatRelicUpgradeSummary(pickup);
     const upgradedDeckCards = (pickup.upgradedCards || []).map((entry) => {
       return (
@@ -1570,8 +1570,9 @@ export function renderModal({ state, meta, settings, ui }) {
         <div class="modal-sheet modal-upgrade-reveal-sheet" id="relic-upgrade-reveal-modal">
           <div class="modal-header">
             <div>
-              <h2 id="modal-title" class="stage-heading" style="color: var(--jade-upgrade);">
-                ${escapeHtml(relicIcon)} 【${escapeHtml(pickup.relicName)}】升级卡牌
+              <h2 id="modal-title" class="stage-heading modal-heading-with-relic" style="color: var(--jade-upgrade);">
+                <span class="relic-modal-icon" aria-hidden="true">${getRelicSvg(pickup.relicId, { scope: 'reveal', className: 'relic-svg-lg' })}</span>
+                <span>【${escapeHtml(pickup.relicName)}】升级卡牌</span>
               </h2>
               <p id="relic-upgrade-reveal-summary" class="stage-subtitle" style="margin-top:6px;font-size:0.92rem;color:var(--text-ivory);">
                 ${escapeHtml(summaryText)}

@@ -19,6 +19,7 @@ import {
 } from '../../engine/meta.js';
 import { escapeHtml } from '../helpers.js';
 import { getCharacterSvg } from '../icons.js';
+import { getRelicSvg } from '../relic_art.js';
 
 function summarizeStarterDeck(deckIds) {
   const counts = new Map();
@@ -309,11 +310,11 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
               ? `<span
                   class="relic-badge tier-starter"
                   tabindex="0"
-                  data-tooltip-title="${escapeHtml(starterRelic.name)}"
+                  data-tooltip-title="${escapeHtml(`${getRelicIcon(starterRelic.id)} ${starterRelic.name}`)}"
                   data-tooltip-tag="${escapeHtml(RELIC_TIER_LABELS.starter)}"
                   data-tooltip-desc="${escapeHtml(starterRelic.description)}"
                   data-tooltip-tone="relic"
-                >遗物 · ${escapeHtml(getRelicIcon(starterRelic.id))} ${escapeHtml(starterRelic.name)}</span>`
+                ><span class="relic-icon" aria-hidden="true">${getRelicSvg(starterRelic.id, { scope: `char-${def.id}` })}</span><span>遗物 · ${escapeHtml(starterRelic.name)}</span></span>`
               : ''
           }
           ${
@@ -562,7 +563,11 @@ function renderDailyChallengeScreen({ meta, ui }) {
             </div>
             <p class="daily-page-asc-note">
               <strong>${escapeHtml(dailyAscDef.name)}</strong>：${escapeHtml(dailyAscDef.description)}
-              ${starterRelic ? ` · 初始遗物【${escapeHtml(starterRelic.name)}】` : ''}
+              ${
+                starterRelic
+                  ? ` · 初始遗物 <span class="relic-inline-icon relic-inline-sm" aria-hidden="true">${getRelicSvg(starterRelic.id, { scope: 'daily' })}</span>【${escapeHtml(starterRelic.name)}】`
+                  : ''
+              }
             </p>
             <div class="daily-mod-row">${dailyModsHtml}</div>
           </div>

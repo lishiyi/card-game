@@ -5642,6 +5642,11 @@ body.spire-dragging {
     height: 40px;
   }
 
+  .loot-icon-badge .relic-svg {
+    width: 32px;
+    height: 32px;
+  }
+
   .loot-card-title {
     font-size: 0.88rem;
   }
@@ -6209,6 +6214,9 @@ body.spire-dragging {
 }
 
 .compendium-entry-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--text-ivory);
@@ -6336,14 +6344,105 @@ body.spire-dragging {
 .relic-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .relic-icon {
-  display: inline-block;
-  font-size: 0.94em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.relic-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.52));
+}
+
+.relic-icon-comp {
+  width: 28px;
+  height: 28px;
+}
+
+.relic-inline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.relic-inline-icon.relic-inline-sm {
+  width: 18px;
+  height: 18px;
+  margin: 0 2px;
+  vertical-align: -4px;
+}
+
+.choice-title-with-relic {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.32;
+}
+
+.modal-heading-with-relic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.relic-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.boss-relic-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.boss-relic-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsla(24, 52%, 22%, 0.7), hsla(22, 32%, 8%, 0.92));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.48), inset 0 0 0 1px hsla(40, 74%, 62%, 0.34);
+  padding: 2px;
+}
+
+.boss-relic-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.boss-relic-tag {
+  font-size: 0.73rem;
+  color: hsl(18, 86%, 74%);
+  font-weight: 700;
+}
+
+.loot-icon-badge .relic-svg {
+  width: 38px;
+  height: 38px;
 }
 
 .relic-counter-short {
@@ -6657,8 +6756,19 @@ body.spire-dragging {
   }
 
   .top-hud .relic-badge .relic-icon {
-    font-size: 1rem;
+    width: 24px;
+    height: 24px;
     line-height: 1;
+  }
+
+  .relic-badge .relic-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .relic-icon-comp {
+    width: 26px;
+    height: 26px;
   }
 
   .top-hud .relic-badge .relic-name-label {

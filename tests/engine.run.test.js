@@ -18,6 +18,7 @@ import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
 import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
+import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
 import {
   EVENT_IDS,
   EVENT_LIBRARY,
@@ -2844,4 +2845,51 @@ test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and a
     if (prevWindow === undefined) delete globalThis.window;
     else globalThis.window = prevWindow;
   }
+});
+
+test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
+  const libIds = Object.keys(RELIC_LIBRARY);
+  const artIds = Object.keys(RELIC_SVG_ART);
+  assert.equal(libIds.length, 103, `Expected 103 relics in RELIC_LIBRARY, got ${libIds.length}`);
+  assert.equal(artIds.length, libIds.length, 'RELIC_SVG_ART must match RELIC_LIBRARY count 1:1');
+
+  const seenGradientIds = new Map();
+  for (const id of libIds) {
+    assert.ok(RELIC_SVG_ART[id], `Missing bespoke SVG illustration for relic "${id}"`);
+    const svg = getRelicSvg(id);
+    assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Relic "${id}" must return valid inline SVG`);
+    assert.ok(svg.includes('viewBox="0 0 36 36"'), `Relic "${id}" must use standardized 36x36 medallion viewBox`);
+    assert.ok(svg.includes(`data-relic-svg="${id}"`), `Relic "${id}" must expose data-relic-svg="${id}"`);
+
+    const defsIds = [...svg.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(defsIds.length >= 2, `Relic "${id}" must define radial/linear gradient IDs`);
+    for (const gid of defsIds) {
+      assert.equal(
+        seenGradientIds.has(gid),
+        false,
+        `Duplicate SVG gradient ID "${gid}" shared by "${seenGradientIds.get(gid)}" and "${id}"`
+      );
+      seenGradientIds.set(gid, id);
+    }
+
+    const scoped = getRelicSvg(id, { scope: 'comp', className: 'relic-svg-lg' });
+    assert.ok(scoped.includes('class="relic-svg relic-svg-lg"'), `Relic "${id}" must support custom className`);
+    for (const gid of defsIds) {
+      assert.ok(scoped.includes(`id="${gid}-comp"`), `Relic "${id}" must scope gradient id="${gid}"`);
+      if (svg.includes(`url(#${gid})`)) {
+        assert.ok(scoped.includes(`url(#${gid}-comp)`), `Relic "${id}" must rewrite url(#${gid}) reference`);
+      }
+    }
+  }
+
+  // Fallback & undiscovered silhouettes
+  const fallback = getRelicSvg('non_existent_relic_id', { scope: 'fb' });
+  assert.ok(fallback.includes('data-relic-svg="fallback"') && fallback.includes('-fb'));
+  const undisc = getUndiscoveredRelicSvg('u-1');
+  assert.ok(undisc.startsWith('<svg') && undisc.includes('data-relic-svg="undiscovered"'));
+
+  // Service worker precache includes src/ui/relic_art.js
+  const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
+  assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });

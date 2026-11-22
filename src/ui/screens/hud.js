@@ -10,6 +10,7 @@ import { ASCENSION_DEFS } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml } from '../helpers.js';
 import { getPotionAccentColor, getPotionIconSvg, getVitalIconSvg } from '../icons.js';
+import { getRelicSvg } from '../relic_art.js';
 
 export function renderTopHud({ state, ui }) {
   const hasSacredBark = state.player.relics.includes('sacred_bark');
@@ -86,7 +87,7 @@ export function renderTopHud({ state, ui }) {
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(`${r.description}${tooltipExtra}`)}"
         data-tooltip-tone="relic"
-      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span><span class="relic-name-label">${escapeHtml(r.name)}</span>${counterHtml}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${getRelicSvg(id, { scope: 'hud' })}</span><span class="relic-name-label">${escapeHtml(r.name)}</span>${counterHtml}</span>`;
     })
     .join('');
 

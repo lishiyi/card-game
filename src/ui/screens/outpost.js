@@ -15,6 +15,7 @@ import { buildRunReportFromState } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
 import { getLootIconSvg } from '../icons.js';
+import { getRelicSvg } from '../relic_art.js';
 
 export function renderTreasureScreen({ state }) {
   const ts = state.treasureState;
@@ -108,7 +109,7 @@ export function renderTreasureScreen({ state }) {
                 data-tooltip-desc="${escapeHtml(relicObj.description)}"
                 data-tooltip-tone="relic"
               >
-                <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+                <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(relicObj.id, { scope: 'treasure', className: 'relic-svg-lg', lootIcon: true })}</span>
                 <span class="loot-card-body">
                   <span class="loot-card-title">
                     已装备遗物：${escapeHtml(relicObj.name)}
@@ -208,8 +209,13 @@ export function renderBossRewardScreen({ state, ui }) {
           ${br.pickedRelicId ? 'disabled' : ''}
           style="${dimmed ? 'opacity:0.46;' : ''}"
         >
-          <span class="choice-title">${isPicked ? '[已融合] ' : ''}${escapeHtml(r.name)}</span>
-          <span style="font-size:0.73rem;color:hsl(18, 86%, 74%);font-weight:700;">首领遗物</span>
+          <div class="boss-relic-head">
+            <span class="boss-relic-art" aria-hidden="true">${getRelicSvg(relicId, { scope: 'boss', className: 'relic-svg-lg' })}</span>
+            <div class="boss-relic-meta">
+              <span class="choice-title">${isPicked ? '[已融合] ' : ''}${escapeHtml(r.name)}</span>
+              <span class="boss-relic-tag">首领遗物</span>
+            </div>
+          </div>
           <span class="choice-detail">${escapeHtml(r.description)}</span>
         </button>
       `;
@@ -326,7 +332,7 @@ export function renderRewardScreen({ state, ui }) {
           data-tooltip-desc="${escapeHtml(relicObj.description)}"
           data-tooltip-tone="relic"
         >
-          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(relicObj.id, { scope: 'reward', className: 'relic-svg-lg', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">
               遗物：${escapeHtml(relicObj.name)}
@@ -337,7 +343,7 @@ export function renderRewardScreen({ state, ui }) {
           <span class="loot-claim-cta">点击拾取</span>
         </button>`
       : `<div class="loot-reward-card loot-kind-relic loot-claimed" aria-live="polite">
-          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(relicObj.id, { scope: 'reward', className: 'relic-svg-lg', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">已装备遗物：${escapeHtml(relicObj.name)}</span>
             <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
@@ -367,7 +373,7 @@ export function renderRewardScreen({ state, ui }) {
           data-tooltip-desc="${escapeHtml(extraRelicObj.description)}"
           data-tooltip-tone="relic"
         >
-          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(extraRelicObj.id, { scope: 'reward-extra', className: 'relic-svg-lg', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">
               黑星遗物：${escapeHtml(extraRelicObj.name)}
@@ -378,7 +384,7 @@ export function renderRewardScreen({ state, ui }) {
           <span class="loot-claim-cta">点击拾取</span>
         </button>`
       : `<div class="loot-reward-card loot-kind-relic loot-claimed" aria-live="polite">
-          <span class="loot-icon-badge loot-badge-relic">${getLootIconSvg('relic')}</span>
+          <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(extraRelicObj.id, { scope: 'reward-extra', className: 'relic-svg-lg', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">已装备黑星遗物：${escapeHtml(extraRelicObj.name)}</span>
             <span class="loot-card-desc">${escapeHtml(extraRelicObj.description)}</span>
@@ -568,7 +574,7 @@ export function renderRestScreen({ state }) {
                 data-action="rest-lift"
                 ${giryaLifts >= 3 ? 'disabled' : ''}
               >
-                <span class="choice-title">🏋️ 举重锻炼 · 壶铃（${escapeHtml(giryaLifts)}/3${giryaLifts >= 3 ? ' 已满' : ' → 初始力量 +1'}）</span>
+                <span class="choice-title choice-title-with-relic"><span class="relic-inline-icon" aria-hidden="true">${getRelicSvg('girya', { scope: 'rest' })}</span><span>举重锻炼 · 壶铃（${escapeHtml(giryaLifts)}/3${giryaLifts >= 3 ? ' 已满' : ' → 初始力量 +1'}）</span></span>
                 <span class="choice-detail">${
                   giryaLifts >= 3
                     ? '已达到【壶铃】举重上限（3/3），每场战斗开始固定获得 +3 点力量！'
@@ -586,7 +592,7 @@ export function renderRestScreen({ state }) {
                 class="choice-btn choice-relic-action"
                 data-action="rest-dig"
               >
-                <span class="choice-title">⛏️ 营地挖掘 · 铲子（发掘 1 件随机遗物）</span>
+                <span class="choice-title choice-title-with-relic"><span class="relic-inline-icon" aria-hidden="true">${getRelicSvg('shovel', { scope: 'rest' })}</span><span>营地挖掘 · 铲子（发掘 1 件随机遗物）</span></span>
                 <span class="choice-detail">使用稀有遗物【铲子】在篝火旁深挖，发掘出 1 件随机遗物并点击拾取装备！</span>
               </button>`
             : ''
@@ -602,7 +608,7 @@ export function renderRestScreen({ state }) {
                 data-modal="rest_toke"
                 ${canToke ? '' : 'disabled'}
               >
-                <span class="choice-title">🪈 吞云精简 · 宁静烟斗（永久移除 1 张卡牌）</span>
+                <span class="choice-title choice-title-with-relic"><span class="relic-inline-icon" aria-hidden="true">${getRelicSvg('peace_pipe', { scope: 'rest' })}</span><span>吞云精简 · 宁静烟斗（永久移除 1 张卡牌）</span></span>
                 <span class="choice-detail">${
                   canToke
                     ? `使用稀有遗物【宁静烟斗】从当前 ${escapeHtml(state.player.deck.length)} 张牌组中永久移除 1 张冗余牌或诅咒牌。`
@@ -723,7 +729,7 @@ export function renderShopScreen({ state, ui }) {
           ${
             relicDef
               ? `<button type="button" id="btn-buy-relic" class="choice-btn" data-action="buy-shop-relic" ${relicOffer.sold || state.player.gold < relicOffer.price ? 'disabled' : ''}>
-                  <span class="choice-title">${relicOffer.sold ? '[已售出] ' : ''}遗物：${escapeHtml(relicDef.name)}（${escapeHtml(relicOffer.price)} 金币 · ${escapeHtml(RELIC_TIER_LABELS[relicDef.tier] || '遗物')}）</span>
+                  <span class="choice-title choice-title-with-relic"><span class="relic-inline-icon" aria-hidden="true">${getRelicSvg(relicDef.id, { scope: 'shop' })}</span><span>${relicOffer.sold ? '[已售出] ' : ''}遗物：${escapeHtml(relicDef.name)}（${escapeHtml(relicOffer.price)} 金币 · ${escapeHtml(RELIC_TIER_LABELS[relicDef.tier] || '遗物')}）</span></span>
                   <span class="choice-detail">${escapeHtml(relicDef.description)}</span>
                 </button>`
               : ''
@@ -731,7 +737,7 @@ export function renderShopScreen({ state, ui }) {
           ${
             shopRelicDef
               ? `<button type="button" id="btn-buy-shop-relic" class="choice-btn" data-action="buy-shop-exclusive-relic" ${shopRelicOffer.sold || state.player.gold < shopRelicOffer.price ? 'disabled' : ''}>
-                  <span class="choice-title">${shopRelicOffer.sold ? '[已售出] ' : ''}[商店专属] ${escapeHtml(shopRelicDef.name)}（${escapeHtml(shopRelicOffer.price)} 金币）</span>
+                  <span class="choice-title choice-title-with-relic"><span class="relic-inline-icon" aria-hidden="true">${getRelicSvg(shopRelicDef.id, { scope: 'shop-ex' })}</span><span>${shopRelicOffer.sold ? '[已售出] ' : ''}[商店专属] ${escapeHtml(shopRelicDef.name)}（${escapeHtml(shopRelicOffer.price)} 金币）</span></span>
                   <span class="choice-detail">${escapeHtml(shopRelicDef.description)}</span>
                 </button>`
               : ''
@@ -838,7 +844,7 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(r.description)}"
         data-tooltip-tone="relic"
-      ><span class="relic-icon" aria-hidden="true">${escapeHtml(icon)}</span> ${escapeHtml(r.name)}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${getRelicSvg(id, { scope: 'gameover' })}</span><span>${escapeHtml(r.name)}</span></span>`;
     })
     .join('');
 
