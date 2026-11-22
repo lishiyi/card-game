@@ -147,7 +147,7 @@ export function renderTopHud({ state, ui }) {
               ${canDrinkNow ? '' : 'disabled'}
               style="--potion-accent: ${escapeHtml(accent)};${selected ? ' outline: 2px solid var(--accent-brass);' : ''}"
             >
-              <span class="potion-icon" aria-hidden="true">${getPotionIconSvg(potionId)}</span><span class="potion-name-label">${escapeHtml(pot.name)}</span>
+              <span class="potion-icon" aria-hidden="true">${getPotionIconSvg(potionId, 20, { scope: `hud-${idx}` })}</span><span class="potion-name-label">${escapeHtml(pot.name)}</span>
             </button>
           </span>
           ${
@@ -190,7 +190,7 @@ export function renderTopHud({ state, ui }) {
           style="--potion-accent: ${escapeHtml(accent)};"
         >
           <div class="hud-potion-popover-head">
-            <span class="hud-potion-popover-icon" aria-hidden="true">${getPotionIconSvg(activePotId, 26)}</span>
+            <span class="hud-potion-popover-icon" aria-hidden="true">${getPotionIconSvg(activePotId, 26, { scope: 'popover' })}</span>
             <div class="hud-potion-popover-title-wrap">
               <strong class="hud-potion-popover-title">${escapeHtml(activePot.name)}</strong>
               <span class="hud-potion-popover-tag">${escapeHtml(`药水 · ${targetLabel}`)}</span>

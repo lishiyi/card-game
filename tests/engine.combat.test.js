@@ -29,6 +29,7 @@ import {
   initiateScry,
   MAX_HAND_SIZE,
   playCard,
+  reconcileCombatState,
   resolveCardChoice,
   restartCombat,
   RUSHDOWN_MAX_TRIGGERS_PER_TURN,
@@ -3130,4 +3131,94 @@ test('Golden condition-met hand highlight (isCardBonusConditionMet) covers all 1
   assert.equal(isCardBonusConditionMet(st, mk('strike')), false);
 });
 
+test('Dead enemy battlefield cleanup & Minion flee-on-leader-death victory (Gremlin Leader, Reptomancer, Darkling regrow & legacy save reconcile)', () => {
+  // 1. Gremlin Leader: killing a minion prunes it immediately; re-summoning keeps battlefield compact; killing Leader causes surviving minions to flee for immediate victory!
+  const glRun = createNewRun({ seed: 99101, characterId: 'ironclad', skipNeow: true });
+  startCombat(glRun, ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite'), 'elite');
+  assert.equal(glRun.combat.enemies.length, 3);
+  const leader = glRun.combat.enemies.find((e) => e.templateId === 'gremlin_leader');
+  const minion1 = glRun.combat.enemies.find((e) => e.isMinion);
+  assert.ok(leader && minion1);
 
+  // Kill minion1 while Leader is alive -> pruned off battlefield immediately, combat stays ongoing
+  minion1.hp = 5;
+  const strike1 = createCardInstance(glRun, 'strike', true);
+  glRun.combat.hand = [strike1];
+  glRun.player.energy = 5;
+  assert.equal(playCard(glRun, strike1.instanceId, minion1.id).ok, true);
+  assert.equal(glRun.combat.status, 'ongoing');
+  assert.equal(glRun.combat.enemies.length, 2, 'Dead minion must be pruned off combat.enemies immediately');
+  assert.equal(glRun.combat.enemies.some((e) => e.id === minion1.id), false);
+
+  // Leader rallies -> summons back to cap (2 live minions + 1 leader = 3 total, ZERO dead corpses)
+  leader.intent = {
+    id: 'leader_rally',
+    name: '集结号角',
+    type: 'buff',
+    summonMinions: 'mad_gremlin',
+    summonCount: 2,
+    summonMax: 2,
+    summonHp: 17,
+  };
+  endPlayerTurn(glRun);
+  assert.equal(glRun.combat.enemies.length, 3, 'Battlefield must stay compact at 3 units (no dead corpse accumulation)');
+  assert.equal(glRun.combat.enemies.filter((e) => e.isMinion && e.hp > 0).length, 2);
+
+  // Kill Gremlin Leader while BOTH minions are still at 17/17 HP -> minions flee & combat immediately wins!
+  leader.hp = 6;
+  const killLeaderCard = createCardInstance(glRun, 'strike', true);
+  glRun.combat.hand = [killLeaderCard];
+  glRun.player.energy = 5;
+  const resKill = playCard(glRun, killLeaderCard.instanceId, leader.id);
+  assert.equal(resKill.ok, true);
+  assert.equal(glRun.combat.status, 'victory', 'Killing Gremlin Leader must immediately win combat as surviving minions flee');
+  assert.equal(glRun.combat.enemies.length, 0, 'All defeated and fleeing enemies cleared off battlefield');
+  assert.equal(glRun.combat.fledEnemyIds.length, 2, 'Both surviving Mad Gremlin minions recorded as fled');
+  assert.ok(glRun.combat.logs.some((l) => (l.message || l.text || '').includes('仓皇逃窜')), 'Log must record minions fleeing');
+  assert.ok(glRun.stats.enemiesSlain >= 2, `Slain count must accurately include defeated enemies, got ${glRun.stats.enemiesSlain}`);
+
+  // 2. Reptomancer: summon 2 Daggers -> killing Reptomancer causes surviving Daggers to flee immediately!
+  const reptoRun = createNewRun({ seed: 99102, characterId: 'silent', skipNeow: true });
+  startCombat(reptoRun, ENCOUNTERS.act3Elite.find((e) => e.id === 'reptomancer_elite'), 'elite');
+  const repto = reptoRun.combat.enemies[0];
+  repto.intent = { id: 'repto_summon', name: '召唤', type: 'buff', summonMinions: 'dagger', summonCount: 2 };
+  endPlayerTurn(reptoRun);
+  assert.equal(reptoRun.combat.enemies.length, 3, 'Reptomancer + 2 live Dagger minions');
+  repto.hp = 5;
+  const shiv = createCardInstance(reptoRun, 'shiv', true);
+  reptoRun.combat.hand = [shiv];
+  playCard(reptoRun, shiv.instanceId, repto.id);
+  assert.equal(reptoRun.combat.status, 'victory', 'Killing Reptomancer must make surviving Daggers flee for instant victory');
+  assert.equal(reptoRun.combat.fledEnemyIds.length, 2);
+
+  // 3. Darkling Trio: downed Darkling entering regrow MUST remain on battlefield while allies live
+  const dkRun = createNewRun({ seed: 99103, characterId: 'ironclad', skipNeow: true });
+  startCombat(dkRun, ENCOUNTERS.act3Early.find((e) => e.id === 'darkling_trio'), 'normal');
+  const dk0 = dkRun.combat.enemies[0];
+  dk0.hp = 4;
+  const sDk = createCardInstance(dkRun, 'strike', true);
+  dkRun.combat.hand = [sDk];
+  dkRun.player.energy = 3;
+  playCard(dkRun, sDk.instanceId, dk0.id);
+  assert.equal(dkRun.combat.status, 'ongoing');
+  assert.equal(dkRun.combat.enemies.length, 3, 'Regrowing Darkling must stay visible on battlefield during regrow countdown');
+  assert.equal(dk0.darklingRegrowTurns, 2);
+
+  // 4. Legacy saved combat reconciliation (reproduces exact dead-leader + dead-corpses + 2-live-minions save state!)
+  const legacyRun = createNewRun({ seed: 99104, characterId: 'silent', skipNeow: true });
+  startCombat(legacyRun, ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite'), 'elite');
+  delete legacyRun.combat.hadNonMinionEnemy;
+  delete legacyRun.combat.defeatedEnemiesCount;
+  const legLeader = legacyRun.combat.enemies.find((e) => e.templateId === 'gremlin_leader');
+  legLeader.hp = 0;
+  // Add 3 extra dead minions to mirror screenshot clutter
+  legacyRun.combat.enemies.push(
+    { ...structuredClone(legacyRun.combat.enemies[0]), id: 'dead_m1', hp: 0, isMinion: true },
+    { ...structuredClone(legacyRun.combat.enemies[0]), id: 'dead_m2', hp: 0, isMinion: true },
+    { ...structuredClone(legacyRun.combat.enemies[0]), id: 'dead_m3', hp: 0, isMinion: true }
+  );
+  const reconciled = reconcileCombatState(legacyRun);
+  assert.equal(reconciled, true);
+  assert.equal(legacyRun.combat.status, 'victory', 'Resuming a legacy save with dead leader + live minions must immediately trigger flee victory');
+  assert.equal(legacyRun.combat.enemies.length, 0);
+});

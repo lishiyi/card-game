@@ -32,6 +32,7 @@ import {
   hasRelic,
   initiateScry,
   playCard,
+  reconcileCombatState,
   resolveCardChoice,
   restartCombat,
   startCombat,
@@ -1031,6 +1032,10 @@ export function runEndTurn(state) {
 
 export function runRestartCombat(state) {
   return restartCombat(state);
+}
+
+export function runReconcileCombat(state) {
+  return reconcileCombatState(state, transitionCombatVictory);
 }
 
 export function discardPotion(state, slotIndex) {

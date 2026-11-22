@@ -58,6 +58,7 @@ import {
   runEndTurn,
   runInitiateScry,
   runPlayCard,
+  runReconcileCombat,
   runResolveCardChoice,
   runRestartCombat,
   runTogglePendingCardChoice,
@@ -264,6 +265,9 @@ export function mountSpireApp(rootEl) {
     }
   } else if (hasActiveSave) {
     state = savedRun;
+    if (state.screen === 'combat' && state.combat?.status === 'ongoing') {
+      runReconcileCombat(state);
+    }
     if (incomingChallenge) {
       initialPendingChallenge = incomingChallenge;
       initialModal = 'confirm_challenge';

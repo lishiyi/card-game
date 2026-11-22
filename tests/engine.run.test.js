@@ -19,6 +19,12 @@ import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
+import {
+  getPotionIconSvg,
+  getUndiscoveredPotionSvg,
+  POTION_ACCENT_COLORS,
+  POTION_SVG_ART,
+} from '../src/ui/potion_art.js';
 import { getStatusSvg, STATUS_NEGATIVE_SVG_ART, STATUS_SVG_ART } from '../src/ui/status_art.js';
 import {
   EVENT_IDS,
@@ -33,6 +39,7 @@ import {
   CAMPFIRE_RELIC_IDS,
   getRelicPoolsForCharacter,
   NON_STARTER_RELIC_IDS,
+  POTION_LIBRARY,
   RELIC_LIBRARY,
   STATUS_METADATA,
 } from '../src/data/relics.js';
@@ -2938,4 +2945,46 @@ test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs
   const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
   assert.ok(swText.includes("'./src/ui/status_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/status_art.js');
+});
+
+test('Potion Art Integrity: all 28 potions have distinct hand-crafted bottle SVGs, unique gradient IDs, safe scoping & sw.js precache', () => {
+  const libIds = Object.keys(POTION_LIBRARY);
+  const artIds = Object.keys(POTION_SVG_ART);
+  assert.equal(libIds.length, 28, `Expected 28 potions in POTION_LIBRARY, got ${libIds.length}`);
+  assert.equal(artIds.length, libIds.length, 'POTION_SVG_ART must match POTION_LIBRARY count 1:1');
+
+  const seenGradientIds = new Map();
+  const distinctShapes = new Set();
+  for (const id of libIds) {
+    assert.ok(POTION_SVG_ART[id], `Missing bespoke SVG for potion "${id}"`);
+    assert.ok(POTION_ACCENT_COLORS[id], `Missing accent color for potion "${id}"`);
+    const svg = getPotionIconSvg(id, 24);
+    assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Potion "${id}" must return valid inline SVG`);
+    assert.ok(svg.includes(`data-potion-icon="${id}"`), `Potion "${id}" must expose data-potion-icon="${id}"`);
+
+    const normalized = POTION_SVG_ART[id]
+      .replace(/data-potion-icon="[^"]+"/, 'data-potion-icon="X"')
+      .replace(/pt-[a-z_]+-[a-z0-9]+/g, 'G');
+    distinctShapes.add(normalized);
+
+    const defsIds = [...svg.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(defsIds.length >= 1, `Potion "${id}" must define liquid gradient ID`);
+    for (const gid of defsIds) {
+      assert.equal(seenGradientIds.has(gid), false, `Duplicate gradient ID "${gid}" shared by "${seenGradientIds.get(gid)}" and "${id}"`);
+      seenGradientIds.set(gid, id);
+    }
+
+    const scoped = getPotionIconSvg(id, 30, { scope: 'hud_1', lootIcon: true });
+    assert.ok(scoped.includes('data-loot-icon="potion"'), `Potion "${id}" must support lootIcon attribute`);
+    for (const gid of defsIds) {
+      assert.ok(scoped.includes(`id="${gid}-hud_1"`) && scoped.includes(`url(#${gid}-hud_1)`));
+    }
+  }
+  assert.equal(distinctShapes.size, libIds.length, 'Every single one of the 28 potions must have a unique, non-repeated SVG illustration');
+
+  assert.ok(getPotionIconSvg(null).includes('data-potion-icon="empty"'));
+  assert.ok(getUndiscoveredPotionSvg().includes('data-potion-icon="undiscovered"'));
+  const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
+  assert.ok(swText.includes("'./src/ui/potion_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/potion_art.js');
 });

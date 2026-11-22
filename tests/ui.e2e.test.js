@@ -7491,3 +7491,190 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) + Dead Enemy Battlefield Cleanup & Minion Flee Victory', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Desktop: Character Select starter potions + HUD duplicate potions (zero dup IDs) + Reward + Shop + Compendium Potions tab
+    const potionUiAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      window.localStorage.clear();
+      app.render();
+      document.getElementById('btn-menu-standard')?.click();
+      const charPotionIcons = ['ironclad', 'silent', 'watcher'].map(
+        (cid) => document.querySelector('#char-card-' + cid + ' .char-potion-pill svg.potion-icon-svg')?.dataset?.potionIcon || ''
+      );
+
+      document.getElementById('btn-start-character-run')?.click();
+      const st = app.getState();
+      st.neowState = null;
+      st.player.gold = 999;
+      st.player.potions = ['duplication_potion', 'duplication_potion', 'ghost_in_a_jar'];
+
+      // Reward plaque
+      st.screen = 'reward';
+      st.reward = {
+        source: 'combat',
+        gold: 0,
+        goldClaimed: true,
+        relicId: null,
+        relicClaimed: true,
+        extraRelicId: null,
+        extraRelicClaimed: true,
+        potionId: 'stance_potion',
+        potionClaimed: false,
+        cardChoices: [],
+        cardClaimed: true,
+      };
+      app.render();
+      const rewardPotionIcon = document.querySelector('#btn-claim-potion svg[data-loot-icon="potion"]')?.dataset?.potionIcon || '';
+
+      // Shop shelf
+      st.screen = 'shop';
+      st.shop = {
+        cards: [],
+        colorlessCards: [],
+        relicOffer: null,
+        shopRelicOffer: null,
+        potionOffer: { potionId: 'gamblers_brew', price: 50, sold: false },
+        purgeCost: 75,
+        purgeUsed: false,
+        mealTicketHealed: 0,
+      };
+      app.render();
+      const shopPotionIcon = document.querySelector('#btn-buy-potion svg.potion-icon-svg')?.dataset?.potionIcon || '';
+
+      // Compendium Potions tab open simultaneously with duplicate HUD potions -> zero duplicate gradient IDs!
+      document.getElementById('btn-open-compendium')?.click();
+      document.getElementById('btn-comp-tab-potions')?.click();
+      const compDiscoveredPotions = document.querySelectorAll('#compendium-potions-grid article[data-discovered="true"] svg.potion-icon-svg').length;
+      const compUndiscoveredPotions = document.querySelectorAll('#compendium-potions-grid article[data-discovered="false"] svg[data-potion-icon="undiscovered"]').length;
+      const potDefIds = [...document.querySelectorAll('svg.potion-icon-svg defs [id]')].map((el) => el.id);
+      const dupPotDefIds = potDefIds.length - new Set(potDefIds).size;
+      document.querySelector('#modal-backdrop [data-action="close-modal"]')?.click();
+
+      return {
+        charPotionIcons,
+        rewardPotionIcon,
+        shopPotionIcon,
+        compDiscoveredPotions,
+        compUndiscoveredPotions,
+        dupPotDefIds,
+      };
+    })()`);
+
+    assert.deepEqual(
+      potionUiAudit.charPotionIcons,
+      ['fire_potion', 'poison_potion', 'miracle_potion'],
+      'Character Select must render bespoke starter potion SVGs for all 3 classes'
+    );
+    assert.equal(potionUiAudit.rewardPotionIcon, 'stance_potion', 'Reward plaque must render bespoke stance_potion SVG');
+    assert.equal(potionUiAudit.shopPotionIcon, 'gamblers_brew', 'Shop shelf must render bespoke gamblers_brew SVG');
+    assert.ok(potionUiAudit.compDiscoveredPotions >= 1, 'Compendium Potions tab must render bespoke discovered potion SVGs');
+    assert.ok(potionUiAudit.compUndiscoveredPotions >= 1, 'Compendium Potions tab must render undiscovered potion silhouettes');
+    assert.equal(potionUiAudit.dupPotDefIds, 0, 'Duplicate HUD potions + Compendium potions must have zero duplicate SVG gradient IDs');
+
+    // 2. 390px Mobile: Gremlin Leader Elite -> Minion tags, Dead Enemy removed from battlefield immediately, and Leader death causes surviving minions to flee for immediate victory!
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 120));
+
+    const minionBattleAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'map';
+      app.render();
+      document.getElementById('map-node-f1_c0')?.click();
+
+      // Build an authentic Gremlin Leader + 2 Mad Gremlin minions encounter
+      const c = app.getState().combat;
+      const baseTemplate = structuredClone(c.enemies[0]);
+      c.enemies = [
+        { ...structuredClone(baseTemplate), id: 'mg_1', templateId: 'mad_gremlin', name: '狂怒地精 A', artKey: 'mad_gremlin', hp: 5, maxHp: 17, block: 0, isMinion: true, statuses: { angry: 1 } },
+        { ...structuredClone(baseTemplate), id: 'gl_boss', templateId: 'gremlin_leader', name: '地精首领', artKey: 'gremlin_leader', hp: 5, maxHp: 143, block: 0, isMinion: false, statuses: {} },
+        { ...structuredClone(baseTemplate), id: 'mg_2', templateId: 'mad_gremlin', name: '狂怒地精 B', artKey: 'mad_gremlin', hp: 17, maxHp: 17, block: 0, isMinion: true, statuses: { angry: 1 } },
+      ];
+      c.hadNonMinionEnemy = true;
+      c.defeatedEnemiesCount = 0;
+      c.hand = [
+        { instanceId: 'kill_m1', cardId: 'strike', upgraded: true },
+        { instanceId: 'kill_gl', cardId: 'strike', upgraded: true },
+      ];
+      app.getState().player.energy = 5;
+      app.render();
+
+      const initialEnemyDomCount = document.querySelectorAll('.enemy-side .fighter-unit').length;
+      const minionTagCount = document.querySelectorAll('.enemy-side .minion-tag').length;
+      const leaderHasMinionTag = Boolean(document.querySelector('#enemy-unit-gl_boss .minion-tag'));
+
+      // Kill minion mg_1 -> must immediately disappear from DOM (zero dead corpses left!)
+      document.getElementById('hand-card-kill_m1')?.click();
+      document.getElementById('enemy-unit-mg_1')?.click();
+      const afterMinionKillDomCount = document.querySelectorAll('.enemy-side .fighter-unit').length;
+      const deadDomCountAfterMinionKill = document.querySelectorAll('.enemy-side .fighter-unit.dead').length;
+      const stillInCombatAfterMinionKill = app.getState().screen === 'combat';
+
+      // Kill Gremlin Leader while mg_2 is still at 17/17 HP -> mg_2 must flee & combat transitions IMMEDIATELY to reward!
+      document.getElementById('hand-card-kill_gl')?.click();
+      document.getElementById('enemy-unit-gl_boss')?.click();
+      const screenAfterLeaderKill = app.getState().screen;
+      const combatStatusAfterLeaderKill = app.getState().combat?.status || '';
+      const fledLogs = (app.getState().combat?.logs || []).map((l) => l.message || l.text || '').join(' | ');
+
+      return {
+        initialEnemyDomCount,
+        minionTagCount,
+        leaderHasMinionTag,
+        afterMinionKillDomCount,
+        deadDomCountAfterMinionKill,
+        stillInCombatAfterMinionKill,
+        screenAfterLeaderKill,
+        combatStatusAfterLeaderKill,
+        hasFleeLog: fledLogs.includes('仓皇逃窜'),
+      };
+    })()`);
+
+    assert.equal(minionBattleAudit.initialEnemyDomCount, 3, 'Initial encounter renders Leader + 2 minions');
+    assert.equal(minionBattleAudit.minionTagCount, 2, 'Both Mad Gremlins must display the 爪牙 Minion badge');
+    assert.equal(minionBattleAudit.leaderHasMinionTag, false, 'Gremlin Leader must not display 爪牙 badge');
+    assert.equal(minionBattleAudit.afterMinionKillDomCount, 2, 'Killed minion must be removed immediately from battlefield DOM');
+    assert.equal(minionBattleAudit.deadDomCountAfterMinionKill, 0, 'Zero dead enemy corpses may remain on battlefield');
+    assert.equal(minionBattleAudit.stillInCombatAfterMinionKill, true, 'Killing a minion keeps combat ongoing while Leader lives');
+    assert.equal(minionBattleAudit.screenAfterLeaderKill, 'reward', 'Killing Gremlin Leader must trigger immediate victory & reward transition despite full-HP surviving minion');
+    assert.equal(minionBattleAudit.combatStatusAfterLeaderKill, 'victory');
+    assert.equal(minionBattleAudit.hasFleeLog, true, 'Combat log must record minions fleeing');
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});

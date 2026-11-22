@@ -31,6 +31,7 @@ import { formatSeedCode } from '../../engine/rng.js';
 import { getEnemySvg } from '../enemy_art.js';
 import { getGlossaryEntries, TUTORIAL_STEPS } from '../glossary.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
+import { getPotionIconSvg, getUndiscoveredPotionSvg } from '../icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg } from '../relic_art.js';
 import { ANIM_SPEED_OPTIONS } from '../settings.js';
 import { getStatusSvg } from '../status_art.js';
@@ -1229,7 +1230,7 @@ function renderCompendiumModal({ meta, ui }) {
           return `
             <article class="compendium-entry-card undiscovered" data-compendium-id="${escapeHtml(potionId)}" data-discovered="false">
               <div class="compendium-entry-head">
-                <span class="compendium-entry-name">???</span>
+                <span class="compendium-entry-name"><span class="potion-icon-comp" aria-hidden="true">${getUndiscoveredPotionSvg(26)}</span><span>???</span></span>
                 <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
               </div>
               <p class="compendium-entry-desc">尚未在战利品、炼金师或商店中发现此药水。</p>
@@ -1239,7 +1240,7 @@ function renderCompendiumModal({ meta, ui }) {
         return `
           <article class="compendium-entry-card" data-compendium-id="${escapeHtml(potionId)}" data-discovered="true">
             <div class="compendium-entry-head">
-              <span class="compendium-entry-name">${escapeHtml(p.name)}</span>
+              <span class="compendium-entry-name"><span class="potion-icon-comp" aria-hidden="true">${getPotionIconSvg(potionId, 26, { scope: `comp-${potionId}` })}</span><span>${escapeHtml(p.name)}</span></span>
               <div class="compendium-entry-badges">
                 <span class="compendium-owner-pill">${escapeHtml(ownerLabel)}</span>
                 <span class="compendium-owner-pill">${escapeHtml(targetLabel)}</span>

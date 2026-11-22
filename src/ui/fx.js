@@ -445,6 +445,12 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         playerStruckAnyEnemy = true;
       }
 
+      const fledIds = Array.isArray(nextState.combat?.fledEnemyIds) ? nextState.combat.fledEnemyIds : [];
+      if (!prevEnemy.dead && !nextEnemy && fledIds.includes(enemyId)) {
+        spawnFloatingPopup(rect, '逃跑!', 'buff', eStack++);
+        continue;
+      }
+
       if (hpDelta < 0) {
         const dmgAbs = Math.abs(hpDelta);
         maxDamageDealt = Math.max(maxDamageDealt, dmgAbs);

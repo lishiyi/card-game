@@ -38,6 +38,7 @@ const PRECACHE_URLS = [
   './src/ui/glossary.js',
   './src/ui/helpers.js',
   './src/ui/icons.js',
+  './src/ui/potion_art.js',
   './src/ui/relic_art.js',
   './src/ui/settings.js',
   './src/ui/status_art.js',

@@ -14,7 +14,7 @@ import {
 import { buildRunReportFromState } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
-import { getLootIconSvg } from '../icons.js';
+import { getLootIconSvg, getPotionIconSvg } from '../icons.js';
 import { getRelicSvg } from '../relic_art.js';
 
 export function renderTreasureScreen({ state }) {
@@ -412,7 +412,7 @@ export function renderRewardScreen({ state, ui }) {
           data-tooltip-desc="${escapeHtml(potionObj.description)}"
           data-tooltip-tone="potion"
         >
-          <span class="loot-icon-badge loot-badge-potion">${getLootIconSvg('potion')}</span>
+          <span class="loot-icon-badge loot-badge-potion">${getPotionIconSvg(potionObj.id, 34, { scope: 'reward-pot', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">
               药水：${escapeHtml(potionObj.name)}
@@ -423,7 +423,7 @@ export function renderRewardScreen({ state, ui }) {
           <span class="loot-claim-cta">${emptyPotionSlots > 0 ? '点击拾取' : '先丢弃旧药水'}</span>
         </button>`
       : `<div class="loot-reward-card loot-kind-potion loot-claimed" aria-live="polite">
-          <span class="loot-icon-badge loot-badge-potion">${getLootIconSvg('potion')}</span>
+          <span class="loot-icon-badge loot-badge-potion">${getPotionIconSvg(potionObj.id, 34, { scope: 'reward-pot', lootIcon: true })}</span>
           <span class="loot-card-body">
             <span class="loot-card-title">已收入药水：${escapeHtml(potionObj.name)}</span>
             <span class="loot-card-desc">${escapeHtml(potionObj.description)}</span>
@@ -745,7 +745,7 @@ export function renderShopScreen({ state, ui }) {
           ${
             potionDef
               ? `<button type="button" id="btn-buy-potion" class="choice-btn" data-action="buy-shop-potion" ${potionOffer.sold || state.player.gold < potionOffer.price ? 'disabled' : ''}>
-                  <span class="choice-title">${potionOffer.sold ? '[已售出] ' : ''}药水：${escapeHtml(potionDef.name)}（${escapeHtml(potionOffer.price)} 金币）</span>
+                  <span class="choice-title choice-title-with-relic"><span class="potion-inline-icon" aria-hidden="true">${getPotionIconSvg(potionDef.id, 24, { scope: 'shop-pot' })}</span><span>${potionOffer.sold ? '[已售出] ' : ''}药水：${escapeHtml(potionDef.name)}（${escapeHtml(potionOffer.price)} 金币）</span></span>
                   <span class="choice-detail">${escapeHtml(potionDef.description)}</span>
                 </button>`
               : ''

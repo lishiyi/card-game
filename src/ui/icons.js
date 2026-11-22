@@ -3,6 +3,7 @@
  */
 
 import { getEnemySvg } from './enemy_art.js';
+import { getPotionAccentColor, getPotionIconSvg, getUndiscoveredPotionSvg } from './potion_art.js';
 
 function scopeSvgIds(svg, suffix) {
   if (!svg || !suffix) return svg;
@@ -448,114 +449,4 @@ export function getVitalIconSvg(kind) {
   }
 }
 
-const POTION_VISUAL_PROFILES = {
-  fire_potion: { shape: 'flask', liquid: 'hsl(12, 94%, 54%)', top: 'hsl(34, 100%, 66%)', accent: 'hsl(18, 92%, 58%)' },
-  block_potion: { shape: 'shield_flask', liquid: 'hsl(204, 86%, 54%)', top: 'hsl(192, 96%, 76%)', accent: 'hsl(202, 86%, 60%)' },
-  strength_potion: { shape: 'flask', liquid: 'hsl(352, 86%, 50%)', top: 'hsl(12, 96%, 68%)', accent: 'hsl(356, 86%, 58%)' },
-  energy_potion: { shape: 'vial', liquid: 'hsl(42, 96%, 54%)', top: 'hsl(54, 100%, 80%)', accent: 'hsl(45, 94%, 60%)' },
-  swift_potion: { shape: 'vial', liquid: 'hsl(190, 90%, 50%)', top: 'hsl(178, 98%, 78%)', accent: 'hsl(188, 88%, 58%)' },
-  fear_potion: { shape: 'flask', liquid: 'hsl(338, 80%, 48%)', top: 'hsl(354, 92%, 70%)', accent: 'hsl(342, 80%, 58%)' },
-  weak_potion: { shape: 'flask', liquid: 'hsl(274, 58%, 52%)', top: 'hsl(286, 74%, 74%)', accent: 'hsl(276, 60%, 60%)' },
-  dexterity_potion: { shape: 'flask', liquid: 'hsl(148, 76%, 44%)', top: 'hsl(136, 90%, 68%)', accent: 'hsl(146, 76%, 52%)' },
-  regen_potion: { shape: 'flask', liquid: 'hsl(358, 90%, 46%)', top: 'hsl(8, 98%, 68%)', accent: 'hsl(0, 88%, 56%)' },
-  explosive_potion: { shape: 'orb', liquid: 'hsl(24, 96%, 52%)', top: 'hsl(46, 100%, 74%)', accent: 'hsl(28, 96%, 58%)' },
-  poison_potion: { shape: 'flask', liquid: 'hsl(114, 82%, 44%)', top: 'hsl(94, 96%, 68%)', accent: 'hsl(112, 80%, 52%)' },
-  cunning_potion: { shape: 'chalice', liquid: 'hsl(166, 72%, 46%)', top: 'hsl(178, 88%, 74%)', accent: 'hsl(168, 74%, 56%)' },
-  heart_of_iron: { shape: 'shield_flask', liquid: 'hsl(34, 54%, 52%)', top: 'hsl(44, 78%, 78%)', accent: 'hsl(36, 62%, 60%)' },
-  fury_potion: { shape: 'chalice', liquid: 'hsl(4, 94%, 52%)', top: 'hsl(30, 100%, 70%)', accent: 'hsl(10, 92%, 58%)' },
-  miracle_potion: { shape: 'vial', liquid: 'hsl(48, 94%, 66%)', top: 'hsl(56, 100%, 92%)', accent: 'hsl(48, 96%, 72%)' },
-  ambrosia: { shape: 'chalice', liquid: 'hsl(284, 86%, 58%)', top: 'hsl(46, 100%, 76%)', accent: 'hsl(288, 84%, 66%)' },
-  ancient_potion: { shape: 'shield_flask', liquid: 'hsl(38, 66%, 52%)', top: 'hsl(48, 90%, 82%)', accent: 'hsl(40, 72%, 62%)' },
-  speed_potion: { shape: 'vial', liquid: 'hsl(164, 84%, 46%)', top: 'hsl(152, 96%, 74%)', accent: 'hsl(162, 84%, 56%)' },
-  flex_potion: { shape: 'flask', liquid: 'hsl(8, 86%, 54%)', top: 'hsl(24, 96%, 74%)', accent: 'hsl(12, 86%, 60%)' },
-  gamblers_brew: { shape: 'orb', liquid: 'hsl(246, 74%, 58%)', top: 'hsl(44, 96%, 74%)', accent: 'hsl(248, 76%, 66%)' },
-  duplication_potion: { shape: 'orb', liquid: 'hsl(308, 82%, 56%)', top: 'hsl(190, 96%, 74%)', accent: 'hsl(306, 82%, 64%)' },
-  essence_of_steel: { shape: 'shield_flask', liquid: 'hsl(212, 34%, 58%)', top: 'hsl(206, 64%, 84%)', accent: 'hsl(210, 44%, 68%)' },
-  blood_surge_potion: { shape: 'chalice', liquid: 'hsl(354, 90%, 44%)', top: 'hsl(14, 96%, 68%)', accent: 'hsl(356, 88%, 54%)' },
-  elixir_potion: { shape: 'vial', liquid: 'hsl(42, 74%, 62%)', top: 'hsl(52, 94%, 88%)', accent: 'hsl(44, 78%, 70%)' },
-  ghost_in_a_jar: { shape: 'orb', liquid: 'hsl(188, 72%, 64%)', top: 'hsl(196, 94%, 92%)', accent: 'hsl(190, 78%, 72%)' },
-  phantom_draught: { shape: 'vial', liquid: 'hsl(208, 66%, 52%)', top: 'hsl(172, 84%, 72%)', accent: 'hsl(194, 74%, 62%)' },
-  stance_potion: { shape: 'vial', liquid: 'hsl(212, 84%, 56%)', top: 'hsl(352, 92%, 66%)', accent: 'hsl(280, 74%, 64%)' },
-  mantra_elixir: { shape: 'chalice', liquid: 'hsl(276, 80%, 58%)', top: 'hsl(296, 94%, 82%)', accent: 'hsl(280, 82%, 66%)' },
-};
-
-const DEFAULT_POTION_PROFILE = {
-  shape: 'flask',
-  liquid: 'hsl(198, 76%, 54%)',
-  top: 'hsl(190, 90%, 76%)',
-  accent: 'hsl(196, 78%, 62%)',
-};
-
-export function getPotionAccentColor(potionId) {
-  if (!potionId) return 'hsla(36, 18%, 48%, 0.45)';
-  return (POTION_VISUAL_PROFILES[potionId] || DEFAULT_POTION_PROFILE).accent;
-}
-
-export function getPotionIconSvg(potionId, size = 18) {
-  const s = Number(size) || 18;
-  if (!potionId) {
-    return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg is-empty" data-potion-icon="empty" fill="none" aria-hidden="true">
-      <rect x="9.2" y="2.6" width="5.6" height="2.4" rx="1" stroke="hsla(36, 22%, 68%, 0.48)" stroke-width="1.3" />
-      <path d="M10 5v3.2L5.5 14.3A5.3 5.3 0 0 0 9.9 22h4.2a5.3 5.3 0 0 0 4.4-7.7L14 8.2V5" stroke="hsla(36, 22%, 70%, 0.48)" stroke-width="1.4" stroke-linejoin="round" fill="hsla(34, 16%, 24%, 0.28)" />
-      <path d="M8.5 15.2q3.5-1.2 7 0" stroke="hsla(36, 20%, 66%, 0.28)" stroke-width="1.1" stroke-dasharray="2 2" stroke-linecap="round" />
-    </svg>`;
-  }
-
-  const p = POTION_VISUAL_PROFILES[potionId] || DEFAULT_POTION_PROFILE;
-  const glassStroke = 'hsla(42, 48%, 90%, 0.78)';
-  const cork = `<rect x="9.1" y="2.2" width="5.8" height="2.6" rx="1" fill="hsl(30, 48%, 46%)" stroke="hsl(34, 52%, 70%)" stroke-width="0.9" />`;
-
-  switch (p.shape) {
-    case 'vial':
-      return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg" data-potion-icon="${potionId}" fill="none" aria-hidden="true">
-        ${cork}
-        <path d="M8.5 4.8h7v2.4l1.2 1.8v9.4a3.6 3.6 0 0 1-3.6 3.6h-2.2a3.6 3.6 0 0 1-3.6-3.6V9l1.2-1.8V4.8Z" fill="hsla(24, 16%, 14%, 0.65)" stroke="${glassStroke}" stroke-width="1.25" stroke-linejoin="round" />
-        <path d="M8.3 12.2h7.4v6.1a2.6 2.6 0 0 1-2.6 2.6h-2.2a2.6 2.6 0 0 1-2.6-2.6v-6.1Z" fill="${p.liquid}" />
-        <ellipse cx="12" cy="12.2" rx="3.7" ry="1.1" fill="${p.top}" />
-        <circle cx="10.7" cy="16.8" r="1" fill="hsla(0, 0%, 100%, 0.65)" />
-        <circle cx="13.5" cy="15.1" r="0.75" fill="hsla(0, 0%, 100%, 0.55)" />
-        <path d="M9.6 9.6v8.2" stroke="hsla(0, 0%, 100%, 0.45)" stroke-width="1.2" stroke-linecap="round" />
-      </svg>`;
-
-    case 'orb':
-      return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg" data-potion-icon="${potionId}" fill="none" aria-hidden="true">
-        ${cork}
-        <path d="M9.8 4.8h4.4v2.6a7.3 7.3 0 1 1-4.4 0V4.8Z" fill="hsla(24, 16%, 14%, 0.68)" stroke="${glassStroke}" stroke-width="1.25" stroke-linejoin="round" />
-        <path d="M5.7 13.8a6.35 6.35 0 1 0 12.6 0q-3.15-1.3-6.3 0t-6.3 0Z" fill="${p.liquid}" />
-        <path d="M6.2 13.8q2.9-1.15 5.8 0t5.8 0" stroke="${p.top}" stroke-width="1.6" stroke-linecap="round" />
-        <circle cx="10.2" cy="16.9" r="1.1" fill="hsla(0, 0%, 100%, 0.7)" />
-        <circle cx="14.3" cy="15.8" r="0.8" fill="hsla(0, 0%, 100%, 0.58)" />
-        <path d="M7.8 10.6a4.8 4.8 0 0 1 2.2-2.2" stroke="hsla(0, 0%, 100%, 0.6)" stroke-width="1.3" stroke-linecap="round" />
-      </svg>`;
-
-    case 'shield_flask':
-      return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg" data-potion-icon="${potionId}" fill="none" aria-hidden="true">
-        ${cork}
-        <path d="M9.6 4.8h4.8v2.5l4.2 2.9v5.4c0 3.3-2.6 5.6-6.6 6.5-4-.9-6.6-3.2-6.6-6.5v-5.4l4.2-2.9V4.8Z" fill="hsla(24, 16%, 14%, 0.68)" stroke="${glassStroke}" stroke-width="1.25" stroke-linejoin="round" />
-        <path d="M6.6 12.4h10.8v3.1c0 2.6-2.1 4.4-5.4 5.2-3.3-.8-5.4-2.6-5.4-5.2v-3.1Z" fill="${p.liquid}" />
-        <path d="M6.8 12.4h10.4" stroke="${p.top}" stroke-width="1.7" stroke-linecap="round" />
-        <polygon points="12,13.9 14.1,16.1 12,18.4 9.9,16.1" fill="${p.top}" fill-opacity="0.72" />
-        <path d="M8.1 10.6v4.6" stroke="hsla(0, 0%, 100%, 0.45)" stroke-width="1.2" stroke-linecap="round" />
-      </svg>`;
-
-    case 'chalice':
-      return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg" data-potion-icon="${potionId}" fill="none" aria-hidden="true">
-        ${cork}
-        <path d="M9.7 4.8h4.6v2.6L18 12l-2.6 8.2a2.2 2.2 0 0 1-2.1 1.5h-2.6a2.2 2.2 0 0 1-2.1-1.5L6 12l3.7-4.6V4.8Z" fill="hsla(24, 16%, 14%, 0.68)" stroke="${glassStroke}" stroke-width="1.25" stroke-linejoin="round" />
-        <path d="M7.2 12.8h9.6l-2.1 6.7a1.5 1.5 0 0 1-1.4 1h-2.6a1.5 1.5 0 0 1-1.4-1l-2.1-6.7Z" fill="${p.liquid}" />
-        <path d="M7.5 12.8q4.5-1.4 9 0" stroke="${p.top}" stroke-width="1.7" stroke-linecap="round" />
-        <path d="M12 14.5v3.4M10.3 16.2h3.4" stroke="hsla(0, 0%, 100%, 0.78)" stroke-width="1.2" stroke-linecap="round" />
-      </svg>`;
-
-    default:
-      return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" class="potion-icon-svg" data-potion-icon="${potionId}" fill="none" aria-hidden="true">
-        ${cork}
-        <path d="M9.8 4.8h4.4v3.1l4.4 6.1A5.2 5.2 0 0 1 14.3 22H9.7a5.2 5.2 0 0 1-4.3-8l4.4-6.1V4.8Z" fill="hsla(24, 16%, 14%, 0.68)" stroke="${glassStroke}" stroke-width="1.25" stroke-linejoin="round" />
-        <path d="M6.4 14.5q2.8-1.2 5.6 0t5.6 0a4.2 4.2 0 0 1-3.4 6.4H9.8a4.2 4.2 0 0 1-3.4-6.4Z" fill="${p.liquid}" />
-        <path d="M6.7 14.5q2.65-1.15 5.3 0t5.3 0" stroke="${p.top}" stroke-width="1.6" stroke-linecap="round" />
-        <circle cx="10.4" cy="18" r="1.05" fill="hsla(0, 0%, 100%, 0.7)" />
-        <circle cx="14.1" cy="17" r="0.8" fill="hsla(0, 0%, 100%, 0.56)" />
-        <path d="M9.5 10.1l-2 3" stroke="hsla(0, 0%, 100%, 0.52)" stroke-width="1.2" stroke-linecap="round" />
-      </svg>`;
-  }
-}
+export { getPotionAccentColor, getPotionIconSvg, getUndiscoveredPotionSvg };

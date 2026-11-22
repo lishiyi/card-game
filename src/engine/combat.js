@@ -368,10 +368,76 @@ function handleEnemyZeroHp(state, enemy) {
   return false;
 }
 
+function pruneDefeatedEnemies(combat) {
+  if (!combat || !Array.isArray(combat.enemies)) return;
+  combat.enemies = combat.enemies.filter(
+    (e) => e.hp > 0 || (e.darklingRegrowTurns ?? 0) > 0
+  );
+}
+
+function handleMinionsFleeIfLeaderDead(state) {
+  const combat = state?.combat;
+  if (!combat || combat.status !== 'ongoing' || !Array.isArray(combat.enemies)) return false;
+  const hadNonMinion =
+    combat.hadNonMinionEnemy !== undefined
+      ? Boolean(combat.hadNonMinionEnemy)
+      : combat.enemies.some((e) => !e.isMinion);
+  if (!hadNonMinion) return false;
+
+  const remainingActive = combat.enemies.filter(
+    (e) => e.hp > 0 || (e.darklingRegrowTurns ?? 0) > 0
+  );
+  if (remainingActive.length === 0) return false;
+  if (remainingActive.some((e) => !e.isMinion)) return false;
+
+  const fleeingMinions = remainingActive.filter((e) => e.isMinion && e.hp > 0);
+  if (fleeingMinions.length === 0) return false;
+
+  if (!Array.isArray(combat.fledEnemyIds)) combat.fledEnemyIds = [];
+  const names = fleeingMinions.map((m) => `【${m.name}】`).join('、');
+  for (const m of fleeingMinions) {
+    m.hp = 0;
+    m.block = 0;
+    m.intent = null;
+    m.fled = true;
+    m._deathHandled = true;
+    combat.fledEnemyIds.push(m.id);
+  }
+  pushCombatLog(
+    combat,
+    `主敌已倒下，剩余爪牙${names}仓皇逃窜，战斗直接胜利！`,
+    'victory'
+  );
+  return true;
+}
+
+export function reconcileCombatState(state, onVictoryCallback = null) {
+  const combat = state?.combat;
+  if (!combat || state.screen !== 'combat' || combat.status !== 'ongoing') return false;
+  if (!Array.isArray(combat.enemies)) return false;
+  if (combat.hadNonMinionEnemy === undefined) {
+    combat.hadNonMinionEnemy = combat.enemies.some((e) => !e.isMinion);
+  }
+  if (combat.defeatedEnemiesCount === undefined) {
+    combat.defeatedEnemiesCount = combat.enemies.filter(
+      (e) => e.hp <= 0 && !((e.darklingRegrowTurns ?? 0) > 0) && !e.fled
+    ).length;
+  }
+  const fled = handleMinionsFleeIfLeaderDead(state);
+  const prevLen = combat.enemies.length;
+  pruneDefeatedEnemies(combat);
+  if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+    finalizeCombatVictory(state, onVictoryCallback);
+    return true;
+  }
+  return fled || combat.enemies.length !== prevLen;
+}
+
 function handleEnemyDeathPassives(state, deadEnemy) {
   const combat = state?.combat;
   if (!combat || !deadEnemy || deadEnemy._deathHandled) return;
   deadEnemy._deathHandled = true;
+  combat.defeatedEnemiesCount = (combat.defeatedEnemiesCount ?? 0) + 1;
 
   if ((deadEnemy.statuses?.sporeCloud ?? 0) > 0) {
     const spores = deadEnemy.statuses.sporeCloud;
@@ -416,6 +482,10 @@ function handleEnemyDeathPassives(state, deadEnemy) {
       }
     }
   }
+
+  // Minions flee immediately once all non-minion bosses/leaders have fallen
+  handleMinionsFleeIfLeaderDead(state);
+
   // Gremlin Horn: +1 energy & draw 1 card whenever an enemy dies
   if (hasRelic(state, 'gremlin_horn') && combat.status === 'ongoing' && state.player.hp > 0) {
     state.player.energy += 1;
@@ -428,6 +498,9 @@ function handleEnemyDeathPassives(state, deadEnemy) {
       drawCards(state, 1);
     }
   }
+
+  // Clear permanently defeated / fled enemies off the battlefield (keep regrowing Darklings)
+  pruneDefeatedEnemies(combat);
 }
 
 function reshuffleDiscardIntoDraw(state, { triggerRelics = true } = {}) {
@@ -2454,6 +2527,9 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     discardPile: [],
     exhaustPile: [],
     enemies,
+    hadNonMinionEnemy: enemies.some((e) => !e.isMinion),
+    defeatedEnemiesCount: 0,
+    fledEnemyIds: [],
     logs: [],
     logSeq: 0,
   };
@@ -2726,6 +2802,9 @@ export function playCard(
   }
 
   const combat = state.combat;
+  if (!internalOpts.fromHavoc && !internalOpts.fromDup) {
+    combat.fledEnemyIds = [];
+  }
   const handIndex = combat.hand.findIndex((c) => c.instanceId === instanceId);
   if (handIndex === -1) {
     return { ok: false, reason: '卡牌不在手牌中' };
@@ -4050,6 +4129,7 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   if (!targetRes.ok) {
     return { ok: false, reason: targetRes.reason };
   }
+  combat.fledEnemyIds = [];
 
   const mult = hasRelic(state, 'sacred_bark') ? 2 : 1;
 
@@ -4250,6 +4330,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   combat.phase = 'enemy';
+  combat.fledEnemyIds = [];
   combat.playedAttackLastTurn = (combat.attacksPlayedThisTurn ?? 0) > 0;
   combat.cardsPlayedLastTurn = combat.cardsPlayedThisTurn ?? 0;
   delete state.player.statuses.noDraw;
@@ -4797,6 +4878,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         }
 
         if (intent.summonMinions) {
+          pruneDefeatedEnemies(combat);
           const currentMinions = getAliveEnemies(combat).filter(
             (e) => e.templateId === intent.summonMinions
           ).length;
@@ -4959,6 +5041,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         enemy.block = 0;
         enemy.intent = null;
         pushCombatLog(combat, `【消逝】倒计时归零，【${enemy.name}】化作虚无消散了！`, 'victory');
+        handleEnemyDeathPassives(state, enemy);
         continue;
       }
     }
@@ -4972,6 +5055,8 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       }
     }
   }
+
+  pruneDefeatedEnemies(combat);
 
   if (state.player.hp <= 0 || combat.status !== 'ongoing') {
     return { ok: true, outcome: state.combat?.status ?? combat.status };
@@ -5033,7 +5118,8 @@ function finalizeCombatVictory(state, onVictoryCallback = null) {
   state.player.statuses = {};
   state.player.skipStatusTick = {};
   state.combatSnapshot = null;
-  state.stats.enemiesSlain = (state.stats.enemiesSlain ?? 0) + combat.enemies.length;
+  const slainCount = Math.max(combat.defeatedEnemiesCount ?? 0, combat.enemies.length);
+  state.stats.enemiesSlain = (state.stats.enemiesSlain ?? 0) + slainCount;
   state.stats.combatsWon = (state.stats.combatsWon ?? 0) + 1;
   if (combat.role === 'elite') {
     state.stats.elitesSlain = (state.stats.elitesSlain ?? 0) + 1;

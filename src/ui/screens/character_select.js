@@ -18,7 +18,7 @@ import {
   getMaxAscensionForCharacter,
 } from '../../engine/meta.js';
 import { escapeHtml } from '../helpers.js';
-import { getCharacterSvg } from '../icons.js';
+import { getCharacterSvg, getPotionIconSvg } from '../icons.js';
 import { getRelicSvg } from '../relic_art.js';
 
 function summarizeStarterDeck(deckIds) {
@@ -326,7 +326,7 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
                   data-tooltip-tag="初始药水"
                   data-tooltip-desc="${escapeHtml(starterPotion.description)}"
                   data-tooltip-tone="potion"
-                >药水 · ${escapeHtml(starterPotion.name)}</span>`
+                ><span class="potion-inline-sm" aria-hidden="true">${getPotionIconSvg(starterPotion.id, 18, { scope: `char-pot-${def.id}` })}</span><span>药水 · ${escapeHtml(starterPotion.name)}</span></span>`
               : ''
           }
         </div>

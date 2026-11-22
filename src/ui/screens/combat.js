@@ -35,7 +35,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     Math.min(100, Math.round((state.player.hp / state.player.maxHp) * 100))
   );
 
-  const enemiesHtml = combat.enemies
+  const visibleEnemies = combat.enemies.filter(
+    (enemy) => enemy.hp > 0 || (enemy.darklingRegrowTurns ?? 0) > 0
+  );
+
+  const enemiesHtml = visibleEnemies
     .map((enemy) => {
       const hpPct = Math.max(0, Math.min(100, Math.round((enemy.hp / enemy.maxHp) * 100)));
       const isRegrowing = enemy.hp <= 0 && (enemy.darklingRegrowTurns ?? 0) > 0;
@@ -137,6 +141,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           </div>
           <div class="unit-name-row">
             <span class="unit-name-text">${escapeHtml(enemy.name)}</span>
+            ${
+              enemy.isMinion
+                ? `<span class="minion-tag" tabindex="0" data-tooltip-title="爪牙" data-tooltip-tag="随从单位" data-tooltip-desc="属于主敌召唤或随行的爪牙单位：击败所有非爪牙敌人后，剩余爪牙会立即逃跑并直接赢得战斗！" data-tooltip-tone="buff">爪牙</span>`
+                : ''
+            }
             ${
               enemy.block > 0
                 ? `<span class="block-pill" tabindex="0" data-tooltip-title="${escapeHtml(`格挡 (${enemy.block})`)}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="优先抵消受到的攻击伤害，下回合开始时清零（拥有壁垒时保留）。">盾 ${escapeHtml(enemy.block)}</span>`
