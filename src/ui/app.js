@@ -405,6 +405,8 @@ export function mountSpireApp(rootEl) {
   const ui = {
     debugMode: initialDebugMode,
     showCharacterSelect: initialShowCharacterSelect,
+    menuView: 'home',
+    seedDrawerOpen: false,
     selectedCharacterId: state?.characterId || meta.selectedCharacterId || 'ironclad',
     selectedCardId: null,
     selectedPotionSlot: null,
@@ -668,17 +670,19 @@ export function mountSpireApp(rootEl) {
     const prevModal = lastRenderedModal;
 
     if (ui.showCharacterSelect || !state) {
+      const menuView = ui.menuView || 'home';
+      const menuScreenKey = `menu:${menuView}`;
       const prevScreen = lastRenderedScreen;
-      const screenChanged = Boolean(prevScreen && prevScreen !== 'character_select');
-      lastRenderedScreen = 'character_select';
+      const screenChanged = Boolean(prevScreen && prevScreen !== menuScreenKey);
+      lastRenderedScreen = menuScreenKey;
       fxLayerEl.innerHTML = '';
       const hasActiveRun = Boolean(state && state.screen !== 'game_over');
       const previewCharId = normalizeCharacterId(ui.selectedCharacterId || meta.selectedCharacterId);
       stageRoot.innerHTML = `
         <div class="spire-shell" data-character="${escapeHtml(previewCharId)}">
-          ${renderCharacterSelectHeader({ hasActiveRun })}
+          ${renderCharacterSelectHeader({ hasActiveRun, menuView })}
           <main class="stage-viewport">
-            ${renderCharacterSelectScreen({ meta, ui, hasActiveRun })}
+            ${renderCharacterSelectScreen({ state, meta, ui, hasActiveRun })}
           </main>
         </div>
         ${renderModal({ state, meta, settings, ui })}
@@ -958,6 +962,8 @@ export function mountSpireApp(rootEl) {
       state = backup.activeRun;
       persistRun(state);
       ui.showCharacterSelect = false;
+      ui.menuView = 'home';
+      ui.seedDrawerOpen = false;
       ui.selectedCharacterId = state.characterId || meta.selectedCharacterId || 'ironclad';
     } else {
       state = null;
@@ -967,6 +973,8 @@ export function mountSpireApp(rootEl) {
         // Ignore storage errors
       }
       ui.showCharacterSelect = true;
+      ui.menuView = 'home';
+      ui.seedDrawerOpen = false;
       ui.selectedCharacterId = meta.selectedCharacterId || 'ironclad';
     }
     lastGameOverSummary = null;
@@ -1084,6 +1092,8 @@ export function mountSpireApp(rootEl) {
     saveMeta(meta);
     ui.selectedCharacterId = safeChar;
     ui.showCharacterSelect = false;
+    ui.menuView = 'home';
+    ui.seedDrawerOpen = false;
     state = createNewRun(buildNewRunOptions({ characterId: safeChar, ...overrides }));
     lastGameOverSummary = null;
     ui.pendingChallenge = null;
@@ -1422,6 +1432,28 @@ export function mountSpireApp(rootEl) {
         render();
         break;
       }
+      case 'open-menu-view': {
+        const nextView = target.dataset.menuView || 'home';
+        if (['home', 'standard', 'daily'].includes(nextView)) {
+          ui.menuView = nextView;
+          if (nextView === 'home') {
+            ui.seedDrawerOpen = false;
+          }
+          soundEngine.play('ui_click');
+          setNotice('');
+          render();
+        }
+        break;
+      }
+      case 'toggle-seed-drawer': {
+        ui.seedDrawerOpen = !ui.seedDrawerOpen;
+        soundEngine.play('ui_click');
+        render();
+        if (ui.seedDrawerOpen && !isCoarseTouchDevice()) {
+          rootEl.querySelector('#char-seed-input')?.focus();
+        }
+        break;
+      }
       case 'start-character-run': {
         startCharacterSelectRun();
         break;
@@ -1429,6 +1461,8 @@ export function mountSpireApp(rootEl) {
       case 'resume-active-run': {
         if (state && state.screen !== 'game_over') {
           ui.showCharacterSelect = false;
+          ui.menuView = 'home';
+          ui.seedDrawerOpen = false;
           ui.modal = null;
           soundEngine.play('ui_click');
           setNotice('');
@@ -1447,6 +1481,8 @@ export function mountSpireApp(rootEl) {
         }
         ui.selectedCharacterId = state?.characterId || meta.selectedCharacterId || 'ironclad';
         ui.showCharacterSelect = true;
+        ui.menuView = 'home';
+        ui.seedDrawerOpen = false;
         ui.modal = null;
         ui.seedInput = '';
         clearCombatSelection();
@@ -1458,6 +1494,8 @@ export function mountSpireApp(rootEl) {
       case 'confirm-new-run': {
         ui.selectedCharacterId = state?.characterId || meta.selectedCharacterId || 'ironclad';
         ui.showCharacterSelect = true;
+        ui.menuView = 'home';
+        ui.seedDrawerOpen = false;
         ui.modal = null;
         ui.seedInput = '';
         clearCombatSelection();
@@ -2666,6 +2704,11 @@ export function mountSpireApp(rootEl) {
         render();
       } else if (ui.selectedCardId || ui.selectedPotionSlot !== null) {
         clearCombatSelection();
+        render();
+      } else if ((ui.showCharacterSelect || !state) && ui.menuView && ui.menuView !== 'home') {
+        ui.menuView = 'home';
+        ui.seedDrawerOpen = false;
+        soundEngine.play('ui_click');
         render();
       }
       return;

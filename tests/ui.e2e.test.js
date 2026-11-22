@@ -455,6 +455,9 @@ async function launchHeroFromCharacterSelect(cdp, characterId = 'ironclad') {
     await new Promise((r) => setTimeout(r, 30));
   }
   const launched = await cdp.evaluate(`(() => {
+    if (document.getElementById('main-menu-screen')) {
+      document.getElementById('btn-menu-standard')?.click();
+    }
     const screen = document.getElementById('character-select-screen');
     if (!screen) return false;
     const card = document.getElementById('char-card-${characterId}');
@@ -1759,6 +1762,10 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
 
     const standaloneAudit = await cdp.evaluate(`(() => {
       const hasApp = Boolean(window.__SPIRE_APP__);
+      const hasMainMenu = Boolean(document.getElementById('main-menu-screen'));
+      if (hasMainMenu) {
+        document.getElementById('btn-menu-standard')?.click();
+      }
       const hasCharSelect = Boolean(document.getElementById('character-select-screen'));
       if (hasCharSelect) {
         document.getElementById('btn-start-character-run').click();
@@ -1767,9 +1774,10 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       document.getElementById('btn-open-settings').click();
       const hasSettings = Boolean(document.getElementById('settings-modal'));
       document.getElementById('btn-close-modal').click();
-      return { hasApp, hasCharSelect, rowCount, hasSettings };
+      return { hasApp, hasMainMenu, hasCharSelect, rowCount, hasSettings };
     })()`);
     assert.equal(standaloneAudit.hasApp, true);
+    assert.equal(standaloneAudit.hasMainMenu, true);
     assert.equal(standaloneAudit.hasCharSelect, true);
     assert.equal(standaloneAudit.rowCount, 16);
     assert.equal(standaloneAudit.hasSettings, true);
@@ -2401,12 +2409,15 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     await new Promise((r) => setTimeout(r, 350));
 
     const charSelectAudit = await cdp.evaluate(`(() => {
+      const hasMainMenu = Boolean(document.getElementById('main-menu-screen'));
+      const hasResumeBeforeRun = Boolean(document.getElementById('btn-resume-active-run'));
+      document.getElementById('btn-menu-standard')?.click();
       const screen = document.getElementById('character-select-screen');
       const ironcladCard = document.getElementById('char-card-ironclad');
       const silentCard = document.getElementById('char-card-silent');
       const startBtn = document.getElementById('btn-start-character-run');
-      const hasResumeBeforeRun = Boolean(document.getElementById('btn-resume-active-run'));
       return {
+        hasMainMenu,
         hasScreen: Boolean(screen),
         hasIronclad: Boolean(ironcladCard),
         hasSilent: Boolean(silentCard),
@@ -2418,7 +2429,8 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
         innerWidth: window.innerWidth,
       };
     })()`);
-    assert.equal(charSelectAudit.hasScreen, true, 'Fresh load must render Character Select screen');
+    assert.equal(charSelectAudit.hasMainMenu, true, 'Fresh load must render Main Menu Hall');
+    assert.equal(charSelectAudit.hasScreen, true, 'Clicking Start Climb must render Character Select screen');
     assert.equal(charSelectAudit.hasIronclad, true);
     assert.equal(charSelectAudit.hasSilent, true);
     assert.equal(charSelectAudit.ironcladSelectedInitially, true);
@@ -2493,16 +2505,16 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
       const stayedOnMapAfterCancel = Boolean(document.getElementById('map-node-f1_c0')) && !document.getElementById('confirm-new-run-modal');
       document.getElementById('btn-new-run').click();
       document.getElementById('btn-confirm-new-run').click();
-      const onCharSelect = Boolean(document.getElementById('character-select-screen'));
+      const onMainMenu = Boolean(document.getElementById('main-menu-screen'));
       const hasResumeBtn = Boolean(document.getElementById('btn-resume-active-run'));
       document.getElementById('btn-resume-active-run').click();
       const resumedMap = Boolean(document.getElementById('map-node-f1_c0'));
       const stillSilent = window.__SPIRE_APP__.getState().characterId === 'silent';
-      return { hasConfirmModal, stayedOnMapAfterCancel, onCharSelect, hasResumeBtn, resumedMap, stillSilent };
+      return { hasConfirmModal, stayedOnMapAfterCancel, onMainMenu, hasResumeBtn, resumedMap, stillSilent };
     })()`);
     assert.equal(resumeAudit.hasConfirmModal, true);
     assert.equal(resumeAudit.stayedOnMapAfterCancel, true);
-    assert.equal(resumeAudit.onCharSelect, true);
+    assert.equal(resumeAudit.onMainMenu, true);
     assert.equal(resumeAudit.hasResumeBtn, true);
     assert.equal(resumeAudit.resumedMap, true);
     assert.equal(resumeAudit.stillSilent, true);
@@ -2669,7 +2681,10 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    await cdp.evaluate(`document.getElementById('char-card-silent').click()`);
+    await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
+      document.getElementById('char-card-silent')?.click();
+    })()`);
     const mobileCharAudit = await cdp.evaluate(`({
       hasCharSelect: Boolean(document.getElementById('character-select-screen')),
       docScrollWidth: document.documentElement.scrollWidth,
@@ -2767,8 +2782,9 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 1. Desktop Character Select displays Daily Challenge Banner with A0-A6 Ascension & 3 modifiers -> capture screenshot
+    // 1. Desktop Main Menu -> Daily Challenge Level 2 screen with A0-A6 Ascension & 3 modifiers
     const charDailyAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-daily')?.click();
       const banner = document.getElementById('daily-challenge-banner');
       const launchBtn = document.getElementById('btn-start-daily-challenge');
       const ascPill = document.getElementById('daily-banner-ascension-pill');
@@ -3072,12 +3088,15 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 350));
 
-    // 7a. Mobile Character Select + Daily Banner
-    const mobileSelectAudit = await cdp.evaluate(`({
-      hasDailyBanner: Boolean(document.getElementById('daily-challenge-banner')),
-      docScrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    })`);
+    // 7a. Mobile Main Menu -> Dedicated Daily Challenge Screen
+    const mobileSelectAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-daily')?.click();
+      return {
+        hasDailyBanner: Boolean(document.getElementById('daily-challenge-banner')),
+        docScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    })()`);
     assert.equal(mobileSelectAudit.hasDailyBanner, true);
     assert.ok(
       mobileSelectAudit.docScrollWidth <= mobileSelectAudit.innerWidth,
@@ -3528,7 +3547,7 @@ test('Real Chromium E2E: New-Run Confirmation, Tiered Chests, Dual Shop Relics +
       app.render();
       const goTitle = document.getElementById('gameover-heading')?.textContent?.trim() || '';
       document.getElementById('btn-restart-gameover').click();
-      const bypassedConfirmOnGameOver = Boolean(document.getElementById('character-select-screen')) && !document.getElementById('confirm-new-run-modal');
+      const bypassedConfirmOnGameOver = Boolean(document.getElementById('main-menu-screen')) && !document.getElementById('confirm-new-run-modal');
 
       return {
         hasAct3Btn,
@@ -3635,6 +3654,7 @@ test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged s
     assert.equal(metaAudit.hasA10, true);
     assert.equal(metaAudit.a10Disabled, false);
     await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
+    await cdp.evaluate(`document.getElementById('btn-menu-standard')?.click()`);
 
     await cdp.evaluate(`document.getElementById('btn-char-asc-6').click()`);
     const charA6Audit = await cdp.evaluate(`({
@@ -4185,6 +4205,7 @@ test('Stage 1 Real Chromium E2E: per-character Ascension isolation, interactive 
     await new Promise((r) => setTimeout(r, 350));
 
     const charSelectAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
       const ironCareer = document.getElementById('char-career-ironclad')?.textContent?.trim() || '';
       const silentCareer = document.getElementById('char-career-silent')?.textContent?.trim() || '';
       const ironAsc3Enabled = !document.getElementById('btn-char-asc-3')?.disabled;
@@ -4444,6 +4465,7 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
 
     // 1. Verify all 3 heroes render on Character Select, Watcher has bespoke SVG & amethyst theme, launch Watcher run
     const selectAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
       const cards = [...document.querySelectorAll('.character-card')].map((el) => el.dataset.characterId);
       document.getElementById('char-card-watcher').click();
       const watcherSelected = document.getElementById('char-card-watcher').classList.contains('selected');
@@ -4702,7 +4724,8 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
         };
       })()`);
 
-    // 6a. Real touch tap on Relic & Potion badges inside Character Card must stay open (no flash-dismiss!)
+    // 6a. Enter Level 2 Standard Character Select via real touch tap; verify Relic & Potion tooltips stay open (no flash-dismiss!)
+    await realTouchTap('#btn-menu-standard');
     await realTouchTap('#char-card-ironclad .relic-badge');
     const relicTip = await readTooltip();
     assert.equal(relicTip.open, true, 'Relic tooltip on Character Select must stay open after real touch tap');
@@ -4712,19 +4735,6 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     const potionTip = await readTooltip();
     assert.equal(potionTip.open, true, 'Potion tooltip on Character Select must stay open after real touch tap');
     assert.ok(potionTip.title.includes('火焰药水'), `Unexpected potion tooltip title: ${potionTip.title}`);
-
-    // 6b. Real touch tap on Daily Challenge Ascension pill & Daily Modifier chip must stay open and toggle cleanly on 2nd tap
-    await realTouchTap('#daily-banner-ascension-pill');
-    const dailyAscTip = await readTooltip();
-    assert.equal(dailyAscTip.open, true, 'Daily Ascension pill tooltip must stay open after real touch tap');
-    assert.ok(dailyAscTip.title.includes('进阶'), `Unexpected daily asc tooltip title: ${dailyAscTip.title}`);
-    await realTouchTap('#daily-banner-ascension-pill');
-    assert.equal((await readTooltip()).open, false, 'Second real touch tap on Daily Ascension pill should toggle closed');
-
-    await realTouchTap('#daily-challenge-banner .daily-mod-chip');
-    const dailyModTip = await readTooltip();
-    assert.equal(dailyModTip.open, true, 'Daily modifier chip tooltip must stay open after real touch tap');
-    assert.ok(dailyModTip.desc.length > 5);
 
     // 6c. Real touch tap on unlocked A1 & A2 pills + locked A3 pill must show detailed tooltip & inline desc
     await realTouchTap('#btn-char-asc-1');
@@ -4767,21 +4777,41 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
       const visibleCardsAfter = [...document.querySelectorAll('.character-card')].filter(
         (el) => getComputedStyle(el).display !== 'none'
       ).length;
-      document.getElementById('btn-start-daily-challenge').click();
-      const availRect = document.querySelector('.map-node-btn.available')?.getBoundingClientRect();
       return {
         tabCount,
         visibleCardsBefore,
         watcherSelected,
         visibleCardsAfter,
-        f1InViewport: Boolean(availRect && availRect.top >= 0 && availRect.bottom <= window.innerHeight + 4),
       };
     })()`);
     assert.equal(mobileCharTabAudit.tabCount, 3, 'Mobile Character Select must render 3 hero tabs');
     assert.equal(mobileCharTabAudit.visibleCardsBefore, 1, 'Mobile Character Select must show only 1 active hero card');
     assert.equal(mobileCharTabAudit.watcherSelected, true, 'Clicking mobile Watcher tab must select Watcher');
     assert.equal(mobileCharTabAudit.visibleCardsAfter, 1);
-    assert.equal(mobileCharTabAudit.f1InViewport, true, 'Daily Challenge map must auto-scroll Floor 1 available nodes into mobile viewport');
+
+    // 6b. Return to Main Menu -> enter Level 2 Daily Challenge screen -> verify touch tooltips & map scroll on launch
+    await realTouchTap('#btn-back-main-menu');
+    await realTouchTap('#btn-menu-daily');
+    await realTouchTap('#daily-banner-ascension-pill');
+    const dailyAscTip = await readTooltip();
+    assert.equal(dailyAscTip.open, true, 'Daily Ascension pill tooltip must stay open after real touch tap');
+    assert.ok(dailyAscTip.title.includes('进阶'), `Unexpected daily asc tooltip title: ${dailyAscTip.title}`);
+    await realTouchTap('#daily-banner-ascension-pill');
+    assert.equal((await readTooltip()).open, false, 'Second real touch tap on Daily Ascension pill should toggle closed');
+
+    await realTouchTap('#daily-challenge-banner .daily-mod-chip');
+    const dailyModTip = await readTooltip();
+    assert.equal(dailyModTip.open, true, 'Daily modifier chip tooltip must stay open after real touch tap');
+    assert.ok(dailyModTip.desc.length > 5);
+
+    const dailyMapScrollAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-start-daily-challenge').click();
+      const availRect = document.querySelector('.map-node-btn.available')?.getBoundingClientRect();
+      return {
+        f1InViewport: Boolean(availRect && availRect.top >= 0 && availRect.bottom <= window.innerHeight + 4),
+      };
+    })()`);
+    assert.equal(dailyMapScrollAudit.f1InViewport, true, 'Daily Challenge map must auto-scroll Floor 1 available nodes into mobile viewport');
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
@@ -4971,37 +5001,41 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       );
     }
 
-    // 6. Debug URL (/?debug=1) on 390px mobile: return to Character Select and verify compact 2-row Daily Challenge banner + 3 concise 4-char modifier chips on 1 row + #btn-unlock-all-meta
+    // 6. Debug URL (/?debug=1) on 390px mobile: return to Main Menu -> Daily Challenge screen & verify #btn-unlock-all-meta
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
     await new Promise((r) => setTimeout(r, 350));
     await cdp.evaluate(`(() => {
-      if (!document.getElementById('daily-challenge-banner')) {
+      if (!document.getElementById('main-menu-screen') && !document.getElementById('daily-challenge-banner')) {
         document.getElementById('btn-new-run')?.click();
         document.getElementById('btn-confirm-new-run')?.click();
       }
+      if (document.getElementById('main-menu-screen')) {
+        document.getElementById('btn-menu-daily')?.click();
+      }
     })()`);
     const mobileDailyAudit = await cdp.evaluate(`(() => {
+      const screen = document.getElementById('daily-challenge-screen');
       const banner = document.getElementById('daily-challenge-banner');
-      const bannerRect = banner.getBoundingClientRect();
       const chips = [...banner.querySelectorAll('.daily-mod-chip')];
-      const chipRects = chips.map((el) => el.getBoundingClientRect());
-      const sameRow = chipRects.length === 3 && chipRects.every((r) => Math.abs(r.top - chipRects[0].top) <= 2);
+      const detailCards = [...banner.querySelectorAll('.daily-mod-detail-card')];
       const conciseNames = chips.every((el) => !el.textContent.includes('·') && el.textContent.trim().length <= 6);
       const hasFreshPill = Boolean(banner.querySelector('.daily-best-pill.fresh'));
       const overflow = document.documentElement.scrollWidth > window.innerWidth + 1;
       return {
-        bannerHeight: Math.round(bannerRect.height),
-        sameRow,
+        hasDailyScreen: Boolean(screen),
+        chipCount: chips.length,
+        detailCardCount: detailCards.length,
         conciseNames,
         hasFreshPill,
         overflow,
       };
     })()`);
+    assert.equal(mobileDailyAudit.hasDailyScreen, true, 'Dedicated Level 2 Daily Challenge screen must render');
     assert.equal(mobileDailyAudit.hasFreshPill, false, 'Fresh 无鲸鱼赐福 filler pill must be removed from Daily banner');
     assert.equal(mobileDailyAudit.conciseNames, true, 'Daily modifier chips must display concise 4-char names only');
-    assert.equal(mobileDailyAudit.sameRow, true, 'All 3 Daily modifier chips must fit on 1 row at 390px');
-    assert.ok(mobileDailyAudit.bannerHeight <= 105, `Mobile Daily banner must be compact (<=105px), got ${mobileDailyAudit.bannerHeight}px`);
-    assert.equal(mobileDailyAudit.overflow, false, '390px Character Select must have zero horizontal overflow');
+    assert.equal(mobileDailyAudit.chipCount, 3, 'Daily Challenge screen must display 3 modifier chips');
+    assert.equal(mobileDailyAudit.detailCardCount, 3, 'Daily Challenge screen must display 3 modifier detail cards');
+    assert.equal(mobileDailyAudit.overflow, false, '390px Daily Challenge screen must have zero horizontal overflow');
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
       const shotStart = await cdp.send('Page.captureScreenshot', { format: 'png' });
@@ -6455,6 +6489,197 @@ test('E2E: Larger potion row tap targets, clickable campfire dig loot, War Paint
     assert.ok(mobile360Row2.potHeight >= 30, `360px potion tap target should be >= 30px, got ${mobile360Row2.potHeight}px`);
     assert.equal(mobile360Row2.pot2Fits, true, 'All 3 enlarged potions fit left of Deck on 360px');
     assert.equal(mobile360Row2.moreFits, true, 'More trigger fits inside 360px HUD');
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('E2E: Original Slay the Spire two-level Main Menu Hall, pure Standard Character Select with collapsed Seed drawer, and dedicated Daily Challenge screen', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+
+    // 1. Mobile 390x844: Level 1 Main Menu Hall fits in 1 screen with zero overflow & zero scroll
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 380));
+
+    const home390Audit = await cdp.evaluate(`(() => {
+      const screen = document.getElementById('main-menu-screen');
+      const stdBtn = document.getElementById('btn-menu-standard');
+      const dailyBtn = document.getElementById('btn-menu-daily');
+      const utilCount = document.querySelectorAll('.main-menu-utility-grid .menu-util-tile').length;
+      const hasResume = Boolean(document.getElementById('btn-resume-active-run'));
+      const hasCharSelect = Boolean(document.getElementById('character-select-screen'));
+      return {
+        hasMainMenu: Boolean(screen),
+        hasStdBtn: Boolean(stdBtn),
+        hasDailyBtn: Boolean(dailyBtn),
+        stdHeight: Math.round(stdBtn?.getBoundingClientRect().height || 0),
+        utilCount,
+        hasResume,
+        hasCharSelect,
+        overflowX: document.documentElement.scrollWidth > window.innerWidth,
+        fitsOneScreen: document.documentElement.scrollHeight <= window.innerHeight + 2,
+      };
+    })()`);
+    assert.equal(home390Audit.hasMainMenu, true);
+    assert.equal(home390Audit.hasStdBtn, true);
+    assert.equal(home390Audit.hasDailyBtn, true);
+    assert.ok(home390Audit.stdHeight >= 58, `Main Menu primary button should be >= 58px tall, got ${home390Audit.stdHeight}px`);
+    assert.equal(home390Audit.utilCount, 4);
+    assert.equal(home390Audit.hasResume, false);
+    assert.equal(home390Audit.hasCharSelect, false);
+    assert.equal(home390Audit.overflowX, false, '390px Main Menu Hall must not overflow horizontally');
+    assert.equal(home390Audit.fitsOneScreen, true, '390px Main Menu Hall should fit cleanly in one viewport');
+
+    // 2. Mobile 360x760: Level 1 Main Menu Hall also fits cleanly in 1 screen with zero horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360,
+      height: 760,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const home360Audit = await cdp.evaluate(`(() => ({
+      overflowX: document.documentElement.scrollWidth > window.innerWidth,
+      fitsOneScreen: document.documentElement.scrollHeight <= window.innerHeight + 2,
+    }))()`);
+    assert.equal(home360Audit.overflowX, false, '360px Main Menu Hall must not overflow horizontally');
+    assert.equal(home360Audit.fitsOneScreen, true, '360px Main Menu Hall should fit in 760px height');
+
+    // Back to 390x844 for Level 2A & Level 2B flow checks
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+
+    // 3. Level 2A: Standard Character Select — NO Daily banner, 3 hero tabs right under heading, Seed drawer collapsed by default
+    const std390Audit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard').click();
+      const hasCharSelect = Boolean(document.getElementById('character-select-screen'));
+      const hasDailyBannerInsideStd = Boolean(document.getElementById('daily-challenge-banner'));
+      const headingRect = document.getElementById('char-select-heading').getBoundingClientRect();
+      const tabsRect = document.getElementById('mobile-char-tabs').getBoundingClientRect();
+      const hasBackBtn = Boolean(document.getElementById('btn-back-main-menu'));
+      const seedToggle = document.getElementById('btn-toggle-seed-drawer');
+      const seedCollapsedInitially =
+        seedToggle?.getAttribute('aria-expanded') === 'false' &&
+        !document.getElementById('char-seed-input');
+
+      // Expand seed drawer, type custom seed, verify input opens cleanly
+      seedToggle.click();
+      const seedExpandedAfterClick =
+        document.getElementById('btn-toggle-seed-drawer')?.getAttribute('aria-expanded') === 'true' &&
+        Boolean(document.getElementById('char-seed-input'));
+      const seedInput = document.getElementById('char-seed-input');
+      seedInput.value = '123456';
+      seedInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Collapse again -> value preserved in label badge
+      document.getElementById('btn-toggle-seed-drawer').click();
+      const toggleLabelAfterCollapse = document.getElementById('btn-toggle-seed-drawer')?.textContent || '';
+
+      // Back to Main Menu Hall
+      document.getElementById('btn-back-main-menu').click();
+      const returnedHome = Boolean(document.getElementById('main-menu-screen'));
+
+      return {
+        hasCharSelect,
+        hasDailyBannerInsideStd,
+        tabsRightBelowHeading: tabsRect.top >= headingRect.bottom - 2 && tabsRect.top - headingRect.bottom <= 48,
+        hasBackBtn,
+        seedCollapsedInitially,
+        seedExpandedAfterClick,
+        toggleLabelAfterCollapse,
+        returnedHome,
+        overflowX: document.documentElement.scrollWidth > window.innerWidth,
+      };
+    })()`);
+    assert.equal(std390Audit.hasCharSelect, true);
+    assert.equal(std390Audit.hasDailyBannerInsideStd, false, 'Standard Character Select must NOT contain Daily Challenge banner');
+    assert.equal(std390Audit.tabsRightBelowHeading, true, '3 hero tabs must sit directly below the heading');
+    assert.equal(std390Audit.hasBackBtn, true);
+    assert.equal(std390Audit.seedCollapsedInitially, true, 'Seed input must be collapsed by default');
+    assert.equal(std390Audit.seedExpandedAfterClick, true, 'Clicking seed toggle expands #char-seed-input');
+    assert.ok(std390Audit.toggleLabelAfterCollapse.includes('123456'), std390Audit.toggleLabelAfterCollapse);
+    assert.equal(std390Audit.returnedHome, true);
+    assert.equal(std390Audit.overflowX, false);
+
+    // 4. Level 2B: Dedicated Daily Challenge Screen
+    const daily390Audit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-daily').click();
+      const hasDailyScreen = Boolean(document.getElementById('daily-challenge-screen'));
+      const hasCopyLink = Boolean(document.getElementById('btn-copy-daily-link'));
+      const detailCards = document.querySelectorAll('.daily-mod-detail-card').length;
+      const overflowX = document.documentElement.scrollWidth > window.innerWidth;
+      document.getElementById('btn-back-main-menu').click();
+      const returnedHome = Boolean(document.getElementById('main-menu-screen'));
+      return { hasDailyScreen, hasCopyLink, detailCards, overflowX, returnedHome };
+    })()`);
+    assert.equal(daily390Audit.hasDailyScreen, true);
+    assert.equal(daily390Audit.hasCopyLink, true);
+    assert.equal(daily390Audit.detailCards, 3);
+    assert.equal(daily390Audit.overflowX, false);
+    assert.equal(daily390Audit.returnedHome, true);
+
+    // 5. Start seeded run from Standard -> open New Run -> Confirm -> Main Menu shows single Continue card with live summary
+    const activeResumeAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard').click();
+      document.getElementById('btn-start-character-run').click();
+      const st = window.__SPIRE_APP__.getState();
+      const seededOk = st.seed === 123456;
+      // Open mobile More menu -> New Run -> Confirm
+      document.getElementById('btn-hud-more').click();
+      document.getElementById('btn-new-run').click();
+      document.getElementById('btn-confirm-new-run').click();
+      const resumeBtns = document.querySelectorAll('[data-action="resume-active-run"]');
+      const resumeText = resumeBtns[0]?.textContent || '';
+      const overflowX = document.documentElement.scrollWidth > window.innerWidth;
+      resumeBtns[0].click();
+      const backInRun = Boolean(document.querySelector('.map-board'));
+      return {
+        seededOk,
+        resumeCount: resumeBtns.length,
+        resumeText,
+        overflowX,
+        backInRun,
+      };
+    })()`);
+    assert.equal(activeResumeAudit.seededOk, true, 'Collapsed seed input value must still launch the seeded run');
+    assert.equal(activeResumeAudit.resumeCount, 1, 'Main Menu must show exactly one deduplicated Continue Active Run button');
+    assert.ok(activeResumeAudit.resumeText.includes('继续当前对局') && activeResumeAudit.resumeText.includes('铁甲战士'));
+    assert.equal(activeResumeAudit.overflowX, false);
+    assert.equal(activeResumeAudit.backInRun, true);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(
