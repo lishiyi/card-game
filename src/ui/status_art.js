@@ -1,12 +1,68 @@
 /**
  * Complete bespoke inline SVG icon library for all 97 combat statuses (buffs & debuffs)
  * in STATUS_METADATA, plus dedicated negative-polarity artwork for Strength and Dexterity.
- * Every icon is crafted on a high-contrast 24x24 dark-fantasy badge canvas so it reads
- * unmistakably at 16-18px inside compact combat status chips and 20-22px in the Glossary.
+ * Polarity is baked directly into each icon's own badge frame and backdrop so combat status
+ * chips require no bulky outer pill frame:
+ *   - Buffs:   smooth rounded-square emerald badge + deep jade backdrop
+ *   - Debuffs: sharp beveled octagonal crimson badge + deep crimson backdrop
  */
 
-function wrapStatusSvg(key, bg1, bg2, rim, inner) {
-  return `<svg viewBox="0 0 24 24" class="status-svg" data-status-svg="${key}" aria-hidden="true"><defs><radialGradient id="st-${key}-bg" cx="36%" cy="30%" r="72%"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></radialGradient></defs><rect x="1" y="1" width="22" height="22" rx="5.5" fill="url(#st-${key}-bg)" stroke="${rim}" stroke-width="1.35"/>${inner}</svg>`;
+const DEFAULT_DEBUFF_KEYS = new Set([
+  'vulnerable',
+  'weak',
+  'frail',
+  'poison',
+  'corpseExplosion',
+  'wraithForm',
+  'tempStrengthDown',
+  'noDraw',
+  'confused',
+  'stunned',
+  'slow',
+  'mark',
+  'talkToTheHand',
+  'blasphemer',
+  'tempDexterityDown',
+  'energyDownEachTurn',
+  'choke',
+  'hex',
+  'constricted',
+  'strength_down',
+  'dexterity_down',
+  'fallback_debuff',
+]);
+
+const POLARITY_FRAME_PALETTE = Object.freeze({
+  buff: Object.freeze({
+    bg1: 'hsl(152, 54%, 23%)',
+    bg2: 'hsl(166, 62%, 8%)',
+    rim: 'hsl(148, 84%, 56%)',
+    innerGlow: 'hsla(148, 96%, 78%, 0.30)',
+  }),
+  debuff: Object.freeze({
+    bg1: 'hsl(354, 62%, 24%)',
+    bg2: 'hsl(344, 68%, 8%)',
+    rim: 'hsl(4, 92%, 60%)',
+    innerGlow: 'hsla(8, 100%, 76%, 0.28)',
+  }),
+});
+
+const STATUS_INNER_ART = new Map();
+
+function buildStatusSvg(key, inner, polarity = 'buff') {
+  const pol = polarity === 'debuff' ? 'debuff' : 'buff';
+  const pal = POLARITY_FRAME_PALETTE[pol];
+  const frameShape =
+    pol === 'debuff'
+      ? `<polygon points="4.8,0.9 19.2,0.9 23.1,4.8 23.1,19.2 19.2,23.1 4.8,23.1 0.9,19.2 0.9,4.8" fill="url(#st-${key}-bg)" stroke="${pal.rim}" stroke-width="1.85" stroke-linejoin="round"/><polygon points="5.3,2.2 18.7,2.2 21.8,5.3 21.8,18.7 18.7,21.8 5.3,21.8 2.2,18.7 2.2,5.3" fill="none" stroke="${pal.innerGlow}" stroke-width="0.65"/>`
+      : `<rect x="0.9" y="0.9" width="22.2" height="22.2" rx="5.8" fill="url(#st-${key}-bg)" stroke="${pal.rim}" stroke-width="1.85"/><rect x="2.2" y="2.2" width="19.6" height="19.6" rx="4.6" fill="none" stroke="${pal.innerGlow}" stroke-width="0.65"/>`;
+  return `<svg viewBox="0 0 24 24" class="status-svg" data-status-svg="${key}" data-status-polarity="${pol}" aria-hidden="true"><defs><radialGradient id="st-${key}-bg" cx="34%" cy="28%" r="74%"><stop offset="0%" stop-color="${pal.bg1}"/><stop offset="100%" stop-color="${pal.bg2}"/></radialGradient></defs>${frameShape}<g transform="translate(12 12) scale(1.12) translate(-12 -12)">${inner}</g></svg>`;
+}
+
+function wrapStatusSvg(key, _bg1, _bg2, _rim, inner) {
+  STATUS_INNER_ART.set(key, inner);
+  const defaultPolarity = DEFAULT_DEBUFF_KEYS.has(key) ? 'debuff' : 'buff';
+  return buildStatusSvg(key, inner, defaultPolarity);
 }
 
 function scopeStatusSvgIds(svg, suffix) {
@@ -891,10 +947,14 @@ export const STATUS_NO_COUNT_IF_ONE = Object.freeze(
 
 export function getStatusSvg(statusKey, options = {}) {
   const polarity = options.polarity === 'debuff' ? 'debuff' : 'buff';
-  let svg =
-    polarity === 'debuff' && STATUS_NEGATIVE_SVG_ART[statusKey]
-      ? STATUS_NEGATIVE_SVG_ART[statusKey]
-      : STATUS_SVG_ART[statusKey] || (polarity === 'debuff' ? FALLBACK_DEBUFF_SVG : FALLBACK_BUFF_SVG);
+  let svg;
+  if (polarity === 'debuff' && STATUS_NEGATIVE_SVG_ART[statusKey]) {
+    svg = STATUS_NEGATIVE_SVG_ART[statusKey];
+  } else if (STATUS_INNER_ART.has(statusKey)) {
+    svg = buildStatusSvg(statusKey, STATUS_INNER_ART.get(statusKey), polarity);
+  } else {
+    svg = polarity === 'debuff' ? FALLBACK_DEBUFF_SVG : FALLBACK_BUFF_SVG;
+  }
   if (options.scope) {
     svg = scopeStatusSvgIds(svg, options.scope);
   }

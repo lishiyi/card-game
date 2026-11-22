@@ -1006,44 +1006,51 @@ button:disabled {
 }
 
 .status-row {
-  min-height: 26px;
+  min-height: 28px;
   width: 100%;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   align-content: flex-start;
-  gap: 4px;
+  gap: 5px 7px;
 }
 
 .status-chip {
+  position: relative;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  gap: 3px;
-  height: 24px;
-  padding: 2px 5px 2px 3px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  line-height: 1;
+  gap: 0;
+  height: 26px;
+  padding: 0;
+  border: none;
   border-radius: 6px;
-  border: 1px solid hsla(38, 36%, 48%, 0.42);
-  background: var(--surface-parchment);
+  background: transparent;
   color: var(--text-ivory);
   cursor: help;
   transition: transform 0.14s ease, filter 0.14s ease;
 }
 
 .status-chip.icon-only {
-  padding: 2px 3px;
+  padding: 0;
 }
 
 .status-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
+  border-radius: 6px;
+}
+
+.status-chip.buff .status-icon {
+  filter: drop-shadow(0 1px 3px hsla(148, 86%, 44%, 0.42));
+}
+
+.status-chip.debuff .status-icon {
+  filter: drop-shadow(0 1px 3px hsla(4, 92%, 48%, 0.48));
 }
 
 .status-svg {
@@ -1053,12 +1060,23 @@ button:disabled {
 }
 
 .status-val {
+  position: relative;
+  z-index: 1;
+  margin-left: -5px;
+  margin-bottom: -2px;
+  padding: 0 1px;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: 0.78rem;
+  font-weight: 900;
   line-height: 1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  text-shadow:
+    -1.2px -1.2px 0 hsla(220, 26%, 5%, 0.98),
+    1.2px -1.2px 0 hsla(220, 26%, 5%, 0.98),
+    -1.2px 1.2px 0 hsla(220, 26%, 5%, 0.98),
+    1.2px 1.2px 0 hsla(220, 26%, 5%, 0.98),
+    0 1.5px 3px hsla(0, 0%, 0%, 0.95);
 }
 
 .glossary-card-title {
@@ -1071,28 +1089,29 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 21px;
-  height: 21px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
 }
 
 .status-chip:hover,
 .status-chip:focus-visible {
-  transform: translateY(-1px);
-  filter: brightness(1.15);
+  transform: translateY(-1px) scale(1.06);
+  filter: brightness(1.14);
   outline: none;
 }
 
-.status-chip.debuff {
-  background: hsla(10, 42%, 18%, 0.92);
-  border-color: hsla(8, 72%, 52%, 0.56);
-  color: hsl(14, 92%, 80%);
+.status-chip:focus-visible .status-icon {
+  outline: 2px solid var(--gold-accent);
+  outline-offset: 2px;
 }
 
-.status-chip.buff {
-  background: hsla(152, 34%, 17%, 0.92);
-  border-color: hsla(148, 60%, 46%, 0.52);
-  color: hsl(148, 80%, 82%);
+.status-chip.debuff .status-val {
+  color: hsl(14, 100%, 88%);
+}
+
+.status-chip.buff .status-val {
+  color: hsl(144, 94%, 90%);
 }
 
 /* === Hand & Deck Control Dock === */
@@ -3489,7 +3508,6 @@ body.spire-modal-open {
 }
 
 .relic-badge.synergy-glow-buff,
-.status-chip.synergy-glow-buff,
 .block-pill.synergy-glow-buff {
   box-shadow: 0 0 0 2px hsla(148, 72%, 58%, 0.88), 0 0 14px hsla(148, 78%, 54%, 0.55);
   filter: brightness(1.2);
@@ -3497,12 +3515,29 @@ body.spire-modal-open {
   z-index: 4;
 }
 
-.relic-badge.synergy-glow-warn,
-.status-chip.synergy-glow-warn {
+.status-chip.synergy-glow-buff {
+  transform: translateY(-1px) scale(1.08);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-buff .status-icon {
+  filter: brightness(1.2) drop-shadow(0 0 5px hsla(148, 86%, 56%, 0.92)) drop-shadow(0 0 11px hsla(148, 82%, 52%, 0.65));
+}
+
+.relic-badge.synergy-glow-warn {
   box-shadow: 0 0 0 2px hsla(8, 88%, 60%, 0.92), 0 0 14px hsla(8, 92%, 54%, 0.62);
   filter: brightness(1.22);
   transform: translateY(-1px) scale(1.05);
   z-index: 4;
+}
+
+.status-chip.synergy-glow-warn {
+  transform: translateY(-1px) scale(1.08);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-warn .status-icon {
+  filter: brightness(1.22) drop-shadow(0 0 5px hsla(8, 94%, 60%, 0.95)) drop-shadow(0 0 11px hsla(8, 92%, 54%, 0.7));
 }
 
 #hand-tray .game-card.synergy-card-exhaust {
@@ -5905,30 +5940,30 @@ body.spire-dragging {
   }
 
   .status-row {
-    min-height: 22px;
-    gap: 3px;
+    min-height: 25px;
+    gap: 4px 6px;
   }
 
   .status-chip {
-    height: 21px;
-    padding: 1px 4px 1px 2px;
-    gap: 2px;
+    height: 23px;
+    padding: 0;
+    gap: 0;
     border-radius: 5px;
-    font-size: 0.65rem;
-    line-height: 1;
   }
 
   .status-chip.icon-only {
-    padding: 1px 2px;
+    padding: 0;
   }
 
   .status-icon {
-    width: 16px;
-    height: 16px;
+    width: 23px;
+    height: 23px;
   }
 
   .status-val {
-    font-size: 0.65rem;
+    margin-left: -4px;
+    margin-bottom: -1px;
+    font-size: 0.72rem;
   }
 
   .next-intent-hint {

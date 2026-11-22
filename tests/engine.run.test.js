@@ -2912,10 +2912,17 @@ test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs
   const seenIds = new Map();
   for (const key of metaKeys) {
     assert.ok(STATUS_SVG_ART[key], `Missing bespoke SVG for status "${key}"`);
-    const svg = getStatusSvg(key, { polarity: STATUS_METADATA[key].polarity });
+    const pol = STATUS_METADATA[key].polarity === 'debuff' ? 'debuff' : 'buff';
+    const svg = getStatusSvg(key, { polarity: pol });
     assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Status "${key}" must return valid SVG`);
     assert.ok(svg.includes('viewBox="0 0 24 24"'), `Status "${key}" must use 24x24 viewBox`);
     assert.ok(svg.includes(`data-status-svg="${key}"`), `Status "${key}" must expose data-status-svg="${key}"`);
+    assert.ok(svg.includes(`data-status-polarity="${pol}"`), `Status "${key}" must encode data-status-polarity="${pol}"`);
+    if (pol === 'debuff') {
+      assert.ok(svg.includes('<polygon points="4.8,0.9'), `Debuff "${key}" must render crimson beveled octagonal badge frame`);
+    } else {
+      assert.ok(svg.includes('<rect x="0.9" y="0.9"'), `Buff "${key}" must render emerald rounded-square badge frame`);
+    }
 
     const defsIds = [...svg.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
     assert.ok(defsIds.length >= 1, `Status "${key}" must define background gradient ID`);
@@ -2924,7 +2931,7 @@ test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs
       seenIds.set(gid, key);
     }
 
-    const scoped = getStatusSvg(key, { polarity: STATUS_METADATA[key].polarity, scope: 'enemy_0', className: 'gloss-sm' });
+    const scoped = getStatusSvg(key, { polarity: pol, scope: 'enemy_0', className: 'gloss-sm' });
     assert.ok(scoped.includes('class="status-svg gloss-sm"'), `Status "${key}" must support custom className`);
     for (const gid of defsIds) {
       assert.ok(scoped.includes(`id="${gid}-enemy_0"`), `Status "${key}" must scope gradient id="${gid}"`);
@@ -2932,12 +2939,12 @@ test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs
     }
   }
 
-  // Negative Strength & Dexterity variants
+  // Negative Strength & Dexterity variants (crimson debuff beveled octagon)
   assert.ok(STATUS_NEGATIVE_SVG_ART.strength && STATUS_NEGATIVE_SVG_ART.dexterity);
   const negStr = getStatusSvg('strength', { polarity: 'debuff', scope: 'player' });
   const negDex = getStatusSvg('dexterity', { polarity: 'debuff', scope: 'player' });
-  assert.ok(negStr.includes('data-status-svg="strength_down"') && negStr.includes('-player'));
-  assert.ok(negDex.includes('data-status-svg="dexterity_down"') && negDex.includes('-player'));
+  assert.ok(negStr.includes('data-status-svg="strength_down"') && negStr.includes('data-status-polarity="debuff"') && negStr.includes('-player'));
+  assert.ok(negDex.includes('data-status-svg="dexterity_down"') && negDex.includes('data-status-polarity="debuff"') && negDex.includes('-player'));
 
   // Fallbacks & sw.js precache
   assert.ok(getStatusSvg('unknown_status', { polarity: 'buff' }).includes('data-status-svg="fallback_buff"'));

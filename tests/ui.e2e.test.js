@@ -7383,14 +7383,15 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
       app.getState().player.statuses = {
         strength: 3,
         dexterity: -2,
-        vulnerable: 2,
+        vulnerable: 1,
+        artifact: 1,
         barricade: 1,
         metallicize: 4,
       };
       enemy.statuses = {
         strength: -1,
         poison: 6,
-        weak: 2,
+        weak: 1,
         flight: 3,
         malleable: 3,
         slow: 1,
@@ -7400,15 +7401,26 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
 
       const allChips = [...document.querySelectorAll('.status-chip')];
       const anyChineseText = allChips.some((el) => /[\u4e00-\u9fff]/.test(el.textContent || ''));
-      const allHaveSvg = allChips.every((el) => {
+      const allHaveLargeFramelessSvg = allChips.every((el) => {
         const svg = el.querySelector('svg.status-svg');
         const r = svg ? svg.getBoundingClientRect() : null;
-        return Boolean(svg?.dataset?.statusSvg && r && r.width >= 14 && r.height >= 14);
+        const cs = getComputedStyle(el);
+        const frameless = cs.borderTopWidth === '0px' && cs.backgroundColor === 'rgba(0, 0, 0, 0)';
+        const isDebuff = el.classList.contains('debuff');
+        const polMatch = svg?.dataset?.statusPolarity === (isDebuff ? 'debuff' : 'buff');
+        return Boolean(svg?.dataset?.statusSvg && r && r.width >= 24 && r.height >= 24 && frameless && polMatch);
       });
       const negDexSvg = document.querySelector('#player-unit .status-chip[data-status-key="dexterity"] svg.status-svg')?.dataset?.statusSvg || '';
       const negStrSvg = document.querySelector('.enemy-side .status-chip[data-status-key="strength"] svg.status-svg')?.dataset?.statusSvg || '';
+      const negStrVal = document.querySelector('.enemy-side .status-chip[data-status-key="strength"] .status-val')?.textContent?.trim() || '';
       const barricadeChip = document.querySelector('#player-unit .status-chip[data-status-key="barricade"]');
       const barricadeIconOnly = Boolean(barricadeChip?.classList.contains('icon-only') && (barricadeChip.textContent || '').trim() === '');
+      const vuln1Chip = document.querySelector('#player-unit .status-chip[data-status-key="vulnerable"]');
+      const vuln1Omitted = Boolean(vuln1Chip?.classList.contains('icon-only') && !vuln1Chip.querySelector('.status-val') && (vuln1Chip.textContent || '').trim() === '');
+      const artifact1Chip = document.querySelector('#player-unit .status-chip[data-status-key="artifact"]');
+      const artifact1Omitted = Boolean(artifact1Chip?.classList.contains('icon-only') && !artifact1Chip.querySelector('.status-val'));
+      const weak1Chip = document.querySelector('.enemy-side .status-chip[data-status-key="weak"]');
+      const weak1Omitted = Boolean(weak1Chip?.classList.contains('icon-only') && !weak1Chip.querySelector('.status-val'));
       const slowVal = document.querySelector('.enemy-side .status-chip[data-status-key="slow"] .status-val')?.textContent?.trim() || '';
 
       // Tap player Dexterity debuff chip -> verifies rich Chinese tooltip preserved!
@@ -7432,10 +7444,14 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
       return {
         chipCount: allChips.length,
         anyChineseText,
-        allHaveSvg,
+        allHaveLargeFramelessSvg,
         negDexSvg,
         negStrSvg,
+        negStrVal,
         barricadeIconOnly,
+        vuln1Omitted,
+        artifact1Omitted,
+        weak1Omitted,
         slowVal,
         tipOpen,
         tipTitle,
@@ -7445,12 +7461,16 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
       };
     })()`);
 
-    assert.equal(desktopStatusAudit.chipCount, 11, 'Expected 5 player + 6 enemy status SVG chips');
+    assert.equal(desktopStatusAudit.chipCount, 12, 'Expected 6 player + 6 enemy status SVG chips');
     assert.equal(desktopStatusAudit.anyChineseText, false, 'Combat status chips must replace Chinese labels with SVG icons');
-    assert.equal(desktopStatusAudit.allHaveSvg, true, 'Every combat status chip must render a visible bespoke SVG icon');
+    assert.equal(desktopStatusAudit.allHaveLargeFramelessSvg, true, 'Every combat status chip must render a frameless >=24px polarity-coded SVG badge');
     assert.equal(desktopStatusAudit.negDexSvg, 'dexterity_down', 'Negative Dexterity must render dedicated dexterity_down SVG');
     assert.equal(desktopStatusAudit.negStrSvg, 'strength_down', 'Negative Strength must render dedicated strength_down SVG');
-    assert.equal(desktopStatusAudit.barricadeIconOnly, true, 'Boolean flag status (Barricade) must render compact icon-only chip without redundant 1');
+    assert.equal(desktopStatusAudit.negStrVal, '-1', 'Negative -1 status must keep its -1 stack counter (only positive 1 is omitted)');
+    assert.equal(desktopStatusAudit.barricadeIconOnly, true, 'Boolean flag status (Barricade) must render icon-only without 1');
+    assert.equal(desktopStatusAudit.vuln1Omitted, true, 'Single-stack Vulnerable (1) must omit trailing 1');
+    assert.equal(desktopStatusAudit.artifact1Omitted, true, 'Single-stack Artifact (1) must omit trailing 1');
+    assert.equal(desktopStatusAudit.weak1Omitted, true, 'Single-stack Weak (1) must omit trailing 1');
     assert.equal(desktopStatusAudit.slowVal, '+30%', 'Slow status must keep its +30% stack counter beside SVG icon');
     assert.equal(desktopStatusAudit.tipOpen, true, 'Tapping SVG status chip must open full Chinese tooltip');
     assert.ok(desktopStatusAudit.tipTitle.includes('敏捷 (-2)'), `Expected tooltip title 敏捷 (-2), got ${desktopStatusAudit.tipTitle}`);
@@ -7458,7 +7478,7 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
     assert.equal(desktopStatusAudit.dupDefIds, 0, 'Simultaneous Player + Enemy + Glossary status SVGs must have zero duplicate gradient IDs');
     assert.ok(desktopStatusAudit.desktopAlignDiff <= 1, `Desktop player/enemy cards must remain top-aligned, got diff=${desktopStatusAudit.desktopAlignDiff}px`);
 
-    // 3. 390px Mobile: Compact SVG status chips with 0px alignment & zero horizontal overflow
+    // 3. 390px Mobile: Enlarged frameless >=22px SVG status badges with 0px alignment & zero horizontal overflow
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 390,
       height: 844,
@@ -7483,8 +7503,8 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
     })()`);
 
     assert.ok(mobileStatusAudit.alignDiff <= 1, `390px mobile status SVG chips must keep 0px alignment, got diff=${mobileStatusAudit.alignDiff}px`);
-    assert.ok(mobileStatusAudit.minW >= 14, `390px mobile status SVGs must remain crisp >=14px, got ${mobileStatusAudit.minW}px`);
-    assert.ok(mobileStatusAudit.overflow <= 1, `390px mobile combat with 11 status SVG chips must have zero horizontal overflow, got ${mobileStatusAudit.overflow}px`);
+    assert.ok(mobileStatusAudit.minW >= 22, `390px mobile frameless status SVGs must remain crisp >=22px, got ${mobileStatusAudit.minW}px`);
+    assert.ok(mobileStatusAudit.overflow <= 1, `390px mobile combat with 12 status SVG chips must have zero horizontal overflow, got ${mobileStatusAudit.overflow}px`);
 
     cdp.ws.close();
   } finally {

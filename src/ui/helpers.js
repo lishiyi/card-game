@@ -11,7 +11,7 @@ import {
 import { STATUS_METADATA } from '../data/relics.js';
 import { getCardArtSvg } from './card_art.js';
 import { getCardTypeIconSvg } from './icons.js';
-import { getStatusSvg, STATUS_NO_COUNT_IF_ONE } from './status_art.js';
+import { getStatusSvg } from './status_art.js';
 
 export const CARD_TYPE_LABELS = Object.freeze({
   attack: '攻击',
@@ -336,7 +336,7 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
       const displayVal = key === 'slow' ? `+${(entity?.slowStacks ?? 0) * 10}%` : `${val}`;
       const descText = metaInfo.describe(val, entity?.slowStacks ?? 0);
-      const hideCount = STATUS_NO_COUNT_IF_ONE.has(key) && val === 1;
+      const hideCount = key !== 'slow' && val === 1;
       const svgMarkup = getStatusSvg(key, { polarity, scope: entityScope });
       return `<span
         class="status-chip ${escapeHtml(polarity)}${hideCount ? ' icon-only' : ''}"
