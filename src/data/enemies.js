@@ -110,7 +110,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'elite',
     artKey: 'sentry',
     hpRange: [33, 37],
-    initialStatuses: {},
+    initialStatuses: { artifact: 1 },
   },
   lagavulin: {
     id: 'lagavulin',
@@ -179,7 +179,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     artKey: 'spheric_guardian',
     hpRange: [22, 26],
     initialBlock: 32,
-    initialStatuses: { barricade: 1 },
+    initialStatuses: { barricade: 1, artifact: 3 },
   },
   snake_plant: {
     id: 'snake_plant',
@@ -245,7 +245,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'boss',
     artKey: 'bronze_automaton',
     hpRange: [195, 195],
-    initialStatuses: { metallicize: 4 },
+    initialStatuses: { metallicize: 4, artifact: 3 },
   },
   the_collector: {
     id: 'the_collector',
@@ -393,7 +393,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'boss',
     artKey: 'donu',
     hpRange: [152, 152],
-    initialStatuses: {},
+    initialStatuses: { artifact: 2 },
   },
   deca: {
     id: 'deca',
@@ -401,7 +401,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'boss',
     artKey: 'deca',
     hpRange: [152, 152],
-    initialStatuses: {},
+    initialStatuses: { artifact: 2 },
   },
 });
 
@@ -1004,6 +1004,9 @@ export function createEnemyInstance(state, spec) {
     if (tpl.id === 'awakened_one') {
       statuses.curiosity = 2;
       statuses.regenerating = 7;
+    }
+    if (tpl.id === 'donu' || tpl.id === 'deca') {
+      statuses.artifact = 3;
     }
   }
 

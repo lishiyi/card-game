@@ -379,6 +379,11 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
 
     // Player buff / debuff diffs
     const nextPlayerStatuses = nextState.player.statuses || {};
+    if ((nextPlayerStatuses.artifact ?? 0) < (prevSnap.player.statuses?.artifact ?? 0)) {
+      spawnFloatingPopup(playerRect, '免疫!', 'artifact', pStack++);
+      triggerUnitClass('#player-unit', 'fx-buff-pulse', 340);
+      playedBlock = true;
+    }
     for (const [sKey, sVal] of Object.entries(nextPlayerStatuses)) {
       const prevVal = prevSnap.player.statuses?.[sKey] ?? 0;
       if (sVal > prevVal) {
@@ -482,6 +487,13 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         triggerUnitClass(domSelector, 'fx-hit-flash', 220);
         playedPoison = true;
         playerStruckAnyEnemy = true;
+      }
+
+      // Enemy Artifact blocked a debuff (card, potion, or turn-start power like Noxious Fumes)
+      if (nextEnemy && nextHp > 0 && (nextEnemy.statuses?.artifact ?? 0) < (prevEnemy.statuses?.artifact ?? 0)) {
+        spawnFloatingPopup(rect, '免疫!', 'artifact', eStack++);
+        triggerUnitClass(domSelector, 'fx-buff-pulse', 340);
+        playedBlock = true;
       }
 
       // Enemy debuffs applied by player

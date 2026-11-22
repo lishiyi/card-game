@@ -3222,3 +3222,100 @@ test('Dead enemy battlefield cleanup & Minion flee-on-leader-death victory (Grem
   assert.equal(legacyRun.combat.status, 'victory', 'Resuming a legacy save with dead leader + live minions must immediately trigger flee victory');
   assert.equal(legacyRun.combat.enemies.length, 0);
 });
+
+test('Canonical Enemy Artifact (Option A): Sentry 1, Spheric Guardian 3, Bronze Automaton 3, Donu/Deca 2 (A9+: 3) & full debuff negation parity', () => {
+  // 1. Sentry (Act 1 Elite): 1 Artifact each -> Bash strips 1 Artifact without applying Vulnerable; second Bash applies Vulnerable
+  const sentryRun = createNewRun({ seed: 99201, characterId: 'ironclad', skipNeow: true });
+  startCombat(sentryRun, ENCOUNTERS.elite.find((e) => e.id === 'twin_sentries_elite'), 'elite');
+  assert.equal(sentryRun.combat.enemies.length, 2);
+  assert.equal(sentryRun.combat.enemies[0].statuses.artifact, 1, 'Sentry A must start with 1 Artifact');
+  assert.equal(sentryRun.combat.enemies[1].statuses.artifact, 1, 'Sentry B must start with 1 Artifact');
+
+  const s0 = sentryRun.combat.enemies[0];
+  const bash1 = createCardInstance(sentryRun, 'bash', false);
+  const bash2 = createCardInstance(sentryRun, 'bash', false);
+  sentryRun.combat.hand = [bash1, bash2];
+  sentryRun.player.energy = 6;
+  playCard(sentryRun, bash1.instanceId, s0.id);
+  assert.equal(s0.statuses.artifact ?? 0, 0, 'First Bash strips Sentry Artifact 1 -> 0');
+  assert.equal(s0.statuses.vulnerable ?? 0, 0, 'Artifact must block Vulnerable from first Bash');
+  assert.ok(
+    sentryRun.combat.logs.some((l) => (l.message || '').includes('人工制品') && (l.message || '').includes('易伤')),
+    'Combat log must record Artifact negating Vulnerable'
+  );
+  playCard(sentryRun, bash2.instanceId, s0.id);
+  assert.equal(s0.statuses.vulnerable, 2, 'Second Bash applies Vulnerable after Artifact is stripped');
+
+  // 2. Bag of Marbles vs Sentry: strips Artifact at combat start without applying Vulnerable
+  const marbleRun = createNewRun({ seed: 99202, characterId: 'ironclad', skipNeow: true });
+  grantRelicToPlayer(marbleRun, 'bag_of_marbles');
+  startCombat(marbleRun, ENCOUNTERS.elite.find((e) => e.id === 'twin_sentries_elite'), 'elite');
+  for (const sentry of marbleRun.combat.enemies) {
+    assert.equal(sentry.statuses.artifact ?? 0, 0, 'Bag of Marbles strips Sentry 1 Artifact');
+    assert.equal(sentry.statuses.vulnerable ?? 0, 0, 'Artifact blocks Bag of Marbles Vulnerable');
+  }
+  assert.ok(
+    marbleRun.combat.logs.some((l) => (l.message || '').includes('人工制品') && (l.message || '').includes('弹珠袋')),
+    'Combat log must record Artifact blocking Bag of Marbles'
+  );
+
+  // 3. Spheric Guardian (Act 2 Normal): 3 Artifact + Barricade -> Pressure Points blocked cleanly (no undefined log, no Sadistic Nature trigger)
+  const sgRun = createNewRun({ seed: 99203, characterId: 'watcher', skipNeow: true });
+  startCombat(sgRun, ENCOUNTERS.act2Early.find((e) => e.id === 'spheric_guardian_solo'), 'normal');
+  const sg = sgRun.combat.enemies[0];
+  assert.equal(sg.statuses.artifact, 3, 'Spheric Guardian must start with 3 Artifact');
+  assert.equal(sg.statuses.barricade, 1);
+  sgRun.player.statuses.sadisticNature = 5;
+  const sgBlockBefore = sg.block;
+  const sgHpBefore = sg.hp;
+  const pp = createCardInstance(sgRun, 'pressure_points', false);
+  sgRun.combat.hand = [pp];
+  sgRun.player.energy = 3;
+  playCard(sgRun, pp.instanceId, sg.id);
+  assert.equal(sg.statuses.artifact, 2, 'Pressure Points strips 1 Artifact from Spheric Guardian (3 -> 2)');
+  assert.equal(sg.statuses.mark ?? 0, 0, 'Artifact must block Mark from Pressure Points');
+  assert.equal(sg.block, sgBlockBefore, 'Blocked Mark must NOT falsely trigger Sadistic Nature damage');
+  assert.equal(sg.hp, sgHpBefore, 'Blocked Mark must NOT trigger HP loss');
+  assert.equal(
+    sgRun.combat.logs.some((l) => (l.message || '').includes('undefined')),
+    false,
+    'Blocked Pressure Points must never log undefined Mark stacks'
+  );
+  assert.ok(
+    sgRun.combat.logs.some((l) => (l.message || '').includes('人工制品') && (l.message || '').includes('印记')),
+    'Combat log must record Artifact negating Mark'
+  );
+
+  // 4. Bronze Automaton (Act 2 Boss): 3 Artifact + Metallicize 4 -> Piercing Wail & Fear Potion negated safely (no free enemy Strength!)
+  const baRun = createNewRun({ seed: 99204, characterId: 'silent', skipNeow: true });
+  startCombat(baRun, ENCOUNTERS.act2Boss.find((e) => e.id === 'automaton_boss'), 'boss');
+  const ba = baRun.combat.enemies[0];
+  assert.equal(ba.statuses.artifact, 3, 'Bronze Automaton must start with 3 Artifact');
+  assert.equal(ba.statuses.metallicize, 4);
+  const wail = createCardInstance(baRun, 'piercing_wail', false);
+  baRun.combat.hand = [wail];
+  baRun.player.energy = 3;
+  playCard(baRun, wail.instanceId, ba.id);
+  assert.equal(ba.statuses.artifact, 2, 'Piercing Wail strips 1 Artifact (3 -> 2)');
+  assert.equal(ba.statuses.strength ?? 0, 0, 'Blocked Piercing Wail must not change Strength');
+  assert.equal(ba.statuses.gainStrengthEndTurn ?? 0, 0, 'Blocked Piercing Wail must not grant enemy free GainStrength');
+  baRun.player.potions[0] = 'fear_potion';
+  usePotion(baRun, 0, ba.id);
+  assert.equal(ba.statuses.artifact, 1, 'Fear Potion strips 1 Artifact (2 -> 1)');
+  assert.equal(ba.statuses.vulnerable ?? 0, 0, 'Artifact blocks Fear Potion Vulnerable');
+  assert.ok(
+    baRun.combat.logs.some((l) => (l.message || '').includes('人工制品') && (l.message || '').includes('易伤')),
+    'Combat log must record Artifact blocking Fear Potion Vulnerable'
+  );
+
+  // 5. Donu & Deca (Act 3 Twin Boss): 2 Artifact each at A0, scaling to 3 Artifact each at A9+
+  const ddA0 = createNewRun({ seed: 99205, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(ddA0, ENCOUNTERS.act3Boss.find((e) => e.id === 'donu_deca_boss'), 'boss');
+  assert.equal(ddA0.combat.enemies.find((e) => e.templateId === 'donu').statuses.artifact, 2, 'Donu starts with 2 Artifact at A0');
+  assert.equal(ddA0.combat.enemies.find((e) => e.templateId === 'deca').statuses.artifact, 2, 'Deca starts with 2 Artifact at A0');
+
+  const ddA9 = createNewRun({ seed: 99206, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(ddA9, ENCOUNTERS.act3Boss.find((e) => e.id === 'donu_deca_boss'), 'boss');
+  assert.equal(ddA9.combat.enemies.find((e) => e.templateId === 'donu').statuses.artifact, 3, 'Donu scales to 3 Artifact at A9+');
+  assert.equal(ddA9.combat.enemies.find((e) => e.templateId === 'deca').statuses.artifact, 3, 'Deca scales to 3 Artifact at A9+');
+});

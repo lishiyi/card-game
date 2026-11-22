@@ -2977,6 +2977,13 @@ body.spire-modal-open {
   border: 1px solid hsl(46, 98%, 70%);
 }
 
+.fx-float-popup.fx-tone-artifact {
+  color: hsl(48, 100%, 86%);
+  background: hsla(42, 54%, 14%, 0.92);
+  border: 1px solid hsla(46, 94%, 62%, 0.85);
+  box-shadow: 0 0 12px hsla(44, 92%, 56%, 0.42);
+}
+
 .fx-shield-shatter {
   position: fixed;
   width: 84px;

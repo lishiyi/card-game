@@ -6958,7 +6958,11 @@ test('E2E: Combat SVG Impact VFX, Attacker Lunge & Hit-Flash, Persistent Status/
     });
     await cdp.evaluate(`window.localStorage.clear();`);
     await cdp.send('Page.reload', { ignoreCache: true });
-    await new Promise((r) => setTimeout(r, 420));
+    for (let w = 0; w < 40; w += 1) {
+      const ready = await cdp.evaluate(`Boolean(window.__SPIRE_APP__ && document.getElementById('btn-menu-standard'))`);
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 80));
+    }
     const watcherAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       document.getElementById('btn-menu-standard')?.click();
@@ -7692,6 +7696,52 @@ test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) 
     assert.equal(minionBattleAudit.screenAfterLeaderKill, 'reward', 'Killing Gremlin Leader must trigger immediate victory & reward transition despite full-HP surviving minion');
     assert.equal(minionBattleAudit.combatStatusAfterLeaderKill, 'victory');
     assert.equal(minionBattleAudit.hasFleeLog, true, 'Combat log must record minions fleeing');
+
+    // 4. Canonical Enemy Artifact UI & 免疫! floating FX verification (Sentry 1-stack omitted, Spheric Guardian 3, Bash blocked)
+    const artifactAudit = await cdp.evaluate(`(async () => {
+      const app = window.__SPIRE_APP__;
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      const { startCombat } = await import('./src/engine/combat.js');
+      const st = app.getState();
+      st.screen = 'combat';
+      startCombat(st, ENCOUNTERS.elite.find((e) => e.id === 'twin_sentries_elite'), 'elite');
+      const sentry0 = st.combat.enemies[0];
+      st.combat.hand = [{ instanceId: 'bash_art_test', cardId: 'bash', upgraded: false }];
+      st.player.energy = 3;
+      app.render();
+
+      const artChipBefore = document.querySelector('#enemy-unit-' + sentry0.id + ' .status-chip[data-status-key="artifact"]');
+      const sentry1IconOnly = Boolean(artChipBefore?.classList.contains('icon-only') && !artChipBefore.querySelector('.status-val'));
+      const artSvgPol = artChipBefore?.querySelector('svg.status-svg')?.dataset?.statusPolarity || '';
+
+      // Play Bash onto Sentry 0 -> strips Artifact 1 -> 0, blocks Vulnerable, spawns 免疫! popup!
+      document.getElementById('hand-card-bash_art_test')?.click();
+      document.getElementById('enemy-unit-' + sentry0.id)?.click();
+      const popups = [...document.querySelectorAll('#spire-fx-layer .fx-float-popup.fx-tone-artifact')].map((el) => el.textContent?.trim());
+      const artChipAfter = document.querySelector('#enemy-unit-' + sentry0.id + ' .status-chip[data-status-key="artifact"]');
+      const vulnChipAfter = document.querySelector('#enemy-unit-' + sentry0.id + ' .status-chip[data-status-key="vulnerable"]');
+
+      // Also verify Spheric Guardian starts with visible "3" Artifact stack
+      startCombat(st, ENCOUNTERS.act2Early.find((e) => e.id === 'spheric_guardian_solo'), 'normal');
+      app.render();
+      const sgArtVal = document.querySelector('.enemy-side .status-chip[data-status-key="artifact"] .status-val')?.textContent?.trim() || '';
+
+      return {
+        sentry1IconOnly,
+        artSvgPol,
+        hasImmunePopup: popups.includes('免疫!'),
+        artRemoved: !artChipAfter,
+        vulnBlocked: !vulnChipAfter,
+        sgArtVal,
+      };
+    })()`);
+
+    assert.equal(artifactAudit.sentry1IconOnly, true, 'Sentry 1 Artifact must render frameless icon-only buff badge');
+    assert.equal(artifactAudit.artSvgPol, 'buff', 'Artifact badge must use emerald buff polarity frame');
+    assert.equal(artifactAudit.hasImmunePopup, true, 'Blocking Bash Vulnerable must spawn golden 免疫! floating popup');
+    assert.equal(artifactAudit.artRemoved, true, 'Sentry Artifact badge must disappear once stripped to 0');
+    assert.equal(artifactAudit.vulnBlocked, true, 'Vulnerable must not appear on Sentry when negated by Artifact');
+    assert.equal(artifactAudit.sgArtVal, '3', 'Spheric Guardian must display 3 Artifact stacks in combat UI');
 
     cdp.ws.close();
   } finally {

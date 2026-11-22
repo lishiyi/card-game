@@ -68,13 +68,19 @@ function addPlayerBlock(state, amount) {
     if (alive.length > 0) {
       state._resolvingWaveOfTheHand = true;
       try {
+        let appliedCount = 0;
         for (const enemy of alive) {
           if (enemy.hp <= 0) continue;
           if (applyStatus(enemy, 'weak', waveWeak)) {
+            appliedCount += 1;
             triggerSadisticNature(state, enemy);
+          } else {
+            pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【摆手】的【虚弱】！`, 'status');
           }
         }
-        pushCombatLog(combat, `【摆手】触发：给予所有敌人 ${waveWeak} 层【虚弱】！`, 'status');
+        if (appliedCount > 0) {
+          pushCombatLog(combat, `【摆手】触发：给予敌人 ${waveWeak} 层【虚弱】！`, 'status');
+        }
       } finally {
         delete state._resolvingWaveOfTheHand;
       }
@@ -126,6 +132,12 @@ function triggerChampionBeltIfVulnerable(state, enemy, statusKey, delta) {
         'status'
       );
       triggerSadisticNature(state, enemy);
+    } else {
+      pushCombatLog(
+        state.combat,
+        `【${enemy.name}】的【人工制品】抵消了【${RELIC_LIBRARY.champion_belt.name}】的【虚弱】！`,
+        'status'
+      );
     }
   }
 }
@@ -441,14 +453,19 @@ function handleEnemyDeathPassives(state, deadEnemy) {
 
   if ((deadEnemy.statuses?.sporeCloud ?? 0) > 0) {
     const spores = deadEnemy.statuses.sporeCloud;
-    applyStatus(state.player, 'vulnerable', spores, {
-      appliedDuringEnemyTurn: combat.phase === 'enemy',
-    });
-    pushCombatLog(
-      combat,
-      `【${deadEnemy.name}】的【孢子云】爆裂，使你获得 ${spores} 层【易伤】！`,
-      'status'
-    );
+    if (
+      applyStatus(state.player, 'vulnerable', spores, {
+        appliedDuringEnemyTurn: combat.phase === 'enemy',
+      })
+    ) {
+      pushCombatLog(
+        combat,
+        `【${deadEnemy.name}】的【孢子云】爆裂，使你获得 ${spores} 层【易伤】！`,
+        'status'
+      );
+    } else {
+      pushCombatLog(combat, `【人工制品】抵消了【${deadEnemy.name}】孢子云的【易伤】！`, 'status');
+    }
   }
 
   // The Specimen: transfer remaining poison to a random alive enemy
@@ -457,12 +474,19 @@ function handleEnemyDeathPassives(state, deadEnemy) {
     const alive = getAliveEnemies(combat);
     const recipient = pickRandom(state, alive);
     if (recipient) {
-      applyStatus(recipient, 'poison', remPoison);
-      pushCombatLog(
-        combat,
-        `遗物【${RELIC_LIBRARY.the_specimen.name}】生效：将 ${remPoison} 层【中毒】转移给【${recipient.name}】！`,
-        'status'
-      );
+      if (applyStatus(recipient, 'poison', remPoison)) {
+        pushCombatLog(
+          combat,
+          `遗物【${RELIC_LIBRARY.the_specimen.name}】生效：将 ${remPoison} 层【中毒】转移给【${recipient.name}】！`,
+          'status'
+        );
+      } else {
+        pushCombatLog(
+          combat,
+          `【${recipient.name}】的【人工制品】抵消了【${RELIC_LIBRARY.the_specimen.name}】转移的【中毒】！`,
+          'status'
+        );
+      }
     }
   }
 
@@ -2634,36 +2658,62 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     );
   }
   if (hasRelic(state, 'bag_of_marbles')) {
+    let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
       if (applyStatus(enemy, 'vulnerable', 1)) {
+        appliedCount += 1;
         triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', 1);
+      } else {
+        pushCombatLog(
+          combat,
+          `【${enemy.name}】的【人工制品】抵消了【${RELIC_LIBRARY.bag_of_marbles.name}】的【易伤】！`,
+          'status'
+        );
       }
     }
-    pushCombatLog(
-      combat,
-      `遗物【${RELIC_LIBRARY.bag_of_marbles.name}】生效：所有敌人获得 1 层【易伤】。`,
-      'status'
-    );
+    if (appliedCount > 0) {
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.bag_of_marbles.name}】生效：给予敌人 1 层【易伤】。`,
+        'status'
+      );
+    }
   }
   if (hasRelic(state, 'twisted_funnel')) {
+    let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
-      applyPoisonToEnemy(state, enemy, 3);
+      if (applyPoisonToEnemy(state, enemy, 3) > 0) {
+        appliedCount += 1;
+      }
     }
-    pushCombatLog(
-      combat,
-      `遗物【${RELIC_LIBRARY.twisted_funnel.name}】生效：所有敌人获得 3 层【中毒】！`,
-      'status'
-    );
+    if (appliedCount > 0) {
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.twisted_funnel.name}】生效：给予敌人 3 层【中毒】！`,
+        'status'
+      );
+    }
   }
   if (hasRelic(state, 'red_mask')) {
+    let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
-      applyStatus(enemy, 'weak', 1);
+      if (applyStatus(enemy, 'weak', 1)) {
+        appliedCount += 1;
+      } else {
+        pushCombatLog(
+          combat,
+          `【${enemy.name}】的【人工制品】抵消了【${RELIC_LIBRARY.red_mask.name}】的【虚弱】！`,
+          'status'
+        );
+      }
     }
-    pushCombatLog(
-      combat,
-      `遗物【${RELIC_LIBRARY.red_mask.name}】生效：所有敌人获得 1 层【虚弱】。`,
-      'status'
-    );
+    if (appliedCount > 0) {
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.red_mask.name}】生效：给予敌人 1 层【虚弱】。`,
+        'status'
+      );
+    }
   }
   if (hasRelic(state, 'philosophers_stone')) {
     for (const enemy of getAliveEnemies(combat)) {
@@ -3121,13 +3171,16 @@ export function playCard(
     }
 
     if (stats.applyMarkAndTrigger && targetEnemy && targetEnemy.hp > 0) {
-      applyStatus(targetEnemy, 'mark', stats.applyMarkAndTrigger);
-      pushCombatLog(
-        combat,
-        `【${targetEnemy.name}】获得 ${stats.applyMarkAndTrigger} 层【印记】（当前 ${targetEnemy.statuses.mark} 层）。`,
-        'status'
-      );
-      triggerSadisticNature(state, targetEnemy);
+      if (applyStatus(targetEnemy, 'mark', stats.applyMarkAndTrigger)) {
+        pushCombatLog(
+          combat,
+          `【${targetEnemy.name}】获得 ${stats.applyMarkAndTrigger} 层【印记】（当前 ${targetEnemy.statuses.mark} 层）。`,
+          'status'
+        );
+        triggerSadisticNature(state, targetEnemy);
+      } else {
+        pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【印记】！`, 'status');
+      }
       for (const enemy of [...getAliveEnemies(combat)]) {
         if (enemy.hp <= 0) continue;
         const markStacks = enemy.statuses?.mark ?? 0;
@@ -3388,8 +3441,8 @@ export function playCard(
     if (stats.ifLastCardType && prevCardType === stats.ifLastCardType.type) {
       if (stats.ifLastCardType.applyEnemyStatuses && targetEnemy && targetEnemy.hp > 0) {
         for (const [sKey, sVal] of Object.entries(stats.ifLastCardType.applyEnemyStatuses)) {
+          const sMeta = STATUS_METADATA[sKey];
           if (applyStatus(targetEnemy, sKey, sVal)) {
-            const sMeta = STATUS_METADATA[sKey];
             pushCombatLog(
               combat,
               `【${stats.name}】连携触发：【${targetEnemy.name}】获得 ${sVal} 层【${sMeta?.name ?? sKey}】！`,
@@ -3399,6 +3452,12 @@ export function playCard(
             if (sMeta?.polarity === 'debuff') {
               triggerSadisticNature(state, targetEnemy);
             }
+          } else {
+            pushCombatLog(
+              combat,
+              `【${targetEnemy.name}】的【人工制品】抵消了【${sMeta?.name ?? sKey}】！`,
+              'status'
+            );
           }
         }
       }
@@ -3460,6 +3519,8 @@ export function playCard(
             pushCombatLog(combat, `【${stats.name}】愤怒爆发：【${enemy.name}】获得 ${vulnAmt} 层【易伤】！`, 'status');
             triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', vulnAmt);
             triggerSadisticNature(state, enemy);
+          } else {
+            pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【易伤】！`, 'status');
           }
         }
       } else {
@@ -3498,6 +3559,8 @@ export function playCard(
             'status'
           );
           triggerSadisticNature(state, enemy);
+        } else {
+          pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了力量削减！`, 'status');
         }
       }
     }
@@ -3509,12 +3572,16 @@ export function playCard(
           if (applyStatus(targetEnemy, 'strength', -xVal)) {
             pushCombatLog(combat, `【${targetEnemy.name}】永久失去 ${xVal} 点【力量】。`, 'status');
             triggerSadisticNature(state, targetEnemy);
+          } else {
+            pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了力量削减！`, 'status');
           }
         }
         if (stats.xEnemyWeak && targetEnemy.hp > 0) {
           if (applyStatus(targetEnemy, 'weak', xVal)) {
             pushCombatLog(combat, `【${targetEnemy.name}】获得 ${xVal} 层【虚弱】。`, 'status');
             triggerSadisticNature(state, targetEnemy);
+          } else {
+            pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【虚弱】！`, 'status');
           }
         }
       }
@@ -3535,12 +3602,13 @@ export function playCard(
       const currentPoison = targetEnemy.statuses?.poison ?? 0;
       if (currentPoison > 0) {
         const added = currentPoison * (stats.multiplyPoison - 1);
-        applyPoisonToEnemy(state, targetEnemy, added);
-        pushCombatLog(
-          combat,
-          `【${stats.name}】催化剧毒：【${targetEnemy.name}】的中毒层数跃升至 ${targetEnemy.statuses.poison} 层！`,
-          'status'
-        );
+        if (applyPoisonToEnemy(state, targetEnemy, added) > 0) {
+          pushCombatLog(
+            combat,
+            `【${stats.name}】催化剧毒：【${targetEnemy.name}】的中毒层数跃升至 ${targetEnemy.statuses.poison} 层！`,
+            'status'
+          );
+        }
       } else {
         pushCombatLog(combat, `【${targetEnemy.name}】当前没有中毒，【${stats.name}】未能催化。`, 'info');
       }
@@ -4284,14 +4352,16 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
       if (sKey === 'poison') {
         applyPoisonToEnemy(state, targetRes.enemy, val);
       } else {
+        const sMeta = STATUS_METADATA[sKey];
+        const sName = sMeta?.name ?? sKey;
         if (applyStatus(targetRes.enemy, sKey, val)) {
-          const sMeta = STATUS_METADATA[sKey];
-          const sName = sMeta?.name ?? sKey;
           pushCombatLog(combat, `【${targetRes.enemy.name}】获得 ${val} 层【${sName}】。`, 'status');
           triggerChampionBeltIfVulnerable(state, targetRes.enemy, sKey, val);
           if (sMeta?.polarity === 'debuff') {
             triggerSadisticNature(state, targetRes.enemy);
           }
+        } else {
+          pushCombatLog(combat, `【${targetRes.enemy.name}】的【人工制品】抵消了【${sName}】！`, 'status');
         }
       }
     }
