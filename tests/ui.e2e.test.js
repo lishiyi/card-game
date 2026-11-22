@@ -5916,15 +5916,20 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     const hudAcAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       const st = app.getState();
-      st.player.potions = ['fire_potion', 'block_potion', null];
+      st.player.potions = ['fire_potion', 'block_potion', 'fire_potion'];
       st.player.relics = [
         'burning_blood', 'vajra', 'anchor', 'lantern', 'akabeko',
         'paper_phrog', 'pen_nib', 'happy_flower', 'nunchaku', 'girya',
       ];
-      if (st.combat?.enemies?.[0]) {
-        st.combat.enemies[0].hp = 60;
-        st.combat.enemies[0].maxHp = 60;
-        st.combat.enemies[0].block = 0;
+      if (st.combat?.enemies?.length) {
+        // Normalize to deterministic 1 alive enemy for 1-tap Fire Potion drink verification
+        const baseEnemy = st.combat.enemies[0];
+        baseEnemy.hp = 60;
+        baseEnemy.maxHp = 60;
+        baseEnemy.block = 0;
+        st.combat.enemies = [baseEnemy];
+        st.combat.status = 'ongoing';
+        st.combat.phase = 'player';
       }
       app.render();
 
@@ -5932,25 +5937,47 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       const pot0 = document.getElementById('potion-slot-0');
       const pot0Rect = pot0.getBoundingClientRect();
       const pot0Svg = pot0.querySelector('svg[data-potion-icon="fire_potion"]');
+      st.player.potions[2] = null;
+      app.render();
       const pot2Svg = document.getElementById('potion-slot-2')?.querySelector('svg[data-potion-icon="empty"]');
-      const potLabelHidden = getComputedStyle(pot0.querySelector('.potion-name-label')).display === 'none';
+      const potLabelHidden = getComputedStyle(document.getElementById('potion-slot-0').querySelector('.potion-name-label')).display === 'none';
       const visibleRelics = [...document.querySelectorAll('.top-hud .relic-badge')]
         .filter((el) => el.getBoundingClientRect().right <= hudRect.right + 1).length;
 
       // 7a. Tapping filled potion icon on 390px opens Potion Popover without consuming it immediately
-      pot0.click();
+      document.getElementById('potion-slot-0').click();
       const popoverEl = document.getElementById('hud-potion-popover');
       const popoverTitle = popoverEl?.querySelector('.hud-potion-popover-title')?.textContent?.trim() || '';
       const stillOwnedAfterFirstTap = st.player.potions[0] === 'fire_potion';
       const drinkBtn = document.getElementById('btn-popover-drink-potion');
       const discardBtn = document.getElementById('btn-popover-discard-potion');
 
-      // Confirm drink from popover
+      // Confirm drink from popover against single alive enemy
       const enemyHpBefore = st.combat.enemies[0].hp;
       drinkBtn.click();
       const enemyHpAfter = st.combat.enemies[0].hp;
       const consumedAfterDrink = st.player.potions[0] === null;
       const popoverClosedAfterDrink = !document.getElementById('hud-potion-popover');
+
+      // 7a-2. Multi-enemy combat: Fire Potion popover prompts target pick, then throws on clicked enemy
+      st.player.potions[0] = 'fire_potion';
+      const enemyClone = JSON.parse(JSON.stringify(st.combat.enemies[0]));
+      enemyClone.id = 'hud_ac_dummy_2';
+      enemyClone.hp = 50;
+      enemyClone.maxHp = 50;
+      enemyClone.block = 0;
+      st.combat.enemies.push(enemyClone);
+      app.render();
+      document.getElementById('potion-slot-0').click();
+      const multiTargetDrinkLabel = document.getElementById('btn-popover-drink-potion')?.textContent?.trim() || '';
+      document.getElementById('btn-popover-drink-potion').click();
+      const awaitingTargetStillOwned = st.player.potions[0] === 'fire_potion';
+      const secondEnemyEl = document.getElementById('enemy-unit-hud_ac_dummy_2');
+      const cloneHpBefore = enemyClone.hp;
+      secondEnemyEl?.click();
+      const cloneHpAfter = enemyClone.hp;
+      const multiTargetConsumed = st.player.potions[0] === null;
+      st.combat.enemies = [st.combat.enemies[0]];
 
       // 7b. Discard slot 1 from popover outside combat (disabled button -> tap anchor)
       const prevScreen = st.screen;
@@ -5989,6 +6016,10 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
         enemyTookFireDamage: enemyHpAfter < enemyHpBefore,
         consumedAfterDrink,
         popoverClosedAfterDrink,
+        multiTargetDrinkLabel,
+        awaitingTargetStillOwned,
+        multiEnemyTookDamage: cloneHpAfter < cloneHpBefore,
+        multiTargetConsumed,
         shopPopoverOpen,
         shopDrinkDisabled,
         slot1Discarded,
@@ -6011,6 +6042,10 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(hudAcAudit.enemyTookFireDamage, true, 'Confirming Drink from popover damages enemy');
     assert.equal(hudAcAudit.consumedAfterDrink, true, 'Potion slot clears after confirming Drink');
     assert.equal(hudAcAudit.popoverClosedAfterDrink, true, 'Popover closes automatically after Drink');
+    assert.ok(hudAcAudit.multiTargetDrinkLabel.includes('选择目标'), `Expected multi-target label, got ${hudAcAudit.multiTargetDrinkLabel}`);
+    assert.equal(hudAcAudit.awaitingTargetStillOwned, true, 'Selecting target from multi-enemy popover keeps potion until target tap');
+    assert.equal(hudAcAudit.multiEnemyTookDamage, true, 'Tapping target enemy deals Fire Potion damage');
+    assert.equal(hudAcAudit.multiTargetConsumed, true, 'Potion consumes after clicking target enemy');
     assert.equal(hudAcAudit.shopPopoverOpen, true, 'Tapping filled potion icon outside combat opens Potion Popover');
     assert.equal(hudAcAudit.shopDrinkDisabled, true, 'Drink button inside popover is disabled outside combat');
     assert.equal(hudAcAudit.slot1Discarded, true, 'Discard button inside popover discards potion cleanly');
@@ -6019,7 +6054,7 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('新的一局')), `Expected unbroken '新的一局' label, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
     assert.equal(hudAcAudit.menuClosedAfterOutsideTap, true, 'Tapping outside dismisses More menu drawer');
 
-    // 7d. 360px small-phone viewport zero overflow & full Row 2 fit
+    // 7d. 360px small-phone viewport zero overflow & full Row 2 fit even with 3-digit HP & 3-digit Gold
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 360,
       height: 760,
@@ -6027,7 +6062,13 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       mobile: true,
     });
     const hud360Audit = await cdp.evaluate(`(() => {
-      window.__SPIRE_APP__.render();
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.player.hp = 100;
+      st.player.maxHp = 100;
+      st.player.gold = 999;
+      st.player.potions = ['fire_potion', 'block_potion', 'energy_potion'];
+      app.render();
       const hud = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
       const pot2 = document.getElementById('potion-slot-2').getBoundingClientRect();
       const deck = document.getElementById('btn-open-deck').getBoundingClientRect();
@@ -6036,10 +6077,11 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
         overflow: document.documentElement.scrollWidth > window.innerWidth,
         pot2Fits: pot2.right <= deck.left + 1,
         moreFits: more.right <= hud.right + 1,
+        slackPx: Math.round(deck.left - pot2.right),
       };
     })()`);
     assert.equal(hud360Audit.overflow, false, '360px small phone HUD must never overflow horizontally');
-    assert.equal(hud360Audit.pot2Fits, true, 'All 3 potion icons fit left of Deck button on 360px phone');
+    assert.equal(hud360Audit.pot2Fits, true, `All 3 potion icons fit left of Deck button on 360px phone (slack=${hud360Audit.slackPx}px)`);
     assert.equal(hud360Audit.moreFits, true, '☰ More trigger fits inside 360px HUD');
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');

@@ -6557,6 +6557,38 @@ body.spire-dragging {
     min-height: 29px;
   }
 
+  .top-hud.run-hud {
+    gap: 4px 5px;
+    padding: 6px 8px;
+  }
+
+  .top-hud.run-hud .vitals-numbers-row {
+    gap: 3px;
+  }
+
+  .top-hud.run-hud .vital-chip {
+    font-size: 0.72rem;
+    padding: 1px 2px;
+    gap: 2px;
+  }
+
+  .top-hud.run-hud .potion-strip {
+    gap: 3px;
+    padding: 1px 0;
+  }
+
+  .top-hud.run-hud .potion-slot {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+  }
+
+  .top-hud.run-hud .potion-slot .potion-icon-svg {
+    width: 18px;
+    height: 18px;
+  }
+
   .top-hud.run-hud .top-actions {
     gap: 3px;
   }
@@ -6571,21 +6603,21 @@ body.spire-dragging {
   }
 
   .top-hud.run-hud .hud-deck-btn {
-    height: 28px;
-    min-height: 28px;
-    padding: 0 7px;
-    font-size: 0.72rem;
-    gap: 3px;
+    height: 26px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 0.7rem;
+    gap: 2px;
   }
 
   .top-hud.run-hud .hud-map-btn,
   .top-hud.run-hud .hud-more-btn {
-    width: 28px;
-    min-width: 28px;
-    height: 28px;
-    min-height: 28px;
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    min-height: 26px;
     padding: 0;
-    font-size: 0.86rem;
+    font-size: 0.82rem;
   }
 
   .top-hud.run-hud .top-actions-secondary.open button {
