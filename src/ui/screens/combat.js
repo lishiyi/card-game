@@ -338,12 +338,13 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const currentStance = combat.stance || state.player.stance || 'neutral';
   const stanceMeta = STANCE_METADATA[currentStance] || STANCE_METADATA.neutral;
   const calmExitEnergy = hasRelic(state, 'violet_lotus') ? 3 : 2;
-  const stancePillText =
+  const stancePillText = currentStance !== 'neutral' ? stanceMeta.name : '';
+  const stanceTooltipDesc =
     currentStance === 'calm'
-      ? `平静 · 出态 +${calmExitEnergy}能`
-      : currentStance === 'wrath' || currentStance === 'divinity'
-        ? stanceMeta.shortLabel
-        : '';
+      ? `心如止水：离开【平静】姿态时立即获得 ${calmExitEnergy} 点能量${
+          calmExitEnergy === 3 ? '（紫色莲花已生效）' : '（持有【紫色莲花】时为 3 点）'
+        }。`
+      : stanceMeta.description;
   const totalEnemyAttackIncoming = aliveEnemies.reduce((sum, enemy) => {
     const preview = getEnemyIntentPreview(enemy, state.player);
     return sum + (preview.isAttack ? preview.totalDamage : 0);
@@ -420,7 +421,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                     tabindex="0"
                     data-tooltip-title="${escapeHtml(`当前姿态：${stanceMeta.name}`)}"
                     data-tooltip-tag="观者姿态"
-                    data-tooltip-desc="${escapeHtml(stanceMeta.description)}"
+                    data-tooltip-desc="${escapeHtml(stanceTooltipDesc)}"
                     data-tooltip-tone="${currentStance === 'wrath' ? 'debuff' : 'buff'}"
                   >${escapeHtml(stancePillText)}</div>`
                 : ''

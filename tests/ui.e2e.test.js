@@ -4555,25 +4555,53 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
 
       // Play Vigilance -> Calm
       document.getElementById('hand-card-e2e_vig').click();
-      const calmPillText = document.getElementById('player-stance-pill')?.textContent?.trim() || '';
+      const calmPill = document.getElementById('player-stance-pill');
+      const calmPillText = calmPill?.textContent?.trim() || '';
+      calmPill?.click();
+      const calmTipOpen = !document.getElementById('spire-tooltip')?.hidden;
+      const calmTipDesc = document.querySelector('#spire-tooltip .spire-tooltip-desc')?.textContent?.trim() || '';
+      if (calmTipOpen) calmPill?.click();
       const hasCalmAura = document.getElementById('player-unit')?.classList.contains('stance-calm');
 
       // Play Eruption+ -> exits Calm (+2E -> 1 - 1 + 2 = 2E) and enters Wrath!
       document.getElementById('hand-card-e2e_erup').click();
       document.getElementById('enemy-unit-' + enemy.id).click();
-      const wrathPillText = document.getElementById('player-stance-pill')?.textContent?.trim() || '';
+      const wrathPill = document.getElementById('player-stance-pill');
+      const wrathPillText = wrathPill?.textContent?.trim() || '';
+      wrathPill?.click();
+      const wrathTipOpen = !document.getElementById('spire-tooltip')?.hidden;
+      const wrathTipDesc = document.querySelector('#spire-tooltip .spire-tooltip-desc')?.textContent?.trim() || '';
+      if (wrathTipOpen) wrathPill?.click();
       const hasWrathAura = document.getElementById('player-unit')?.classList.contains('stance-wrath');
       const intentInWrath = document.querySelector('.enemy-side .intent-badge')?.textContent?.trim() || '';
       const hasWrathBanner = Boolean(document.getElementById('wrath-danger-banner'));
       const strikeDescInWrath = document.querySelector('#hand-card-e2e_str .card-desc')?.textContent?.trim() || '';
       const energyAfterCalmExit = st.player.energy;
 
+      // Also verify Divinity renders concise name only and shows full tooltip on click
+      const prevStance = st.combat.stance;
+      st.combat.stance = 'divinity';
+      st.player.stance = 'divinity';
+      app.render();
+      const divPill = document.getElementById('player-stance-pill');
+      const divPillText = divPill?.textContent?.trim() || '';
+      const divTipDesc = divPill?.dataset?.tooltipDesc || '';
+      st.combat.stance = prevStance;
+      st.player.stance = prevStance;
+      app.render();
+
       return {
         intentBefore,
         calmPillText,
+        calmTipOpen,
+        calmTipDesc,
         hasCalmAura,
         wrathPillText,
+        wrathTipOpen,
+        wrathTipDesc,
         hasWrathAura,
+        divPillText,
+        divTipDesc,
         intentInWrath,
         hasWrathBanner,
         strikeDescInWrath,
@@ -4582,11 +4610,16 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     })()`);
 
     assert.equal(stanceUiAudit.intentBefore, '10');
-    assert.ok(stanceUiAudit.calmPillText.includes('平静'));
+    assert.equal(stanceUiAudit.calmPillText, '平静', 'Calm pill must show concise name only');
+    assert.equal(stanceUiAudit.calmTipOpen, true, 'Tapping Calm pill must open stance tooltip');
+    assert.ok(stanceUiAudit.calmTipDesc.includes('2 点能量'), 'Calm tooltip must explain +2 exit energy');
     assert.equal(stanceUiAudit.hasCalmAura, true);
-    assert.ok(stanceUiAudit.wrathPillText.includes('愤怒') && stanceUiAudit.wrathPillText.includes('敌我攻击 ×2'));
-    assert.equal(stanceUiAudit.wrathPillText.includes('攻防'), false, 'Wrath pill must not misleadingly say 攻防');
+    assert.equal(stanceUiAudit.wrathPillText, '愤怒', 'Wrath pill must show concise name only');
+    assert.equal(stanceUiAudit.wrathTipOpen, true, 'Tapping Wrath pill must open stance tooltip');
+    assert.ok(stanceUiAudit.wrathTipDesc.includes('翻倍'), 'Wrath tooltip must explain doubled attack damage');
     assert.equal(stanceUiAudit.hasWrathAura, true);
+    assert.equal(stanceUiAudit.divPillText, '神格', 'Divinity pill must show concise name only');
+    assert.ok(stanceUiAudit.divTipDesc.includes('3 倍'), 'Divinity tooltip must explain 3x attack damage');
     assert.equal(stanceUiAudit.intentInWrath, '20', 'Enemy attack intent must double to 20 in Wrath');
     assert.equal(stanceUiAudit.hasWrathBanner, true, 'Wrath Danger banner must appear when incoming exceeds block');
     assert.ok(stanceUiAudit.strikeDescInWrath.includes('12'), 'Strike damage must preview doubled 12 in Wrath');
