@@ -1316,7 +1316,9 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .card-cost {
@@ -1364,11 +1366,25 @@ button:disabled {
 
 .card-name {
   font-family: var(--font-display);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 700;
+  line-height: 1.2;
   color: var(--text-ivory);
   flex: 1;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-name.name-compact {
+  font-size: 0.78rem;
+  letter-spacing: -0.02em;
+}
+
+.card-name.name-xcompact {
+  font-size: 0.64rem;
+  letter-spacing: -0.03em;
 }
 
 .game-card.rarity-common .card-name:not(.upgraded) {
@@ -1393,7 +1409,7 @@ button:disabled {
 
 .card-hotkey {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 700;
   color: var(--text-ash);
   flex-shrink: 0;
@@ -1401,15 +1417,17 @@ button:disabled {
 
 .card-banner {
   margin: 5px 0 6px;
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 0.71rem;
+  font-size: 0.69rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  flex-wrap: nowrap;
+  gap: 3px;
+  min-width: 0;
 }
 
 .card-banner.type-attack {
@@ -1438,12 +1456,14 @@ button:disabled {
 }
 
 .rarity-badge {
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
-  font-size: 0.67rem;
+  font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0.03em;
-  line-height: 1.35;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .rarity-badge.rarity-starter {
@@ -1922,11 +1942,16 @@ body.spire-modal-open {
 .card-type-label {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.25;
 }
 
 .card-type-icon {
   flex-shrink: 0;
+  width: 11px;
+  height: 11px;
 }
 
 .modal-header {
@@ -4596,6 +4621,9 @@ body.spire-dragging {
   background: hsla(216, 24%, 24%, 0.92);
   border-color: hsla(210, 32%, 72%, 0.65);
   color: hsl(210, 44%, 90%);
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  letter-spacing: 0;
 }
 
 .rarity-badge.badge-colorless.rarity-rare {
@@ -6050,11 +6078,11 @@ body.spire-dragging {
     flex: 0 0 116px;
     width: 116px;
     min-height: 178px;
-    padding: 7px;
+    padding: 7px 6px;
   }
 
   .hand-tray .game-card .card-top {
-    gap: 5px;
+    gap: 4px;
     margin-bottom: 0;
   }
 
@@ -6065,13 +6093,45 @@ body.spire-dragging {
   }
 
   .hand-tray .game-card .card-name {
-    font-size: 0.76rem;
+    font-size: 0.75rem;
+  }
+
+  .hand-tray .game-card .card-name.name-compact {
+    font-size: 0.67rem;
+  }
+
+  .hand-tray .game-card .card-name.name-xcompact {
+    font-size: 0.6rem;
+    letter-spacing: -0.03em;
   }
 
   .hand-tray .game-card .card-banner {
-    padding: 1.5px 5px;
+    padding: 1.5px 4px;
     margin: 3px 0 4px;
-    font-size: 0.62rem;
+    font-size: 0.59rem;
+    letter-spacing: 0;
+    gap: 2px;
+  }
+
+  .hand-tray .game-card .card-type-label {
+    gap: 2px;
+  }
+
+  .hand-tray .game-card .card-type-icon {
+    width: 9.5px;
+    height: 9.5px;
+  }
+
+  .hand-tray .game-card .rarity-badge {
+    font-size: 0.56rem;
+    padding: 1px 3.5px;
+    letter-spacing: 0;
+  }
+
+  .hand-tray .game-card .rarity-badge.badge-colorless {
+    font-size: 0.53rem;
+    padding: 1px 3px;
+    letter-spacing: -0.02em;
   }
 
   .hand-tray .game-card .card-art-frame {
@@ -6085,9 +6145,22 @@ body.spire-dragging {
   }
 
   .hand-tray .game-card .card-footer {
-    font-size: 0.62rem;
+    font-size: 0.56rem;
+    gap: 3px;
     margin-top: 5px;
     padding-top: 4px;
+  }
+
+  .hand-tray .game-card .card-kw-trigger {
+    font-size: 0.53rem;
+    padding: 0.5px 3.5px 0.5px 4px;
+    gap: 2px;
+  }
+
+  .hand-tray .game-card .card-kw-qmark {
+    width: 10px;
+    height: 10px;
+    font-size: 0.52rem;
   }
 
   /* Crisp 2-column responsive showcase on phones for Shop, Rewards, Deck & Battle Report */
@@ -6108,6 +6181,34 @@ body.spire-dragging {
   .card-showcase .game-card,
   .card-showcase .compendium-silhouette-card {
     min-height: 208px;
+  }
+
+  .card-showcase .game-card .card-banner {
+    padding: 2px 5px;
+    font-size: 0.64rem;
+    letter-spacing: 0.01em;
+    gap: 3px;
+  }
+
+  .card-showcase .game-card .rarity-badge {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+    letter-spacing: 0;
+  }
+
+  .card-showcase .game-card .rarity-badge.badge-colorless {
+    font-size: 0.58rem;
+    padding: 1px 3.5px;
+  }
+
+  .card-showcase .game-card .card-footer {
+    font-size: 0.64rem;
+    gap: 3px;
+  }
+
+  .card-showcase .game-card .card-kw-trigger {
+    font-size: 0.59rem;
+    padding: 1px 4px 1px 5px;
   }
 
   .card-showcase .card-art-frame,
@@ -7295,21 +7396,31 @@ body.spire-dragging {
 }
 
 .card-footer {
-  gap: 6px;
+  gap: 4px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.card-target-label {
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .card-kw-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 1px 6px 1px 7px;
+  gap: 2.5px;
+  padding: 1px 5px 1px 6px;
   border-radius: 999px;
   background: hsla(38, 42%, 22%, 0.72);
   border: 1px solid hsla(40, 62%, 52%, 0.45);
   color: hsl(42, 88%, 78%);
-  font-size: 0.68rem;
+  font-size: 0.63rem;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.3;
   cursor: help;
   white-space: nowrap;
   flex-shrink: 0;
@@ -8742,7 +8853,35 @@ body.spire-dragging {
   .fx-card-reveal-card-wrap .game-card {
     width: 126px;
     min-height: 174px;
-    padding: 7px 7px 6px;
+    padding: 7px 6px 6px;
+  }
+
+  .fx-card-reveal-card-wrap .card-banner {
+    padding: 1.5px 4px;
+    font-size: 0.6rem;
+    letter-spacing: 0;
+    gap: 2px;
+  }
+
+  .fx-card-reveal-card-wrap .rarity-badge {
+    font-size: 0.56rem;
+    padding: 1px 3.5px;
+    letter-spacing: 0;
+  }
+
+  .fx-card-reveal-card-wrap .rarity-badge.badge-colorless {
+    font-size: 0.54rem;
+    padding: 1px 3px;
+  }
+
+  .fx-card-reveal-card-wrap .card-footer {
+    font-size: 0.58rem;
+    gap: 3px;
+  }
+
+  .fx-card-reveal-card-wrap .card-kw-trigger {
+    font-size: 0.55rem;
+    padding: 0.5px 4px;
   }
 
   .fx-card-reveal-card-wrap .card-art-frame {

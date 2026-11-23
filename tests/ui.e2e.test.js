@@ -8409,6 +8409,84 @@ test('E2E: Havoc & random card reveal overlay + Fatal (斩杀) keyword tooltip &
     );
     assert.ok(mobileAudit.overflowPx <= 0, `390px mobile with card reveal overlay must have zero horizontal overflow (got ${mobileAudit.overflowPx}px)`);
 
+    // 6. Verify every distinct header/banner/footer layout class across ALL 234 upgraded cards stays single-line on 390px mobile hand (116px), 360px showcase & 126px reveal
+    const allCardsSingleLineAudit = await cdp.evaluate(`(async () => {
+      const { CARD_LIBRARY, getCardStats, formatCardDescription } = await import('./src/data/cards.js');
+      const { extractCardKeywords, renderCardHtml } = await import('./src/ui/helpers.js');
+
+      const mustInclude = new Set([
+        'finesse', 'dramatic_entrance', 'hand_of_greed', 'apotheosis', 'apparition',
+        'feed', 'lesson_learned', 'die_die_die', 'sword_boomerang', 'cloak_and_dagger',
+        'ragnarok', 'uppercut', 'backstab', 'through_violence', 'deus_ex_machina', 'reach_heaven',
+      ]);
+      const seenClasses = new Set();
+      const sampleCards = [];
+      for (const c of Object.values(CARD_LIBRARY)) {
+        const inst = { instanceId: 'sl_' + c.id, cardId: c.id, upgraded: true };
+        const stats = getCardStats(inst);
+        const desc = formatCardDescription(inst, null);
+        const kws = extractCardKeywords(stats, desc.text);
+        const traitKey = kws.filter((k) => k.isTrait && k.key !== '不能被打出').map((k) => k.key).join('·') || (kws.length > 1 ? 'multi' : kws[0]?.key || '');
+        const key = [stats.type, stats.rarity, stats.character === 'colorless' ? 'C' : 'N', stats.target, stats.unplayable ? 'U' : 'P', traitKey, stats.name.length >= 6 ? 6 : stats.name.length >= 5 ? 5 : 4].join('|');
+        if (mustInclude.has(c.id) || !seenClasses.has(key)) {
+          seenClasses.add(key);
+          sampleCards.push(inst);
+        }
+      }
+
+      const auditBox = (cls, widthPx, opts = {}) => {
+        const host = document.createElement('div');
+        host.className = cls;
+        host.style.position = 'fixed';
+        host.style.top = '0';
+        host.style.left = '0';
+        host.style.width = widthPx + 'px';
+        host.style.zIndex = '9999';
+        document.body.appendChild(host);
+        host.innerHTML = sampleCards
+          .map((inst) => renderCardHtml(inst, { idPrefix: 'sl', ...opts }))
+          .join('');
+
+        let bannerWraps = 0;
+        let bannerClips = 0;
+        let footerWraps = 0;
+        let topWraps = 0;
+        for (const cardEl of host.querySelectorAll('.game-card')) {
+          const bRect = cardEl.querySelector('.card-banner')?.getBoundingClientRect();
+          const tRect = cardEl.querySelector('.card-type-label')?.getBoundingClientRect();
+          const rRect = cardEl.querySelector('.rarity-badge')?.getBoundingClientRect();
+          const fRect = cardEl.querySelector('.card-footer')?.getBoundingClientRect();
+          const tgtRect = cardEl.querySelector('.card-target-label')?.getBoundingClientRect();
+          const nRect = cardEl.querySelector('.card-name')?.getBoundingClientRect();
+          if (bRect && (bRect.height > 26 || (rRect && rRect.height > 22) || (tRect && tRect.height > 22))) bannerWraps += 1;
+          if (bRect && rRect && (rRect.right > bRect.right + 1 || (tRect && tRect.right > rRect.left + 0.5))) bannerClips += 1;
+          if (fRect && ((tgtRect && tgtRect.height > 20) || fRect.height > 28)) footerWraps += 1;
+          if (nRect && nRect.height > 24) topWraps += 1;
+        }
+        host.remove();
+        return { checked: sampleCards.length, bannerWraps, bannerClips, footerWraps, topWraps };
+      };
+
+      return {
+        mobileHand116: auditBox('hand-tray', 390),
+        mobileShowcase: auditBox('card-showcase', 306),
+        mobileReveal126: auditBox('fx-card-reveal-card-wrap', 390),
+      };
+    })()`);
+    assert.ok(allCardsSingleLineAudit.mobileHand116.checked >= 30);
+    assert.equal(allCardsSingleLineAudit.mobileHand116.bannerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileHand116.bannerClips, 0);
+    assert.equal(allCardsSingleLineAudit.mobileHand116.footerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileHand116.topWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileShowcase.bannerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileShowcase.bannerClips, 0);
+    assert.equal(allCardsSingleLineAudit.mobileShowcase.footerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileShowcase.topWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileReveal126.bannerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileReveal126.bannerClips, 0);
+    assert.equal(allCardsSingleLineAudit.mobileReveal126.footerWraps, 0);
+    assert.equal(allCardsSingleLineAudit.mobileReveal126.topWraps, 0);
+
     cdp.ws.close();
   } finally {
     await teardownSession({ server, browser, cdp });

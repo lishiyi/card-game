@@ -277,6 +277,8 @@ export function renderCardHtml(cardInstance, options = {}) {
       : options.disabled && isPassiveCard
         ? 'aria-disabled="true"'
         : '';
+  const nameLenClass =
+    stats.name.length >= 6 ? 'name-xcompact' : stats.name.length >= 5 ? 'name-compact' : '';
 
   return `
     <button
@@ -296,7 +298,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       <div>
         <div class="card-top">
           <span class="card-cost ${costBadgeClass}" ${costTooltipAttrs}>${escapeHtml(desc.displayCost)}</span>
-          <span class="card-name ${stats.upgraded ? 'upgraded' : ''}">${escapeHtml(stats.name)}</span>
+          <span class="card-name ${stats.upgraded ? 'upgraded' : ''} ${nameLenClass}">${escapeHtml(stats.name)}</span>
           ${
             typeof options.stackCount === 'number' && options.stackCount > 1
               ? `<span class="card-stack-badge">×${options.stackCount}</span>`
@@ -320,7 +322,7 @@ export function renderCardHtml(cardInstance, options = {}) {
         upgradePreviewNote && !kwTriggerHtml
           ? ''
           : `<div class="card-footer">
-              <span>${escapeHtml(targetLabel)}</span>
+              <span class="card-target-label">${escapeHtml(targetLabel)}</span>
               ${kwTriggerHtml}
             </div>`
       }
