@@ -4,8 +4,9 @@
   "description": "简化版《杀戮尖塔》(Slay the Spire Lite) 纯前端卡牌肉鸽策略游戏",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "node --test tests/*.test.js tests/e2e/*.test.js",
     "build:standalone": "node scripts/build-standalone.mjs",
+    "sync:sw": "node scripts/sync-sw-precache.mjs",
     "start": "python3 -m http.server 4173"
   },
   "engines": {

@@ -143,7 +143,12 @@ import {
   parseChallengeInput,
   parseSeedInput,
 } from '../src/engine/rng.js';
-import { buildStandaloneHtml, discoverModuleOrder } from '../scripts/build-standalone.mjs';
+import {
+  buildStandaloneHtml,
+  computeExpectedPrecacheUrls,
+  discoverModuleOrder,
+} from '../scripts/build-standalone.mjs';
+import { extractSwPrecacheUrls } from '../scripts/sync-sw-precache.mjs';
 
 test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-crossing paths, quotas, and no consecutive Elites/Rests/Shops across 150 seeds', () => {
   assert.equal(TOTAL_FLOORS, 16);
@@ -869,6 +874,13 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
   assert.ok(html.includes('@keyframes shieldShatterRing'));
   assert.equal(html.includes('<script type="module"'), false);
   assert.equal(html.includes('<link rel="stylesheet"'), false);
+
+  const swText = fs.readFileSync(path.join(repoRoot, 'sw.js'), 'utf8');
+  assert.deepEqual(
+    extractSwPrecacheUrls(swText),
+    computeExpectedPrecacheUrls(repoRoot),
+    'sw.js PRECACHE_URLS must stay in exact sync with index.html stylesheets and src/main.js module graph (run `npm run sync:sw`)'
+  );
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {

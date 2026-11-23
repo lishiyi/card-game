@@ -40,8 +40,6 @@ const PRECACHE_URLS = [
   './src/ui/icons.js',
   './src/ui/potion_art.js',
   './src/ui/relic_art.js',
-  './src/ui/settings.js',
-  './src/ui/status_art.js',
   './src/ui/screens/character_select.js',
   './src/ui/screens/combat.js',
   './src/ui/screens/event.js',
@@ -49,6 +47,8 @@ const PRECACHE_URLS = [
   './src/ui/screens/map.js',
   './src/ui/screens/modals.js',
   './src/ui/screens/outpost.js',
+  './src/ui/settings.js',
+  './src/ui/status_art.js',
 ];
 
 async function precacheFreshAssets() {
