@@ -4656,9 +4656,9 @@ body.spire-dragging {
   font-weight: 800;
   letter-spacing: 0.02em;
   border-radius: var(--radius-sm);
-  background: linear-gradient(180deg, hsla(268, 48%, 34%, 0.92), hsla(262, 46%, 22%, 0.95));
-  border: 1px solid hsla(274, 72%, 68%, 0.65);
-  color: hsl(276, 100%, 92%);
+  background: linear-gradient(180deg, hsla(204, 64%, 31%, 0.94), hsla(212, 58%, 20%, 0.96));
+  border: 1px solid hsla(198, 86%, 64%, 0.68);
+  color: hsl(196, 100%, 92%);
   cursor: help;
 }
 
@@ -4672,10 +4672,10 @@ body.spire-dragging {
   padding: 14px 16px;
   border-radius: var(--radius-md);
   background:
-    radial-gradient(circle at 12% 18%, hsla(270, 56%, 42%, 0.24), transparent 55%),
-    linear-gradient(135deg, hsla(264, 28%, 16%, 0.94), hsla(28, 22%, 13%, 0.95));
-  border: 1px solid hsla(272, 58%, 62%, 0.5);
-  box-shadow: 0 8px 24px hsla(268, 40%, 6%, 0.35);
+    radial-gradient(circle at 12% 18%, hsla(200, 80%, 44%, 0.22), transparent 55%),
+    linear-gradient(135deg, hsla(208, 36%, 16%, 0.94), hsla(214, 24%, 12%, 0.95));
+  border: 1px solid hsla(200, 76%, 56%, 0.56);
+  box-shadow: 0 8px 24px hsla(212, 48%, 6%, 0.38);
 }
 
 .daily-challenge-banner.compact {
@@ -4709,9 +4709,9 @@ body.spire-dragging {
 }
 
 .daily-best-pill.fresh {
-  background: hsla(268, 34%, 26%, 0.55);
-  border-color: hsla(272, 48%, 58%, 0.4);
-  color: hsl(274, 48%, 84%);
+  background: hsla(206, 44%, 24%, 0.58);
+  border-color: hsla(198, 70%, 58%, 0.46);
+  color: hsl(196, 76%, 86%);
 }
 
 .daily-mod-row {
@@ -4768,10 +4768,10 @@ body.spire-dragging {
 }
 
 .btn-daily-launch {
-  background: linear-gradient(180deg, hsl(270, 56%, 46%), hsl(264, 58%, 31%));
-  border-color: hsl(274, 72%, 68%);
-  color: hsl(278, 100%, 96%);
-  box-shadow: 0 6px 18px hsla(268, 60%, 24%, 0.5);
+  background: linear-gradient(180deg, hsl(204, 74%, 43%), hsl(212, 74%, 28%));
+  border-color: hsl(196, 88%, 66%);
+  color: hsl(194, 100%, 96%);
+  box-shadow: 0 6px 18px hsla(208, 76%, 22%, 0.52);
 }
 
 .daily-active-strip {
@@ -4782,14 +4782,14 @@ body.spire-dragging {
   margin-bottom: 12px;
   padding: 9px 12px;
   border-radius: var(--radius-sm);
-  background: hsla(266, 28%, 15%, 0.78);
-  border: 1px solid hsla(272, 48%, 56%, 0.42);
+  background: hsla(210, 36%, 15%, 0.82);
+  border: 1px solid hsla(200, 70%, 54%, 0.48);
 }
 
 .daily-active-label {
   font-size: 0.79rem;
   font-weight: 700;
-  color: hsl(276, 80%, 88%);
+  color: hsl(196, 86%, 88%);
 }
 
 /* === Battle Report Card, Score Rank & History Review === */
@@ -5029,9 +5029,9 @@ body.spire-dragging {
 }
 
 .history-badge.daily {
-  background: hsla(268, 48%, 28%, 0.9);
-  border: 1px solid hsla(274, 70%, 64%, 0.6);
-  color: hsl(276, 100%, 92%);
+  background: hsla(204, 60%, 26%, 0.92);
+  border: 1px solid hsla(198, 80%, 62%, 0.62);
+  color: hsl(196, 100%, 92%);
 }
 
 .history-score-pill {
@@ -6101,16 +6101,19 @@ body.spire-dragging {
   }
 
   .card-showcase .game-card,
-  .card-showcase .shop-card-wrap {
+  .card-showcase .shop-card-wrap,
+  .card-showcase .compendium-silhouette-card {
     width: 100%;
     min-width: 0;
   }
 
-  .card-showcase .game-card {
+  .card-showcase .game-card,
+  .card-showcase .compendium-silhouette-card {
     min-height: 186px;
   }
 
-  .card-showcase .card-art-frame {
+  .card-showcase .card-art-frame,
+  .card-showcase .compendium-silhouette-art {
     height: 42px;
     margin-bottom: 5px;
   }
@@ -6273,8 +6276,8 @@ body.spire-dragging {
 
 .compendium-silhouette-card {
   position: relative;
-  width: 162px;
-  min-height: 224px;
+  width: 152px;
+  min-height: 206px;
   border-radius: var(--radius-md);
   border: 1px dashed hsla(34, 24%, 44%, 0.42);
   background: linear-gradient(165deg, hsla(26, 16%, 14%, 0.85), hsla(24, 18%, 9%, 0.94));
@@ -6283,7 +6286,7 @@ body.spire-dragging {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 14px 12px;
+  padding: 12px 10px 10px;
   text-align: center;
   color: var(--text-ash);
   user-select: none;
@@ -6307,7 +6310,8 @@ body.spire-dragging {
 }
 
 .compendium-silhouette-art {
-  width: 112px;
+  width: 100%;
+  max-width: 120px;
   height: 52px;
   border-radius: var(--radius-sm);
   background: hsla(24, 14%, 8%, 0.92);
@@ -6465,11 +6469,6 @@ body.spire-dragging {
   .compendium-card-grid {
     justify-content: center;
     gap: 8px;
-  }
-
-  .compendium-silhouette-card {
-    width: 146px;
-    min-height: 204px;
   }
 
   .compendium-entry-grid,
@@ -7927,10 +7926,10 @@ body.spire-dragging {
 }
 
 .menu-action-card.menu-card-daily {
-  border-color: hsla(272, 58%, 60%, 0.62);
+  border-color: hsla(200, 78%, 56%, 0.68);
   background:
-    radial-gradient(circle at 12% 20%, hsla(270, 56%, 46%, 0.22), transparent 58%),
-    linear-gradient(150deg, hsla(266, 26%, 17%, 0.96), hsla(24, 20%, 12%, 0.98));
+    radial-gradient(circle at 12% 20%, hsla(200, 82%, 44%, 0.24), transparent 58%),
+    linear-gradient(150deg, hsla(208, 38%, 17%, 0.96), hsla(214, 26%, 11%, 0.98));
 }
 
 .menu-card-icon {
@@ -7954,8 +7953,8 @@ body.spire-dragging {
 }
 
 .menu-card-daily .menu-card-icon {
-  background: linear-gradient(180deg, hsla(272, 58%, 42%, 0.36), hsla(268, 42%, 20%, 0.65));
-  border-color: hsla(274, 72%, 68%, 0.6);
+  background: linear-gradient(180deg, hsla(202, 78%, 42%, 0.38), hsla(210, 56%, 20%, 0.68));
+  border-color: hsla(196, 86%, 64%, 0.66);
 }
 
 .menu-card-body {

@@ -5008,9 +5008,23 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       document.getElementById('btn-open-compendium').click();
       document.getElementById('btn-comp-tab-cards').click();
       const discoveredCards = document.querySelectorAll('#compendium-cards-grid .game-card').length;
+      const desktopDiscEl = document.querySelector('#compendium-cards-grid .game-card');
+      const desktopSilEl = document.querySelector('#compendium-cards-grid .compendium-silhouette-card');
+      const desktopDiscWidth = desktopDiscEl ? desktopDiscEl.getBoundingClientRect().width : 0;
+      const desktopSilWidth = desktopSilEl ? desktopSilEl.getBoundingClientRect().width : 0;
       document.getElementById('btn-comp-tab-relics').click();
       const discoveredRelics = document.querySelectorAll('#compendium-relics-grid [data-discovered="true"]').length;
-      return { penNibPill, nunchakuPill, lizardPill, hasExtraRelicBtn, proceedBtnText, discoveredCards, discoveredRelics };
+      return {
+        penNibPill,
+        nunchakuPill,
+        lizardPill,
+        hasExtraRelicBtn,
+        proceedBtnText,
+        discoveredCards,
+        desktopDiscWidth,
+        desktopSilWidth,
+        discoveredRelics,
+      };
     })()`);
     assert.equal(p1UiAudit.penNibPill, '9/10 就绪!');
     assert.equal(p1UiAudit.nunchakuPill, '4/10');
@@ -5019,6 +5033,11 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
     assert.ok(p1UiAudit.proceedBtnText.includes('+2 最大生命'), 'Singing Bowl shows +2 Max HP skip hint');
     assert.ok(p1UiAudit.discoveredCards >= 4, 'Starter Watcher cards auto-discovered in Compendium');
     assert.ok(p1UiAudit.discoveredRelics >= 6, 'Owned relics auto-discovered in Compendium');
+    assert.ok(p1UiAudit.desktopDiscWidth > 0 && p1UiAudit.desktopSilWidth > 0, 'Desktop Compendium must show both discovered and silhouette cards');
+    assert.ok(
+      Math.abs(p1UiAudit.desktopDiscWidth - p1UiAudit.desktopSilWidth) <= 1,
+      `Desktop Compendium silhouette width (${p1UiAudit.desktopSilWidth}) must match discovered card width (${p1UiAudit.desktopDiscWidth})`
+    );
 
     // 5. Mobile 390x844 layout audit on Compendium & Deck modals (full-color non-dimmed read-only cards!) + Compact 2-row Daily Banner
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -5032,6 +5051,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       document.getElementById('btn-comp-tab-cards').click();
       const cardsOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
       const compCard = document.querySelector('#compendium-cards-grid .game-card');
+      const silCard = document.querySelector('#compendium-cards-grid .compendium-silhouette-card');
+      const compCardWidth = compCard ? compCard.getBoundingClientRect().width : 0;
+      const silCardWidth = silCard ? silCard.getBoundingClientRect().width : 0;
       const compCardOpacity = compCard ? getComputedStyle(compCard).opacity : '0';
       document.getElementById('btn-comp-tab-enemies').click();
       const enemiesOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
@@ -5042,10 +5064,23 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       const deckCard = document.querySelector('#modal-backdrop .game-card');
       const deckCardOpacity = deckCard ? getComputedStyle(deckCard).opacity : '0';
       const deckCardCursor = deckCard ? getComputedStyle(deckCard).cursor : '';
-      return { cardsOverflow, enemiesOverflow, compCardOpacity, deckCardOpacity, deckCardCursor };
+      return {
+        cardsOverflow,
+        enemiesOverflow,
+        compCardWidth,
+        silCardWidth,
+        compCardOpacity,
+        deckCardOpacity,
+        deckCardCursor,
+      };
     })()`);
     assert.equal(mobileCompAudit.cardsOverflow, false, 'Compendium Cards tab must not overflow 390px mobile');
     assert.equal(mobileCompAudit.enemiesOverflow, false, 'Compendium Enemies tab must not overflow 390px mobile');
+    assert.ok(mobileCompAudit.compCardWidth > 0 && mobileCompAudit.silCardWidth > 0, 'Mobile Compendium must show both discovered and silhouette cards');
+    assert.ok(
+      Math.abs(mobileCompAudit.compCardWidth - mobileCompAudit.silCardWidth) <= 1,
+      `Mobile Compendium silhouette width (${mobileCompAudit.silCardWidth}) must match discovered card width (${mobileCompAudit.compCardWidth})`
+    );
     assert.equal(mobileCompAudit.compCardOpacity, '1', 'Compendium read-only cards must render at full opacity 1');
     assert.equal(mobileCompAudit.deckCardOpacity, '1', 'Deck modal read-only cards must render at full opacity 1');
     assert.equal(mobileCompAudit.deckCardCursor, 'default', 'Deck modal read-only cards must use default cursor');
@@ -5059,18 +5094,40 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       );
     }
 
-    // 6. Debug URL (/?debug=1) on 390px mobile: return to Main Menu -> Daily Challenge screen & verify #btn-unlock-all-meta
+    // 6. Debug URL (/?debug=1) on 390px mobile: return to Main Menu -> verify Daily Challenge distinct cerulean theme -> Daily Challenge screen & verify #btn-unlock-all-meta
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/?debug=1` });
     await new Promise((r) => setTimeout(r, 350));
-    await cdp.evaluate(`(() => {
+    const menuThemeAudit = await cdp.evaluate(`(() => {
       if (!document.getElementById('main-menu-screen') && !document.getElementById('daily-challenge-banner')) {
         document.getElementById('btn-new-run')?.click();
         document.getElementById('btn-confirm-new-run')?.click();
       }
-      if (document.getElementById('main-menu-screen')) {
-        document.getElementById('btn-menu-daily')?.click();
+      if (!document.getElementById('main-menu-screen')) {
+        document.getElementById('btn-back-main-menu')?.click();
       }
+      const parseRgb = (str) => {
+        const m = String(str || '').match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
+        return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+      };
+      const dailyBtn = document.getElementById('btn-menu-daily');
+      const watcherCrest = document.querySelector('.main-menu-crest-avatar.theme-amethyst');
+      const dailyBorder = dailyBtn ? parseRgb(getComputedStyle(dailyBtn).borderColor) : null;
+      const dailyBg = dailyBtn ? parseRgb(getComputedStyle(dailyBtn).backgroundImage) : null;
+      const watcherBorder = watcherCrest ? parseRgb(getComputedStyle(watcherCrest).borderColor) : null;
+      document.getElementById('btn-menu-daily')?.click();
+      return { dailyBorder, dailyBg, watcherBorder };
     })()`);
+    assert.ok(menuThemeAudit.dailyBorder && menuThemeAudit.watcherBorder, 'Main menu daily card and watcher crest must exist');
+    assert.ok(
+      menuThemeAudit.watcherBorder[0] > menuThemeAudit.watcherBorder[1] &&
+        menuThemeAudit.watcherBorder[2] > menuThemeAudit.watcherBorder[1],
+      `Watcher crest border should remain purple (R,B > G), got ${JSON.stringify(menuThemeAudit.watcherBorder)}`
+    );
+    assert.ok(
+      menuThemeAudit.dailyBorder[2] > menuThemeAudit.dailyBorder[0] &&
+        menuThemeAudit.dailyBorder[1] > menuThemeAudit.dailyBorder[0],
+      `Daily Challenge menu card border should be cerulean blue (B,G > R, distinct from Watcher purple), got ${JSON.stringify(menuThemeAudit.dailyBorder)}`
+    );
     const mobileDailyAudit = await cdp.evaluate(`(() => {
       const screen = document.getElementById('daily-challenge-screen');
       const banner = document.getElementById('daily-challenge-banner');
