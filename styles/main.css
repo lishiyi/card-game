@@ -1174,8 +1174,8 @@ button:disabled {
 /* === Tactile Playing Cards & Rarity Themes === */
 .game-card {
   width: 152px;
-  min-height: 206px;
-  padding: 12px 10px 10px;
+  min-height: 222px;
+  padding: 10px 10px 9px;
   border-radius: var(--radius-md);
   background: linear-gradient(180deg, hsl(28, 14%, 19%), hsl(25, 13%, 14%));
   border: 1px solid var(--border-stone);
@@ -1317,8 +1317,6 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid hsla(32, 18%, 68%, 0.14);
 }
 
 .card-cost {
@@ -1402,8 +1400,8 @@ button:disabled {
 }
 
 .card-banner {
-  margin: 7px 0;
-  padding: 3px 7px;
+  margin: 5px 0 6px;
+  padding: 2px 7px;
   border-radius: 4px;
   font-size: 0.71rem;
   font-weight: 700;
@@ -1480,7 +1478,7 @@ button:disabled {
 
 .card-art-frame {
   width: 100%;
-  height: 52px;
+  height: 74px;
   margin-bottom: 7px;
   border-radius: 6px;
   overflow: hidden;
@@ -1491,7 +1489,7 @@ button:disabled {
 }
 
 .card-showcase .card-art-frame {
-  height: 56px;
+  height: 76px;
 }
 
 .game-card.rarity-uncommon .card-art-frame {
@@ -5199,8 +5197,8 @@ body.spire-dragging {
   }
 
   .card-art-frame {
-    height: 40px;
-    margin-bottom: 5px;
+    height: 68px;
+    margin-bottom: 6px;
   }
 
   .spire-shell {
@@ -5600,7 +5598,7 @@ body.spire-dragging {
   .hand-tray .game-card {
     flex: 0 0 142px;
     width: 142px;
-    min-height: 190px;
+    min-height: 206px;
     touch-action: pan-x;
   }
 
@@ -6051,13 +6049,13 @@ body.spire-dragging {
   .hand-tray .game-card {
     flex: 0 0 116px;
     width: 116px;
-    min-height: 168px;
+    min-height: 178px;
     padding: 7px;
   }
 
   .hand-tray .game-card .card-top {
     gap: 5px;
-    margin-bottom: 4px;
+    margin-bottom: 0;
   }
 
   .hand-tray .game-card .card-cost {
@@ -6071,13 +6069,13 @@ body.spire-dragging {
   }
 
   .hand-tray .game-card .card-banner {
-    padding: 2px 5px;
-    margin-bottom: 4px;
+    padding: 1.5px 5px;
+    margin: 3px 0 4px;
     font-size: 0.62rem;
   }
 
   .hand-tray .game-card .card-art-frame {
-    height: 34px;
+    height: 56px;
     margin-bottom: 4px;
   }
 
@@ -6109,13 +6107,13 @@ body.spire-dragging {
 
   .card-showcase .game-card,
   .card-showcase .compendium-silhouette-card {
-    min-height: 186px;
+    min-height: 208px;
   }
 
   .card-showcase .card-art-frame,
   .card-showcase .compendium-silhouette-art {
-    height: 42px;
-    margin-bottom: 5px;
+    height: 78px;
+    margin-bottom: 6px;
   }
 
   .shop-colorless-section {
@@ -6277,7 +6275,7 @@ body.spire-dragging {
 .compendium-silhouette-card {
   position: relative;
   width: 152px;
-  min-height: 206px;
+  min-height: 222px;
   border-radius: var(--radius-md);
   border: 1px dashed hsla(34, 24%, 44%, 0.42);
   background: linear-gradient(165deg, hsla(26, 16%, 14%, 0.85), hsla(24, 18%, 9%, 0.94));
@@ -6286,7 +6284,7 @@ body.spire-dragging {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 12px 10px 10px;
+  padding: 10px 10px 9px;
   text-align: center;
   color: var(--text-ash);
   user-select: none;
@@ -6311,8 +6309,8 @@ body.spire-dragging {
 
 .compendium-silhouette-art {
   width: 100%;
-  max-width: 120px;
-  height: 52px;
+  max-width: 130px;
+  height: 76px;
   border-radius: var(--radius-sm);
   background: hsla(24, 14%, 8%, 0.92);
   border: 1px solid hsla(32, 18%, 32%, 0.4);

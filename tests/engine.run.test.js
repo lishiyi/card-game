@@ -15,7 +15,7 @@ import {
 } from '../src/data/cards.js';
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
-import { getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
+import { CARD_THEME_ART, getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
@@ -2144,11 +2144,24 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
   assert.equal(cardEntries.length, 234);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
   assert.equal(sigKeys.length, 232, `Expected 100% bespoke signature art for all 232 non-shared cards, got ${sigKeys.length}`);
+  const themeKeys = Object.keys(CARD_THEME_ART);
+  assert.equal(themeKeys.length, 29, `Expected 29 class/status/curse theme artworks, got ${themeKeys.length}`);
   const seenCardGradIds = new Set();
-  for (const sigId of sigKeys) {
-    assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
-    for (const m of SIGNATURE_CARD_ART[sigId].matchAll(/id="([^"]+)"/g)) {
-      assert.equal(seenCardGradIds.has(m[1]), false, `Duplicate card SVG gradient id: ${m[1]} (${sigId})`);
+  for (const [artKey, svgMarkup] of [...Object.entries(SIGNATURE_CARD_ART), ...Object.entries(CARD_THEME_ART)]) {
+    if (SIGNATURE_CARD_ART[artKey]) {
+      assert.ok(CARD_LIBRARY[artKey], `Signature card art key ${artKey} must exist in CARD_LIBRARY`);
+    }
+    assert.ok(
+      svgMarkup.includes('viewBox="0 0 128 72"'),
+      `Card art ${artKey} must use expanded 16:9 viewBox="0 0 128 72"`
+    );
+    const shapeCount = (svgMarkup.match(/<(path|circle|ellipse|rect|polygon|polyline|line)\b/g) || []).length;
+    assert.ok(
+      shapeCount >= 16,
+      `Card art ${artKey} must have rich multi-layered detail (expected >=16 total SVG shapes incl. frame, got ${shapeCount})`
+    );
+    for (const m of svgMarkup.matchAll(/id="([^"]+)"/g)) {
+      assert.equal(seenCardGradIds.has(m[1]), false, `Duplicate card SVG gradient id: ${m[1]} (${artKey})`);
       seenCardGradIds.add(m[1]);
     }
   }
@@ -2161,7 +2174,10 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
     const key = getCardArtKey(cid, stats, cardDef.character);
     artBucketCounts[key] = (artBucketCounts[key] || 0) + 1;
     const svg = getCardArtSvg(cid, stats);
-    assert.ok(svg.includes('class="card-art-svg"') && svg.includes('</svg>'), `Card ${cid} must render valid vector art`);
+    assert.ok(
+      svg.includes('class="card-art-svg"') && svg.includes('viewBox="0 0 128 72"') && svg.includes('</svg>'),
+      `Card ${cid} must render valid 128x72 vector art`
+    );
   }
   const maxSharedCount = Math.max(...Object.values(artBucketCounts));
   assert.equal(maxSharedCount, 1, `Every card must map to a unique bespoke illustration (got maxShared=${maxSharedCount})`);

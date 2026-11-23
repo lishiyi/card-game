@@ -5012,6 +5012,13 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       const desktopSilEl = document.querySelector('#compendium-cards-grid .compendium-silhouette-card');
       const desktopDiscWidth = desktopDiscEl ? desktopDiscEl.getBoundingClientRect().width : 0;
       const desktopSilWidth = desktopSilEl ? desktopSilEl.getBoundingClientRect().width : 0;
+      const desktopTopBorder = desktopDiscEl?.querySelector('.card-top')
+        ? getComputedStyle(desktopDiscEl.querySelector('.card-top')).borderBottomWidth
+        : '';
+      const desktopArtH = desktopDiscEl?.querySelector('.card-art-frame')
+        ? desktopDiscEl.querySelector('.card-art-frame').getBoundingClientRect().height
+        : 0;
+      const desktopArtViewBox = desktopDiscEl?.querySelector('.card-art-svg')?.getAttribute('viewBox') || '';
       document.getElementById('btn-comp-tab-relics').click();
       const discoveredRelics = document.querySelectorAll('#compendium-relics-grid [data-discovered="true"]').length;
       return {
@@ -5023,6 +5030,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
         discoveredCards,
         desktopDiscWidth,
         desktopSilWidth,
+        desktopTopBorder,
+        desktopArtH,
+        desktopArtViewBox,
         discoveredRelics,
       };
     })()`);
@@ -5038,6 +5048,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       Math.abs(p1UiAudit.desktopDiscWidth - p1UiAudit.desktopSilWidth) <= 1,
       `Desktop Compendium silhouette width (${p1UiAudit.desktopSilWidth}) must match discovered card width (${p1UiAudit.desktopDiscWidth})`
     );
+    assert.equal(p1UiAudit.desktopTopBorder, '0px', 'Card header (.card-top) must not have a bottom divider line');
+    assert.ok(p1UiAudit.desktopArtH >= 72, `Desktop showcase .card-art-frame height must be enlarged (>=72px), got ${p1UiAudit.desktopArtH}`);
+    assert.equal(p1UiAudit.desktopArtViewBox, '0 0 128 72', 'Card SVG art must use expanded 128x72 viewBox');
 
     // 5. Mobile 390x844 layout audit on Compendium & Deck modals (full-color non-dimmed read-only cards!) + Compact 2-row Daily Banner
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -5054,6 +5067,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       const silCard = document.querySelector('#compendium-cards-grid .compendium-silhouette-card');
       const compCardWidth = compCard ? compCard.getBoundingClientRect().width : 0;
       const silCardWidth = silCard ? silCard.getBoundingClientRect().width : 0;
+      const mobileArtH = compCard?.querySelector('.card-art-frame')
+        ? compCard.querySelector('.card-art-frame').getBoundingClientRect().height
+        : 0;
       const compCardOpacity = compCard ? getComputedStyle(compCard).opacity : '0';
       document.getElementById('btn-comp-tab-enemies').click();
       const enemiesOverflow = document.documentElement.scrollWidth > window.innerWidth + 1;
@@ -5069,6 +5085,7 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
         enemiesOverflow,
         compCardWidth,
         silCardWidth,
+        mobileArtH,
         compCardOpacity,
         deckCardOpacity,
         deckCardCursor,
@@ -5081,6 +5098,7 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       Math.abs(mobileCompAudit.compCardWidth - mobileCompAudit.silCardWidth) <= 1,
       `Mobile Compendium silhouette width (${mobileCompAudit.silCardWidth}) must match discovered card width (${mobileCompAudit.compCardWidth})`
     );
+    assert.ok(mobileCompAudit.mobileArtH >= 74, `Mobile showcase .card-art-frame height must be enlarged (>=74px), got ${mobileCompAudit.mobileArtH}`);
     assert.equal(mobileCompAudit.compCardOpacity, '1', 'Compendium read-only cards must render at full opacity 1');
     assert.equal(mobileCompAudit.deckCardOpacity, '1', 'Deck modal read-only cards must render at full opacity 1');
     assert.equal(mobileCompAudit.deckCardCursor, 'default', 'Deck modal read-only cards must use default cursor');
@@ -6906,12 +6924,35 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
     deployPhase = 'v2';
 
     // Returning browser simply reloads WITHOUT clearing cache or opening incognito
+    let handledCrashIdx = cdp.events.length;
     await cdp.send('Page.reload', { ignoreCache: false });
     await new Promise((r) => setTimeout(r, 200));
     let upgradedText = '';
+    let consecutiveNulls = 0;
     for (let i = 0; i < 60; i += 1) {
+      const crashed = cdp.events
+        .slice(handledCrashIdx)
+        .some((e) => e.method === 'Inspector.targetCrashed');
+      if (crashed || consecutiveNulls >= 3) {
+        handledCrashIdx = cdp.events.length;
+        consecutiveNulls = 0;
+        try {
+          await cdp.send('Runtime.enable');
+          await cdp.send('Page.enable');
+          await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+        } catch {
+          // Best-effort recovery for transient headless renderer crash on double reload
+        }
+        await new Promise((r) => setTimeout(r, 200));
+        continue;
+      }
       const cur = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
-      if (cur) upgradedText = cur;
+      if (cur === null) {
+        consecutiveNulls += 1;
+      } else {
+        consecutiveNulls = 0;
+        if (cur) upgradedText = cur;
+      }
       if (upgradedText === '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅') break;
       await new Promise((r) => setTimeout(r, 100));
     }
