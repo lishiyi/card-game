@@ -403,9 +403,6 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     .join(' ');
 
   return `
-    <div class="toast-banner ${bannerClass}" id="combat-banner">${escapeHtml(bannerText)}${
-      bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
-    }</div>
     ${
       wrathUnblockedDanger > 0
         ? `<div class="wrath-danger-banner" id="wrath-danger-banner" role="alert">⚠ 当前处于【愤怒姿态】：敌方双倍攻击将穿透格挡造成 <strong>${escapeHtml(wrathUnblockedDanger)}</strong> 点伤害！请先切换姿态、补盾或本回合斩杀</div>`
@@ -456,7 +453,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
     <section class="combat-dock" aria-label="手牌与能量控制区">
       <div class="dock-controls">
-        <div class="pile-group dock-left-group">
+        <div class="dock-piles-row pile-group">
           ${
             combat.status === 'ongoing'
               ? `<button
@@ -474,16 +471,27 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                 </button>`
               : ''
           }
-          <button type="button" id="btn-draw-pile" class="btn-stone" data-action="open-modal" data-modal="draw">
-            抽牌堆 (${escapeHtml(combat.drawPile.length)})
-          </button>
+          <div class="pile-group dock-piles-right">
+            <button type="button" id="btn-draw-pile" class="btn-stone" data-action="open-modal" data-modal="draw">
+              抽牌堆 (${escapeHtml(combat.drawPile.length)})
+            </button>
+            <button type="button" id="btn-discard-pile" class="btn-stone" data-action="open-modal" data-modal="discard">
+              弃牌堆 (${escapeHtml(combat.discardPile.length)})
+            </button>
+            <button type="button" id="btn-exhaust-pile" class="btn-stone" data-action="open-modal" data-modal="exhaust">
+              消耗堆 (${escapeHtml(combat.exhaustPile.length)})
+            </button>
+          </div>
+        </div>
+
+        <div class="dock-main-row pile-group">
           <div class="energy-orb" id="energy-orb" aria-label="当前能量">
             ${escapeHtml(state.player.energy)}/${escapeHtml(state.player.maxEnergy)}
             <span>能量</span>
           </div>
-        </div>
-
-        <div class="pile-group dock-right-group">
+          <div class="toast-banner combat-inline-banner ${bannerClass}" id="combat-banner"><span class="combat-banner-main">${escapeHtml(bannerText)}</span>${
+            bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
+          }</div>
           ${
             pendingMode === 'retain'
               ? `<button
@@ -504,12 +512,6 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                   结束回合<span class="hotkey-hint"> (E)</span>
                 </button>`
           }
-          <button type="button" id="btn-discard-pile" class="btn-stone" data-action="open-modal" data-modal="discard">
-            弃牌堆 (${escapeHtml(combat.discardPile.length)})
-          </button>
-          <button type="button" id="btn-exhaust-pile" class="btn-stone" data-action="open-modal" data-modal="exhaust">
-            消耗堆 (${escapeHtml(combat.exhaustPile.length)})
-          </button>
         </div>
       </div>
 

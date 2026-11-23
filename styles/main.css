@@ -1128,14 +1128,75 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-wrap: nowrap;
+  gap: 10px;
 }
 
 .pile-group {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.dock-piles-row,
+.dock-piles-right,
+.dock-main-row {
+  display: contents;
+}
+
+.dock-controls #btn-restart-combat {
+  order: 1;
+  flex-shrink: 0;
+}
+
+.dock-controls #btn-draw-pile {
+  order: 2;
+  flex-shrink: 0;
+}
+
+.dock-controls #energy-orb {
+  order: 3;
+  flex-shrink: 0;
+}
+
+.dock-controls .combat-inline-banner {
+  order: 4;
+  flex: 1 1 180px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 12px;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.84rem;
+  line-height: 1.28;
+  text-align: center;
+  word-break: break-word;
+}
+
+.combat-inline-banner .combat-banner-main {
+  font-weight: 600;
+}
+
+.combat-inline-banner .desktop-only-hint {
+  font-size: 0.72rem;
+  opacity: 0.78;
+  font-weight: 400;
+}
+
+.dock-controls #btn-end-turn,
+.dock-controls #btn-confirm-retain {
+  order: 5;
+  flex-shrink: 0;
+}
+
+.dock-controls #btn-discard-pile {
+  order: 6;
+  flex-shrink: 0;
+}
+
+.dock-controls #btn-exhaust-pile {
+  order: 7;
+  flex-shrink: 0;
 }
 
 .energy-orb {
@@ -5139,6 +5200,47 @@ body.spire-dragging {
     width: 72px;
     height: 72px;
   }
+
+  .dock-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .dock-piles-row,
+  .dock-main-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .dock-piles-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+
+  .dock-controls #btn-restart-combat,
+  .dock-controls #btn-draw-pile,
+  .dock-controls #energy-orb,
+  .dock-controls .combat-inline-banner,
+  .dock-controls #btn-end-turn,
+  .dock-controls #btn-confirm-retain,
+  .dock-controls #btn-discard-pile,
+  .dock-controls #btn-exhaust-pile {
+    order: 0;
+  }
+
+  .dock-controls .combat-inline-banner {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 38px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -5503,57 +5605,15 @@ body.spire-dragging {
     font-size: 0.65rem;
   }
 
-  .dock-controls {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-    grid-template-rows: auto auto;
-    align-items: center;
-    gap: 8px 6px;
-  }
-
-  .dock-left-group,
-  .dock-right-group {
-    display: contents;
-  }
-
-  #btn-restart-combat {
-    grid-row: 1;
-    grid-column: 1;
-    justify-self: start;
-  }
-
-  #btn-draw-pile {
-    grid-row: 1;
-    grid-column: 3;
-    justify-self: end;
-  }
-
-  #btn-discard-pile {
-    grid-row: 1;
-    grid-column: 4;
-    justify-self: end;
-  }
-
-  #btn-exhaust-pile {
-    grid-row: 1;
-    grid-column: 5;
-    justify-self: end;
-  }
-
-  .energy-orb {
-    grid-row: 2;
-    grid-column: 1;
-    justify-self: start;
-  }
-
   .pile-group button {
     white-space: nowrap;
   }
 
-  #btn-end-turn {
-    grid-row: 2;
-    grid-column: 2 / -1;
-    justify-self: end;
+  .dock-controls .combat-inline-banner {
+    min-height: 36px;
+    padding: 4px 8px;
+    font-size: 0.76rem;
+    line-height: 1.26;
   }
 
   .stage-header > button {
@@ -6014,7 +6074,23 @@ body.spire-dragging {
   }
 
   .dock-controls {
-    gap: 6px 4px;
+    gap: 6px;
+  }
+
+  .dock-piles-row,
+  .dock-piles-right {
+    gap: 4px;
+  }
+
+  .dock-main-row {
+    gap: 6px;
+  }
+
+  .dock-controls .combat-inline-banner {
+    min-height: 36px;
+    padding: 4px 7px;
+    font-size: 0.72rem;
+    line-height: 1.24;
   }
 
   .energy-orb {
@@ -6036,8 +6112,8 @@ body.spire-dragging {
 
   #btn-end-turn {
     min-height: 40px;
-    padding: 7px 14px;
-    font-size: 0.84rem;
+    padding: 7px 12px;
+    font-size: 0.82rem;
   }
 
   .mobile-log-toggle {
@@ -7208,10 +7284,12 @@ body.spire-dragging {
   }
 
   .retain-confirm-btn {
-    padding: 7px 10px;
-    font-size: 0.76rem;
+    padding: 5px 8px;
+    font-size: 0.72rem;
     white-space: normal;
-    line-height: 1.25;
+    line-height: 1.22;
+    max-width: 112px;
+    text-align: center;
   }
 }
 

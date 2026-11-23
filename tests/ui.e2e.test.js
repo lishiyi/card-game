@@ -3907,6 +3907,7 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
       const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
       const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
       const energy = document.getElementById('energy-orb').getBoundingClientRect();
+      const banner = document.getElementById('combat-banner').getBoundingClientRect();
       const drawBtn = document.getElementById('btn-draw-pile').getBoundingClientRect();
       const discardBtn = document.getElementById('btn-discard-pile').getBoundingClientRect();
       const exhaustBtn = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
@@ -3948,6 +3949,11 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
           discardBtn.right <= exhaustBtn.left,
         endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
         endTurnRightOfEnergy: endTurn.left > energy.right,
+        bannerInlineBetweenEnergyAndEndTurn:
+          Boolean(document.querySelector('.dock-controls #combat-banner')) &&
+          banner.left >= energy.right - 1 &&
+          banner.right <= endTurn.left + 1 &&
+          Math.abs((banner.top + banner.height / 2) - (energy.top + energy.height / 2)) <= 4,
       };
     })()`);
     assert.ok(combat390.docScrollWidth <= combat390.innerWidth, `390px combat overflowed: ${combat390.docScrollWidth} > ${combat390.innerWidth}`);
@@ -3971,6 +3977,7 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     assert.equal(combat390.pilesRightAligned, true, 'Draw/Discard/Exhaust pile buttons must align to the right edge at 390px');
     assert.equal(combat390.endTurnRightAligned, true, 'End Turn button must be aligned to the right edge at 390px');
     assert.equal(combat390.endTurnRightOfEnergy, true, 'End Turn button must sit to the right of Energy orb');
+    assert.equal(combat390.bannerInlineBetweenEnergyAndEndTurn, true, 'Combat banner must sit inline between Energy orb and End Turn button at 390px');
 
     // 2. Deck & Map Modals during combat: top-row clearance, non-scrolling header, body scroll lock, and overscroll touch guard
     const deckModalAudit = await cdp.evaluate(`(() => {
@@ -4100,6 +4107,7 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
       const discard = document.getElementById('btn-discard-pile').getBoundingClientRect();
       const exhaust = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
       const energy = document.getElementById('energy-orb').getBoundingClientRect();
+      const banner = document.getElementById('combat-banner').getBoundingClientRect();
       const restartBtn = document.getElementById('btn-restart-combat').getBoundingClientRect();
       const deckBtn = document.getElementById('btn-open-deck').getBoundingClientRect();
       const moreBtn = document.getElementById('btn-hud-more').getBoundingClientRect();
@@ -4108,12 +4116,14 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
         pilesRightAligned: Math.abs(dock.right - exhaust.right) <= 2 && draw.right <= discard.left && discard.right <= exhaust.left,
         restartAboveEnergy: restartBtn.bottom <= energy.top + 1 && Math.abs(restartBtn.left - dock.left) <= 2,
         moreSameRowAsDeck: Math.abs(moreBtn.top - deckBtn.top) <= 2 && moreBtn.width > 0,
+        bannerBetweenEnergyAndEndTurn: banner.left >= energy.right - 1 && banner.right <= endTurn.left + 1,
       };
     })()`);
     assert.equal(combat640.endTurnRightAligned, true, '640px End Turn button must align to right edge');
     assert.equal(combat640.pilesRightAligned, true, '640px Draw/Discard/Exhaust pile buttons must align to right edge');
     assert.equal(combat640.restartAboveEnergy, true, '640px Restart Combat button must sit far-left above Energy');
     assert.equal(combat640.moreSameRowAsDeck, true, '640px More menu button must share the Deck/Map row');
+    assert.equal(combat640.bannerBetweenEnergyAndEndTurn, true, '640px Combat banner must sit inline between Energy and End Turn');
 
     // 4. Post-combat Reward screen ("继续前进 →") aligned right at both 640px and 390px
     await cdp.evaluate(`(() => {
