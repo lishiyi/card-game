@@ -1,0 +1,767 @@
+/* === Tactile Playing Cards & Rarity Themes === */
+
+.game-card {
+  width: 152px;
+  min-height: 222px;
+  padding: 10px 10px 9px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsl(28, 14%, 19%), hsl(25, 13%, 14%));
+  border: 1px solid var(--border-stone);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.16s ease;
+}
+
+.game-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3.5px;
+  background: hsl(28, 12%, 34%);
+}
+
+/* 基础 (Starter) — 暗铁岩灰 */
+
+.game-card.rarity-starter {
+  background: linear-gradient(180deg, hsl(28, 14%, 19%), hsl(25, 13%, 14%));
+  border-color: var(--border-stone);
+}
+
+/* 普通 (Common) — 精铁银灰 */
+
+.game-card.rarity-common {
+  background: linear-gradient(180deg, hsl(215, 16%, 25%) 0%, hsl(218, 12%, 17%) 46%, hsl(25, 12%, 14%) 100%);
+  border-color: hsl(214, 20%, 44%);
+}
+
+.game-card.rarity-common::before {
+  background: linear-gradient(90deg, hsl(215, 16%, 48%), hsl(210, 28%, 76%), hsl(215, 16%, 48%));
+}
+
+/* 罕见 (Uncommon) — 尖塔湛蓝 */
+
+.game-card.rarity-uncommon {
+  background: linear-gradient(180deg, hsl(201, 52%, 25%) 0%, hsl(205, 32%, 16%) 48%, hsl(24, 14%, 13%) 100%);
+  border-color: hsl(198, 66%, 48%);
+}
+
+.game-card.rarity-uncommon::before {
+  background: linear-gradient(90deg, hsl(202, 80%, 42%), hsl(192, 95%, 68%), hsl(202, 80%, 42%));
+}
+
+/* 稀有 (Rare) — 璀璨耀金 */
+
+.game-card.rarity-rare {
+  background: linear-gradient(180deg, hsl(41, 58%, 26%) 0%, hsl(35, 34%, 16%) 48%, hsl(24, 14%, 13%) 100%);
+  border-color: hsl(43, 78%, 52%);
+}
+
+.game-card.rarity-rare::before {
+  background: linear-gradient(90deg, hsl(36, 84%, 44%), hsl(47, 98%, 70%), hsl(36, 84%, 44%));
+}
+
+/* 状态 (Status) — 黯淡灰烬 */
+
+.game-card.rarity-status {
+  background: linear-gradient(180deg, hsl(20, 10%, 15%), hsl(20, 10%, 11%));
+  border-color: hsl(22, 10%, 24%);
+}
+
+.game-card.rarity-status::before {
+  background: hsl(18, 10%, 28%);
+}
+
+/* 诅咒 (Curse) — 深渊紫晶 */
+
+.game-card.rarity-curse {
+  background: linear-gradient(180deg, hsl(278, 38%, 21%) 0%, hsl(275, 28%, 13%) 50%, hsl(24, 12%, 11%) 100%);
+  border-color: hsl(280, 48%, 42%);
+}
+
+.game-card.rarity-curse::before {
+  background: linear-gradient(90deg, hsl(278, 60%, 38%), hsl(292, 78%, 64%), hsl(278, 60%, 38%));
+}
+
+.game-card.playable:hover {
+  transform: translateY(-12px) scale(1.03);
+  z-index: 5;
+}
+
+#hand-tray .game-card.playable {
+  cursor: grab;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 1px hsla(38, 60%, 54%, 0.24);
+}
+
+#hand-tray .game-card.playable:active {
+  cursor: grabbing;
+}
+
+.game-card.selected-card {
+  transform: translateY(-14px) scale(1.04);
+  box-shadow: 0 14px 28px hsla(20, 35%, 3%, 0.82), 0 0 0 2px var(--accent-brass);
+  z-index: 6;
+}
+
+.game-card:disabled:not(.unplayable-dim) {
+  opacity: 1;
+  cursor: default;
+}
+
+.game-card.unplayable-dim {
+  opacity: 0.44;
+  filter: saturate(0.38) brightness(0.82);
+}
+
+#hand-tray .game-card.unplayable-dim {
+  opacity: 0.42;
+  filter: saturate(0.24) brightness(0.76);
+  transform: translateY(8px) scale(0.96);
+  box-shadow: none;
+  border-color: hsla(26, 10%, 24%, 0.72);
+  cursor: not-allowed;
+}
+
+#hand-tray .game-card.unplayable-dim:hover {
+  opacity: 0.56;
+  filter: saturate(0.42) brightness(0.84);
+  transform: translateY(8px) scale(0.96);
+}
+
+#hand-tray .game-card.unplayable-dim[data-unplayable-reason='energy'] .card-cost {
+  color: hsl(8, 92%, 72%);
+  border-color: hsla(8, 82%, 54%, 0.85);
+  background: hsla(8, 44%, 13%, 0.96);
+}
+
+#hand-tray .game-card.unplayable-dim .card-hotkey {
+  opacity: 0.4;
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.card-cost {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-abyss);
+  border: 1px solid var(--border-stone);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--accent-brass);
+  flex-shrink: 0;
+}
+
+.game-card.rarity-common .card-cost {
+  border-color: hsl(214, 22%, 52%);
+}
+
+.game-card.rarity-uncommon .card-cost {
+  border-color: hsl(197, 74%, 56%);
+}
+
+.game-card.rarity-rare .card-cost {
+  border-color: hsl(43, 84%, 58%);
+}
+
+.game-card.rarity-curse .card-cost {
+  border-color: hsl(280, 48%, 48%);
+  color: hsl(286, 65%, 76%);
+}
+
+.card-cost.upgraded {
+  color: var(--jade-upgrade);
+  border-color: hsla(148, 56%, 56%, 0.72);
+}
+
+.card-cost.cost-increased {
+  color: hsl(12, 90%, 72%);
+  border-color: hsla(10, 74%, 56%, 0.8);
+  background: hsla(10, 42%, 14%, 0.95);
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-ivory);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-name.name-compact {
+  font-size: 0.78rem;
+  letter-spacing: -0.02em;
+}
+
+.card-name.name-xcompact {
+  font-size: 0.64rem;
+  letter-spacing: -0.03em;
+}
+
+.game-card.rarity-common .card-name:not(.upgraded) {
+  color: hsl(214, 28%, 92%);
+}
+
+.game-card.rarity-uncommon .card-name:not(.upgraded) {
+  color: hsl(196, 86%, 86%);
+}
+
+.game-card.rarity-rare .card-name:not(.upgraded) {
+  color: hsl(45, 95%, 82%);
+}
+
+.game-card.rarity-curse .card-name:not(.upgraded) {
+  color: hsl(284, 72%, 86%);
+}
+
+.card-name.upgraded {
+  color: var(--jade-upgrade);
+}
+
+.card-hotkey {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--text-ash);
+  flex-shrink: 0;
+}
+
+.card-banner {
+  margin: 5px 0 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 3px;
+  min-width: 0;
+}
+
+.card-banner.type-attack {
+  background: var(--crimson-deep);
+  color: hsl(12, 80%, 84%);
+}
+
+.card-banner.type-skill {
+  background: var(--steel-deep);
+  color: hsl(198, 80%, 85%);
+}
+
+.card-banner.type-power {
+  background: var(--amber-power);
+  color: hsl(42, 90%, 88%);
+}
+
+.card-banner.type-status {
+  background: hsl(24, 8%, 24%);
+  color: var(--text-sand);
+}
+
+.card-banner.type-curse {
+  background: hsl(278, 42%, 24%);
+  color: hsl(286, 82%, 86%);
+}
+
+.rarity-badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.rarity-badge.rarity-starter {
+  background: hsla(26, 14%, 14%, 0.72);
+  color: var(--text-sand);
+}
+
+.rarity-badge.rarity-common {
+  background: hsl(215, 18%, 34%);
+  color: hsl(212, 40%, 94%);
+}
+
+.rarity-badge.rarity-uncommon {
+  background: hsl(199, 82%, 32%);
+  color: hsl(192, 98%, 90%);
+}
+
+.rarity-badge.rarity-rare {
+  background: hsl(41, 88%, 42%);
+  color: hsl(32, 60%, 10%);
+}
+
+.rarity-badge.rarity-status {
+  background: hsla(20, 10%, 14%, 0.75);
+  color: var(--text-ash);
+}
+
+.rarity-badge.rarity-curse {
+  background: hsl(280, 52%, 32%);
+  color: hsl(286, 92%, 92%);
+}
+
+.card-art-frame {
+  width: 100%;
+  height: 74px;
+  margin-bottom: 7px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid hsla(38, 34%, 64%, 0.28);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.56);
+  background: hsl(24, 14%, 11%);
+  flex-shrink: 0;
+}
+
+.card-showcase .card-art-frame {
+  height: 76px;
+}
+
+.game-card.rarity-uncommon .card-art-frame {
+  border-color: hsla(202, 72%, 62%, 0.42);
+}
+
+.game-card.rarity-rare .card-art-frame {
+  border-color: hsla(44, 88%, 62%, 0.52);
+  box-shadow:
+    inset 0 1px 4px rgba(0, 0, 0, 0.48),
+    0 0 8px hsla(44, 92%, 58%, 0.16);
+}
+
+.game-card.rarity-special .card-art-frame {
+  border-color: hsla(152, 74%, 56%, 0.44);
+}
+
+.game-card.rarity-special[data-character='watcher'] .card-art-frame {
+  border-color: hsla(288, 76%, 68%, 0.5);
+}
+
+.game-card.card-colorless .card-art-frame {
+  border-color: hsla(212, 34%, 76%, 0.42);
+}
+
+.card-art-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mobile-char-tabs {
+  display: none;
+}
+
+.shop-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-muted);
+}
+
+.card-desc {
+  flex: 1;
+  font-size: 0.8rem;
+  line-height: 1.42;
+  color: var(--text-sand);
+}
+
+.card-desc.boosted {
+  color: var(--jade-upgrade);
+}
+
+.card-desc.reduced {
+  color: var(--rust-warn);
+}
+
+.card-upgrade-preview {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid hsla(148, 54%, 56%, 0.3);
+  font-size: 0.74rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-sand);
+}
+
+.card-upgrade-preview .upgrade-diff-label,
+.card-upgrade-preview .upgrade-diff-hl {
+  color: var(--jade-upgrade);
+  font-weight: 700;
+}
+
+.card-footer {
+  margin-top: 8px;
+  padding-top: 5px;
+  border-top: 1px solid var(--border-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-ash);
+}
+
+/* === Card Selection / Hover Synergy & Warning Highlights === */
+
+.synergy-callout-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.synergy-callout-bar[hidden] {
+  display: none;
+}
+
+.synergy-callout-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.55);
+}
+
+.synergy-callout-pill.warn {
+  background: hsla(8, 62%, 18%, 0.95);
+  border: 1px solid hsl(10, 86%, 60%);
+  color: hsl(16, 96%, 84%);
+}
+
+.synergy-callout-pill.buff {
+  background: hsla(152, 46%, 16%, 0.95);
+  border: 1px solid hsl(148, 70%, 56%);
+  color: hsl(148, 86%, 82%);
+}
+
+.relic-badge.synergy-glow-buff,
+.block-pill.synergy-glow-buff {
+  box-shadow: 0 0 0 2px hsla(148, 72%, 58%, 0.88), 0 0 14px hsla(148, 78%, 54%, 0.55);
+  filter: brightness(1.2);
+  transform: translateY(-1px) scale(1.04);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-buff {
+  transform: translateY(-1px) scale(1.08);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-buff .status-icon {
+  filter: brightness(1.2) drop-shadow(0 0 5px hsla(148, 86%, 56%, 0.92)) drop-shadow(0 0 11px hsla(148, 82%, 52%, 0.65));
+}
+
+.relic-badge.synergy-glow-warn {
+  box-shadow: 0 0 0 2px hsla(8, 88%, 60%, 0.92), 0 0 14px hsla(8, 92%, 54%, 0.62);
+  filter: brightness(1.22);
+  transform: translateY(-1px) scale(1.05);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-warn {
+  transform: translateY(-1px) scale(1.08);
+  z-index: 4;
+}
+
+.status-chip.synergy-glow-warn .status-icon {
+  filter: brightness(1.22) drop-shadow(0 0 5px hsla(8, 94%, 60%, 0.95)) drop-shadow(0 0 11px hsla(8, 92%, 54%, 0.7));
+}
+
+#hand-tray .game-card.synergy-card-exhaust {
+  box-shadow: 0 0 0 2px hsla(292, 78%, 62%, 0.88), 0 0 16px hsla(292, 76%, 54%, 0.45);
+}
+
+#hand-tray .game-card.synergy-card-upgrade {
+  box-shadow: 0 0 0 2px hsla(148, 70%, 56%, 0.88), 0 0 16px hsla(148, 74%, 50%, 0.42);
+}
+
+/* === Special Token Card Rarity (Shiv / 衍生) === */
+
+.game-card.rarity-special {
+  background: linear-gradient(180deg, hsl(164, 42%, 20%) 0%, hsl(168, 28%, 13%) 55%, hsl(24, 12%, 11%) 100%);
+  border-color: hsl(154, 62%, 48%);
+}
+
+.game-card.rarity-special::before {
+  background: linear-gradient(90deg, hsl(156, 72%, 38%), hsl(142, 92%, 62%), hsl(156, 72%, 38%));
+}
+
+.game-card.rarity-special .card-cost {
+  border-color: hsl(150, 72%, 54%);
+  color: hsl(146, 92%, 74%);
+}
+
+.game-card.rarity-special .card-name:not(.upgraded) {
+  color: hsl(148, 84%, 84%);
+}
+
+.rarity-badge.rarity-special {
+  background: hsl(156, 62%, 28%);
+  color: hsl(144, 96%, 88%);
+}
+
+.game-card.rarity-special[data-character='watcher'] {
+  background: linear-gradient(180deg, hsl(278, 44%, 22%) 0%, hsl(270, 32%, 14%) 55%, hsl(24, 14%, 11%) 100%);
+  border-color: hsl(284, 68%, 58%);
+}
+
+.game-card.rarity-special[data-character='watcher']::before {
+  background: linear-gradient(90deg, hsl(280, 74%, 48%), hsl(44, 96%, 66%), hsl(280, 74%, 48%));
+}
+
+.game-card.rarity-special[data-character='watcher'] .card-cost {
+  border-color: hsl(44, 86%, 62%);
+  color: hsl(46, 98%, 78%);
+}
+
+.game-card.rarity-special[data-character='watcher'] .card-name:not(.upgraded) {
+  color: hsl(288, 92%, 88%);
+}
+
+.game-card.rarity-special[data-character='watcher'] .rarity-badge.rarity-special {
+  background: hsl(278, 56%, 32%);
+  color: hsl(46, 98%, 88%);
+}
+
+/* === Shop-Exclusive Colorless Card Theme === */
+
+.game-card.card-colorless {
+  background: linear-gradient(175deg, hsl(222, 12%, 23%), hsl(220, 12%, 14%) 62%, hsl(225, 14%, 11%));
+  border-color: hsla(212, 22%, 68%, 0.65);
+  box-shadow:
+    inset 0 1px 0 hsla(210, 40%, 92%, 0.16),
+    0 6px 16px hsla(220, 30%, 5%, 0.45);
+}
+
+.game-card.card-colorless.rarity-uncommon {
+  border-color: hsla(206, 54%, 66%, 0.78);
+}
+
+.game-card.card-colorless.rarity-uncommon::before {
+  background: linear-gradient(90deg, hsl(208, 30%, 72%), hsl(204, 78%, 68%), hsl(212, 28%, 76%));
+}
+
+.game-card.card-colorless.rarity-rare {
+  border-color: hsla(42, 74%, 68%, 0.85);
+  box-shadow:
+    inset 0 1px 0 hsla(44, 88%, 88%, 0.2),
+    0 0 18px hsla(42, 72%, 52%, 0.16),
+    0 6px 16px hsla(220, 30%, 5%, 0.45);
+}
+
+.game-card.card-colorless.rarity-rare::before {
+  background: linear-gradient(90deg, hsl(216, 26%, 78%), hsl(44, 92%, 66%), hsl(216, 26%, 78%));
+}
+
+.game-card.card-colorless .card-cost {
+  background: radial-gradient(circle at 32% 30%, hsl(212, 22%, 52%), hsl(218, 22%, 26%));
+  border-color: hsl(210, 34%, 76%);
+  color: hsl(210, 40%, 96%);
+}
+
+.game-card.card-colorless .card-name:not(.upgraded) {
+  color: hsl(210, 34%, 92%);
+}
+
+.rarity-badge.badge-colorless {
+  background: hsla(216, 24%, 24%, 0.92);
+  border-color: hsla(210, 32%, 72%, 0.65);
+  color: hsl(210, 44%, 90%);
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  letter-spacing: 0;
+}
+
+.rarity-badge.badge-colorless.rarity-rare {
+  border-color: hsla(43, 82%, 64%, 0.8);
+  color: hsl(44, 92%, 82%);
+}
+
+.card-stack-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  border-radius: 999px;
+  background: hsla(38, 66%, 44%, 0.22);
+  border: 1px solid hsla(38, 72%, 58%, 0.55);
+  color: hsl(42, 92%, 82%);
+}
+
+.shop-colorless-section {
+  padding: 14px 16px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsla(218, 18%, 16%, 0.88), hsla(220, 16%, 11%, 0.92));
+  border: 1px solid hsla(212, 24%, 56%, 0.36);
+}
+
+.shop-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.shop-section-head h3 {
+  margin: 0;
+  color: hsl(210, 38%, 88%);
+}
+
+.shop-colorless-note {
+  font-size: 0.78rem;
+  color: hsl(212, 22%, 72%);
+}
+
+.price-tag.colorless-price {
+  color: hsl(210, 44%, 84%);
+}
+
+/* === Card Inline Keyword Highlights & Interactive Keyword Trigger === */
+
+.card-kw-inline {
+  color: hsl(42, 92%, 72%);
+  font-weight: 700;
+}
+
+.card-desc.boosted .card-kw-inline {
+  color: hsl(146, 78%, 74%);
+}
+
+.card-desc.reduced .card-kw-inline {
+  color: hsl(14, 88%, 72%);
+}
+
+.game-card.card-passive {
+  cursor: default;
+}
+
+.card-footer {
+  gap: 4px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.card-target-label {
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-kw-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  padding: 1px 5px 1px 6px;
+  border-radius: 999px;
+  background: hsla(38, 42%, 22%, 0.72);
+  border: 1px solid hsla(40, 62%, 52%, 0.45);
+  color: hsl(42, 88%, 78%);
+  font-size: 0.63rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: help;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.14s ease;
+}
+
+.card-kw-trigger:hover,
+.card-kw-trigger:focus-visible {
+  background: hsla(40, 56%, 28%, 0.92);
+  border-color: hsl(42, 92%, 66%);
+  color: hsl(44, 100%, 88%);
+  outline: none;
+}
+
+.card-kw-qmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: hsla(42, 76%, 56%, 0.24);
+  border: 1px solid hsla(42, 82%, 66%, 0.55);
+  color: hsl(44, 100%, 86%);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* === Combat Hand Golden Condition-Met Highlight (Original StS Gold Border Glow) === */
+
+#hand-tray .game-card.playable.condition-active {
+  border-color: hsl(45, 100%, 64%) !important;
+  box-shadow:
+    0 0 0 2.5px hsla(45, 100%, 64%, 0.94),
+    0 0 22px hsla(43, 100%, 54%, 0.62),
+    var(--shadow-card) !important;
+}
+
+#hand-tray .game-card.playable.condition-active::before {
+  background: linear-gradient(90deg, hsl(38, 96%, 52%), hsl(50, 100%, 78%), hsl(38, 96%, 52%));
+}
+
+#hand-tray .game-card.playable.condition-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid hsla(48, 100%, 74%, 0.88);
+  box-shadow: inset 0 0 16px hsla(44, 100%, 58%, 0.38);
+  pointer-events: none;
+  animation: cardConditionPulse 1.8s ease-in-out infinite;
+}
+
+#hand-tray .game-card.playable.condition-active.selected-card {
+  box-shadow:
+    0 0 0 3px hsla(48, 100%, 68%, 1),
+    0 0 28px hsla(44, 100%, 56%, 0.78),
+    0 14px 28px hsla(20, 35%, 3%, 0.82) !important;
+}
+
+[data-anim-speed='off'] #hand-tray .game-card.playable.condition-active::after {
+  animation: none;
+  opacity: 0.9;
+}

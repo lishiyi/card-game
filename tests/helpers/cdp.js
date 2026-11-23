@@ -400,7 +400,7 @@ export async function createCdpClient(pageWsUrl) {
           continue;
         }
         let committed = false;
-        const readyDeadline = Date.now() + 2500;
+        const readyDeadline = Date.now() + 4500;
         while (Date.now() < readyDeadline) {
           try {
             const check = await sendRaw(
@@ -496,51 +496,69 @@ export function createSharedBrowserSuite() {
   }
 
   async function openIsolatedPage() {
-    await ensureStarted();
-    const { browserContextId } = await browserCdp.send('Target.createBrowserContext', {
-      disposeOnDetach: true,
-    });
-    const { targetId } = await browserCdp.send('Target.createTarget', {
-      url: 'about:blank',
-      browserContextId,
-    });
-    const debugPort = new URL(browser.browserWsUrl).port;
-    let pageTarget = null;
-    for (let i = 0; i < 20; i += 1) {
-      const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-      pageTarget = targets.find((x) => x.id === targetId && x.webSocketDebuggerUrl);
-      if (pageTarget) break;
-      await new Promise((r) => setTimeout(r, 30));
-    }
-    if (!pageTarget) {
-      throw new Error(`Failed to resolve WebSocket URL for target ${targetId}`);
-    }
-    const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
-
-    let closed = false;
-    async function close() {
-      if (closed) return;
-      closed = true;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await ensureStarted();
       try {
-        cdp.ws.close();
-      } catch {
-        // Ignore close race
-      }
-      if (browserCdp && browserCdp.ws.readyState === WebSocket.OPEN) {
-        try {
-          await browserCdp.send('Target.closeTarget', { targetId });
-        } catch {
-          // Ignore target close race
+        const { browserContextId } = await browserCdp.send('Target.createBrowserContext', {
+          disposeOnDetach: true,
+        });
+        const { targetId } = await browserCdp.send('Target.createTarget', {
+          url: 'about:blank',
+          browserContextId,
+        });
+        const debugPort = new URL(browser.browserWsUrl).port;
+        let pageTarget = null;
+        for (let i = 0; i < 25; i += 1) {
+          const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+          pageTarget = targets.find((x) => x.id === targetId && x.webSocketDebuggerUrl);
+          if (pageTarget) break;
+          await new Promise((r) => setTimeout(r, 30));
         }
-        try {
-          await browserCdp.send('Target.disposeBrowserContext', { browserContextId });
-        } catch {
-          // Ignore context dispose race
+        if (!pageTarget) {
+          throw new Error(`Failed to resolve WebSocket URL for target ${targetId}`);
         }
+        const cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+        // Probe fresh tab renderer is responsive before handing it to the test
+        const probe = await Promise.race([
+          cdp.send('Runtime.evaluate', { expression: '1', returnByValue: true }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Tab probe timeout')), 3000)),
+        ]);
+        if (probe?.result?.value !== 1) {
+          throw new Error('Tab renderer probe returned unexpected value');
+        }
+
+        let closed = false;
+        async function close() {
+          if (closed) return;
+          closed = true;
+          try {
+            cdp.ws.close();
+          } catch {
+            // Ignore close race
+          }
+          if (browserCdp && browserCdp.ws.readyState === WebSocket.OPEN) {
+            try {
+              await browserCdp.send('Target.closeTarget', { targetId });
+            } catch {
+              // Ignore target close race
+            }
+            try {
+              await browserCdp.send('Target.disposeBrowserContext', { browserContextId });
+            } catch {
+              // Ignore context dispose race
+            }
+          }
+        }
+
+        return { cdp, port, server, browser, close };
+      } catch (err) {
+        if (attempt === 1) throw err;
+        await teardownSession({ server: null, browser, cdp: browserCdp });
+        browser = null;
+        browserCdp = null;
       }
     }
-
-    return { cdp, port, server, browser, close };
+    throw new Error('Failed to open isolated browser page');
   }
 
   async function stop() {

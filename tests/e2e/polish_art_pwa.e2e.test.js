@@ -1523,12 +1523,8 @@ test('E2E: Combat SVG Impact VFX, Attacker Lunge & Hit-Flash, Persistent Status/
       mobile: false,
     });
     await cdp.evaluate(`window.localStorage.clear();`);
-    await cdp.send('Page.reload', { ignoreCache: true });
-    for (let w = 0; w < 40; w += 1) {
-      const ready = await cdp.evaluate(`Boolean(window.__SPIRE_APP__ && document.getElementById('btn-menu-standard'))`);
-      if (ready) break;
-      await new Promise((r) => setTimeout(r, 80));
-    }
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 150));
     const watcherAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       document.getElementById('btn-menu-standard')?.click();

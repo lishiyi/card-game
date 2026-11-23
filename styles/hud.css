@@ -1,0 +1,430 @@
+/* === Top Status Bar === */
+
+.top-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface-stone));
+  border: 1px solid var(--border-stone);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft), var(--bevel-highlight);
+}
+
+.brand-cluster {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.game-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-ivory);
+}
+
+.floor-indicator {
+  font-size: 0.85rem;
+  color: var(--accent-brass);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.vitals-cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.vital-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.vital-chip[data-tooltip-title] {
+  cursor: help;
+}
+
+.vital-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.vital-icon-svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.vital-hp {
+  color: hsl(10, 78%, 68%);
+}
+
+.vital-gold {
+  color: var(--accent-brass);
+}
+
+.relic-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.relic-badge {
+  padding: 3px 9px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--bg-cavern);
+  border: 1px solid var(--border-stone);
+  border-radius: var(--radius-sm);
+  color: var(--text-ivory);
+  cursor: help;
+  transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.relic-badge.tier-uncommon {
+  border-color: hsla(198, 62%, 48%, 0.65);
+}
+
+.relic-badge.tier-rare {
+  border-color: hsla(43, 78%, 52%, 0.72);
+  color: hsl(44, 88%, 88%);
+}
+
+.relic-badge.tier-boss {
+  border-color: hsla(12, 72%, 52%, 0.78);
+  background: linear-gradient(180deg, hsl(14, 28%, 18%), var(--bg-cavern));
+  color: hsl(38, 92%, 86%);
+}
+
+.relic-badge.tier-shop {
+  border-color: hsla(176, 68%, 48%, 0.72);
+  background: linear-gradient(180deg, hsl(178, 30%, 16%), var(--bg-cavern));
+  color: hsl(176, 86%, 82%);
+}
+
+.relic-badge.tier-event {
+  border-color: hsla(282, 62%, 56%, 0.72);
+  background: linear-gradient(180deg, hsl(280, 26%, 18%), var(--bg-cavern));
+  color: hsl(284, 86%, 86%);
+}
+
+.relic-counter-pill {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  background: hsla(0, 0%, 0%, 0.38);
+  color: var(--accent-brass);
+}
+
+.shop-member-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: hsla(176, 48%, 20%, 0.85);
+  border: 1px solid hsla(176, 68%, 52%, 0.65);
+  color: hsl(176, 90%, 82%);
+}
+
+.chest-tier-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  vertical-align: middle;
+  background: hsla(40, 48%, 22%, 0.88);
+  border: 1px solid hsla(42, 74%, 56%, 0.68);
+  color: hsl(44, 94%, 84%);
+}
+
+.ascension-pill {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  background: hsla(12, 48%, 22%, 0.85);
+  border: 1px solid hsla(14, 68%, 50%, 0.65);
+  color: hsl(18, 92%, 78%);
+}
+
+.relic-badge:hover,
+.relic-badge:focus-visible {
+  background: var(--surface-parchment);
+  border-color: hsl(36, 30%, 40%);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.potion-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.potion-tooltip-anchor {
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+
+.potion-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 11px;
+  min-height: 32px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background: var(--bg-cavern);
+  border: 1px solid var(--border-stone);
+  color: var(--text-sand);
+  transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.potion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.potion-icon-svg {
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+
+.potion-icon-svg.is-empty {
+  filter: none;
+  opacity: 0.72;
+}
+
+.potion-tooltip-anchor .potion-slot:disabled {
+  pointer-events: none;
+}
+
+.potion-slot.empty {
+  border-style: dashed;
+  border-color: hsla(36, 18%, 46%, 0.45);
+}
+
+.potion-slot.filled {
+  color: var(--text-ivory);
+  background: linear-gradient(180deg, hsl(30, 16%, 22%), hsl(26, 16%, 15%));
+  border-color: color-mix(in srgb, var(--potion-accent, var(--border-stone)) 68%, transparent);
+  box-shadow: inset 0 1px 0 hsla(42, 60%, 88%, 0.12);
+}
+
+.potion-slot.filled.popover-active {
+  border-color: var(--accent-brass);
+  box-shadow:
+    0 0 0 2px hsla(40, 86%, 58%, 0.38),
+    inset 0 1px 0 hsla(48, 90%, 88%, 0.25);
+}
+
+.potion-slot.filled:hover:not(:disabled),
+.potion-tooltip-anchor:hover .potion-slot.filled {
+  transform: translateY(-1px);
+  background: hsl(32, 18%, 26%);
+  border-color: var(--potion-accent, var(--accent-brass));
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-stone {
+  padding: 6px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-stone);
+  background: linear-gradient(180deg, var(--surface-parchment), var(--surface-stone));
+  box-shadow: var(--bevel-highlight);
+  transition: transform 0.14s ease, background-color 0.14s ease;
+}
+
+.btn-stone:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, hsl(30, 15%, 26%), var(--surface-raised));
+}
+
+.btn-brass {
+  padding: 8px 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
+  border: 1px solid hsl(38, 42%, 44%);
+  background: linear-gradient(180deg, hsl(36, 62%, 42%), hsl(32, 58%, 29%));
+  color: var(--text-ivory);
+  box-shadow: var(--shadow-soft), var(--bevel-highlight);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.btn-brass:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+/* === HUD Containers & Mobile Helper Bars (Desktop Defaults) === */
+
+.vitals-numbers-row,
+.hud-gear-scroll,
+.top-actions-primary,
+.top-actions-more-wrap,
+.top-actions-secondary {
+  display: contents;
+}
+
+.hud-more-btn,
+.hud-menu-divider {
+  display: none;
+}
+
+.potion-slot-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.hud-potion-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  right: 10px;
+  max-width: 360px;
+  margin: 0 auto;
+  z-index: 70;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, hsl(26, 22%, 17%), hsl(24, 24%, 11%));
+  border: 1.5px solid color-mix(in srgb, var(--potion-accent, var(--accent-brass)) 72%, hsl(36, 40%, 64%));
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 hsla(44, 72%, 86%, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: hudPopoverPop 0.14s ease-out;
+}
+
+.hud-potion-popover-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-potion-popover-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: hsla(26, 24%, 10%, 0.75);
+  border: 1px solid color-mix(in srgb, var(--potion-accent, var(--border-stone)) 65%, transparent);
+  flex-shrink: 0;
+}
+
+.hud-potion-popover-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hud-potion-popover-title {
+  font-size: 0.96rem;
+  color: var(--text-ivory);
+  line-height: 1.2;
+}
+
+.hud-potion-popover-tag {
+  font-size: 0.74rem;
+  color: var(--text-sand);
+}
+
+.hud-popover-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid hsla(36, 20%, 44%, 0.48);
+  background: hsla(24, 18%, 14%, 0.75);
+  color: var(--text-sand);
+  font-size: 0.86rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hud-potion-popover-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.48;
+  color: hsl(38, 30%, 84%);
+}
+
+.hud-potion-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-potion-popover-actions button {
+  flex: 1;
+  min-height: 38px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.loot-upgrade-summary {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--jade-upgrade);
+  line-height: 1.35;
+}
+
+.modal-upgrade-reveal-sheet {
+  max-width: 680px;
+}
+
+.btn-danger-subtle {
+  border-color: hsla(8, 62%, 52%, 0.55);
+  color: hsl(10, 82%, 78%);
+}
+
+.mobile-hand-bar,
+.mobile-log-peek {
+  display: none;
+}
