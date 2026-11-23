@@ -18,19 +18,33 @@ export const MIME_TYPES = {
 };
 
 export function startStaticServer() {
+  const fileCache = new Map();
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
       const urlPath = (req.url || '/').split('?')[0];
       const relPath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
       const fullPath = path.resolve(ROOT_DIR, relPath);
-      if (!fullPath.startsWith(ROOT_DIR) || !fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+      if (!fullPath.startsWith(ROOT_DIR)) {
         res.writeHead(404);
         res.end('Not found');
         return;
       }
-      const ext = path.extname(fullPath);
-      res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-      res.end(fs.readFileSync(fullPath));
+      let cached = fileCache.get(fullPath);
+      if (!cached) {
+        if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+        const ext = path.extname(fullPath);
+        cached = {
+          contentType: MIME_TYPES[ext] || 'application/octet-stream',
+          body: fs.readFileSync(fullPath),
+        };
+        fileCache.set(fullPath, cached);
+      }
+      res.writeHead(200, { 'Content-Type': cached.contentType });
+      res.end(cached.body);
     });
     server.on('error', reject);
     server.listen(0, '127.0.0.1', () => {
@@ -85,7 +99,8 @@ function spawnSingleHeadlessChromium(timeoutMs = 12000) {
         '--disable-default-apps',
         '--disable-sync',
         '--mute-audio',
-        '--disable-features=Translate,BackForwardCache,AcceptCHFrame',
+        '--enable-features=NetworkServiceInProcess',
+        '--disable-features=Translate,BackForwardCache,AcceptCHFrame,BackgroundResourceFetch',
         `--user-data-dir=${userDataDir}`,
         '--window-size=1280,880',
         '--remote-debugging-port=0',
@@ -400,7 +415,7 @@ export async function createCdpClient(pageWsUrl) {
           continue;
         }
         let committed = false;
-        const readyDeadline = Date.now() + 4500;
+        const readyDeadline = Date.now() + 4000;
         while (Date.now() < readyDeadline) {
           try {
             const check = await sendRaw(
@@ -499,9 +514,7 @@ export function createSharedBrowserSuite() {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await ensureStarted();
       try {
-        const { browserContextId } = await browserCdp.send('Target.createBrowserContext', {
-          disposeOnDetach: true,
-        });
+        const { browserContextId } = await browserCdp.send('Target.createBrowserContext', {});
         const { targetId } = await browserCdp.send('Target.createTarget', {
           url: 'about:blank',
           browserContextId,
@@ -526,6 +539,18 @@ export function createSharedBrowserSuite() {
         if (probe?.result?.value !== 1) {
           throw new Error('Tab renderer probe returned unexpected value');
         }
+        // Prevent ephemeral incognito test tabs from spawning 79-asset ServiceWorker precache installs
+        // that race with Target.disposeBrowserContext (the dedicated SW E2E test uses its own browser).
+        await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+          source: `if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+            try {
+              Object.defineProperty(navigator.serviceWorker, 'register', {
+                configurable: true,
+                value: () => Promise.resolve({ update: () => Promise.resolve(), addEventListener: () => {} }),
+              });
+            } catch {}
+          }`,
+        });
 
         let closed = false;
         async function close() {
