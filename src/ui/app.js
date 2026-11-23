@@ -1411,13 +1411,13 @@ export function mountSpireApp(rootEl) {
       dismissedHudOverlay = true;
     }
 
-    // Nested inspect chips (relic, potion, starter-deck badges, enemy next-intent trigger, card keyword chip) inspect cleanly without triggering parent action
+    // Nested inspect chips (relic, potion, starter-deck badges, enemy intent badge, card keyword chip) inspect cleanly without triggering parent action
     const isNestedInspectChip =
       Boolean(tipAnchor) &&
       Boolean(target) &&
       tipAnchor !== target &&
       (target.dataset.action === 'select-character' ||
-        tipAnchor.classList.contains('next-intent-trigger') ||
+        tipAnchor.classList.contains('intent-badge') ||
         tipAnchor.classList.contains('card-kw-trigger'));
 
     // Mobile / touch tap-to-inspect support for passive badges (relics, potions, daily chips, locked Ascension pills, statuses, intents, card keywords)

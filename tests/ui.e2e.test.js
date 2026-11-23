@@ -1615,22 +1615,24 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
 
       const nextHint = document.querySelector('.enemy-side .next-intent-hint');
       const nextHintDisplay = nextHint ? getComputedStyle(nextHint).display : 'none';
-      const nextTrigger = document.querySelector('.enemy-side .next-intent-trigger');
-      const nextTriggerRect = nextTrigger ? nextTrigger.getBoundingClientRect() : null;
-      nextTrigger.click();
+      const duplicateTriggerCount = document.querySelectorAll('.enemy-side .next-intent-trigger').length;
+      const intentBadge = document.querySelector('.enemy-side .intent-badge');
+      const intentBadgeRect = intentBadge ? intentBadge.getBoundingClientRect() : null;
+      intentBadge.click();
       const tip = document.getElementById('spire-tooltip');
       const tipOpen = !tip.hidden;
-      const tipTag = tip.querySelector('.spire-tooltip-tag')?.textContent?.trim() || '';
-      if (!tip.hidden) nextTrigger.click();
+      const tipDesc = tip.querySelector('.spire-tooltip-desc')?.textContent?.trim() || '';
+      if (!tip.hidden) intentBadge.click();
 
       return {
         docScrollWidth,
         innerWidth,
         handOverflowX,
         nextHintDisplay,
-        nextTriggerVisible: Boolean(nextTriggerRect && nextTriggerRect.width >= 18 && nextTriggerRect.height >= 18),
+        duplicateTriggerCount,
+        intentBadgeVisible: Boolean(intentBadgeRect && intentBadgeRect.width >= 24 && intentBadgeRect.height >= 20),
         tipOpen,
-        tipTag,
+        tipDesc,
       };
     })()`);
     assert.ok(
@@ -1639,9 +1641,13 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
     );
     assert.equal(mobileCombatAudit.handOverflowX, 'auto');
     assert.equal(mobileCombatAudit.nextHintDisplay, 'none', 'Multi-line .next-intent-hint must be hidden on 390px mobile');
-    assert.equal(mobileCombatAudit.nextTriggerVisible, true, 'Compact .next-intent-trigger icon must be visible on 390px mobile');
+    assert.equal(mobileCombatAudit.duplicateTriggerCount, 0, 'Duplicate 🔮 .next-intent-trigger icon must be removed');
+    assert.equal(mobileCombatAudit.intentBadgeVisible, true, 'Unified .intent-badge must be visible on 390px mobile');
     assert.equal(mobileCombatAudit.tipOpen, true);
-    assert.equal(mobileCombatAudit.tipTag, '行动预判');
+    assert.ok(
+      mobileCombatAudit.tipDesc.includes('下回合可能行动'),
+      `Unified .intent-badge tooltip must include next-turn forecast, got: ${mobileCombatAudit.tipDesc}`
+    );
 
     const auditSideBySideCombat = async (enemyCount) => {
       return cdp.evaluate(`(() => {
@@ -5337,14 +5343,19 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
       const relicTipTitle = document.querySelector('#spire-tooltip .spire-tooltip-title')?.textContent?.trim() || '';
       firstRelic.click();
 
-      // Tap next-intent trigger inside enemy card -> opens 行动预判 tooltip without attacking enemy
-      const trigger = document.querySelector('#enemy-unit-dk_1 .next-intent-trigger');
+      // Select an Attack card, then tap unified .intent-badge inside enemy card -> opens combined intent + next-turn forecast tooltip without attacking enemy
+      const firstStrike = st.combat.hand.find((c) => c.cardId === 'strike');
+      if (firstStrike) {
+        document.getElementById('hand-card-' + firstStrike.instanceId)?.click();
+      }
+      const intentBadge = document.querySelector('#enemy-unit-dk_1 .intent-badge');
+      const duplicateTriggers = document.querySelectorAll('.enemy-side .next-intent-trigger').length;
       const wmHpBefore = st.combat.enemies[1].hp;
-      trigger.click();
+      intentBadge.click();
       const intentTipOpen = !document.getElementById('spire-tooltip').hidden;
-      const intentTipTag = document.querySelector('#spire-tooltip .spire-tooltip-tag')?.textContent?.trim() || '';
+      const intentTipDesc = document.querySelector('#spire-tooltip .spire-tooltip-desc')?.textContent?.trim() || '';
       const wmHpAfter = st.combat.enemies[1].hp;
-      trigger.click();
+      intentBadge.click();
 
       const hasRegrowingEl = Boolean(document.querySelector('#enemy-unit-dk_0.regrowing'));
       const moreRect = document.getElementById('btn-hud-more').getBoundingClientRect();
@@ -5371,8 +5382,9 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
         docOverflow,
         relicTipOpen,
         relicTipTitle,
+        duplicateTriggers,
         intentTipOpen,
-        intentTipTag,
+        intentTipDesc,
         wmHpUnchanged: wmHpBefore === wmHpAfter,
         hasRegrowingEl,
         moreFits,
@@ -5390,9 +5402,10 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
     assert.equal(mobileV2Audit.docOverflow, false, 'Mobile combat with 10+ relics must not overflow horizontally');
     assert.equal(mobileV2Audit.relicTipOpen, true);
     assert.ok(mobileV2Audit.relicTipTitle.includes('燃烧之血'));
+    assert.equal(mobileV2Audit.duplicateTriggers, 0, 'No duplicate 🔮 next-intent trigger button may appear');
     assert.equal(mobileV2Audit.intentTipOpen, true);
-    assert.equal(mobileV2Audit.intentTipTag, '行动预判');
-    assert.equal(mobileV2Audit.wmHpUnchanged, true, 'Tapping next-intent trigger must never attack enemy');
+    assert.ok(mobileV2Audit.intentTipDesc.includes('下回合可能行动'), `Unified intent tooltip must include next-turn forecast, got: ${mobileV2Audit.intentTipDesc}`);
+    assert.equal(mobileV2Audit.wmHpUnchanged, true, 'Tapping enemy .intent-badge must never attack enemy even with a card selected');
     assert.equal(mobileV2Audit.hasRegrowingEl, true, 'Downed Darkling renders .regrowing state');
     assert.equal(mobileV2Audit.moreFits, true, 'Mobile ☰ More button fits inside 390px .top-actions');
     assert.equal(mobileV2Audit.newRunFits, true, 'Mobile More drawer displays New Run cleanly within 390px viewport');

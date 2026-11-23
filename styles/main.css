@@ -6617,8 +6617,8 @@ body.spire-dragging {
   max-width: 100%;
 }
 
-.next-intent-trigger {
-  display: none;
+.enemy-side .intent-badge {
+  cursor: help;
 }
 
 .fighter-unit.regrowing {
@@ -7087,29 +7087,15 @@ body.spire-dragging {
     display: none;
   }
 
-  .next-intent-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border-radius: 999px;
-    border: 1px solid hsla(268, 56%, 58%, 0.65);
-    background: linear-gradient(180deg, hsla(268, 36%, 24%, 0.92), hsla(268, 32%, 14%, 0.95));
-    font-size: 0.72rem;
-    line-height: 1;
+  .enemy-side .intent-badge {
     cursor: pointer;
-    color: hsl(274, 90%, 88%);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
     transition: transform 0.14s ease, border-color 0.14s ease;
   }
 
-  .next-intent-trigger:active,
-  .next-intent-trigger:focus-visible {
-    transform: scale(1.08);
-    border-color: hsl(276, 86%, 72%);
+  .enemy-side .intent-badge:active,
+  .enemy-side .intent-badge:focus-visible {
+    transform: scale(1.04);
+    border-color: hsla(42, 72%, 66%, 0.82);
     outline: none;
   }
 

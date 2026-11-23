@@ -108,18 +108,6 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                 ${enemy.hp > 0 || isRegrowing ? getIntentIconSvg(isRegrowing ? 'buff' : intentPreview.type) : ''}
                 <span>${escapeHtml(intentLabelText)}</span>
               </div>
-              ${
-                enemy.hp > 0 && nextPred.tooltipLines.length > 0
-                  ? `<button
-                      type="button"
-                      class="next-intent-trigger"
-                      aria-label="${escapeHtml(`查看 ${enemy.name} 下回合意图预测`)}"
-                      data-tooltip-title="${escapeHtml(`${enemy.name} · 下回合预测`)}"
-                      data-tooltip-tag="行动预判"
-                      data-tooltip-desc="${escapeHtml(nextPred.tooltipLines.join('\n'))}"
-                    >🔮</button>`
-                  : ''
-              }
             </div>
             ${
               enemy.hp > 0 && nextPred.summaryText
