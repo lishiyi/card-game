@@ -562,6 +562,30 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [152, 152],
     initialStatuses: { artifact: 2 },
   },
+  spire_shield: {
+    id: 'spire_shield',
+    name: '尖塔之盾',
+    role: 'elite',
+    artKey: 'spire_shield',
+    hpRange: [110, 110],
+    initialStatuses: { artifact: 1 },
+  },
+  spire_spear: {
+    id: 'spire_spear',
+    name: '尖塔之矛',
+    role: 'elite',
+    artKey: 'spire_spear',
+    hpRange: [145, 145],
+    initialStatuses: { artifact: 1 },
+  },
+  corrupt_heart: {
+    id: 'corrupt_heart',
+    name: '腐化之心',
+    role: 'boss',
+    artKey: 'corrupt_heart',
+    hpRange: [550, 550],
+    initialStatuses: { invincible: 200, beatOfDeath: 1 },
+  },
 });
 
 export const ENCOUNTERS = deepFreeze({
@@ -989,6 +1013,20 @@ export const ENCOUNTERS = deepFreeze({
       enemies: [{ templateId: 'donu' }, { templateId: 'deca' }],
     },
   ],
+  act4Elite: [
+    {
+      id: 'spire_shield_and_spear',
+      name: '第四幕精英：尖塔之盾与尖塔之矛',
+      enemies: [{ templateId: 'spire_shield' }, { templateId: 'spire_spear' }],
+    },
+  ],
+  act4Boss: [
+    {
+      id: 'corrupt_heart_boss',
+      name: '终极首领：腐化之心',
+      enemies: [{ templateId: 'corrupt_heart' }],
+    },
+  ],
 });
 
 export function resolveEncounterSpecs(state, encounter) {
@@ -1024,6 +1062,9 @@ const STATUS_ZH_LABELS = Object.freeze({
   thorns: '荆棘',
   metallicize: '金属化',
   platedArmor: '多层护甲',
+  artifact: '人工制品',
+  beatOfDeath: '死亡律动',
+  painfulStabs: '痛苦刺击',
   weak: '虚弱',
   vulnerable: '易伤',
   frail: '脆弱',
@@ -1039,6 +1080,7 @@ const STATUS_CARD_ZH_LABELS = Object.freeze({
   slimed: '黏液',
   burn: '灼伤',
   wound: '伤口',
+  void: '虚空',
   parasite: '寄生',
 });
 
@@ -1120,6 +1162,9 @@ const SWARM_NORMAL_IDS = new Set([
 
 function applyAscensionIntentScaling(state, enemy, intent) {
   if (!intent) return intent;
+  if (enemy.templateId === 'corrupt_heart' || intent.skipGenericAscScaling) {
+    return intent;
+  }
   const asc = state?.ascension ?? 0;
   const isEliteOrBoss = enemy.role === 'elite' || enemy.role === 'boss';
 
@@ -1266,6 +1311,13 @@ export function createEnemyInstance(state, spec) {
     if (tpl.id === 'donu' || tpl.id === 'deca') {
       statuses.artifact = 3;
     }
+    if (tpl.id === 'spire_shield' || tpl.id === 'spire_spear') {
+      statuses.artifact = 2;
+    }
+    if (tpl.id === 'corrupt_heart') {
+      statuses.invincible = 150;
+      statuses.beatOfDeath = 2;
+    }
   }
 
   if (spec.initialStatuses) {
@@ -1327,6 +1379,9 @@ export function createEnemyInstance(state, spec) {
     entangleUsed: false,
     stasisUsed: false,
     stasisCard: null,
+    invincibleMax: statuses.invincible ?? 0,
+    heartBuffCount: 0,
+    backAttack: false,
     hordeMode: Boolean(spec.hordeMode),
     tempStrengthRestore: 0,
     isMinion: Boolean(spec.isMinion || tpl.isMinion),
@@ -3964,6 +4019,189 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
       }));
     }
 
+    case 'spire_shield': {
+      const cyclePos = (enemy.turnIndex ?? 0) % 3;
+      const bashIntent = {
+        id: 'shield_bash',
+        name: '重盾猛击',
+        type: 'attack_debuff',
+        damage: 12,
+        hits: 1,
+        applyPlayerStatuses: { strength: -1 },
+        summary: '意图：造成 12 点伤害，并使你永久失去 1 点【力量】',
+      };
+      const fortifyIntent = {
+        id: 'shield_fortify',
+        name: '加固壁垒',
+        type: 'defend',
+        block: 30,
+        allEnemiesBlock: 30,
+        summary: '意图：为全体敌方单位施加 30 点格挡',
+      };
+      const smashIntent = {
+        id: 'shield_smash',
+        name: '铁壁重压',
+        type: 'attack_block',
+        damage: 34,
+        hits: 1,
+        block: 34,
+        summary: '意图：造成 34 点重击伤害，并获得 34 点格挡',
+      };
+      if (cyclePos === 0) {
+        return [
+          { probability: 0.5, intent: bashIntent },
+          { probability: 0.5, intent: fortifyIntent },
+        ];
+      }
+      if (cyclePos === 1) {
+        return [
+          {
+            probability: 1,
+            intent: enemy.lastMoveId === 'shield_bash' ? fortifyIntent : bashIntent,
+          },
+        ];
+      }
+      return [{ probability: 1, intent: smashIntent }];
+    }
+
+    case 'spire_spear': {
+      const turn = enemy.turnIndex ?? 0;
+      const asc = enemy.ascension ?? 0;
+      const burnToDraw = asc >= 9;
+      const burnStrikeIntent = burnToDraw
+        ? {
+            id: 'spear_burn_strike',
+            name: '灼烧突刺',
+            type: 'attack_debuff',
+            damage: 5,
+            hits: 2,
+            skipGenericAscScaling: true,
+            addDrawCards: [{ cardId: 'burn', count: 2 }],
+            summary: '意图：造成 5×2 点伤害，并将 2 张【灼伤】洗入你的抽牌堆（高阶强化）',
+          }
+        : {
+            id: 'spear_burn_strike',
+            name: '灼烧突刺',
+            type: 'attack_debuff',
+            damage: 5,
+            hits: 2,
+            addDiscardCards: [{ cardId: 'burn', count: 2 }],
+            summary: '意图：造成 5×2 点伤害，并将 2 张【灼伤】塞入你的弃牌堆',
+          };
+      const skewerIntent = {
+        id: 'spear_skewer',
+        name: '穿刺连击',
+        type: 'attack',
+        damage: 10,
+        hits: 3,
+        summary: '意图：发动 10×3 连续穿刺攻击',
+      };
+      const piercerIntent = {
+        id: 'spear_piercer',
+        name: '破阵号令',
+        type: 'buff',
+        applyAllEnemiesStatuses: { strength: 2 },
+        summary: '意图：使全体敌方单位获得 2 点【力量】',
+      };
+      if (turn === 0) {
+        return [{ probability: 1, intent: burnStrikeIntent }];
+      }
+      if (turn === 1) {
+        return [{ probability: 1, intent: skewerIntent }];
+      }
+      const cyclePos = (turn - 2) % 3;
+      if (cyclePos === 0) {
+        return [{ probability: 1, intent: piercerIntent }];
+      }
+      if (cyclePos === 1) {
+        return [{ probability: 1, intent: burnStrikeIntent }];
+      }
+      return [{ probability: 1, intent: skewerIntent }];
+    }
+
+    case 'corrupt_heart': {
+      const turn = enemy.turnIndex ?? 0;
+      const asc = enemy.ascension ?? 0;
+      if (turn === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'heart_debilitate',
+              name: '衰弱诅咒',
+              type: 'debuff',
+              applyPlayerStatuses: { vulnerable: 2, weak: 2, frail: 2 },
+              addDrawCards: [
+                { cardId: 'dazed', count: 1 },
+                { cardId: 'slimed', count: 1 },
+                { cardId: 'wound', count: 1 },
+                { cardId: 'burn', count: 1 },
+                { cardId: 'void', count: 1 },
+              ],
+              summary:
+                '意图：施加 2 层【易伤】、【虚弱】、【脆弱】，并将【晕眩】【黏液】【伤口】【灼伤】【虚空】各 1 张洗入你的抽牌堆！',
+            },
+          },
+        ];
+      }
+      const bloodShotsHits = asc >= 9 ? 15 : 12;
+      const echoDmg = asc >= 9 ? 45 : 40;
+      const bloodShotsIntent = {
+        id: 'heart_blood_shots',
+        name: '血箭连射',
+        type: 'attack',
+        damage: 2,
+        hits: bloodShotsHits,
+        summary: `意图：连续发射 2×${bloodShotsHits} 支腐化血箭！`,
+      };
+      const echoIntent = {
+        id: 'heart_echo',
+        name: '回响重击',
+        type: 'attack',
+        damage: echoDmg,
+        hits: 1,
+        summary: `意图：释放 ${echoDmg} 点毁灭性单段重击！`,
+      };
+      const cyclePos = (turn - 1) % 3;
+      if (cyclePos === 0) {
+        return [
+          { probability: 0.5, intent: bloodShotsIntent },
+          { probability: 0.5, intent: echoIntent },
+        ];
+      }
+      if (cyclePos === 1) {
+        return [
+          {
+            probability: 1,
+            intent: enemy.lastMoveId === 'heart_blood_shots' ? echoIntent : bloodShotsIntent,
+          },
+        ];
+      }
+      const buffIdx = enemy.heartBuffCount ?? 0;
+      const extraDesc =
+        buffIdx === 0
+          ? '获得 2 层【人工制品】'
+          : buffIdx === 1
+            ? '【死亡律动】+1'
+            : buffIdx === 2
+              ? '获得【痛苦刺击】（未格挡攻击塞入伤口）'
+              : buffIdx === 3
+                ? '额外获得 10 点【力量】'
+                : '额外获得 50 点【力量】！';
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'heart_buff',
+            name: '心脏脉动',
+            type: 'buff',
+            isHeartBuff: true,
+            summary: `意图：清除负面力量，获得 2 点【力量】，并${extraDesc}`,
+          },
+        },
+      ];
+    }
+
     default:
       return [
         {
@@ -4225,6 +4463,16 @@ export function predictNextTurnIntents(
   const nextImplantUsed = Boolean(enemy.implantUsed || curIntent?.id === 'wm_implant');
   const nextEntangleUsed = Boolean(enemy.entangleUsed || curIntent?.markEntangleUsed);
   const nextStasisUsed = Boolean(enemy.stasisUsed || curIntent?.stasisSteal);
+  const nextHeartBuffCount = (enemy.heartBuffCount ?? 0) + (curIntent?.isHeartBuff ? 1 : 0);
+
+  if (curIntent?.isHeartBuff) {
+    if ((simEnemyStatuses.strength ?? 0) < 0) {
+      delete simEnemyStatuses.strength;
+    }
+    const bonusStr =
+      (enemy.heartBuffCount ?? 0) === 3 ? 12 : (enemy.heartBuffCount ?? 0) >= 4 ? 52 : 2;
+    simEnemyStatuses.strength = (simEnemyStatuses.strength ?? 0) + bonusStr;
+  }
 
   const simEnemy = {
     ...enemy,
@@ -4244,6 +4492,7 @@ export function predictNextTurnIntents(
     implantUsed: nextImplantUsed,
     entangleUsed: nextEntangleUsed,
     stasisUsed: nextStasisUsed,
+    heartBuffCount: nextHeartBuffCount,
     lastMoveId: curIntent?.id ?? enemy.lastMoveId ?? null,
     mode: nextMode,
     offensiveStep: nextOffensiveStep,
@@ -4334,6 +4583,15 @@ export function predictNextTurnIntents(
     conditionalNote = `注意【时间扭曲】（剩 ${enemy.statuses?.timeWarp ?? 12} 张牌）；半血以下将触发回血加速`;
   } else if (enemy.templateId === 'awakened_one' && enemy.unawakened) {
     conditionalNote = `首次击倒后将触发【黑暗重生】复活进入 ${enemy.maxHp} 生命二阶段形态！`;
+  } else if (enemy.templateId === 'spire_shield' || enemy.templateId === 'spire_spear') {
+    conditionalNote =
+      (player?.statuses?.surrounded ?? 0) > 0
+        ? '【夹击】生效中：背侧敌人攻击伤害 +50%，对高威胁敌人打出单体攻击可转向面对它；优先击杀其中一人即可解除夹击！'
+        : '夹击已解除，注意高额格挡与灼伤爆发！';
+  } else if (enemy.templateId === 'corrupt_heart') {
+    const remCap = enemy.statuses?.invincible ?? 0;
+    const beat = enemy.statuses?.beatOfDeath ?? 1;
+    conditionalNote = `【无敌】本回合剩余可承伤 ${remCap} 点（下回合重置为 ${enemy.invincibleMax || 200}）；【死亡律动】每出 1 张牌受 ${beat} 点可格挡伤害！`;
   }
 
   let summaryText = '';

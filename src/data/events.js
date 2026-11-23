@@ -1,5 +1,5 @@
 import { hasDailyModifier } from '../engine/daily.js';
-import { nextRandom, pickDistinct } from '../engine/rng.js';
+import { nextRandom, pickDistinct, pickRandom } from '../engine/rng.js';
 
 function deepFreeze(obj) {
   if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
@@ -12,7 +12,31 @@ function deepFreeze(obj) {
 }
 
 export const TOTAL_FLOORS = 16;
+export const ACT4_TOTAL_FLOORS = 4;
 export const MAP_COLUMNS = 4;
+
+export const BURNING_ELITE_BUFF_META = deepFreeze({
+  maxHp: {
+    id: 'maxHp',
+    label: '+25% 最大生命',
+    describe: () => '全体敌人最大生命值提升 25%。',
+  },
+  strength: {
+    id: 'strength',
+    label: '初始力量强化',
+    describe: (act = 1) => `全体敌人开场获得 +${Math.max(1, Math.min(3, act))} 点【力量】。`,
+  },
+  metallicize: {
+    id: 'metallicize',
+    label: '金属化护盾',
+    describe: (act = 1) => `全体敌人开场获得 ${Math.max(1, Math.min(3, act)) * 2} 层【金属化】。`,
+  },
+  regenerating: {
+    id: 'regenerating',
+    label: '生命再生',
+    describe: (act = 1) => `全体敌人开场获得 ${Math.max(1, Math.min(3, act)) * 2 + 1} 层【再生】。`,
+  },
+});
 
 export const EVENT_LIBRARY = deepFreeze({
   shining_light: {
@@ -1368,5 +1392,32 @@ export function generateSpireMap(state) {
   ensureMinimum('rest', 3, [4, 5, 7, 8, 10, 12, 13]);
   ensureMinimum('elite', bigGameHunter ? 6 : asc >= 1 ? 5 : 3, [7, 8, 10, 11, 12, 13, 14, 6], true);
 
+  // Mark exactly 1 Elite node as a Burning Elite (Emerald Key guardian) in Acts 1-3 until Emerald Key is obtained
+  if ((state?.act ?? 1) <= 3 && !state?.keys?.emerald) {
+    const eliteNodes = rows.flat().filter((n) => n.type === 'elite');
+    if (eliteNodes.length > 0) {
+      const burningNode = pickRandom(state, eliteNodes);
+      const buffPool = Object.keys(BURNING_ELITE_BUFF_META);
+      burningNode.isBurningElite = true;
+      burningNode.burningBuff = pickRandom(state, buffPool);
+    }
+  }
+
   return rows;
+}
+
+export function generateAct4Map() {
+  const floorTypes = ['rest', 'shop', 'elite', 'boss'];
+  return floorTypes.map((type, idx) => [
+    {
+      id: `r${idx}_c0`,
+      row: idx,
+      col: 0,
+      slotCol: 1.5,
+      floor: idx + 1,
+      type,
+      visited: false,
+      nextIds: idx < floorTypes.length - 1 ? [`r${idx + 1}_c0`] : [],
+    },
+  ]);
 }

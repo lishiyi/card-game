@@ -130,6 +130,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           <div class="unit-name-row">
             <span class="unit-name-text">${escapeHtml(enemy.name)}</span>
             ${
+              enemy.hp > 0 && enemy.backAttack && (state.player.statuses?.surrounded ?? 0) > 0
+                ? `<span class="back-attack-tag" tabindex="0" data-tooltip-title="背侧夹击 (+50%)" data-tooltip-tag="夹击机制" data-tooltip-desc="你正背对该敌人，其攻击伤害提高 50%！对其打出单体攻击牌可转身正面迎击。" data-tooltip-tone="debuff">背袭 +50%</span>`
+                : ''
+            }
+            ${
               enemy.isMinion
                 ? `<span class="minion-tag" tabindex="0" data-tooltip-title="爪牙" data-tooltip-tag="随从单位" data-tooltip-desc="属于主敌召唤或随行的爪牙单位：击败所有非爪牙敌人后，剩余爪牙会立即逃跑并直接赢得战斗！" data-tooltip-tone="buff">爪牙</span>`
                 : ''

@@ -5,7 +5,7 @@
 
 import { formatCardDescription, getCardStats } from '../data/cards.js';
 import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
-import { TOTAL_FLOORS } from '../data/events.js';
+import { ACT4_TOTAL_FLOORS, TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY } from '../data/relics.js';
 import {
   canPlayCard,
@@ -28,10 +28,13 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardEmeraldKey,
   claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
+  claimTreasureRelic,
+  claimTreasureSapphireKey,
   completeEventCardAction,
   completeEventPurge,
   completeNeowAction,
@@ -39,6 +42,7 @@ import {
   createNewRun,
   digAtCampfire,
   discardPotion,
+  ensureRunKeys,
   formatRelicUpgradeSummary,
   getStarterPotionSlotCount,
   hasPendingNeowBlessing,
@@ -50,8 +54,10 @@ import {
   pickEventLibraryCard,
   proceedFromReward,
   proceedToNextAct,
+  recallRubyKey,
   restHeal,
   restUpgradeCard,
+  revealTreasureChest,
   runConfirmPendingCardChoice,
   runConfirmScry,
   runDiscardHandCard,
@@ -126,18 +132,20 @@ function loadSavedRun() {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    const validMapLen = (parsed?.act ?? 1) === 4 ? ACT4_TOTAL_FLOORS : TOTAL_FLOORS;
     if (
       parsed &&
       typeof parsed === 'object' &&
       parsed.player &&
       Array.isArray(parsed.player.deck) &&
       Array.isArray(parsed.map) &&
-      parsed.map.length === TOTAL_FLOORS &&
+      parsed.map.length === validMapLen &&
       typeof parsed.screen === 'string'
     ) {
       const charId = normalizeCharacterId(parsed.characterId);
       const charDef = getCharacterDef(charId);
       parsed.characterId = charId;
+      ensureRunKeys(parsed);
       if (!parsed.player.artKey) {
         parsed.player.artKey = charDef.artKey;
       }
@@ -2089,10 +2097,44 @@ export function mountSpireApp(rootEl) {
       }
       case 'open-treasure': {
         const prevSeq = state?._relicPickupSeq || 0;
-        openTreasureChest(state);
-        if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+        const needsSapphireKey = !state.keys?.sapphire && (state.act ?? 1) <= 3;
+        if (needsSapphireKey) {
+          revealTreasureChest(state);
           soundEngine.play('chest_open');
           setNotice('');
+        } else {
+          openTreasureChest(state);
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('chest_open');
+            setNotice('');
+          }
+        }
+        render();
+        break;
+      }
+      case 'claim-treasure-relic': {
+        const prevSeq = state?._relicPickupSeq || 0;
+        const res = claimTreasureRelic(state);
+        if (res.ok) {
+          if (!maybeShowRelicUpgradeReveal(prevSeq)) {
+            soundEngine.play('upgrade');
+            setNotice('');
+          }
+        } else {
+          soundEngine.play('error');
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
+      case 'claim-treasure-sapphire-key': {
+        const res = claimTreasureSapphireKey(state);
+        if (res.ok) {
+          soundEngine.play('upgrade');
+          setNotice('💎 已取得【蓝宝石钥匙】！（已放弃本宝箱遗物）');
+        } else {
+          soundEngine.play('error');
+          setNotice(res.reason, 'warn');
         }
         render();
         break;
@@ -2137,6 +2179,18 @@ export function mountSpireApp(rootEl) {
         claimRewardGold(state);
         soundEngine.play('gold');
         setNotice('');
+        render();
+        break;
+      }
+      case 'claim-emerald-key': {
+        const res = claimRewardEmeraldKey(state);
+        if (res.ok) {
+          soundEngine.play('upgrade');
+          setNotice('💚 已取得【绿宝石钥匙】！');
+        } else {
+          soundEngine.play('error');
+          setNotice(res.reason, 'warn');
+        }
         render();
         break;
       }
@@ -2202,6 +2256,9 @@ export function mountSpireApp(rootEl) {
           if (!state.reward.goldClaimed && state.reward.gold > 0) {
             claimRewardGold(state);
           }
+          if (state.reward.emeraldKey && !state.reward.emeraldKeyClaimed) {
+            claimRewardEmeraldKey(state);
+          }
           if (state.reward.relicId && !state.reward.relicClaimed) {
             const seqBefore = state._relicPickupSeq || 0;
             claimRewardRelic(state);
@@ -2233,6 +2290,18 @@ export function mountSpireApp(rootEl) {
         if (res.ok) {
           soundEngine.play('heal');
           setNotice('');
+        } else {
+          soundEngine.play('error');
+          setNotice(res.reason, 'warn');
+        }
+        render();
+        break;
+      }
+      case 'rest-recall': {
+        const res = recallRubyKey(state);
+        if (res.ok) {
+          soundEngine.play('upgrade');
+          setNotice('❤️ 已通过营地「召回」取得【红宝石钥匙】！');
         } else {
           soundEngine.play('error');
           setNotice(res.reason, 'warn');

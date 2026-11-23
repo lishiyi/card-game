@@ -5,9 +5,10 @@
  * - Hover-node connected path highlighting via data-from-node / data-to-node
  */
 
-import { NODE_TYPE_META, TOTAL_FLOORS } from '../../data/events.js';
+import { BURNING_ELITE_BUFF_META, NODE_TYPE_META, TOTAL_FLOORS } from '../../data/events.js';
 import { getDailyModifierDefs } from '../../engine/daily.js';
 import {
+  getActTotalFloors,
   getAvailableNodeIds,
   getCurrentBossName,
   hasPendingNeowBlessing,
@@ -201,6 +202,9 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
     .join('');
 
   const pendingNeow = hasPendingNeowBlessing(state);
+  const actTotalFloors = getActTotalFloors(state);
+  const curAct = state.act ?? 1;
+  const hasEmeraldKey = Boolean(state.keys?.emerald);
   const rowsHtml = state.map
     .map((row, rIdx) => {
       const nodesHtml = row
@@ -210,10 +214,14 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
           const isCurrent = state.currentNodeId === node.id;
           const isUnreachable =
             Boolean(state.currentNodeId) && !node.visited && !reachableNodes.has(node.id);
+          const isBurningElite = Boolean(
+            node.type === 'elite' && node.isBurningElite && curAct <= 3 && !hasEmeraldKey && !node.visited
+          );
           const coord = nodeCoords.get(node.id) || { xPct: 50 };
           const cls = [
             'map-node-btn',
             `node-kind-${node.type}`,
+            isBurningElite ? 'node-burning-elite' : '',
             node.visited ? 'visited' : '',
             isCurrent ? 'current-pos' : '',
             isAvailable ? 'available' : '',
@@ -228,19 +236,27 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
               ? '已通过'
               : node.type === 'boss'
                 ? bossName
-                : isAvailable
-                  ? interactive
-                    ? '点击前往'
-                    : '下层可选'
-                  : pendingNeow && node.floor === 1
-                    ? '需先选赐福'
-                    : `第 ${node.floor} 层`;
+                : isBurningElite
+                  ? '燃烧精英 · 绿宝石钥匙'
+                  : isAvailable
+                    ? interactive
+                      ? '点击前往'
+                      : '下层可选'
+                    : pendingNeow && node.floor === 1
+                      ? '需先选赐福'
+                      : `第 ${node.floor} 层`;
 
-          const ariaLabel = `第 ${node.floor} 层 · ${metaInfo.label}（${statusNote}）`;
-          const bossTooltip =
-            node.type === 'boss'
-              ? `data-tooltip-title="${escapeHtml(`本幕首领：${bossName}`)}" data-tooltip-tag="第 ${TOTAL_FLOORS} 层终战" data-tooltip-desc="${escapeHtml(`抵达第 ${TOTAL_FLOORS} 层后将迎战【${bossName}】，提前针对其机制构筑牌组！`)}"`
-              : '';
+          const ariaLabel = `第 ${node.floor} 层 · ${isBurningElite ? '燃烧精英' : metaInfo.label}（${statusNote}）`;
+          let nodeTooltip = '';
+          if (node.type === 'boss') {
+            nodeTooltip = `data-tooltip-title="${escapeHtml(`本幕首领：${bossName}`)}" data-tooltip-tag="第 ${actTotalFloors} 层终战" data-tooltip-desc="${escapeHtml(`抵达第 ${actTotalFloors} 层后将迎战【${bossName}】，提前针对其机制构筑牌组！`)}"`;
+          } else if (isBurningElite) {
+            const buffMeta = BURNING_ELITE_BUFF_META[node.burningBuff] || BURNING_ELITE_BUFF_META.strength;
+            const buffDesc = buffMeta.describe(curAct);
+            nodeTooltip = `data-tooltip-title="${escapeHtml(`🔥 燃烧精英 · ${buffMeta.label}`)}" data-tooltip-tag="必掉绿宝石钥匙" data-tooltip-desc="${escapeHtml(`${buffDesc} 击败该燃烧精英后必定掉落【绿宝石钥匙】！`)}" data-tooltip-tone="buff"`;
+          } else if (curAct === 4 && node.type === 'elite') {
+            nodeTooltip = `data-tooltip-title="第四幕精英：尖塔之盾与尖塔之矛" data-tooltip-tag="夹击双卫战" data-tooltip-desc="前后夹击你的双精英守护者（背侧攻击伤害 +50%），击败后掉落遗物与战利品！" data-tooltip-tone="debuff"`;
+          }
 
           return `
             <button
@@ -249,14 +265,16 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
               class="${cls}"
               style="left: ${coord.xPct}%;"
               data-node-type="${escapeHtml(node.type)}"
+              ${isBurningElite ? `data-burning-elite="true" data-burning-buff="${escapeHtml(node.burningBuff || 'strength')}"` : ''}
               data-action="${interactive ? 'select-node' : 'inspect-map-node'}"
               data-node-id="${escapeHtml(node.id)}"
               aria-label="${escapeHtml(ariaLabel)}"
               title="${escapeHtml(ariaLabel)}"
-              ${bossTooltip}
+              ${nodeTooltip}
               aria-disabled="${interactive && isAvailable ? 'false' : 'true'}"
             >
               <span class="node-icon-wrap node-type-${escapeHtml(node.type)}">${getNodeIconSvg(node.type)}</span>
+              ${isBurningElite ? '<span class="burning-elite-flame" aria-hidden="true">🔥</span>' : ''}
               ${node.visited && !isCurrent ? '<span class="node-visited-check" aria-hidden="true">✓</span>' : ''}
             </button>
           `;
@@ -273,7 +291,7 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
     .join('');
 
   return `
-    <div class="map-board ${interactive ? '' : 'map-readonly'}">
+    <div class="map-board ${interactive ? '' : 'map-readonly'} ${curAct === 4 ? 'map-board-act4' : ''}">
       <svg class="map-edges-svg" viewBox="0 0 1000 ${totalHeight}" preserveAspectRatio="none" aria-hidden="true">${edgePathsHtml}</svg>
       ${rowsHtml}
     </div>
@@ -282,7 +300,7 @@ export function renderMapBoardHtml(state, { interactive = true, idPrefix = 'map-
 
 export function renderMapScreen({ state, settings, ui }) {
   const bossName = getCurrentBossName(state);
-  const isAct2 = (state.act ?? 1) >= 2;
+  const actTotalFloors = getActTotalFloors(state);
   const pendingNeow = hasPendingNeowBlessing(state);
   const showNewbieBanner =
     !state.currentNodeId && (state.act ?? 1) === 1 && !settings?.tutorialDismissed;
@@ -382,13 +400,23 @@ export function renderMapScreen({ state, settings, ui }) {
 
   const act = state.act ?? 1;
   const actHeading =
-    act >= 3 ? '第三幕 · 深渊圣殿攀登路线' : act >= 2 ? '第二幕 · 钢铁城邦攀登路线' : '尖塔攀登路线';
+    act >= 4
+      ? '第四幕 · 终末尖顶（心脏终战）'
+      : act >= 3
+        ? '第三幕 · 深渊圣殿攀登路线'
+        : act >= 2
+          ? '第二幕 · 钢铁城邦攀登路线'
+          : '尖塔攀登路线';
+  const actSubtitle =
+    act >= 4
+      ? `三把钥匙已开启终末之门！前方仅余 4 层直通心脏：F1 篝火整备 → F2 神秘商人 → F3 尖塔之盾与尖塔之矛 → F4 终极首领【${escapeHtml(bossName)}】！`
+      : `自下而上沿连线攀登（点击或悬停任意房间可高亮其直接相连房间；点选下方图例可高亮全部同类房间）：第 1–5 层无精英稳步发育，第 9 层必遇远古宝箱，第 ${escapeHtml(actTotalFloors)} 层迎战首领【${escapeHtml(bossName)}】。`;
   return `
     <section class="panel-stage" aria-labelledby="map-heading">
       <div class="stage-header">
         <div>
           <h2 id="map-heading" class="stage-heading">${actHeading}</h2>
-          <p class="stage-subtitle">自下而上沿连线攀登（点击或悬停任意房间可高亮其直接相连房间；点选下方图例可高亮全部同类房间）：第 1–5 层无精英稳步发育，第 9 层必遇远古宝箱，第 ${escapeHtml(TOTAL_FLOORS)} 层迎战首领【${escapeHtml(bossName)}】。</p>
+          <p class="stage-subtitle">${actSubtitle}</p>
         </div>
         ${
           state.restState?.lastAction

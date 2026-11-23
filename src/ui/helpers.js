@@ -319,7 +319,9 @@ export function renderCardHtml(cardInstance, options = {}) {
 }
 
 export function renderStatusesHtml(entity, ownerLabel = '状态') {
-  const entries = Object.entries(entity?.statuses || {}).filter(([, val]) => val !== 0);
+  const entries = Object.entries(entity?.statuses || {}).filter(
+    ([key, val]) => val !== 0 || (key === 'invincible' && (entity?.invincibleMax ?? 0) > 0)
+  );
   if (entries.length === 0) {
     return '<div class="status-row"></div>';
   }
@@ -340,7 +342,7 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
         const stolenName = getCardStats(entity.stasisCard)?.name || entity.stasisCard.cardId;
         descText = `已封印你的卡牌【${stolenName}】：击败该单位后立即归还至你的手牌！`;
       }
-      const hideCount = key !== 'slow' && val === 1;
+      const hideCount = key !== 'slow' && key !== 'invincible' && val === 1;
       const svgMarkup = getStatusSvg(key, { polarity, scope: entityScope });
       return `<span
         class="status-chip ${escapeHtml(polarity)}${hideCount ? ' icon-only' : ''}"

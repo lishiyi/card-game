@@ -3,13 +3,13 @@
  */
 
 import { getCharacterDef } from '../../data/characters.js';
-import { TOTAL_FLOORS } from '../../data/events.js';
 import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyModifierDefs } from '../../engine/daily.js';
+import { getActTotalFloors, getCollectedKeyCount } from '../../engine/game.js';
 import { ASCENSION_DEFS } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml } from '../helpers.js';
-import { getPotionAccentColor, getPotionIconSvg, getVitalIconSvg } from '../icons.js';
+import { getKeysEmblemSvg, getPotionAccentColor, getPotionIconSvg, getVitalIconSvg } from '../icons.js';
 import { getRelicSvg } from '../relic_art.js';
 
 export function renderTopHud({ state, ui }) {
@@ -227,6 +227,17 @@ export function renderTopHud({ state, ui }) {
   }
 
   const actPrefix = (state.act ?? 1) >= 2 ? `第 ${state.act} 幕 · ` : '';
+  const actTotalFloors = getActTotalFloors(state);
+  const keys = state.keys || { ruby: false, emerald: false, sapphire: false };
+  const keyCount = getCollectedKeyCount(state);
+  const keyTooltipLines = [
+    `红宝石钥匙：${keys.ruby ? '✓ 已获取' : '未获取（篝火营地选择「召回」）'}`,
+    `绿宝石钥匙：${keys.emerald ? '✓ 已获取' : '未获取（击败地图上的燃烧精英）'}`,
+    `蓝宝石钥匙：${keys.sapphire ? '✓ 已获取' : '未获取（在宝箱室放弃遗物换取）'}`,
+    keyCount === 3
+      ? '✨ 三钥齐聚！击败第 3 幕首领后将开启第 4 幕【终末尖顶】！'
+      : '集齐全部 3 把钥匙后，击败第 3 幕首领将解锁第 4 幕【盾牌与长矛 + 腐化之心】！',
+  ].join('\n');
   const asc = state.ascension ?? 0;
   const ascDef = ASCENSION_DEFS[asc] || ASCENSION_DEFS[0];
   const charId = state.characterId || 'ironclad';
@@ -238,7 +249,20 @@ export function renderTopHud({ state, ui }) {
       <div class="brand-cluster">
         <h1 class="game-title">杀戮尖塔<span class="title-subtitle"> · 简明版</span></h1>
         <span class="character-hud-pill char-${escapeHtml(charId)}" id="hud-character-pill">${escapeHtml(charName)}</span>
-        <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</span>
+        <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(actTotalFloors)} 层</span>
+        <span
+          class="keys-hud-pill ${keyCount === 3 ? 'keys-complete' : ''}"
+          id="hud-keys-pill"
+          tabindex="0"
+          data-ruby="${keys.ruby ? '1' : '0'}"
+          data-emerald="${keys.emerald ? '1' : '0'}"
+          data-sapphire="${keys.sapphire ? '1' : '0'}"
+          aria-label="${escapeHtml(`第四幕钥匙 ${keyCount}/3`)}"
+          data-tooltip-title="终末尖顶钥匙 (${keyCount}/3)"
+          data-tooltip-tag="${keyCount === 3 ? '已集齐 · 解锁第 4 幕' : '红 / 绿 / 蓝三把钥匙'}"
+          data-tooltip-desc="${escapeHtml(keyTooltipLines)}"
+          data-tooltip-tone="relic"
+        >${getKeysEmblemSvg(keys)}<span class="keys-hud-count">${escapeHtml(keyCount)}/3</span></span>
         ${
           daily
             ? `<span class="daily-pill" id="hud-daily-pill" tabindex="0" data-tooltip-title="每日挑战 · ${escapeHtml(daily.dateKey)}" data-tooltip-tag="今日进阶 ${escapeHtml(asc)} · 无鲸鱼赐福" data-tooltip-desc="${escapeHtml(dailyTooltipDesc)}" data-tooltip-tone="relic">每日 ${escapeHtml(daily.dateKey.slice(5))}</span>`

@@ -1853,6 +1853,28 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: () => '已封印玩家的一张卡牌：击败该青铜球后立即归还至你的手牌！',
   },
+  invincible: {
+    id: 'invincible',
+    name: '无敌',
+    polarity: 'buff',
+    describe: (v) =>
+      v > 0
+        ? `本回合最多还可失去 ${v} 点生命（每回合开始重置上限）。`
+        : '本回合已达承伤上限，无法再失去任何生命（下回合开始重置）。',
+  },
+  beatOfDeath: {
+    id: 'beatOfDeath',
+    name: '死亡律动',
+    polarity: 'buff',
+    describe: (v) => `每当你打出一张卡牌时，腐化之心立即对你造成 ${v} 点可格挡的震荡伤害。`,
+  },
+  surrounded: {
+    id: 'surrounded',
+    name: '夹击',
+    polarity: 'debuff',
+    describe: () =>
+      '正被尖塔之盾与尖塔之矛前后夹击：来自背侧敌人的攻击伤害提高 50%！打出单体攻击牌可转身面对目标；击败其中任意一人后解除。',
+  },
 });
 
 export const STANCE_METADATA = deepFreeze({

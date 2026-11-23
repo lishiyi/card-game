@@ -2381,6 +2381,127 @@ export function getEnemySvg(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'spire_shield':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-spsh-aura" cx="50%" cy="52%" r="48%">
+              <stop offset="0%" stop-color="hsla(204, 88%, 58%, 0.34)" />
+              <stop offset="100%" stop-color="hsla(224, 62%, 14%, 0)" />
+            </radialGradient>
+            <linearGradient id="ea-spsh-plate" x1="0.1" y1="0" x2="0.9" y2="1">
+              <stop offset="0%" stop-color="hsl(216, 36%, 48%)" />
+              <stop offset="52%" stop-color="hsl(222, 34%, 26%)" />
+              <stop offset="100%" stop-color="hsl(232, 42%, 12%)" />
+            </linearGradient>
+            <linearGradient id="ea-spsh-trim" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(46, 94%, 76%)" />
+              <stop offset="60%" stop-color="hsl(36, 74%, 48%)" />
+              <stop offset="100%" stop-color="hsl(26, 62%, 24%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="58" r="50" fill="url(#ea-spsh-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="40" ry="6.5" fill="hsla(0,0%,0%,0.54)" />
+          <g class="svg-float">
+            <!-- Towering sentinel diamond shield monolith -->
+            <path d="M60 10 L96 28 L90 78 L60 104 L30 78 L24 28 Z" fill="url(#ea-spsh-plate)" stroke="url(#ea-spsh-trim)" stroke-width="2.8" stroke-linejoin="round" />
+            <!-- Inner embossed fortress plates -->
+            <path d="M60 19 L86 33 L82 73 L60 93 L38 73 L34 33 Z" fill="hsl(226, 38%, 17%)" stroke="hsl(204, 72%, 58%)" stroke-width="1.5" />
+            <path d="M60 19 V93 M34 52 H86" stroke="url(#ea-spsh-trim)" stroke-width="2.2" opacity="0.72" />
+            <!-- Floating corner ward spikes -->
+            <polygon points="18,36 28,30 27,46" fill="url(#ea-spsh-trim)" stroke="hsl(226, 38%, 16%)" stroke-width="1.2" />
+            <polygon points="102,36 92,30 93,46" fill="url(#ea-spsh-trim)" stroke="hsl(226, 38%, 16%)" stroke-width="1.2" />
+            <!-- Glowing arcane sentinel eye -->
+            <polygon points="60,36 74,52 60,68 46,52" fill="hsl(208, 72%, 20%)" stroke="url(#ea-spsh-trim)" stroke-width="1.8" />
+            <ellipse cx="60" cy="52" rx="8.5" ry="5" fill="hsl(196, 100%, 66%)" class="svg-pulse" />
+            <circle cx="60" cy="52" r="3" fill="hsl(50, 100%, 92%)" />
+          </g>
+        </svg>
+      `;
+
+    case 'spire_spear':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-spsp-aura" cx="50%" cy="50%" r="48%">
+              <stop offset="0%" stop-color="hsla(352, 92%, 56%, 0.34)" />
+              <stop offset="100%" stop-color="hsla(330, 62%, 12%, 0)" />
+            </radialGradient>
+            <linearGradient id="ea-spsp-blade" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(48, 96%, 86%)" />
+              <stop offset="48%" stop-color="hsl(354, 78%, 54%)" />
+              <stop offset="100%" stop-color="hsl(338, 66%, 22%)" />
+            </linearGradient>
+            <linearGradient id="ea-spsp-shaft" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="hsl(224, 28%, 42%)" />
+              <stop offset="50%" stop-color="hsl(42, 86%, 68%)" />
+              <stop offset="100%" stop-color="hsl(226, 32%, 18%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="58" r="50" fill="url(#ea-spsp-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="34" ry="6" fill="hsla(0,0%,0%,0.54)" />
+          <g class="svg-float">
+            <!-- Twin orbiting crimson energy haloes -->
+            <ellipse cx="60" cy="58" rx="36" ry="12" transform="rotate(-24 60 58)" fill="none" stroke="hsla(354, 96%, 64%, 0.62)" stroke-width="2" stroke-dasharray="9 5" />
+            <ellipse cx="60" cy="58" rx="32" ry="10" transform="rotate(24 60 58)" fill="none" stroke="hsla(44, 96%, 72%, 0.56)" stroke-width="1.6" />
+            <!-- Main levitating spire lance -->
+            <polygon points="60,6 76,42 66,48 66,94 60,106 54,94 54,48 44,42" fill="url(#ea-spsp-blade)" stroke="hsl(46, 96%, 76%)" stroke-width="2" stroke-linejoin="round" />
+            <line x1="60" y1="14" x2="60" y2="96" stroke="url(#ea-spsp-shaft)" stroke-width="3.2" stroke-linecap="round" />
+            <!-- Winged spear-guard fins -->
+            <path d="M22 44 L48 52 L44 64 L26 56 Z" fill="hsl(226, 32%, 22%)" stroke="hsl(44, 88%, 68%)" stroke-width="1.6" />
+            <path d="M98 44 L72 52 L76 64 L94 56 Z" fill="hsl(226, 32%, 22%)" stroke="hsl(44, 88%, 68%)" stroke-width="1.6" />
+            <!-- Glowing core eye -->
+            <circle cx="60" cy="54" r="6.5" fill="hsl(352, 86%, 30%)" stroke="hsl(48, 100%, 78%)" stroke-width="1.6" />
+            <circle cx="60" cy="54" r="3.2" fill="hsl(48, 100%, 84%)" class="svg-pulse" />
+          </g>
+        </svg>
+      `;
+
+    case 'corrupt_heart':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg boss-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-chrt-aura" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="hsla(338, 96%, 52%, 0.44)" />
+              <stop offset="60%" stop-color="hsla(286, 72%, 28%, 0.22)" />
+              <stop offset="100%" stop-color="hsla(0, 0%, 0%, 0)" />
+            </radialGradient>
+            <radialGradient id="ea-chrt-flesh" cx="42%" cy="36%" r="64%">
+              <stop offset="0%" stop-color="hsl(348, 86%, 52%)" />
+              <stop offset="52%" stop-color="hsl(334, 72%, 28%)" />
+              <stop offset="100%" stop-color="hsl(288, 64%, 11%)" />
+            </radialGradient>
+            <linearGradient id="ea-chrt-vein" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(296, 94%, 68%)" />
+              <stop offset="55%" stop-color="hsl(346, 94%, 56%)" />
+              <stop offset="100%" stop-color="hsl(14, 96%, 62%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="56" fill="url(#ea-chrt-aura)" class="svg-pulse" />
+          <!-- Radiating abyssal pulse rings -->
+          <circle cx="60" cy="60" r="46" fill="none" stroke="hsla(344, 96%, 60%, 0.35)" stroke-width="1.6" stroke-dasharray="8 6" class="svg-spin-slow" />
+          <ellipse cx="60" cy="110" rx="44" ry="7" fill="hsla(0,0%,0%,0.6)" />
+          <g class="svg-breathe">
+            <!-- Towering corrupted arterial crowns -->
+            <path d="M44 26 Q38 10 26 8 Q34 22 36 34 Z" fill="hsl(328, 64%, 22%)" stroke="url(#ea-chrt-vein)" stroke-width="1.8" />
+            <path d="M56 22 Q54 6 62 4 Q68 12 66 26 Z" fill="hsl(332, 68%, 26%)" stroke="url(#ea-chrt-vein)" stroke-width="1.8" />
+            <path d="M74 28 Q84 10 96 12 Q86 24 82 38 Z" fill="hsl(328, 64%, 22%)" stroke="url(#ea-chrt-vein)" stroke-width="1.8" />
+            <!-- Writhing corruption tendrils -->
+            <path d="M26 56 Q10 64 14 84 M94 56 Q110 64 106 84 M34 86 Q22 98 28 106 M86 86 Q98 98 92 106" fill="none" stroke="url(#ea-chrt-vein)" stroke-width="3.2" stroke-linecap="round" />
+            <!-- Colossal beating Corrupt Heart chamber -->
+            <path d="M60 104 C54 102 22 80 22 50 C22 30 37 20 51 24 C56 26 59 30 60 34 C61 30 64 26 69 24 C83 20 98 30 98 50 C98 80 66 102 60 104 Z" fill="url(#ea-chrt-flesh)" stroke="hsl(350, 92%, 66%)" stroke-width="2.4" stroke-linejoin="round" />
+            <!-- Pulsing necrotic veins across heart -->
+            <path d="M44 30 Q52 48 42 66 Q48 80 60 96 M76 30 Q68 50 78 68 Q70 82 60 96 M34 52 Q60 62 86 52" fill="none" stroke="url(#ea-chrt-vein)" stroke-width="2.2" stroke-linecap="round" opacity="0.88" />
+            <!-- Piercing abyssal core fissure / tri-eyes -->
+            <path d="M60 40 L72 58 L60 76 L48 58 Z" fill="hsl(288, 72%, 10%)" stroke="hsl(44, 100%, 74%)" stroke-width="1.6" />
+            <ellipse cx="60" cy="58" rx="6" ry="10" fill="hsl(354, 100%, 62%)" class="svg-pulse" />
+            <ellipse cx="60" cy="58" rx="2.5" ry="6" fill="hsl(52, 100%, 88%)" />
+            <circle cx="42" cy="48" r="3" fill="hsl(46, 100%, 76%)" class="svg-pulse" />
+            <circle cx="78" cy="48" r="3" fill="hsl(46, 100%, 76%)" class="svg-pulse" />
+          </g>
+        </svg>
+      `;
+
     default:
       return null;
   }

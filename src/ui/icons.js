@@ -449,4 +449,70 @@ export function getVitalIconSvg(kind) {
   }
 }
 
+export function getKeyIconSvg(keyColor, { collected = true, size = 26 } = {}) {
+  const palette = {
+    ruby: {
+      fill: 'hsl(352, 88%, 54%)',
+      hi: 'hsl(12, 100%, 78%)',
+      stroke: 'hsl(350, 92%, 72%)',
+      glow: 'hsla(352, 92%, 56%, 0.45)',
+    },
+    emerald: {
+      fill: 'hsl(148, 78%, 44%)',
+      hi: 'hsl(136, 98%, 74%)',
+      stroke: 'hsl(142, 92%, 68%)',
+      glow: 'hsla(146, 92%, 52%, 0.45)',
+    },
+    sapphire: {
+      fill: 'hsl(212, 88%, 54%)',
+      hi: 'hsl(196, 100%, 78%)',
+      stroke: 'hsl(206, 96%, 74%)',
+      glow: 'hsla(210, 96%, 58%, 0.45)',
+    },
+  }[keyColor] || {
+    fill: 'hsl(42, 84%, 56%)',
+    hi: 'hsl(50, 100%, 82%)',
+    stroke: 'hsl(44, 92%, 72%)',
+    glow: 'hsla(42, 90%, 56%, 0.4)',
+  };
+
+  const dimFill = 'hsla(224, 14%, 22%, 0.65)';
+  const dimStroke = 'hsla(224, 14%, 44%, 0.55)';
+  const mainFill = collected ? palette.fill : dimFill;
+  const mainStroke = collected ? palette.stroke : dimStroke;
+  const innerHi = collected ? palette.hi : 'hsla(224, 12%, 34%, 0.4)';
+
+  if (keyColor === 'ruby') {
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" class="spire-key-svg key-ruby ${collected ? 'collected' : 'missing'}" data-key-icon="ruby" aria-hidden="true">
+      <polygon points="12,2.4 20.4,9.6 17.2,21.2 6.8,21.2 3.6,9.6" fill="${mainFill}" stroke="${mainStroke}" stroke-width="1.5" stroke-linejoin="round"/>
+      <polygon points="12,6.2 16.4,10.2 14.6,17.4 9.4,17.4 7.6,10.2" fill="${innerHi}" fill-opacity="${collected ? '0.45' : '0.2'}"/>
+      <path d="M12 2.8 L12 20.6" stroke="${innerHi}" stroke-width="0.9" opacity="${collected ? '0.6' : '0.2'}"/>
+    </svg>`;
+  }
+  if (keyColor === 'emerald') {
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" class="spire-key-svg key-emerald ${collected ? 'collected' : 'missing'}" data-key-icon="emerald" aria-hidden="true">
+      <polygon points="12,2.2 19.6,7.2 19.6,16.8 12,21.8 4.4,16.8 4.4,7.2" fill="${mainFill}" stroke="${mainStroke}" stroke-width="1.5" stroke-linejoin="round"/>
+      <polygon points="12,5.8 16.2,8.8 16.2,15.2 12,18.2 7.8,15.2 7.8,8.8" fill="${innerHi}" fill-opacity="${collected ? '0.45' : '0.2'}"/>
+      <path d="M8.5 12 H15.5" stroke="${innerHi}" stroke-width="1" opacity="${collected ? '0.65' : '0.2'}"/>
+    </svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" class="spire-key-svg key-sapphire ${collected ? 'collected' : 'missing'}" data-key-icon="sapphire" aria-hidden="true">
+    <polygon points="12,2.2 21,12 12,21.8 3,12" fill="${mainFill}" stroke="${mainStroke}" stroke-width="1.5" stroke-linejoin="round"/>
+    <polygon points="12,6.4 16.8,12 12,17.6 7.2,12" fill="${innerHi}" fill-opacity="${collected ? '0.48' : '0.2'}"/>
+    <circle cx="12" cy="12" r="1.8" fill="${innerHi}" opacity="${collected ? '0.9' : '0.25'}"/>
+  </svg>`;
+}
+
+export function getKeysEmblemSvg(keys = {}) {
+  const r = Boolean(keys?.ruby);
+  const g = Boolean(keys?.emerald);
+  const b = Boolean(keys?.sapphire);
+  return `<svg viewBox="0 0 26 26" width="20" height="20" class="spire-keys-emblem ${r && g && b ? 'all-keys-lit' : ''}" data-keys-emblem="true" aria-hidden="true">
+    <polygon points="13,2 22.8,7.8 22.8,18.2 13,24 3.2,18.2 3.2,7.8" fill="hsla(228, 22%, 12%, 0.85)" stroke="${r && g && b ? 'hsl(46, 96%, 72%)' : 'hsla(38, 30%, 54%, 0.55)'}" stroke-width="1.2"/>
+    <polygon points="13,3.6 17.6,10.6 8.4,10.6" fill="${r ? 'hsl(352, 92%, 56%)' : 'hsla(224, 14%, 26%, 0.65)'}" stroke="${r ? 'hsl(12, 100%, 78%)' : 'hsla(224, 14%, 44%, 0.45)'}" stroke-width="0.9"/>
+    <polygon points="5,17 12.2,12.2 12.2,21.8" fill="${g ? 'hsl(146, 82%, 46%)' : 'hsla(224, 14%, 26%, 0.65)'}" stroke="${g ? 'hsl(138, 98%, 74%)' : 'hsla(224, 14%, 44%, 0.45)'}" stroke-width="0.9"/>
+    <polygon points="21,17 13.8,12.2 13.8,21.8" fill="${b ? 'hsl(210, 92%, 56%)' : 'hsla(224, 14%, 26%, 0.65)'}" stroke="${b ? 'hsl(196, 100%, 78%)' : 'hsla(224, 14%, 44%, 0.45)'}" stroke-width="0.9"/>
+  </svg>`;
+}
+
 export { getPotionAccentColor, getPotionIconSvg, getUndiscoveredPotionSvg };

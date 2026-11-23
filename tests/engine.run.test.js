@@ -66,10 +66,13 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardEmeraldKey,
   claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
   claimRewardRelic,
+  claimTreasureRelic,
+  claimTreasureSapphireKey,
   completeEventCardAction,
   completeEventPurge,
   completeNeowAction,
@@ -85,6 +88,7 @@ import {
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
   grantRelicToPlayer,
+  hasAllAct4Keys,
   hasPendingNeowBlessing,
   leaveShop,
   leaveTreasureRoom,
@@ -94,8 +98,10 @@ import {
   playerHasHeavyAttackCard,
   proceedFromReward,
   proceedToNextAct,
+  recallRubyKey,
   restHeal,
   restUpgradeCard,
+  revealTreasureChest,
   rollRewardCards,
   runEndTurn,
   runPlayCard,
@@ -2112,7 +2118,7 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
   }
 
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
-  assert.equal(enemyEntries.length, 61);
+  assert.equal(enemyEntries.length, 64);
 
   for (const [id, tpl] of enemyEntries) {
     const svg = getCharacterSvg(tpl.artKey || id);
@@ -2135,9 +2141,9 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
   }
 
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 233);
+  assert.equal(cardEntries.length, 234);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.equal(sigKeys.length, 231, `Expected 100% bespoke signature art for all 231 non-shared cards, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 232, `Expected 100% bespoke signature art for all 232 non-shared cards, got ${sigKeys.length}`);
   const seenCardGradIds = new Set();
   for (const sigId of sigKeys) {
     assert.ok(CARD_LIBRARY[sigId], `Signature card art key ${sigId} must exist in CARD_LIBRARY`);
@@ -2478,11 +2484,11 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   );
 });
 
-test('Official Simplified Chinese card names (233 unique) & concise card keyword descriptions/extraction', () => {
+test('Official Simplified Chinese card names (234 unique) & concise card keyword descriptions/extraction', () => {
   const allCards = Object.values(CARD_LIBRARY);
-  assert.equal(allCards.length, 233);
+  assert.equal(allCards.length, 234);
 
-  // Zero duplicate Chinese names across all 233 cards
+  // Zero duplicate Chinese names across all 234 cards
   const seenNames = new Map();
   for (const c of allCards) {
     assert.equal(
@@ -2903,10 +2909,10 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 99 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
+test('Status Art Integrity: all 102 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 99, `Expected 99 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 102, `Expected 102 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();
@@ -2994,4 +3000,136 @@ test('Potion Art Integrity: all 28 potions have distinct hand-crafted bottle SVG
   const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const swText = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
   assert.ok(swText.includes("'./src/ui/potion_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/potion_art.js');
+});
+
+test('Act 4 & Three Keys Full Lifecycle: Ruby Recall, Burning Elite Emerald Key, Treasure Sapphire Key choice, Act 3->4 Spire Door Gate, 4-floor linear map, Act 4 defeat Ascension unlock, Heart Victory score bonus & 4-floor backup validation', () => {
+  const run = createNewRun({ seed: 77701, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  assert.deepEqual(run.keys, { ruby: false, emerald: false, sapphire: false });
+  assert.equal(hasAllAct4Keys(run), false);
+
+  // 1. Exactly 1 Burning Elite spawns on Act 1 map with valid burningBuff
+  const act1Burning = run.map.flat().filter((n) => n.isBurningElite);
+  assert.equal(act1Burning.length, 1, 'Act 1 map must mark exactly 1 Burning Elite');
+  const bNode = act1Burning[0];
+  assert.equal(bNode.type, 'elite');
+  assert.ok(['maxHp', 'strength', 'metallicize', 'regenerating'].includes(bNode.burningBuff));
+
+  // Entering Burning Elite applies buff & defeating it drops Emerald Key (guarded by getUnclaimedImportantRewards)
+  const parentOfBurning = run.map[bNode.floor - 2].find((p) => p.nextIds.includes(bNode.id));
+  run.currentNodeId = parentOfBurning.id;
+  assert.equal(selectMapNode(run, bNode.id).ok, true);
+  assert.equal(run.combat.isBurningElite, true);
+  assert.equal(run.combat.burningBuff, bNode.burningBuff);
+  assert.ok(run.combat.encounterName.includes('燃烧精英'));
+  const enemy = run.combat.enemies[0];
+  if (bNode.burningBuff === 'strength') assert.ok((enemy.statuses.strength ?? 0) >= 1);
+  if (bNode.burningBuff === 'metallicize') assert.ok((enemy.statuses.metallicize ?? 0) >= 2);
+  if (bNode.burningBuff === 'regenerating') assert.ok((enemy.statuses.regenerating ?? 0) >= 3);
+
+  transitionCombatVictory(run);
+  assert.equal(run.screen, 'reward');
+  assert.equal(run.reward.emeraldKey, true);
+  assert.equal(run.reward.emeraldKeyClaimed, false);
+  const unclaimed = getUnclaimedImportantRewards(run);
+  assert.equal(unclaimed.hasEmeraldKey, true);
+  assert.ok(unclaimed.items.includes('【绿宝石钥匙】'));
+  assert.equal(claimRewardEmeraldKey(run).ok, true);
+  assert.equal(run.keys.emerald, true);
+  assert.equal(proceedFromReward(run, { force: true }).ok, true);
+
+  // 2. Ruby Key via Campfire Recall (works even with Coffee Dripper!)
+  grantRelicToPlayer(run, 'coffee_dripper');
+  run.screen = 'rest';
+  run.restState = { completed: false, lastAction: null, featherHealed: 0 };
+  assert.equal(restHeal(run).ok, false, 'Coffee Dripper disables rest heal');
+  assert.equal(recallRubyKey(run).ok, true, 'Recall must still succeed with Coffee Dripper');
+  assert.equal(run.keys.ruby, true);
+  assert.equal(run.screen, 'map');
+  run.screen = 'rest';
+  run.restState = { completed: false, lastAction: null, featherHealed: 0 };
+  assert.equal(recallRubyKey(run).ok, false, 'Cannot recall Ruby Key twice');
+
+  // 3. Sapphire Key via Treasure reveal -> mutually exclusive Relic vs Sapphire Key
+  run.screen = 'treasure';
+  run.treasureState = { opened: false, chestTier: 'large', chestLabel: '远古大宝箱', relicId: null, gold: 0, curseCardId: null, outcomeText: '' };
+  const revealRes = revealTreasureChest(run);
+  assert.equal(revealRes.ok, true);
+  assert.ok(revealRes.offeredRelicId);
+  assert.equal(run.treasureState.sapphireKeyOffered, true);
+  assert.equal(run.treasureState.choiceResolved, false);
+  const relicsBefore = run.player.relics.length;
+  assert.equal(claimTreasureSapphireKey(run).ok, true);
+  assert.equal(run.keys.sapphire, true);
+  assert.equal(run.player.relics.length, relicsBefore, 'Claiming Sapphire Key forfeits offered chest relic');
+  assert.equal(claimTreasureRelic(run).ok, false, 'Cannot also claim chest relic after taking Sapphire Key');
+  assert.equal(leaveTreasureRoom(run).ok, true);
+  assert.equal(hasAllAct4Keys(run), true);
+
+  // 4. Act 3 Boss with all 3 keys -> Act 4 Spire Door Gate -> Proceed to Act 4 4-floor linear map!
+  run.act = 3;
+  run.player.hp = 40;
+  startCombat(run, ENCOUNTERS.act3Boss[0], 'boss', transitionCombatVictory);
+  transitionCombatVictory(run);
+  assert.equal(run.act3Cleared, true);
+  assert.equal(run.screen, 'boss_reward');
+  assert.equal(run.bossReward.isAct4Gate, true);
+
+  const act4Res = proceedToNextAct(run);
+  assert.equal(act4Res.ok, true);
+  assert.equal(act4Res.act, 4);
+  assert.equal(run.act, 4);
+  assert.equal(run.map.length, 4);
+  assert.deepEqual(
+    run.map.map((row) => row[0].type),
+    ['rest', 'shop', 'elite', 'boss']
+  );
+  assert.equal(run.bossEncounterId, 'corrupt_heart_boss');
+  assert.ok(run.player.hp > 40, 'Entering Act 4 heals missing HP');
+
+  // Backup export & validation accepts 4-floor Act 4 activeRun!
+  const metaForBackup = createDefaultMeta();
+  const backupJson = exportSaveBackup({ meta: metaForBackup, activeRun: run });
+  const backupCheck = validateSaveBackup(backupJson, TOTAL_FLOORS);
+  assert.equal(backupCheck.ok, true, `Expected valid Act 4 backup, got: ${backupCheck.reason}`);
+
+  // Traverse Act 4 F1 Rest -> F2 Shop -> F3 Shield & Spear -> F4 Corrupt Heart
+  assert.equal(selectMapNode(run, 'r0_c0').ok, true);
+  assert.equal(run.screen, 'rest');
+  run.screen = 'map';
+  assert.equal(selectMapNode(run, 'r1_c0').ok, true);
+  assert.equal(run.screen, 'shop');
+  assert.equal(leaveShop(run).ok, true);
+  assert.equal(selectMapNode(run, 'r2_c0').ok, true);
+  assert.equal(run.screen, 'combat');
+  assert.equal(run.combat.encounterId, 'spire_shield_and_spear');
+  transitionCombatVictory(run);
+  assert.equal(run.screen, 'reward');
+  assert.equal(proceedFromReward(run, { force: true }).ok, true);
+
+  // Act 4 defeat STILL unlocks next Ascension level because act3Cleared is true!
+  const defeatAct4Copy = structuredClone(run);
+  defeatAct4Copy.runId = 'act4_defeat_test';
+  defeatAct4Copy.screen = 'game_over';
+  defeatAct4Copy.runOutcome = 'defeat';
+  const metaDefeat = createDefaultMeta();
+  const defeatRec = recordCompletedRun(metaDefeat, defeatAct4Copy);
+  assert.equal(defeatRec.unlockedAscension, 1, 'Dying in Act 4 after clearing Act 3 must still unlock Ascension 1');
+
+  // Enter F4 Corrupt Heart and defeat it -> Heart Victory true ending + Heartbreaker +250 score bonus!
+  assert.equal(selectMapNode(run, 'r3_c0').ok, true);
+  assert.equal(run.combat.encounterId, 'corrupt_heart_boss');
+  transitionCombatVictory(run);
+  assert.equal(run.screen, 'game_over');
+  assert.equal(run.runOutcome, 'victory');
+  assert.equal(run.heartVictory, true);
+
+  const scoreObj = calculateRunScore(run);
+  assert.ok(
+    scoreObj.breakdown.some((item) => item.label.includes('心脏斩杀') && item.points === 250),
+    'Heart Victory must award +250 Heartbreaker score bonus'
+  );
+  const report = buildRunReportFromState(run);
+  assert.equal(report.heartVictory, true);
+  const shareText = formatShareableBattleReport(report);
+  assert.ok(shareText.includes('心脏斩杀'), 'Shareable report must announce Heart Victory');
 });

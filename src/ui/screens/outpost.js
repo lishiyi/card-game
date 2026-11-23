@@ -3,10 +3,10 @@
  */
 
 import { CARD_LIBRARY, getCardCharacter } from '../../data/cards.js';
-import { TOTAL_FLOORS } from '../../data/events.js';
 import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from '../../engine/daily.js';
 import {
+  getActTotalFloors,
   getCurrentBossName,
   getCurrentPurgeCost,
   getUpgradableDeckCards,
@@ -14,15 +14,18 @@ import {
 import { buildRunReportFromState } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
 import { escapeHtml, renderCardHtml } from '../helpers.js';
-import { getLootIconSvg, getPotionIconSvg } from '../icons.js';
+import { getKeyIconSvg, getLootIconSvg, getPotionIconSvg } from '../icons.js';
 import { getRelicSvg } from '../relic_art.js';
 
 export function renderTreasureScreen({ state }) {
   const ts = state.treasureState;
   if (!ts) return '';
   const hasCursedKey = state.player.relics.includes('cursed_key');
+  const needsSapphireKey = !state.keys?.sapphire && (state.act ?? 1) <= 3;
   const relicObj = ts.relicId ? RELIC_LIBRARY[ts.relicId] : null;
+  const offeredRelicObj = ts.offeredRelicId ? RELIC_LIBRARY[ts.offeredRelicId] : null;
   const relicTierLabel = relicObj ? RELIC_TIER_LABELS[relicObj.tier] || '远古遗物' : '';
+  const offeredTierLabel = offeredRelicObj ? RELIC_TIER_LABELS[offeredRelicObj.tier] || '远古遗物' : '';
   const curseCard = ts.curseCardId
     ? state.player.deck.find((c) => c.instanceId === ts.curseCardId)
     : null;
@@ -37,7 +40,11 @@ export function renderTreasureScreen({ state }) {
         <div class="stage-header">
           <div>
             <h2 id="treasure-heading" class="stage-heading">远古宝箱室${chestBadgeHtml}</h2>
-            <p class="stage-subtitle">幽深石室中央摆放着一具${ts.chestLabel ? `<strong>${escapeHtml(ts.chestLabel)}</strong>` : '镶金古铜宝箱'}（小/中/大宝箱对应不同稀罕掉落权重），缝隙间溢出一缕温暖秘光。</p>
+            <p class="stage-subtitle">幽深石室中央摆放着一具${ts.chestLabel ? `<strong>${escapeHtml(ts.chestLabel)}</strong>` : '镶金古铜宝箱'}（小/中/大宝箱对应不同稀罕掉落权重），${
+              needsSapphireKey
+                ? '箱内除远古遗物外还隐约闪烁着【蓝宝石钥匙】的微光（开启后可在遗物与钥匙间二选一）。'
+                : '缝隙间溢出一缕温暖秘光。'
+            }</p>
           </div>
           <button type="button" id="btn-skip-treasure" class="btn-stone" data-action="leave-treasure">
             跳过宝箱，继续前进 →
@@ -50,47 +57,61 @@ export function renderTreasureScreen({ state }) {
             : ''
         }
 
-        <h3 class="reward-section-heading">远古秘宝（点击拿走）：</h3>
+        <h3 class="reward-section-heading">远古秘宝（点击开启）：</h3>
         <div class="loot-list treasure-loot-list">
           <button
             type="button"
             id="btn-open-treasure"
             class="loot-reward-card loot-kind-gold treasure-chest-cta"
             data-action="open-treasure"
-            data-tooltip-title="开启远古宝箱 · 拿走秘宝"
-            data-tooltip-tag="${hasCursedKey ? '会触发诅咒钥匙' : '必出遗物'}"
+            data-tooltip-title="开启远古宝箱 · 查看秘宝"
+            data-tooltip-tag="${hasCursedKey ? '会触发诅咒钥匙' : needsSapphireKey ? '遗物 / 蓝宝石钥匙二选一' : '必出遗物'}"
             data-tooltip-desc="${escapeHtml(
-              `开启宝箱即可直接拿走 1 件随机遗物（并有概率附赠金币）${
-                hasCursedKey ? '；因持有【诅咒钥匙】还会获得 1 张随机诅咒牌。' : '。'
-              }`
+              `${
+                needsSapphireKey
+                  ? '开启宝箱后将展示箱内的远古遗物与【蓝宝石钥匙】（二选一），并有概率附赠金币'
+                  : '开启宝箱即可直接拿走 1 件随机遗物（并有概率附赠金币）'
+              }${hasCursedKey ? '；因持有【诅咒钥匙】还会获得 1 张随机诅咒牌。' : '。'}`
             )}"
           >
             <span class="loot-icon-badge loot-badge-gold">${getLootIconSvg('chest')}</span>
             <span class="loot-card-body">
               <span class="loot-card-title">
-                开启${escapeHtml(ts.chestLabel || '远古宝箱')} · 拿走宝物
-                <span class="loot-sub-pill">${hasCursedKey ? '⚠ 触发诅咒钥匙' : '必出遗物'}</span>
+                开启${escapeHtml(ts.chestLabel || '远古宝箱')} · ${needsSapphireKey ? '查看遗物与蓝宝石钥匙' : '拿走宝物'}
+                <span class="loot-sub-pill">${hasCursedKey ? '⚠ 触发诅咒钥匙' : needsSapphireKey ? '含蓝宝石钥匙' : '必出遗物'}</span>
               </span>
               <span class="loot-card-desc">
-                获得 1 件随机遗物（并有概率附赠金币）${hasCursedKey ? '，但【诅咒钥匙】会塞入 1 张诅咒牌' : ''}
+                ${
+                  needsSapphireKey
+                    ? '开启后可查看随机遗物，选择拿走遗物或舍弃遗物换取【蓝宝石钥匙】（附赠金币自动获取）'
+                    : '获得 1 件随机遗物（并有概率附赠金币）'
+                }${hasCursedKey ? '，但【诅咒钥匙】会塞入 1 张诅咒牌' : ''}
               </span>
             </span>
-            <span class="loot-claim-cta">开启并拿走</span>
+            <span class="loot-claim-cta">${needsSapphireKey ? '开启宝箱' : '开启并拿走'}</span>
           </button>
         </div>
       </section>
     `;
   }
 
+  const awaitingKeyChoice = Boolean(ts.sapphireKeyOffered && !ts.choiceResolved);
+
   return `
     <section class="panel-stage" aria-labelledby="treasure-heading">
       <div class="stage-header">
         <div>
-          <h2 id="treasure-heading" class="stage-heading">远古宝箱${chestBadgeHtml} · 秘宝已收入囊中</h2>
-          <p class="stage-subtitle">机括轻响，沉睡的远古秘宝已归你所有。</p>
+          <h2 id="treasure-heading" class="stage-heading">远古宝箱${chestBadgeHtml} · ${
+            awaitingKeyChoice ? '请做出秘宝抉择' : '秘宝已收入囊中'
+          }</h2>
+          <p class="stage-subtitle">${
+            awaitingKeyChoice
+              ? '机括轻响，宝箱内同时躺着一件远古遗物与闪烁幽蓝光芒的【蓝宝石钥匙】——二者仅可取其一！'
+              : '机括轻响，沉睡的远古秘宝已归你所有。'
+          }</p>
         </div>
-        <button type="button" id="btn-leave-treasure" class="btn-brass" data-action="leave-treasure">
-          继续前进 →
+        <button type="button" id="btn-leave-treasure" class="${awaitingKeyChoice ? 'btn-stone' : 'btn-brass'}" data-action="leave-treasure">
+          ${awaitingKeyChoice ? '放弃拿取，直接离开 →' : '继续前进 →'}
         </button>
       </div>
 
@@ -100,26 +121,82 @@ export function renderTreasureScreen({ state }) {
 
       <div class="loot-list" style="margin-bottom:16px;">
         ${
-          relicObj
-            ? `<div
-                class="loot-reward-card loot-kind-relic loot-claimed"
-                tabindex="0"
-                data-tooltip-title="${escapeHtml(relicObj.name)}"
-                data-tooltip-tag="${escapeHtml(relicTierLabel)}"
-                data-tooltip-desc="${escapeHtml(relicObj.description)}"
-                data-tooltip-tone="relic"
+          awaitingKeyChoice
+            ? `
+              ${
+                offeredRelicObj
+                  ? `<button
+                      type="button"
+                      id="btn-claim-treasure-relic"
+                      class="loot-reward-card loot-kind-relic"
+                      data-action="claim-treasure-relic"
+                      data-tooltip-title="${escapeHtml(offeredRelicObj.name)}"
+                      data-tooltip-tag="${escapeHtml(`拿走遗物 · ${offeredTierLabel}`)}"
+                      data-tooltip-desc="${escapeHtml(`${offeredRelicObj.description}\n（选择遗物将放弃本宝箱的蓝宝石钥匙，后续宝箱仍有机会获取。）`)}"
+                      data-tooltip-tone="relic"
+                    >
+                      <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(offeredRelicObj.id, { scope: 'treasure', className: 'relic-svg-lg', lootIcon: true })}</span>
+                      <span class="loot-card-body">
+                        <span class="loot-card-title">
+                          遗物：${escapeHtml(offeredRelicObj.name)}
+                          <span class="loot-sub-pill">${escapeHtml(offeredTierLabel)}</span>
+                        </span>
+                        <span class="loot-card-desc">${escapeHtml(offeredRelicObj.description)}</span>
+                      </span>
+                      <span class="loot-claim-cta">拿走遗物</span>
+                    </button>`
+                  : ''
+              }
+              <button
+                type="button"
+                id="btn-claim-sapphire-key"
+                class="loot-reward-card loot-kind-key-sapphire"
+                data-action="claim-treasure-sapphire-key"
+                data-tooltip-title="蓝宝石钥匙（第四幕钥匙）"
+                data-tooltip-tag="舍弃宝箱遗物"
+                data-tooltip-desc="放弃本宝箱中的遗物，夺取【蓝宝石钥匙】。集齐红、绿、蓝三把钥匙后，击败第 3 幕首领即可开启第 4 幕【终末尖顶】！"
+                data-tooltip-tone="buff"
               >
-                <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(relicObj.id, { scope: 'treasure', className: 'relic-svg-lg', lootIcon: true })}</span>
+                <span class="loot-icon-badge loot-badge-key-sapphire">${getKeyIconSvg('sapphire', { collected: true, size: 30 })}</span>
                 <span class="loot-card-body">
                   <span class="loot-card-title">
-                    已装备遗物：${escapeHtml(relicObj.name)}
-                    <span class="loot-sub-pill">${escapeHtml(relicTierLabel)}</span>
+                    蓝宝石钥匙
+                    <span class="loot-sub-pill">第四幕钥匙 · 放弃遗物</span>
                   </span>
-                  <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+                  <span class="loot-card-desc">舍弃本宝箱的${offeredRelicObj ? `【${escapeHtml(offeredRelicObj.name)}】` : '遗物'}，取得【蓝宝石钥匙】（开启终末尖顶的三钥之一）。</span>
                 </span>
-                <span class="loot-claim-cta claimed">✓ 已拿走</span>
-              </div>`
-            : ''
+                <span class="loot-claim-cta">拿取钥匙</span>
+              </button>
+            `
+            : ts.choicePicked === 'sapphire_key'
+              ? `<div class="loot-reward-card loot-kind-key-sapphire loot-claimed" aria-live="polite">
+                  <span class="loot-icon-badge loot-badge-key-sapphire">${getKeyIconSvg('sapphire', { collected: true, size: 30 })}</span>
+                  <span class="loot-card-body">
+                    <span class="loot-card-title">已取得：蓝宝石钥匙</span>
+                    <span class="loot-card-desc">已镶嵌至顶部终末尖顶徽记，集齐三钥即可挑战第四幕！</span>
+                  </span>
+                  <span class="loot-claim-cta claimed">✓ 已取得</span>
+                </div>`
+              : relicObj
+                ? `<div
+                    class="loot-reward-card loot-kind-relic loot-claimed"
+                    tabindex="0"
+                    data-tooltip-title="${escapeHtml(relicObj.name)}"
+                    data-tooltip-tag="${escapeHtml(relicTierLabel)}"
+                    data-tooltip-desc="${escapeHtml(relicObj.description)}"
+                    data-tooltip-tone="relic"
+                  >
+                    <span class="loot-icon-badge loot-badge-relic">${getRelicSvg(relicObj.id, { scope: 'treasure', className: 'relic-svg-lg', lootIcon: true })}</span>
+                    <span class="loot-card-body">
+                      <span class="loot-card-title">
+                        已装备遗物：${escapeHtml(relicObj.name)}
+                        <span class="loot-sub-pill">${escapeHtml(relicTierLabel)}</span>
+                      </span>
+                      <span class="loot-card-desc">${escapeHtml(relicObj.description)}</span>
+                    </span>
+                    <span class="loot-claim-cta claimed">✓ 已拿走</span>
+                  </div>`
+                : ''
         }
         ${
           ts.gold > 0
@@ -175,9 +252,58 @@ export function renderBossRewardScreen({ state, ui }) {
   const br = state.bossReward;
   if (!br) return '';
   const actCleared = br.actCleared ?? state.act ?? 1;
-  const isAct2Altar = actCleared >= 2;
   const bossName = getCurrentBossName(state);
   const healRatioPct = (state.ascension ?? 0) >= 4 ? 65 : 75;
+
+  if (br.isAct4Gate) {
+    return `
+      <section class="panel-stage act4-gate-panel" id="act4-gate-screen" aria-labelledby="boss-reward-heading">
+        <div class="stage-header">
+          <div>
+            <h2 id="boss-reward-heading" class="stage-heading" style="color: hsl(44, 96%, 72%);">
+              ✨ 三钥共鸣 · 第四幕【终末尖顶】大门已开启！
+            </h2>
+            <p class="stage-subtitle">
+              你已征服第三幕首领【${escapeHtml(bossName)}】！红、绿、蓝三把宝石钥匙在远古石门前轰然嵌合，通往尖塔核心的最后 4 层通道正在眼前展开……
+            </p>
+          </div>
+        </div>
+
+        <div class="act4-keys-showcase" aria-label="三把钥匙共鸣展示">
+          <div class="act4-key-medallion key-ruby">
+            ${getKeyIconSvg('ruby', { collected: true, size: 36 })}
+            <strong>红宝石钥匙</strong>
+            <span>营地召回 · 已嵌合</span>
+          </div>
+          <div class="act4-key-medallion key-emerald">
+            ${getKeyIconSvg('emerald', { collected: true, size: 36 })}
+            <strong>绿宝石钥匙</strong>
+            <span>燃烧精英 · 已嵌合</span>
+          </div>
+          <div class="act4-key-medallion key-sapphire">
+            ${getKeyIconSvg('sapphire', { collected: true, size: 36 })}
+            <strong>蓝宝石钥匙</strong>
+            <span>远古宝箱 · 已嵌合</span>
+          </div>
+        </div>
+
+        <div class="summary-stats" style="margin-bottom:16px;">
+          <p style="margin:0;">
+            <strong>第四幕路线预告：</strong>F1 篝火营地 → F2 神秘商人 → F3 精英双卫【尖塔之盾与尖塔之矛】→ F4 终极首领【腐化之心】。<br />
+            <span style="color:var(--text-muted);font-size:0.86rem;">提示：你已攻克第三幕，即使在第四幕折戟也会照常解锁下一级进阶难度！</span>
+          </p>
+        </div>
+
+        <div class="boss-actions-bar">
+          <button type="button" id="btn-proceed-act4" class="btn-brass" data-action="proceed-next-act">
+            推开终末之门 · 踏入第四幕（回复已损生命的 ${healRatioPct}%） →
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  const isAct2Altar = actCleared >= 2;
   const cardChoices = Array.isArray(br.cardChoices) ? br.cardChoices : [];
 
   const cardsHtml = cardChoices
@@ -398,6 +524,38 @@ export function renderRewardScreen({ state, ui }) {
         </div>`
     : '';
 
+  const emeraldKeyCardHtml = rw.emeraldKey
+    ? !rw.emeraldKeyClaimed
+      ? `<button
+          type="button"
+          id="btn-claim-emerald-key"
+          class="loot-reward-card loot-kind-key-emerald"
+          data-action="claim-emerald-key"
+          data-tooltip-title="绿宝石钥匙（第四幕钥匙）"
+          data-tooltip-tag="燃烧精英掉落"
+          data-tooltip-desc="击败燃烧精英获得的远古秘钥！集齐红、绿、蓝三把钥匙后，击败第 3 幕首领即可开启第 4 幕【终末尖顶】。"
+          data-tooltip-tone="buff"
+        >
+          <span class="loot-icon-badge loot-badge-key-emerald">${getKeyIconSvg('emerald', { collected: true, size: 30 })}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">
+              绿宝石钥匙
+              <span class="loot-sub-pill">第四幕钥匙 · 燃烧精英</span>
+            </span>
+            <span class="loot-card-desc">开启终末尖顶的三把钥匙之一，点击收入顶部徽记</span>
+          </span>
+          <span class="loot-claim-cta">点击拾取</span>
+        </button>`
+      : `<div class="loot-reward-card loot-kind-key-emerald loot-claimed" aria-live="polite">
+          <span class="loot-icon-badge loot-badge-key-emerald">${getKeyIconSvg('emerald', { collected: true, size: 30 })}</span>
+          <span class="loot-card-body">
+            <span class="loot-card-title">已取得：绿宝石钥匙</span>
+            <span class="loot-card-desc">已镶嵌至顶部终末尖顶徽记，集齐三钥即可挑战第四幕！</span>
+          </span>
+          <span class="loot-claim-cta claimed">✓ 已拾取</span>
+        </div>`
+    : '';
+
   const potionObj = rw.potionId ? POTION_LIBRARY[rw.potionId] : null;
   const emptyPotionSlots = state.player.potions.filter((p) => p === null).length;
   const potionCardHtml = potionObj
@@ -475,6 +633,7 @@ export function renderRewardScreen({ state, ui }) {
       <h3 class="reward-section-heading">${isCampfireDig ? '发掘遗物（点击拾取）：' : '掉落战利品（点击拾取）：'}</h3>
       <div class="loot-list">
         ${goldCardHtml}
+        ${emeraldKeyCardHtml}
         ${relicCardHtml}
         ${extraRelicCardHtml}
         ${potionCardHtml}
@@ -507,13 +666,16 @@ export function renderRestScreen({ state }) {
   const hasShovel = state.player.relics.includes('shovel');
   const hasPeacePipe = state.player.relics.includes('peace_pipe');
   const canToke = state.player.deck.length > 1;
+  const canRecallRubyKey = !state.keys?.ruby && (state.act ?? 1) <= 3;
 
   return `
     <section class="panel-stage" aria-labelledby="rest-heading">
       <div class="stage-header">
         <div>
           <h2 id="rest-heading" class="stage-heading">🔥 篝火营地</h2>
-          <p class="stage-subtitle">摇曳的火光驱散了尖塔寒意。你可以小憩恢复体力、在铁砧上锻造升级卡牌，或施展营火遗物的专属能力。</p>
+          <p class="stage-subtitle">摇曳的火光驱散了尖塔寒意。你可以小憩恢复体力、在铁砧上锻造升级卡牌${
+            canRecallRubyKey ? '、通过「召回」取得红宝石钥匙，' : '，'
+          }或施展营火遗物的专属能力。</p>
         </div>
       </div>
 
@@ -564,6 +726,20 @@ export function renderRestScreen({ state }) {
             }
           </span>
         </button>
+
+        ${
+          canRecallRubyKey
+            ? `<button
+                type="button"
+                id="btn-rest-recall"
+                class="choice-btn choice-key-ruby"
+                data-action="rest-recall"
+              >
+                <span class="choice-title choice-title-with-relic"><span class="key-inline-icon" aria-hidden="true">${getKeyIconSvg('ruby', { collected: true, size: 22 })}</span><span>召回 · 获取【红宝石钥匙】</span></span>
+                <span class="choice-detail">消耗本次营地行动铭记尖塔记忆并取得【红宝石钥匙】（集齐红 / 绿 / 蓝三把钥匙可在击败第 3 幕首领后开启第 4 幕：终末尖顶）。</span>
+              </button>`
+            : ''
+        }
 
         ${
           hasGirya
@@ -872,19 +1048,25 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
           <h2 id="gameover-heading" class="stage-heading" style="color: ${isWin ? 'var(--jade-upgrade)' : 'var(--rust-warn)'};">
             ${
               isWin
-                ? (state.act ?? 1) >= 3
-                  ? `👑 三幕终极登顶！你征服了深渊圣殿【${escapeHtml(bossName)}】！`
-                  : `登顶凯旋！你征服了${(state.act ?? 1) >= 2 ? '双幕尖塔终战' : `【${escapeHtml(bossName)}】`}！`
+                ? state.heartVictory
+                  ? `❤️‍🔥 心脏斩杀！你击碎了【${escapeHtml(bossName)}】，抵达尖塔真结局！`
+                  : (state.act ?? 1) >= 3
+                    ? `👑 三幕终极登顶！你征服了深渊圣殿【${escapeHtml(bossName)}】！`
+                    : `登顶凯旋！你征服了${(state.act ?? 1) >= 2 ? '双幕尖塔终战' : `【${escapeHtml(bossName)}】`}！`
                 : '攀登折戟 · 征途落幕'
             }
           </h2>
           <p class="stage-subtitle">
             ${
               isWin
-                ? (state.act ?? 1) >= 3
-                  ? '深渊圣殿的远古守护神已在你面前陨落，完整的三幕登顶战绩与评分已永久镌刻进尖塔编年史。'
-                  : '青铜核心与暗影枷锁轰然碎裂，你的战绩卡片与评分已镌刻进尖塔编年史。'
-                : '尖塔吞没了无数挑战者，但每一次复盘与历练积累都会让你下一次走得更远。'
+                ? state.heartVictory
+                  ? '红、绿、蓝三把钥匙开启了终末尖顶，盾矛双卫与腐化之心皆已陨落，你的心脏斩杀丰碑与真结局战绩已永久镌刻进尖塔编年史！'
+                  : (state.act ?? 1) >= 3
+                    ? '深渊圣殿的远古守护神已在你面前陨落，完整的三幕登顶战绩与评分已永久镌刻进尖塔编年史。'
+                    : '青铜核心与暗影枷锁轰然碎裂，你的战绩卡片与评分已镌刻进尖塔编年史。'
+                : (state.act ?? 1) >= 4
+                  ? '你已攻克第三幕并踏入终末尖顶，虽止步于第四幕，进阶解锁与本次攀登战绩已永久镌刻进尖塔编年史。'
+                  : '尖塔吞没了无数挑战者，但每一次复盘与历练积累都会让你下一次走得更远。'
             }
           </p>
         </div>
@@ -943,6 +1125,7 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
           <div class="report-identity">
             <div class="report-tags-row">
               <span class="character-hud-pill char-${escapeHtml(state.characterId || 'ironclad')}">${escapeHtml(state.player.name)}</span>
+              ${state.heartVictory ? `<span class="heart-victory-pill">❤️‍🔥 心脏斩杀</span>` : ''}
               ${daily ? `<span class="daily-pill">每日挑战 ${escapeHtml(daily.dateKey)}</span>` : ''}
               ${state.isChallengeRun && !daily ? `<span class="challenge-pill">好友种子挑战</span>` : ''}
               ${(state.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(state.ascension)}</span>` : ''}
@@ -955,7 +1138,7 @@ export function renderGameOverScreen({ state, ui, ensureRunRecorded }) {
               ${summary?.xpGained > 0 ? `<span class="report-xp-pill">+${escapeHtml(summary.xpGained)} XP</span>` : ''}
             </div>
             <div class="report-meta-line">
-              抵达 <strong>${escapeHtml(actLabel)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(TOTAL_FLOORS)} 层</strong>
+              抵达 <strong>${escapeHtml(actLabel)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(getActTotalFloors(state))} 层</strong>
               ${!isWin && report.defeatedBy ? ` · 败于 <strong style="color:var(--rust-warn);">${escapeHtml(report.defeatedBy)}</strong>` : ''}
             </div>
             ${dailyModsHtml ? `<div class="daily-mod-row" style="margin-top:6px;">${dailyModsHtml}</div>` : ''}

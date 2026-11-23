@@ -2147,6 +2147,19 @@ export const CARD_LIBRARY = deepFreeze({
     base: { cost: null, unplayable: true },
     upgraded: null,
   },
+  void: {
+    id: 'void',
+    name: '虚空',
+    character: 'neutral',
+    type: 'status',
+    rarity: 'status',
+    target: 'none',
+    unplayable: true,
+    ethereal: true,
+    price: 0,
+    base: { cost: null, unplayable: true, ethereal: true, onDrawLoseEnergy: 1 },
+    upgraded: null,
+  },
 
   // === Curse Cards ===
   clumsy: {
@@ -2957,6 +2970,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   }
   if (stats.ethereal) {
     parts.push('虚无。');
+  }
+  if (stats.onDrawLoseEnergy) {
+    parts.push(`抽到这张牌时，失去 ${stats.onDrawLoseEnergy} 点能量。`);
   }
   if (stats.endOfTurnSelfDamage) {
     parts.push(`回合结束时若仍在手牌，受到 ${stats.endOfTurnSelfDamage} 点伤害。`);

@@ -909,6 +909,32 @@ export const STATUS_SVG_ART = Object.freeze({
      <path d="M9.8 9.2 H14.2 M9.8 12 H14.2 M9.8 14.8 H12.8" stroke="hsl(28, 54%, 24%)" stroke-width="1.2" stroke-linecap="round"/>
      <polygon points="12,3.8 19.2,8 19.2,16 12,20.2 4.8,16 4.8,8" fill="hsla(188, 96%, 64%, 0.22)" stroke="hsl(186, 100%, 74%)" stroke-width="1.4" stroke-linejoin="round"/>`
   ),
+  invincible: wrapStatusSvg(
+    'invincible',
+    'hsl(344, 62%, 22%)',
+    'hsl(326, 58%, 9%)',
+    'hsl(44, 96%, 68%)',
+    `<polygon points="12,3.6 19.4,9.6 16.6,19.4 7.4,19.4 4.6,9.6" fill="hsl(346, 74%, 44%)" stroke="hsl(46, 98%, 74%)" stroke-width="1.5" stroke-linejoin="round"/>
+     <polygon points="12,6.8 15.8,10.8 12,16.8 8.2,10.8" fill="hsl(46, 96%, 72%)" stroke="hsl(346, 72%, 28%)" stroke-width="1"/>
+     <circle cx="12" cy="11.4" r="1.7" fill="hsl(0, 0%, 100%)"/>`
+  ),
+  beatOfDeath: wrapStatusSvg(
+    'beatOfDeath',
+    'hsl(350, 68%, 20%)',
+    'hsl(332, 66%, 8%)',
+    'hsl(352, 98%, 64%)',
+    `<path d="M12 18.6 C11.6 18.6 5.6 14.4 5.6 9.6 A3.4 3.4 0 0 1 12 7.6 A3.4 3.4 0 0 1 18.4 9.6 C18.4 14.4 12.4 18.6 12 18.6 Z" fill="hsl(352, 86%, 48%)" stroke="hsl(14, 96%, 74%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <path d="M7.6 11.4 H10 L11.2 8.8 L12.8 14.2 L14 11.4 H16.4" fill="none" stroke="hsl(50, 100%, 84%)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`
+  ),
+  surrounded: wrapStatusSvg(
+    'surrounded',
+    'hsl(354, 62%, 22%)',
+    'hsl(340, 60%, 9%)',
+    'hsl(8, 96%, 64%)',
+    `<circle cx="12" cy="12" r="2.8" fill="hsl(42, 88%, 72%)" stroke="hsl(350, 74%, 34%)" stroke-width="1"/>
+     <path d="M3.6 12 H7.8 M6 9.8 L8.2 12 L6 14.2" fill="none" stroke="hsl(6, 98%, 66%)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+     <path d="M20.4 12 H16.2 M18 9.8 L15.8 12 L18 14.2" fill="none" stroke="hsl(6, 98%, 66%)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`
+  ),
 });
 
 export const STATUS_NEGATIVE_SVG_ART = Object.freeze({
@@ -962,6 +988,7 @@ export const STATUS_NO_COUNT_IF_ONE = Object.freeze(
     'shifting',
     'entangled',
     'stasis',
+    'surrounded',
   ])
 );
 

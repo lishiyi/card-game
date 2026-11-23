@@ -25,7 +25,9 @@ import {
   canPlayCard,
   confirmPendingCardChoice,
   confirmScryChoice,
+  dealDamageToEnemy,
   discardHandCard,
+  drawCards,
   endPlayerTurn,
   initiateScry,
   MAX_HAND_SIZE,
@@ -565,7 +567,7 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
     assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
   }
   assert.equal(Object.keys(POTION_LIBRARY).length, 28);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 233);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 234);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     65
@@ -3637,4 +3639,149 @@ test('Section A4 — Red Slaver (Entangled + Slavers Trio), Masked Bandits Trio 
   const jwA9 = createNewRun({ seed: 99605, characterId: 'ironclad', ascension: 9, skipNeow: true });
   startCombat(jwA9, ENCOUNTERS.act3Hard.find((e) => e.id === 'jaw_worm_horde'), 'normal');
   assert.equal(jwA9.combat.enemies.every((e) => e.statuses.strength === 4 && e.block === 8), true);
+});
+
+test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surrounded back-attack flip & clear), and Corrupt Heart (Invincible cap/reset, Beat of Death, Debilitate 5 statuses, Escalating Buffs & A9 scaling)', () => {
+  // 1. Void status card: Unplayable, Ethereal, drains 1 energy when drawn
+  const voidRun = setupCustomCombat(99701, ENCOUNTERS.floor1[0]);
+  voidRun.combat.hand = [];
+  voidRun.combat.drawPile = [createCardInstance(voidRun, 'void', false)];
+  voidRun.player.energy = 3;
+  drawCards(voidRun, 1);
+  assert.equal(voidRun.player.energy, 2, 'Drawing Void must drain 1 energy');
+  assert.equal(voidRun.combat.hand.length, 1);
+  assert.equal(canPlayCard(voidRun, voidRun.combat.hand[0].instanceId).playable, false, 'Void must be unplayable');
+  endPlayerTurn(voidRun);
+  assert.equal(
+    voidRun.combat.exhaustPile.some((c) => c.cardId === 'void'),
+    true,
+    'Void must exhaust at end of turn via Ethereal'
+  );
+
+  // 2. Spire Shield & Spire Spear: Artifact (1 on A0, 2 on A9+), Surrounded +50% back-attack flip & clear on kill
+  const ssRun = createNewRun({ seed: 99702, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(ssRun, ENCOUNTERS.act4Elite[0], 'elite');
+  const [shield, spear] = ssRun.combat.enemies;
+  assert.equal(shield.templateId, 'spire_shield');
+  assert.equal(spear.templateId, 'spire_spear');
+  assert.equal(shield.statuses.artifact, 1);
+  assert.equal(spear.statuses.artifact, 1);
+  assert.equal(ssRun.player.statuses.surrounded, 1, 'Shield & Spear must inflict Surrounded');
+  assert.equal(shield.backAttack, false, 'Player faces Spire Shield initially');
+  assert.equal(spear.backAttack, true, 'Spire Spear starts behind player');
+  assert.equal(spear.intent.id, 'spear_burn_strike');
+  // Spear base 5 dmg with +50% back-attack = floor(5 * 1.5) = 7 per hit!
+  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 7, 'Back-attack enemy deals +50% damage');
+  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 12, 'Faced enemy deals normal damage');
+
+  // Attacking Spire Spear flips facing so Spear is faced and Shield is behind!
+  const atkSpear = createCardInstance(ssRun, 'strike', false);
+  ssRun.combat.hand = [atkSpear];
+  ssRun.player.energy = 3;
+  assert.equal(playCard(ssRun, atkSpear.instanceId, spear.id).ok, true);
+  assert.equal(spear.backAttack, false, 'Attacking Spear turns player to face Spear');
+  assert.equal(shield.backAttack, true, 'Shield is now behind player');
+  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 5, 'Faced Spear no longer gets +50%');
+  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 18, 'Behind Shield now deals +50%');
+
+  // Killing Spire Shield clears Surrounded and backAttack immediately
+  shield.hp = 1;
+  shield.block = 0;
+  const finishShield = createCardInstance(ssRun, 'strike', false);
+  ssRun.combat.hand = [finishShield];
+  ssRun.player.energy = 3;
+  assert.equal(playCard(ssRun, finishShield.instanceId, shield.id).ok, true);
+  assert.equal(ssRun.player.statuses.surrounded ?? 0, 0, 'Killing one guard clears Surrounded');
+  assert.equal(spear.backAttack, false, 'Surviving guard loses backAttack');
+
+  // A9+ Shield & Spear get 2 Artifact and Spear shuffles Burns into drawPile
+  const ssA9 = createNewRun({ seed: 99703, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(ssA9, ENCOUNTERS.act4Elite[0], 'elite');
+  assert.equal(ssA9.combat.enemies[0].statuses.artifact, 2);
+  assert.equal(ssA9.combat.enemies[1].statuses.artifact, 2);
+  assert.equal(ssA9.combat.enemies[1].intent.addDrawCards?.[0]?.cardId, 'burn', 'A9+ Spear puts Burns in draw pile');
+
+  // 3. Corrupt Heart: Invincible 200 cap (A9+: 150) across Attack/Poison/Mark/Choke + reset on turn start,
+  //    Beat of Death (1 / A9+: 2), Debilitate 5 statuses, Blood Shots/Echo + Escalating Buffs!
+  const hRun = createNewRun({ seed: 99704, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(hRun, ENCOUNTERS.act4Boss[0], 'boss');
+  const heart = hRun.combat.enemies[0];
+  assert.equal(heart.templateId, 'corrupt_heart');
+  assert.equal(heart.hp, 550);
+  assert.equal(heart.statuses.invincible, 200);
+  assert.equal(heart.statuses.beatOfDeath, 1);
+  assert.equal(heart.intent.id, 'heart_debilitate');
+
+  // Beat of Death triggers on card play and respects Block
+  hRun.player.hp = 80;
+  hRun.player.block = 0;
+  const defendCard = createCardInstance(hRun, 'defend', false); // Gains 5 block first, then Beat of Death hits block for 1 -> 4 block, 80 HP!
+  const strikeCard = createCardInstance(hRun, 'strike', false);
+  hRun.combat.hand = [defendCard, strikeCard];
+  hRun.player.energy = 3;
+  assert.equal(playCard(hRun, defendCard.instanceId).ok, true);
+  assert.equal(hRun.player.hp, 80, 'Beat of Death must be blocked by Block gained from the card');
+  assert.equal(hRun.player.block, 4, 'Beat of Death (1) consumes 1 point of Block');
+
+  // Invincible caps total HP loss to 200 per turn (including Attack, Mark, Choke, Poison)
+  hRun.player.statuses.strength = 250;
+  assert.equal(playCard(hRun, strikeCard.instanceId, heart.id).ok, true);
+  assert.equal(heart.hp, 350, 'Invincible 200 caps single 256-dmg strike to 200 HP loss');
+  assert.equal(heart.statuses.invincible, 0, 'Invincible decrements to 0 when cap reached');
+  // Further damage (attack / poison) this turn deals 0 HP loss!
+  dealDamageToEnemy(hRun, heart, 99, { isAttack: true });
+  assert.equal(heart.hp, 350, 'Heart cannot lose more HP once Invincible reaches 0');
+
+  // End Turn 1 -> Heart casts Debilitate (Vulnerable 2, Weak 2, Frail 2 + 5 status cards in draw pile)
+  // and Start Turn 2 resets Invincible back to 200!
+  hRun.combat.drawPile = [];
+  hRun.combat.discardPile = [];
+  endPlayerTurn(hRun);
+  assert.equal(hRun.player.statuses.vulnerable, 2);
+  assert.equal(hRun.player.statuses.weak, 2);
+  assert.equal(hRun.player.statuses.frail, 2);
+  const allTurn2Cards = [...hRun.combat.hand, ...hRun.combat.drawPile, ...hRun.combat.discardPile].map((c) => c.cardId);
+  for (const statusCardId of ['dazed', 'slimed', 'wound', 'burn', 'void']) {
+    assert.ok(allTurn2Cards.includes(statusCardId), `Debilitate must shuffle ${statusCardId} into draw pile`);
+  }
+  assert.equal(heart.statuses.invincible, 200, 'Invincible must reset to 200 at start of next player turn');
+  assert.ok(['heart_blood_shots', 'heart_echo'].includes(heart.intent.id), 'Turn 2 Heart attacks with Blood Shots or Echo');
+
+  // Test Escalating Heart Buffs (1st: Artifact 2, 2nd: Beat of Death +1, 3rd: Painful Stabs, 4th: +10 Str, 5th: +50 Str)
+  heart.statuses.strength = -4;
+  heart.intent = { id: 'heart_buff', name: '心脏脉动', type: 'buff', isHeartBuff: true };
+  endPlayerTurn(hRun);
+  assert.equal(heart.statuses.strength, 2, 'Heart Buff clears negative Strength and gains +2');
+  assert.equal(heart.statuses.artifact, 2, '1st Heart Buff grants 2 Artifact');
+
+  heart.intent = { id: 'heart_buff', name: '心脏脉动', type: 'buff', isHeartBuff: true };
+  endPlayerTurn(hRun);
+  assert.equal(heart.statuses.beatOfDeath, 2, '2nd Heart Buff increases Beat of Death by +1');
+
+  heart.intent = { id: 'heart_buff', name: '心脏脉动', type: 'buff', isHeartBuff: true };
+  endPlayerTurn(hRun);
+  assert.equal(heart.statuses.painfulStabs, 1, '3rd Heart Buff grants Painful Stabs');
+
+  const strBefore4th = heart.statuses.strength;
+  heart.intent = { id: 'heart_buff', name: '心脏脉动', type: 'buff', isHeartBuff: true };
+  endPlayerTurn(hRun);
+  assert.equal(heart.statuses.strength, strBefore4th + 12, '4th Heart Buff grants +2 +10 Strength');
+
+  const strBefore5th = heart.statuses.strength;
+  heart.intent = { id: 'heart_buff', name: '心脏脉动', type: 'buff', isHeartBuff: true };
+  endPlayerTurn(hRun);
+  assert.equal(heart.statuses.strength, strBefore5th + 52, '5th Heart Buff grants +2 +50 Strength');
+
+  // A9+ Heart scaling: Invincible 150, Beat of Death 2, Blood Shots 2x15, Echo 45
+  const hA9 = createNewRun({ seed: 99705, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(hA9, ENCOUNTERS.act4Boss[0], 'boss');
+  const heartA9 = hA9.combat.enemies[0];
+  assert.equal(heartA9.statuses.invincible, 150);
+  assert.equal(heartA9.statuses.beatOfDeath, 2);
+  endPlayerTurn(hA9);
+  if (heartA9.intent.id === 'heart_blood_shots') {
+    assert.equal(heartA9.intent.hits, 15, 'A9+ Blood Shots hits 15 times');
+  } else {
+    assert.equal(heartA9.intent.damage, 45, 'A9+ Echo deals 45 damage');
+  }
 });

@@ -8337,3 +8337,244 @@ body.spire-dragging {
     font-size: 0.8rem;
   }
 }
+
+/* ==========================================================================
+   Act 4: Three Keys (Ruby / Emerald / Sapphire), Burning Elite, Gate & Combat
+   ========================================================================== */
+
+.keys-hud-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  background: hsla(228, 22%, 14%, 0.9);
+  border: 1px solid hsla(38, 34%, 52%, 0.45);
+  color: var(--text-sand);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.keys-hud-pill.keys-complete {
+  border-color: hsl(44, 96%, 68%);
+  background: linear-gradient(135deg, hsla(346, 56%, 22%, 0.88), hsla(212, 58%, 20%, 0.88));
+  color: hsl(48, 100%, 82%);
+  box-shadow: 0 0 10px hsla(44, 96%, 62%, 0.34);
+}
+
+.spire-keys-emblem {
+  display: block;
+  flex-shrink: 0;
+}
+
+.keys-hud-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Burning Elite Emerald Flame Aura on Map */
+@keyframes burning-elite-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px hsla(144, 92%, 52%, 0.72),
+      0 0 14px hsla(142, 96%, 50%, 0.62);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px hsla(138, 100%, 64%, 0.92),
+      0 0 22px hsla(144, 100%, 54%, 0.85);
+  }
+}
+
+.map-node-btn.node-burning-elite {
+  border-color: hsl(142, 90%, 58%) !important;
+  animation: burning-elite-pulse 2.2s ease-in-out infinite;
+}
+
+.burning-elite-flame {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(142, 92%, 44%) 0%, hsl(160, 78%, 18%) 100%);
+  border: 1.4px solid hsl(136, 98%, 74%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  line-height: 1;
+  filter: hue-rotate(96deg) saturate(1.45);
+  box-shadow: 0 0 8px hsla(142, 96%, 54%, 0.75);
+  pointer-events: none;
+}
+
+/* Key Choice & Loot Cards */
+.key-inline-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.choice-btn.choice-key-ruby {
+  border-color: hsla(352, 82%, 58%, 0.65);
+  background: linear-gradient(135deg, hsla(350, 52%, 18%, 0.92), hsla(228, 22%, 13%, 0.94));
+}
+
+.choice-btn.choice-key-ruby:hover:not(:disabled) {
+  border-color: hsl(352, 92%, 68%);
+  box-shadow: 0 0 16px hsla(352, 88%, 54%, 0.32);
+}
+
+.loot-reward-card.loot-kind-key-emerald {
+  border-color: hsla(144, 80%, 50%, 0.72);
+  background: linear-gradient(135deg, hsla(148, 48%, 16%, 0.92), hsla(224, 24%, 13%, 0.94));
+}
+
+.loot-reward-card.loot-kind-key-emerald:hover:not(:disabled) {
+  border-color: hsl(142, 92%, 66%);
+  box-shadow: 0 0 18px hsla(144, 92%, 52%, 0.34);
+}
+
+.loot-icon-badge.loot-badge-key-emerald {
+  background: radial-gradient(circle, hsla(146, 86%, 44%, 0.28), hsla(158, 62%, 14%, 0.9));
+  border-color: hsla(142, 88%, 62%, 0.72);
+}
+
+.loot-reward-card.loot-kind-key-sapphire {
+  border-color: hsla(210, 84%, 58%, 0.72);
+  background: linear-gradient(135deg, hsla(214, 52%, 18%, 0.92), hsla(226, 24%, 13%, 0.94));
+}
+
+.loot-reward-card.loot-kind-key-sapphire:hover:not(:disabled) {
+  border-color: hsl(204, 96%, 72%);
+  box-shadow: 0 0 18px hsla(210, 96%, 56%, 0.34);
+}
+
+.loot-icon-badge.loot-badge-key-sapphire {
+  background: radial-gradient(circle, hsla(210, 90%, 50%, 0.28), hsla(224, 62%, 14%, 0.9));
+  border-color: hsla(204, 92%, 68%, 0.72);
+}
+
+/* Act 4 Spire Door Gate */
+.act4-gate-panel {
+  border-color: hsla(44, 88%, 60%, 0.52);
+  background:
+    radial-gradient(circle at 50% 0%, hsla(346, 68%, 34%, 0.22), transparent 62%),
+    var(--bg-stone);
+}
+
+.act4-keys-showcase {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 16px;
+}
+
+.act4-key-medallion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 14px 10px;
+  border-radius: var(--radius-md);
+  background: hsla(226, 22%, 12%, 0.9);
+  border: 1px solid var(--border-muted);
+  text-align: center;
+}
+
+.act4-key-medallion strong {
+  font-size: 0.92rem;
+  color: var(--text-parchment);
+}
+
+.act4-key-medallion span {
+  font-size: 0.76rem;
+  color: var(--text-ash);
+}
+
+.act4-key-medallion.key-ruby {
+  border-color: hsla(352, 84%, 58%, 0.62);
+  box-shadow: 0 0 14px hsla(352, 88%, 52%, 0.2);
+}
+
+.act4-key-medallion.key-emerald {
+  border-color: hsla(144, 80%, 52%, 0.62);
+  box-shadow: 0 0 14px hsla(144, 88%, 48%, 0.2);
+}
+
+.act4-key-medallion.key-sapphire {
+  border-color: hsla(210, 86%, 58%, 0.62);
+  box-shadow: 0 0 14px hsla(210, 92%, 54%, 0.2);
+}
+
+.map-board-act4 {
+  max-width: 420px;
+}
+
+/* Surrounded Back-Attack Badge & Heart Victory Pill */
+.back-attack-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: hsla(352, 78%, 26%, 0.92);
+  border: 1px solid hsl(6, 94%, 64%);
+  color: hsl(24, 100%, 88%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.25;
+  cursor: help;
+  white-space: nowrap;
+}
+
+.heart-victory-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, hsl(346, 76%, 36%), hsl(322, 68%, 24%));
+  border: 1px solid hsl(44, 96%, 68%);
+  color: hsl(48, 100%, 86%);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .keys-hud-pill {
+    padding: 2px 5px 2px 4px;
+    font-size: 0.66rem;
+    gap: 3px;
+  }
+
+  .keys-hud-pill .spire-keys-emblem {
+    width: 16px;
+    height: 16px;
+  }
+
+  .act4-keys-showcase {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .act4-key-medallion {
+    flex-direction: row;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .act4-key-medallion span {
+    margin-left: auto;
+  }
+}

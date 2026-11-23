@@ -344,10 +344,14 @@ export function calculateRunXp(state) {
   const wins = state?.stats?.combatsWon ?? 0;
   const elites = state?.stats?.elitesSlain ?? 0;
   const act = state?.act ?? 1;
-  const actBonus = act >= 3 ? 130 : act >= 2 ? 60 : 0;
+  const actBonus = act >= 4 ? 190 : act >= 3 ? 130 : act >= 2 ? 60 : 0;
   const winBonus = state?.runOutcome === 'victory' ? 120 + (state?.ascension ?? 0) * 25 : 0;
+  const heartBonus = state?.runOutcome === 'victory' && state?.heartVictory ? 80 : 0;
   const dailyBonus = state?.dailyChallenge ? 25 : 0;
-  return Math.max(15, floors * 8 + wins * 12 + elites * 18 + actBonus + winBonus + dailyBonus);
+  return Math.max(
+    15,
+    floors * 8 + wins * 12 + elites * 18 + actBonus + winBonus + heartBonus + dailyBonus
+  );
 }
 
 export function getScoreGrade(score) {
@@ -411,6 +415,13 @@ export function calculateRunScore(state) {
       points: act >= 3 ? 500 : act >= 2 ? 300 : 150,
       detail: act >= 3 ? '彻底征服深渊圣殿终战' : act >= 2 ? '征服钢铁城邦终战' : '成功斩落第一幕首领',
     });
+    if (state.heartVictory) {
+      breakdown.push({
+        label: '心脏斩杀（真结局）',
+        points: 250,
+        detail: '集齐三把钥匙并击碎第四幕【腐化之心】',
+      });
+    }
   }
   if (perfectCombats > 0) {
     breakdown.push({
@@ -531,6 +542,8 @@ export function buildRunReportFromState(state) {
     seed: state.seed,
     seedCode: formatSeedCode(state.seed),
     outcome: state.runOutcome === 'victory' ? 'victory' : 'defeat',
+    heartVictory: Boolean(state.heartVictory),
+    act3Cleared: Boolean(state.act3Cleared),
     act: state.act ?? 1,
     floor: Math.max(1, state.floor ?? 1),
     ascension: state.ascension ?? 0,
@@ -573,11 +586,13 @@ export function formatShareableBattleReport(report, shareUrl = '') {
       ? `进阶 ${report.ascension}`
       : '标准攀登';
   const outcomeTitle = isWin
-    ? (report.act ?? 1) >= 3
-      ? '👑 三幕终极登顶'
-      : (report.act ?? 1) >= 2
-        ? '🏆 双幕登顶凯旋'
-        : '🏆 第一幕凯旋'
+    ? report.heartVictory
+      ? '❤️‍🔥 心脏斩杀 · 第四幕真结局'
+      : (report.act ?? 1) >= 3
+        ? '👑 三幕终极登顶'
+        : (report.act ?? 1) >= 2
+          ? '🏆 双幕登顶凯旋'
+          : '🏆 第一幕凯旋'
     : `💀 折戟于第 ${report.act ?? 1} 幕 · F${report.floor ?? 1}`;
 
   const lines = [
@@ -727,6 +742,8 @@ export function recordCompletedRun(meta, state) {
   if (state.runOutcome === 'victory') {
     meta.victories = (meta.victories ?? 0) + 1;
     charProg.victories = (charProg.victories ?? 0) + 1;
+  }
+  if (state.runOutcome === 'victory' || state.act3Cleared) {
     const asc = state.ascension ?? 0;
     const currentCharMax = charProg.maxAscensionUnlocked ?? 0;
     const canAdvanceAscension =
@@ -984,6 +1001,7 @@ export function validateSaveBackup(rawInput, expectedFloors = 16) {
   let validatedRun = null;
   if (obj.activeRun !== null && obj.activeRun !== undefined) {
     const r = obj.activeRun;
+    const expectedMapLen = r && r.act === 4 ? 4 : expectedFloors;
     if (
       !r ||
       typeof r !== 'object' ||
@@ -991,7 +1009,7 @@ export function validateSaveBackup(rawInput, expectedFloors = 16) {
       typeof r.player !== 'object' ||
       !Array.isArray(r.player.deck) ||
       !Array.isArray(r.map) ||
-      r.map.length !== expectedFloors ||
+      r.map.length !== expectedMapLen ||
       typeof r.screen !== 'string' ||
       !Number.isFinite(r.player.hp) ||
       !Number.isFinite(r.player.maxHp)

@@ -17,6 +17,7 @@ import {
   claimBossRelic,
   claimBossRewardCard,
   claimRewardCard,
+  claimRewardEmeraldKey,
   claimRewardExtraRelic,
   claimRewardGold,
   claimRewardPotion,
@@ -413,6 +414,7 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
         }
       } else if (state.screen === 'reward') {
         claimRewardGold(state);
+        if (state.reward.emeraldKey) claimRewardEmeraldKey(state);
         if (state.reward.relicId) claimRewardRelic(state);
         if (state.reward.extraRelicId) claimRewardExtraRelic(state);
         if (state.reward.potionId) claimRewardPotion(state);

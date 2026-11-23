@@ -1851,6 +1851,17 @@ export const SIGNATURE_CARD_ART = Object.freeze({
      <circle cx="46" cy="20" r="2.5" fill="hsla(0,0%,100%,0.35)"/><circle cx="72" cy="19" r="2" fill="hsla(0,0%,100%,0.35)"/>`,
     'hsla(128, 92%, 48%, 0.26)'
   ),
+  void: wrapArtSvg(
+    'void',
+    'hsl(252, 56%, 14%)',
+    'hsl(268, 62%, 6%)',
+    `<circle cx="60" cy="22" r="15" fill="hsl(258, 72%, 6%)" stroke="hsl(274, 92%, 68%)" stroke-width="1.8"/>
+     <path d="M36 22 Q48 8 60 22 Q72 36 84 22" fill="none" stroke="hsl(206, 94%, 72%)" stroke-width="1.8" stroke-linecap="round"/>
+     <path d="M44 12 Q60 4 76 12 M44 32 Q60 40 76 32" fill="none" stroke="hsl(286, 86%, 66%)" stroke-width="1.3" stroke-dasharray="4 3"/>
+     <circle cx="60" cy="22" r="6.5" fill="hsl(266, 70%, 10%)" stroke="hsl(214, 96%, 76%)" stroke-width="1.2"/>
+     <circle cx="60" cy="22" r="2.4" fill="hsl(288, 100%, 82%)"/>`,
+    'hsla(272, 92%, 56%, 0.28)'
+  ),
   clumsy: wrapArtSvg(
     'clumsy',
     'hsl(274, 46%, 16%)',

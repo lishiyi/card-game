@@ -51,6 +51,10 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     raw *= 2;
   }
 
+  if (attacker?.backAttack && defender && (defender?.statuses?.surrounded ?? 0) > 0) {
+    raw *= 1.5;
+  }
+
   if (!options.ignoreFlight && defender && (defender?.statuses?.flight ?? 0) > 0) {
     raw *= 0.5;
   }

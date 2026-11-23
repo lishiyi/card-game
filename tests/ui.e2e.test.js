@@ -4969,10 +4969,10 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       };
     })()`);
     assert.equal(compInitial.open, true);
-    assert.ok(compInitial.cardTabText.includes('/233') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
+    assert.ok(compInitial.cardTabText.includes('/234') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
     assert.equal(compInitial.totalRelicCards, 103, 'Relics tab lists all 103 relics');
     assert.equal(compInitial.totalPotionCards, 28, 'Potions tab lists all 28 potions');
-    assert.equal(compInitial.totalEnemyCards, 61, 'Enemies tab lists all 61 enemies');
+    assert.equal(compInitial.totalEnemyCards, 64, 'Enemies tab lists all 64 enemies');
     assert.ok(compInitial.undiscoveredCount > 0 && compInitial.silhouettes > 0, 'Unseen entries render as silhouettes');
     await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
 
@@ -7879,6 +7879,265 @@ test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) 
     assert.equal(sectionAAudit.banditDomCount, 3, 'Bandits Trio must render 3 enemies');
     assert.equal(sectionAAudit.banditSvgsOk, true, 'Pointy, Romeo, and Bear must each render bespoke SVGs');
     assert.equal(sectionAAudit.gremlinDomCount, 4, 'Gremlin Pack must render 4 gremlins');
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});
+
+test('E2E Act 4 & Three Keys: HUD 3-key pill (desktop & 390px mobile zero overflow), Burning Elite map flame, Campfire Recall, Treasure Sapphire Key choice, Reward Emerald Key, Act 4 Spire Door Gate, 4-floor Map, Shield & Spear + Corrupt Heart bespoke SVGs & True Ending', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    // 1. Verify initial 0/3 HUD keys pill + Burning Elite emerald flame node on map
+    const mapAndHudAudit = await cdp.evaluate(`(() => {
+      const pill = document.getElementById('hud-keys-pill');
+      const burningNodes = document.querySelectorAll('.map-node-btn.node-burning-elite[data-burning-elite="true"]');
+      const flameBadge = burningNodes[0]?.querySelector('.burning-elite-flame');
+      return {
+        hasKeysPill: Boolean(pill),
+        keysText: pill?.textContent?.trim() || '',
+        rubyAttr: pill?.dataset?.ruby,
+        emeraldAttr: pill?.dataset?.emerald,
+        sapphireAttr: pill?.dataset?.sapphire,
+        burningEliteCount: burningNodes.length,
+        hasFlameBadge: Boolean(flameBadge),
+      };
+    })()`);
+    assert.equal(mapAndHudAudit.hasKeysPill, true);
+    assert.equal(mapAndHudAudit.keysText, '0/3');
+    assert.equal(mapAndHudAudit.burningEliteCount, 1, 'Act 1 map must show exactly 1 Burning Elite node');
+    assert.equal(mapAndHudAudit.hasFlameBadge, true);
+
+    // 2. Campfire Recall -> collects Ruby Key (1/3)
+    const rubyAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'rest';
+      st.restState = { completed: false, lastAction: null, featherHealed: 0 };
+      app.render();
+      const recallBtn = document.getElementById('btn-rest-recall');
+      const hasRecallBtn = Boolean(recallBtn);
+      recallBtn?.click();
+      const pill = document.getElementById('hud-keys-pill');
+      return {
+        hasRecallBtn,
+        screenAfter: st.screen,
+        rubyCollected: st.keys.ruby,
+        keysText: pill?.textContent?.trim() || '',
+        rubyAttr: pill?.dataset?.ruby,
+      };
+    })()`);
+    assert.equal(rubyAudit.hasRecallBtn, true);
+    assert.equal(rubyAudit.screenAfter, 'map');
+    assert.equal(rubyAudit.rubyCollected, true);
+    assert.equal(rubyAudit.keysText, '1/3');
+    assert.equal(rubyAudit.rubyAttr, '1');
+
+    // 3. Treasure Chest -> opens 2-choice Relic vs Sapphire Key -> click Sapphire Key (2/3)
+    const sapphireAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'treasure';
+      st.treasureState = {
+        opened: false,
+        chestTier: 'medium',
+        chestLabel: '远古中宝箱',
+        relicId: null,
+        gold: 0,
+        curseCardId: null,
+        outcomeText: '',
+      };
+      app.render();
+      document.getElementById('btn-open-treasure')?.click();
+      const hasRelicChoice = Boolean(document.getElementById('btn-claim-treasure-relic'));
+      const hasSapphireChoice = Boolean(document.getElementById('btn-claim-sapphire-key'));
+      const relicCountBefore = st.player.relics.length;
+      document.getElementById('btn-claim-sapphire-key')?.click();
+      const pill = document.getElementById('hud-keys-pill');
+      return {
+        hasRelicChoice,
+        hasSapphireChoice,
+        sapphireCollected: st.keys.sapphire,
+        relicSkipped: st.player.relics.length === relicCountBefore,
+        keysText: pill?.textContent?.trim() || '',
+        sapphireAttr: pill?.dataset?.sapphire,
+      };
+    })()`);
+    assert.equal(sapphireAudit.hasRelicChoice, true);
+    assert.equal(sapphireAudit.hasSapphireChoice, true);
+    assert.equal(sapphireAudit.sapphireCollected, true);
+    assert.equal(sapphireAudit.relicSkipped, true, 'Choosing Sapphire Key must forfeit the chest relic');
+    assert.equal(sapphireAudit.keysText, '2/3');
+    assert.equal(sapphireAudit.sapphireAttr, '1');
+
+    // 4. Burning Elite reward -> claim Emerald Key (3/3 + .keys-complete)
+    const emeraldAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.screen = 'reward';
+      st.reward = {
+        role: 'elite',
+        gold: 40,
+        goldClaimed: false,
+        relicId: 'vajra',
+        relicClaimed: false,
+        extraRelicId: null,
+        extraRelicClaimed: true,
+        emeraldKey: true,
+        emeraldKeyClaimed: false,
+        potionId: null,
+        potionClaimed: true,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+      };
+      app.render();
+      const hasEmeraldBtn = Boolean(document.getElementById('btn-claim-emerald-key'));
+      document.getElementById('btn-claim-emerald-key')?.click();
+      const pill = document.getElementById('hud-keys-pill');
+      return {
+        hasEmeraldBtn,
+        emeraldCollected: st.keys.emerald,
+        keysText: pill?.textContent?.trim() || '',
+        isComplete: pill?.classList.contains('keys-complete') ?? false,
+      };
+    })()`);
+    assert.equal(emeraldAudit.hasEmeraldBtn, true);
+    assert.equal(emeraldAudit.emeraldCollected, true);
+    assert.equal(emeraldAudit.keysText, '3/3');
+    assert.equal(emeraldAudit.isComplete, true);
+
+    // 5. Act 3 -> Act 4 Spire Door Gate -> 4-floor linear map -> Shield & Spear -> Corrupt Heart -> True Ending!
+    const act4FlowAudit = await cdp.evaluate(`(async () => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      const { startCombat } = await import('./src/engine/combat.js');
+      const { transitionCombatVictory } = await import('./src/engine/game.js');
+
+      st.act = 3;
+      st.bossReward = {
+        actCleared: 3,
+        isAct4Gate: true,
+        bossGold: 0,
+        cardChoices: [],
+        cardClaimed: true,
+        pickedCardId: null,
+        relicChoices: [],
+        pickedRelicId: null,
+      };
+      st.screen = 'boss_reward';
+      app.render();
+
+      const hasGateScreen = Boolean(document.getElementById('act4-gate-screen'));
+      const gateMedallions = document.querySelectorAll('.act4-key-medallion').length;
+      document.getElementById('btn-proceed-act4')?.click();
+
+      const act4Num = st.act;
+      const act4Rows = document.querySelectorAll('.map-board .map-row').length;
+      const hudFloorText = document.querySelector('.floor-indicator')?.textContent?.trim() || '';
+
+      // Inspect Spire Shield & Spear combat DOM
+      startCombat(st, ENCOUNTERS.act4Elite[0], 'elite', transitionCombatVictory);
+      app.render();
+      const hasShieldSvg = Boolean(document.querySelector('.enemy-side svg #ea-spsh-plate'));
+      const hasSpearSvg = Boolean(document.querySelector('.enemy-side svg #ea-spsp-blade'));
+      const hasSurroundedChip = Boolean(
+        document.querySelector('#player-unit .status-chip[data-status-key="surrounded"]')
+      );
+      const backAttackText = document.querySelector('.enemy-side .back-attack-tag')?.textContent?.trim() || '';
+
+      // Inspect Corrupt Heart combat DOM & True Victory screen
+      startCombat(st, ENCOUNTERS.act4Boss[0], 'boss', transitionCombatVictory);
+      app.render();
+      const hasHeartSvg = Boolean(document.querySelector('.enemy-side svg #ea-chrt-flesh'));
+      const invincibleVal =
+        document.querySelector('.enemy-side .status-chip[data-status-key="invincible"] .status-val')?.textContent?.trim() || '';
+      const hasBeatOfDeathChip = Boolean(
+        document.querySelector('.enemy-side .status-chip[data-status-key="beatOfDeath"]')
+      );
+
+      // Defeat Heart via transitionCombatVictory -> Heart Victory true ending
+      transitionCombatVictory(st);
+      app.render();
+      const victoryHeading = document.getElementById('gameover-heading')?.textContent?.trim() || '';
+      const hasHeartVictoryPill = Boolean(document.querySelector('.heart-victory-pill'));
+
+      return {
+        hasGateScreen,
+        gateMedallions,
+        act4Num,
+        act4Rows,
+        hudFloorText,
+        hasShieldSvg,
+        hasSpearSvg,
+        hasSurroundedChip,
+        backAttackText,
+        hasHeartSvg,
+        invincibleVal,
+        hasBeatOfDeathChip,
+        victoryHeading,
+        hasHeartVictoryPill,
+      };
+    })()`);
+    assert.equal(act4FlowAudit.hasGateScreen, true);
+    assert.equal(act4FlowAudit.gateMedallions, 3);
+    assert.equal(act4FlowAudit.act4Num, 4);
+    assert.equal(act4FlowAudit.act4Rows, 4, 'Act 4 map must render exactly 4 linear floors');
+    assert.ok(act4FlowAudit.hudFloorText.includes('第 4 幕') && act4FlowAudit.hudFloorText.includes('/ 4 层'));
+    assert.equal(act4FlowAudit.hasShieldSvg, true, 'Spire Shield must render bespoke SVG');
+    assert.equal(act4FlowAudit.hasSpearSvg, true, 'Spire Spear must render bespoke SVG');
+    assert.equal(act4FlowAudit.hasSurroundedChip, true, 'Player must display Surrounded debuff chip');
+    assert.ok(act4FlowAudit.backAttackText.includes('背袭'), `Expected back-attack tag, got: ${act4FlowAudit.backAttackText}`);
+    assert.equal(act4FlowAudit.hasHeartSvg, true, 'Corrupt Heart must render bespoke SVG');
+    assert.equal(act4FlowAudit.invincibleVal, '200', 'Corrupt Heart must display Invincible 200 cap');
+    assert.equal(act4FlowAudit.hasBeatOfDeathChip, true, 'Corrupt Heart must display Beat of Death chip');
+    assert.ok(act4FlowAudit.victoryHeading.includes('心脏斩杀'), `Expected Heart Victory heading, got: ${act4FlowAudit.victoryHeading}`);
+    assert.equal(act4FlowAudit.hasHeartVictoryPill, true);
+
+    // 6. Verify 390px mobile HUD with #hud-keys-pill has ZERO horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.render();
+      return {
+        overflowPx: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        hasKeysPill: Boolean(document.getElementById('hud-keys-pill')),
+      };
+    })()`);
+    assert.equal(mobileAudit.hasKeysPill, true);
+    assert.ok(mobileAudit.overflowPx <= 0, `390px mobile must have zero horizontal overflow with 3-key HUD pill (got ${mobileAudit.overflowPx}px)`);
 
     cdp.ws.close();
   } finally {

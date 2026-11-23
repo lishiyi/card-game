@@ -14,6 +14,7 @@ import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '
 import { getDailyChallengeSpec, getDailyModifierDefs } from '../../engine/daily.js';
 import {
   formatRelicUpgradeSummary,
+  getActTotalFloors,
   getCurrentBossName,
   getUnclaimedImportantRewards,
   getUpgradableDeckCards,
@@ -486,7 +487,7 @@ function renderHistoryDetailModal({ meta, ui }) {
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading" style="color:${isWin ? 'var(--jade-upgrade)' : 'var(--rust-warn)'};">
-              战绩复盘 · ${isWin ? '凯旋通关' : '攀登折戟'}（第 ${escapeHtml(rec.act ?? 1)} 幕 F${escapeHtml(rec.floor ?? 1)} / ${escapeHtml(TOTAL_FLOORS)}）
+              战绩复盘 · ${isWin ? (rec.heartVictory ? '心脏斩杀（真结局）' : '凯旋通关') : '攀登折戟'}（第 ${escapeHtml(rec.act ?? 1)} 幕 F${escapeHtml(rec.floor ?? 1)} / ${escapeHtml(getActTotalFloors(rec.act ?? 1))}）
             </h2>
             <p class="stage-subtitle">
               ${escapeHtml(formatRunDate(rec.timestamp))} · ${escapeHtml(recCharName)} · 种子 ${escapeHtml(sCode)}
@@ -874,8 +875,15 @@ function renderHelpModal({ ui }) {
 
 function renderMapModal({ state, ui }) {
   const act = state.act ?? 1;
+  const actTotalFloors = getActTotalFloors(state);
   const actLabel =
-    act >= 3 ? '第三幕 · 深渊圣殿地图' : act >= 2 ? '第二幕 · 钢铁城邦地图' : '第一幕 · 尖塔攀登地图';
+    act >= 4
+      ? '第四幕 · 终末尖顶地图'
+      : act >= 3
+        ? '第三幕 · 深渊圣殿地图'
+        : act >= 2
+          ? '第二幕 · 钢铁城邦地图'
+          : '第一幕 · 尖塔攀登地图';
   const bossName = getCurrentBossName(state);
   const floorNum = Math.max(1, state.floor || 1);
 
@@ -885,10 +893,10 @@ function renderMapModal({ state, ui }) {
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading">
-              ${actLabel}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(TOTAL_FLOORS)} 层）
+              ${actLabel}（当前第 ${escapeHtml(floorNum)} / ${escapeHtml(actTotalFloors)} 层）
             </h2>
             <p class="stage-subtitle">
-              只读路线预览：点击任意房间可高亮其直接相连房间，点选下方图例可按类型高亮全图房间，第 ${escapeHtml(TOTAL_FLOORS)} 层首领为【${escapeHtml(bossName)}】。
+              只读路线预览：点击任意房间可高亮其直接相连房间，点选下方图例可按类型高亮全图房间，第 ${escapeHtml(actTotalFloors)} 层首领为【${escapeHtml(bossName)}】。
             </p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc / M)</button>

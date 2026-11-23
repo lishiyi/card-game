@@ -10,8 +10,10 @@ import {
 import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../data/enemies.js';
 import {
+  ACT4_TOTAL_FLOORS,
   EVENT_IDS,
   EVENT_LIBRARY,
+  generateAct4Map,
   generateSpireMap,
   getEventIdsForAct,
   getEventTuning,
@@ -48,6 +50,33 @@ export const STARTER_POTION_SLOTS = 3;
 
 export function getStarterPotionSlotCount(ascension = 0) {
   return (ascension ?? 0) >= 6 ? 2 : STARTER_POTION_SLOTS;
+}
+
+export function ensureRunKeys(state) {
+  if (!state) return { ruby: false, emerald: false, sapphire: false };
+  if (!state.keys || typeof state.keys !== 'object') {
+    state.keys = { ruby: false, emerald: false, sapphire: false };
+  }
+  state.keys.ruby = Boolean(state.keys.ruby);
+  state.keys.emerald = Boolean(state.keys.emerald);
+  state.keys.sapphire = Boolean(state.keys.sapphire);
+  return state.keys;
+}
+
+export function getCollectedKeyCount(state) {
+  const k = state?.keys;
+  if (!k) return 0;
+  return (k.ruby ? 1 : 0) + (k.emerald ? 1 : 0) + (k.sapphire ? 1 : 0);
+}
+
+export function hasAllAct4Keys(state) {
+  const k = state?.keys;
+  return Boolean(k && k.ruby && k.emerald && k.sapphire);
+}
+
+export function getActTotalFloors(stateOrAct) {
+  const act = typeof stateOrAct === 'number' ? stateOrAct : (stateOrAct?.act ?? 1);
+  return act >= 4 ? ACT4_TOTAL_FLOORS : TOTAL_FLOORS;
 }
 
 let nextRunNonce = 1;
@@ -101,7 +130,14 @@ export function getCurrentPurgeCost(state) {
 
 export function getCurrentBossEncounter(state) {
   const act = state?.act ?? 1;
-  const pool = act >= 3 ? ENCOUNTERS.act3Boss : act >= 2 ? ENCOUNTERS.act2Boss : ENCOUNTERS.boss;
+  const pool =
+    act >= 4
+      ? ENCOUNTERS.act4Boss
+      : act >= 3
+        ? ENCOUNTERS.act3Boss
+        : act >= 2
+          ? ENCOUNTERS.act2Boss
+          : ENCOUNTERS.boss;
   const found = pool.find((e) => e.id === state?.bossEncounterId);
   return found || pool[0];
 }
@@ -227,6 +263,9 @@ export function createNewRun(options = {}) {
           modifierIds: [...dailySpec.modifierIds],
         }
       : null,
+    keys: { ruby: false, emerald: false, sapphire: false },
+    act3Cleared: false,
+    heartVictory: false,
     purgeCount: 0,
     rarePityBonus: 0,
     bossEncounterId: null,
@@ -708,6 +747,13 @@ export function transitionCombatVictory(state) {
     (hasRelic(state, 'golden_idol_relic') ? 1.25 : 1);
 
   if (role === 'boss') {
+    if ((state.act ?? 1) >= 4) {
+      state.heartVictory = true;
+      state.screen = 'game_over';
+      state.runOutcome = 'victory';
+      return;
+    }
+
     if ((state.act ?? 1) >= 3) {
       if (asc >= 10 && (state.act3BossRushStage ?? 1) < 2) {
         state.act3FirstBossId = state.bossEncounterId;
@@ -734,6 +780,21 @@ export function transitionCombatVictory(state) {
             message: `【进阶 10 · 终末双王】首位首领已陨落！第 2 位第 3 幕首领【${cleanSecondName}】无休整降临！`,
           });
         }
+        return;
+      }
+      state.act3Cleared = true;
+      if (hasAllAct4Keys(state)) {
+        state.bossReward = {
+          actCleared: 3,
+          isAct4Gate: true,
+          bossGold: 0,
+          cardChoices: [],
+          cardClaimed: true,
+          pickedCardId: null,
+          relicChoices: [],
+          pickedRelicId: null,
+        };
+        state.screen = 'boss_reward';
         return;
       }
       state.screen = 'game_over';
@@ -804,6 +865,7 @@ export function transitionCombatVictory(state) {
     hasRelic(state, 'white_beast_statue') || nextRandom(state) < (isElite ? 0.65 : 0.42);
   const potionId = dropPotion ? pickRandom(state, potions) : null;
   const cardChoices = rollRewardCards(state, 3, role);
+  const dropEmeraldKey = Boolean(state.combat?.isBurningElite && !ensureRunKeys(state).emerald);
 
   state.reward = {
     role,
@@ -813,6 +875,8 @@ export function transitionCombatVictory(state) {
     relicClaimed: !relicId,
     extraRelicId,
     extraRelicClaimed: !extraRelicId,
+    emeraldKey: dropEmeraldKey,
+    emeraldKeyClaimed: !dropEmeraldKey,
     potionId,
     potionClaimed: !potionId,
     cardChoices,
@@ -889,7 +953,13 @@ export function selectMapNode(state, nodeId) {
     }
     case 'elite': {
       const elitePool =
-        act >= 3 ? ENCOUNTERS.act3Elite : act >= 2 ? ENCOUNTERS.act2Elite : ENCOUNTERS.elite;
+        act >= 4
+          ? ENCOUNTERS.act4Elite
+          : act >= 3
+            ? ENCOUNTERS.act3Elite
+            : act >= 2
+              ? ENCOUNTERS.act2Elite
+              : ENCOUNTERS.elite;
       if (!Array.isArray(state.recentEliteIds)) {
         state.recentEliteIds = state.lastEliteId ? [state.lastEliteId] : [];
       }
@@ -898,19 +968,28 @@ export function selectMapNode(state, nodeId) {
       if (eliteCandidates.length === 0) {
         eliteCandidates = elitePool.filter((e) => e.id !== state.lastEliteId);
       }
-      const encounter = pickRandom(state, eliteCandidates.length > 0 ? eliteCandidates : elitePool);
-      state.lastEliteId = encounter.id;
-      state.recentEliteIds.push(encounter.id);
+      const baseEncounter = pickRandom(state, eliteCandidates.length > 0 ? eliteCandidates : elitePool);
+      const isBurning = Boolean(node.isBurningElite && act <= 3 && !ensureRunKeys(state).emerald);
+      const encounter = isBurning
+        ? {
+            ...baseEncounter,
+            name: `🔥 ${baseEncounter.name}（燃烧精英）`,
+            isBurningElite: true,
+            burningBuff: node.burningBuff || 'strength',
+          }
+        : baseEncounter;
+      state.lastEliteId = baseEncounter.id;
+      state.recentEliteIds.push(baseEncounter.id);
       if (state.recentEliteIds.length > 4) {
         state.recentEliteIds = state.recentEliteIds.slice(-4);
       }
-      state.lastEncounterId = encounter.id;
+      state.lastEncounterId = baseEncounter.id;
       startCombat(state, encounter, 'elite', transitionCombatVictory);
       return { ok: true, screen: state.screen };
     }
     case 'boss': {
       const baseEncounter = getCurrentBossEncounter(state);
-      const isA10Act3Twin = (state.act ?? 1) >= 3 && (state.ascension ?? 0) >= 10;
+      const isA10Act3Twin = (state.act ?? 1) === 3 && (state.ascension ?? 0) >= 10;
       if (isA10Act3Twin) {
         state.act3BossRushStage = 1;
         state.act3FirstBossId = null;
@@ -1106,12 +1185,121 @@ export function openTreasureChest(state) {
   ts.chestTier = chestTier;
   ts.chestLabel = chestLabel;
   ts.relicId = relicId;
+  ts.offeredRelicId = relicId;
+  ts.choiceResolved = true;
+  ts.choicePicked = 'relic';
+  ts.sapphireKeyOffered = false;
   ts.gold = gold;
   ts.curseCardId = curseCard?.instanceId ?? null;
   ts.upgradedCardIds = upgradedCards.map((c) => c.instanceId);
   ts.outcomeText = `${chestLabel}开启：${parts.join('，')}！`;
 
   return { ok: true, chestTier, chestLabel, relicId, gold, curseCard, upgradedCards };
+}
+
+export function revealTreasureChest(state) {
+  if (state.screen !== 'treasure' || !state.treasureState || state.treasureState.opened) {
+    return { ok: false, reason: '当前宝箱已开启或不在宝箱界面' };
+  }
+  const keys = ensureRunKeys(state);
+  if (keys.sapphire || (state.act ?? 1) >= 4) {
+    return openTreasureChest(state);
+  }
+  const ts = state.treasureState;
+  const fallbackProfile = ts.chestOdds ? null : rollChestProfile(state);
+  const chestTier = ts.chestTier || fallbackProfile.tier;
+  const chestLabel = ts.chestLabel || fallbackProfile.label;
+  const odds = ts.chestOdds || fallbackProfile.odds;
+  const goldRange = ts.chestGoldRange || fallbackProfile.goldRange;
+  const goldChance = ts.chestGoldChance ?? fallbackProfile.goldChance;
+
+  const offeredRelicId = rollUnownedRelicId(state, 'treasure', odds);
+  const gold = offeredRelicId
+    ? nextRandom(state) < goldChance
+      ? randomInt(state, goldRange[0], goldRange[1])
+      : 0
+    : 85;
+
+  if (gold > 0) {
+    addPlayerGold(state, gold);
+  }
+
+  let curseCard = null;
+  if (hasRelic(state, 'cursed_key')) {
+    const curseId = pickRandom(state, CURSE_CARD_IDS);
+    curseCard = createCardInstance(state, curseId, false);
+    addCardToMasterDeck(state, curseCard);
+  }
+
+  const parts = [];
+  if (gold > 0) parts.push(`附赠 ${gold} 金币已收入囊中`);
+  if (curseCard) {
+    parts.push(`受【诅咒钥匙】影响，牌组加入了诅咒【${getCardStats(curseCard).name}】`);
+  }
+  parts.push('请在【遗物】与【蓝宝石钥匙】之间二选一');
+
+  ts.opened = true;
+  ts.chestTier = chestTier;
+  ts.chestLabel = chestLabel;
+  ts.offeredRelicId = offeredRelicId;
+  ts.relicId = null;
+  ts.sapphireKeyOffered = true;
+  ts.choiceResolved = false;
+  ts.choicePicked = null;
+  ts.gold = gold;
+  ts.curseCardId = curseCard?.instanceId ?? null;
+  ts.upgradedCardIds = [];
+  ts.outcomeText = `${chestLabel}开启：${parts.join('；')}！`;
+
+  return { ok: true, chestTier, chestLabel, offeredRelicId, gold, curseCard };
+}
+
+export function claimTreasureRelic(state) {
+  if (state.screen !== 'treasure' || !state.treasureState || !state.treasureState.opened) {
+    return { ok: false, reason: '宝箱尚未开启' };
+  }
+  const ts = state.treasureState;
+  if (ts.choiceResolved) {
+    return { ok: false, reason: '已做出宝箱抉择' };
+  }
+  const relicId = ts.offeredRelicId;
+  if (!relicId) {
+    return { ok: false, reason: '本宝箱没有可拾取的遗物' };
+  }
+  let upgradedCards = [];
+  let upgradeSummary = '';
+  grantRelicToPlayer(state, relicId);
+  if (state.lastRelicPickup?.relicId === relicId && state.lastRelicPickup.upgradeType) {
+    upgradedCards = state.lastRelicPickup.upgradedCards || [];
+    upgradeSummary = formatRelicUpgradeSummary(state.lastRelicPickup);
+  }
+  ts.relicId = relicId;
+  ts.choiceResolved = true;
+  ts.choicePicked = 'relic';
+  ts.upgradedCardIds = upgradedCards.map((c) => c.instanceId);
+  ts.outcomeText = `${ts.chestLabel || '远古宝箱'}：已装备遗物【${RELIC_LIBRARY[relicId].name}】${upgradeSummary ? `（${upgradeSummary}）` : ''}，放弃了本宝箱的蓝宝石钥匙。`;
+  return { ok: true, relicId, upgradedCards };
+}
+
+export function claimTreasureSapphireKey(state) {
+  if (state.screen !== 'treasure' || !state.treasureState || !state.treasureState.opened) {
+    return { ok: false, reason: '宝箱尚未开启' };
+  }
+  const ts = state.treasureState;
+  if (ts.choiceResolved) {
+    return { ok: false, reason: '已做出宝箱抉择' };
+  }
+  const keys = ensureRunKeys(state);
+  if (keys.sapphire) {
+    return { ok: false, reason: '已拥有蓝宝石钥匙' };
+  }
+  keys.sapphire = true;
+  ts.relicId = null;
+  ts.choiceResolved = true;
+  ts.choicePicked = 'sapphire_key';
+  const skippedRelicName = ts.offeredRelicId ? RELIC_LIBRARY[ts.offeredRelicId]?.name : '';
+  ts.outcomeText = `${ts.chestLabel || '远古宝箱'}：舍弃了${skippedRelicName ? `遗物【${skippedRelicName}】` : '宝箱遗物'}，成功取得【蓝宝石钥匙】！`;
+  return { ok: true, key: 'sapphire' };
 }
 
 export function leaveTreasureRoom(state) {
@@ -1163,7 +1351,10 @@ export function proceedToNextAct(state) {
   if (state.screen !== 'boss_reward' || !state.bossReward) {
     return { ok: false, reason: '当前不在首领遗物祭坛界面' };
   }
-  const nextAct = Math.min(3, (state.act ?? 1) + 1);
+  const nextAct = Math.min(4, (state.act ?? 1) + 1);
+  if (nextAct === 4 && !hasAllAct4Keys(state)) {
+    return { ok: false, reason: '需要集齐红、绿、蓝三把钥匙才能开启第四幕终末之门' };
+  }
   const missingHp = Math.max(0, state.player.maxHp - state.player.hp);
   const healRatio = (state.ascension ?? 0) >= 4 ? 0.65 : 0.75;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.round(missingHp * healRatio));
@@ -1178,9 +1369,14 @@ export function proceedToNextAct(state) {
   state.recentEliteIds = [];
   state.bossReward = null;
   state.combat = null;
-  state.map = generateSpireMap(state);
-  const bossPool = nextAct >= 3 ? ENCOUNTERS.act3Boss : ENCOUNTERS.act2Boss;
-  state.bossEncounterId = pickRandom(state, bossPool).id;
+  if (nextAct === 4) {
+    state.map = generateAct4Map();
+    state.bossEncounterId = ENCOUNTERS.act4Boss[0].id;
+  } else {
+    state.map = generateSpireMap(state);
+    const bossPool = nextAct >= 3 ? ENCOUNTERS.act3Boss : ENCOUNTERS.act2Boss;
+    state.bossEncounterId = pickRandom(state, bossPool).id;
+  }
   state.act3BossRushStage = 1;
   state.act3FirstBossId = null;
   state.screen = 'map';
@@ -1215,6 +1411,18 @@ export function claimRewardGold(state) {
   addPlayerGold(state, state.reward.gold);
   state.reward.goldClaimed = true;
   return { ok: true };
+}
+
+export function claimRewardEmeraldKey(state) {
+  if (state.screen !== 'reward' || !state.reward) {
+    return { ok: false, reason: '当前不在战利品界面' };
+  }
+  if (!state.reward.emeraldKey || state.reward.emeraldKeyClaimed) {
+    return { ok: false, reason: '没有可领取的绿宝石钥匙' };
+  }
+  ensureRunKeys(state).emerald = true;
+  state.reward.emeraldKeyClaimed = true;
+  return { ok: true, key: 'emerald' };
 }
 
 export function claimRewardRelic(state) {
@@ -1318,6 +1526,7 @@ export function getUnclaimedImportantRewards(state) {
       items: [],
       hasGold: false,
       hasRelic: false,
+      hasEmeraldKey: false,
       message: '',
     };
   }
@@ -1326,8 +1535,12 @@ export function getUnclaimedImportantRewards(state) {
   const hasRelic =
     (Boolean(rw.relicId) && !rw.relicClaimed) ||
     (Boolean(rw.extraRelicId) && !rw.extraRelicClaimed);
+  const hasEmeraldKey = Boolean(rw.emeraldKey && !rw.emeraldKeyClaimed);
   if (hasGold) {
     items.push(`【${rw.gold} 金币】`);
+  }
+  if (hasEmeraldKey) {
+    items.push('【绿宝石钥匙】');
   }
   if (Boolean(rw.relicId) && !rw.relicClaimed) {
     const relicName = RELIC_LIBRARY[rw.relicId]?.name ?? rw.relicId;
@@ -1341,7 +1554,7 @@ export function getUnclaimedImportantRewards(state) {
   const message = hasUnclaimed
     ? `你还有 ${items.join('、')} 尚未拾取，确定不拾取直接继续前进吗？`
     : '';
-  return { hasUnclaimed, items, hasGold, hasRelic, message };
+  return { hasUnclaimed, items, hasGold, hasRelic, hasEmeraldKey, message };
 }
 
 export function proceedFromReward(state, options = {}) {
@@ -1502,6 +1715,24 @@ export function tokeAtCampfire(state, instanceId) {
   state.restState.lastAction = `吞云移除了【${getCardStats(removed).name}】`;
   state.screen = 'map';
   return { ok: true, removed, lostMaxHp: side.lostMaxHp };
+}
+
+export function recallRubyKey(state) {
+  if (state.screen !== 'rest' || !state.restState || state.restState.completed) {
+    return { ok: false, reason: '当前不能在营地执行召回' };
+  }
+  const keys = ensureRunKeys(state);
+  if (keys.ruby) {
+    return { ok: false, reason: '你已经取得【红宝石钥匙】' };
+  }
+  if ((state.act ?? 1) >= 4) {
+    return { ok: false, reason: '当前已在第四幕，无需再次召回' };
+  }
+  keys.ruby = true;
+  state.restState.completed = true;
+  state.restState.lastAction = '召回并取得了【红宝石钥匙】';
+  state.screen = 'map';
+  return { ok: true, key: 'ruby' };
 }
 
 export function leaveRestSite(state) {

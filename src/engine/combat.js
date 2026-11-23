@@ -479,6 +479,14 @@ function handleEnemyDeathPassives(state, deadEnemy) {
     }
   }
 
+  if ((state.player?.statuses?.surrounded ?? 0) > 0 && getAliveEnemies(combat).length <= 1) {
+    delete state.player.statuses.surrounded;
+    for (const e of combat.enemies || []) {
+      e.backAttack = false;
+    }
+    pushCombatLog(combat, '敌方夹击阵型已破，【夹击】状态解除！', 'status');
+  }
+
   if ((deadEnemy.statuses?.sporeCloud ?? 0) > 0) {
     const spores = deadEnemy.statuses.sporeCloud;
     if (
@@ -626,6 +634,16 @@ export function drawCards(state, count, options = {}) {
       options.outDrawnCards.push(nextCard);
     }
 
+    if (drawnStats.onDrawLoseEnergy) {
+      const lost = Math.min(state.player.energy, drawnStats.onDrawLoseEnergy);
+      state.player.energy = Math.max(0, state.player.energy - drawnStats.onDrawLoseEnergy);
+      pushCombatLog(
+        combat,
+        `抽到【${drawnStats.name}】：能量被虚空吞噬${lost > 0 ? `，失去 ${lost} 点能量` : '（当前能量已为 0）'}！`,
+        'status'
+      );
+    }
+
     // Deus Ex Machina: auto-exhaust on draw and add Miracles to hand
     if (drawnStats.autoExhaustOnDrawMiracles) {
       const idx = combat.hand.findIndex((c) => c.instanceId === nextCard.instanceId);
@@ -698,6 +716,26 @@ export function drawCards(state, count, options = {}) {
   return drawn;
 }
 
+function applyEnemyInvincibleCap(combat, enemy, rawHpLoss) {
+  if (!enemy || rawHpLoss <= 0) return rawHpLoss;
+  if ((enemy.invincibleMax ?? 0) <= 0 && enemy.statuses?.invincible === undefined) {
+    return rawHpLoss;
+  }
+  const remaining = Math.max(0, enemy.statuses?.invincible ?? 0);
+  const capped = Math.min(rawHpLoss, remaining);
+  enemy.statuses.invincible = Math.max(0, remaining - capped);
+  if (capped < rawHpLoss) {
+    pushCombatLog(
+      combat,
+      capped === 0
+        ? `【${enemy.name}】的【无敌】屏障阻挡了全部伤害（本回合已达承伤上限）！`
+        : `【${enemy.name}】的【无敌】屏障将伤害限制为 ${capped} 点（本回合已达承伤上限）！`,
+      'status'
+    );
+  }
+  return capped;
+}
+
 export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack: true }) {
   const combat = state.combat;
   if (!combat || !enemy || enemy.hp <= 0 || rawAmount < 0) return 0;
@@ -709,7 +747,8 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
   }
   const blocked = Math.min(enemy.block, amount);
   enemy.block -= blocked;
-  const hpLoss = amount - blocked;
+  const rawHpLoss = amount - blocked;
+  const hpLoss = applyEnemyInvincibleCap(combat, enemy, rawHpLoss);
 
   if (hpLoss > 0) {
     const actualLoss = Math.min(enemy.hp, hpLoss);
@@ -2168,6 +2207,9 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   for (const e of combat.enemies || []) {
     if (e.slowStacks) e.slowStacks = 0;
     if (e.statuses?.choke) delete e.statuses.choke;
+    if (e.hp > 0 && (e.invincibleMax ?? 0) > 0) {
+      e.statuses.invincible = e.invincibleMax;
+    }
   }
 
   // Phantasmal Killer: activates Double Damage for this turn
@@ -2561,6 +2603,8 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     encounterId: encounter.id,
     encounterName: encounter.name,
     role: encounterRole,
+    isBurningElite: Boolean(encounter.isBurningElite),
+    burningBuff: encounter.burningBuff || null,
     turn: 0,
     phase: 'setup',
     status: 'ongoing',
@@ -2608,6 +2652,51 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   state.player.penNibActive = hasRelic(state, 'pen_nib') && (state.relicCounters?.pen_nib ?? 0) === 9;
 
   pushCombatLog(combat, `遭遇战斗：${encounter.name}！`, 'info');
+
+  if (combat.isBurningElite && combat.burningBuff) {
+    const actScale = Math.max(1, Math.min(3, state.act ?? 1));
+    let buffDesc = '';
+    for (const enemy of enemies) {
+      if (combat.burningBuff === 'maxHp') {
+        const extraHp = Math.max(1, Math.round(enemy.maxHp * 0.25));
+        enemy.maxHp += extraHp;
+        enemy.hp += extraHp;
+        buffDesc = '最大生命 +25%';
+      } else if (combat.burningBuff === 'strength') {
+        applyStatus(enemy, 'strength', actScale);
+        buffDesc = `初始力量 +${actScale}`;
+      } else if (combat.burningBuff === 'metallicize') {
+        const mVal = actScale * 2;
+        applyStatus(enemy, 'metallicize', mVal);
+        enemy.block += mVal;
+        buffDesc = `金属化 ${mVal}`;
+      } else if (combat.burningBuff === 'regenerating') {
+        const rVal = actScale * 2 + 1;
+        applyStatus(enemy, 'regenerating', rVal);
+        buffDesc = `再生 ${rVal}`;
+      }
+    }
+    if (buffDesc) {
+      pushCombatLog(
+        combat,
+        `🔥【燃烧精英】碧绿烈焰加持：敌方获得【${buffDesc}】（击败后必掉绿宝石钥匙）！`,
+        'status'
+      );
+    }
+  }
+
+  if (encounter.id === 'spire_shield_and_spear' && enemies.length >= 2) {
+    state.player.statuses.surrounded = 1;
+    enemies[0].backAttack = false;
+    for (let i = 1; i < enemies.length; i += 1) {
+      enemies[i].backAttack = true;
+    }
+    pushCombatLog(
+      combat,
+      `⚠️ 陷入【夹击】：你正面对【${enemies[0].name}】，背对【${enemies[1].name}】（背侧攻击伤害 +50%，对目标打出单体攻击可转向迎击）！`,
+      'status'
+    );
+  }
 
   if (encounterRole === 'elite' && hasRelic(state, 'preserved_insect')) {
     for (const enemy of getAliveEnemies(combat)) {
@@ -2973,6 +3062,29 @@ export function playCard(
     'card'
   );
 
+  if (
+    stats.type === 'attack' &&
+    stats.target === 'enemy' &&
+    targetEnemy &&
+    targetEnemy.hp > 0 &&
+    (state.player.statuses?.surrounded ?? 0) > 0 &&
+    targetEnemy.backAttack
+  ) {
+    targetEnemy.backAttack = false;
+    const otherNames = [];
+    for (const e of getAliveEnemies(combat)) {
+      if (e.id !== targetEnemy.id) {
+        e.backAttack = true;
+        otherNames.push(`【${e.name}】`);
+      }
+    }
+    pushCombatLog(
+      combat,
+      `🔄 你转身正面迎击【${targetEnemy.name}】${otherNames.length > 0 ? `（背侧转为${otherNames.join('、')}）` : ''}！`,
+      'status'
+    );
+  }
+
   if (burstActive) {
     if (burstStacks - 1 <= 0) {
       delete state.player.statuses.burst;
@@ -3233,17 +3345,20 @@ export function playCard(
         if (enemy.hp <= 0) continue;
         const markStacks = enemy.statuses?.mark ?? 0;
         if (markStacks > 0) {
-          const markLoss = Math.min(enemy.hp, markStacks);
-          enemy.hp = Math.max(0, enemy.hp - markStacks);
+          const cappedMark = applyEnemyInvincibleCap(combat, enemy, markStacks);
+          const markLoss = Math.min(enemy.hp, cappedMark);
+          enemy.hp = Math.max(0, enemy.hp - cappedMark);
           if (state.stats && markLoss > 0) {
             state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + markLoss;
             state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, markLoss);
           }
-          pushCombatLog(
-            combat,
-            `【印记】引爆：【${enemy.name}】无视格挡失去 ${markStacks} 点生命！`,
-            'attack'
-          );
+          if (cappedMark > 0) {
+            pushCombatLog(
+              combat,
+              `【印记】引爆：【${enemy.name}】无视格挡失去 ${cappedMark} 点生命！`,
+              'attack'
+            );
+          }
           if (enemy.hp <= 0 && !handleEnemyZeroHp(state, enemy)) {
             enemy.block = 0;
             enemy.intent = null;
@@ -3988,13 +4103,16 @@ export function playCard(
     for (const [eid, chokeDmg] of chokedEnemiesBefore.entries()) {
       const chokedEnemy = combat.enemies.find((e) => e.id === eid && e.hp > 0);
       if (chokedEnemy && chokeDmg > 0) {
-        const loss = Math.min(chokedEnemy.hp, chokeDmg);
-        chokedEnemy.hp = Math.max(0, chokedEnemy.hp - chokeDmg);
+        const cappedChoke = applyEnemyInvincibleCap(combat, chokedEnemy, chokeDmg);
+        const loss = Math.min(chokedEnemy.hp, cappedChoke);
+        chokedEnemy.hp = Math.max(0, chokedEnemy.hp - cappedChoke);
         if (state.stats && loss > 0) {
           state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + loss;
           state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, loss);
         }
-        pushCombatLog(combat, `【勒脖】触发：【${chokedEnemy.name}】失去 ${chokeDmg} 点生命！`, 'attack');
+        if (cappedChoke > 0) {
+          pushCombatLog(combat, `【勒脖】触发：【${chokedEnemy.name}】失去 ${cappedChoke} 点生命！`, 'attack');
+        }
         if (chokedEnemy.hp <= 0 && !handleEnemyZeroHp(state, chokedEnemy)) {
           chokedEnemy.block = 0;
           chokedEnemy.intent = null;
@@ -4144,6 +4262,16 @@ export function playCard(
   for (const enemy of getAliveEnemies(combat)) {
     if ((enemy.statuses?.slow ?? 0) > 0) {
       enemy.slowStacks = (enemy.slowStacks ?? 0) + 1;
+    }
+  }
+
+  // Beat of Death (Corrupt Heart): triggers after card resolves if Heart is still alive
+  if (state.player.hp > 0 && combat.status === 'ongoing') {
+    for (const enemy of getAliveEnemies(combat)) {
+      const beatDmg = enemy.statuses?.beatOfDeath ?? 0;
+      if (beatDmg > 0 && state.player.hp > 0) {
+        dealDamageToPlayer(state, beatDmg, `【${enemy.name}】的死亡律动`, { isAttack: false });
+      }
     }
   }
 
@@ -4710,15 +4838,18 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     // Poison ticks at the start of the enemy's turn (bypasses block, decrements by 1; lethal Poison skips enemy intent!)
     if ((enemy.statuses?.poison ?? 0) > 0) {
       const poisonStacks = enemy.statuses.poison;
-      const poisonDmg =
+      const rawPoisonDmg =
         (enemy.statuses?.intangible ?? 0) > 0 ? Math.min(1, poisonStacks) : poisonStacks;
+      const poisonDmg = applyEnemyInvincibleCap(combat, enemy, rawPoisonDmg);
       const actualPoisonLoss = Math.min(enemy.hp, poisonDmg);
       enemy.hp = Math.max(0, enemy.hp - poisonDmg);
       if (state.stats && actualPoisonLoss > 0) {
         state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualPoisonLoss;
         state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualPoisonLoss);
       }
-      pushCombatLog(combat, `【${enemy.name}】受【中毒】折磨失去 ${poisonDmg} 点生命！`, 'damage');
+      if (poisonDmg > 0) {
+        pushCombatLog(combat, `【${enemy.name}】受【中毒】折磨失去 ${poisonDmg} 点生命！`, 'damage');
+      }
       if (enemy.hp <= 0) {
         if (handleEnemyZeroHp(state, enemy)) {
           continue;
@@ -5015,6 +5146,37 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
           if (intent.skipRitualThisTurn) {
             enemy.skipRitualThisTurn = true;
           }
+        }
+
+        if (intent.isHeartBuff) {
+          if ((enemy.statuses?.strength ?? 0) < 0) {
+            delete enemy.statuses.strength;
+          }
+          applyStatus(enemy, 'strength', 2);
+          const buffStage = enemy.heartBuffCount ?? 0;
+          enemy.heartBuffCount = buffStage + 1;
+          let stageMsg = '';
+          if (buffStage === 0) {
+            applyStatus(enemy, 'artifact', 2);
+            stageMsg = '2 层【人工制品】';
+          } else if (buffStage === 1) {
+            applyStatus(enemy, 'beatOfDeath', 1);
+            stageMsg = '+1 层【死亡律动】';
+          } else if (buffStage === 2) {
+            applyStatus(enemy, 'painfulStabs', 1);
+            stageMsg = '【痛苦刺击】';
+          } else if (buffStage === 3) {
+            applyStatus(enemy, 'strength', 10);
+            stageMsg = '额外 +10 点【力量】';
+          } else {
+            applyStatus(enemy, 'strength', 50);
+            stageMsg = '额外 +50 点【力量】';
+          }
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】剧烈脉动：清除负面力量，获得 2 点【力量】与 ${stageMsg}！`,
+            'status'
+          );
         }
 
         if (intent.applyPlayerStatuses) {
