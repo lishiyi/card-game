@@ -1841,6 +1841,18 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) => `在 ${v} 个回合后化作虚无自动消散（撑过倒计时即可获胜！）。`,
   },
+  entangled: {
+    id: 'entangled',
+    name: '缠网',
+    polarity: 'debuff',
+    describe: () => '被铁网束缚，本回合无法打出任何【攻击】牌（回合结束自动解除）。',
+  },
+  stasis: {
+    id: 'stasis',
+    name: '静止力场',
+    polarity: 'buff',
+    describe: () => '已封印玩家的一张卡牌：击败该青铜球后立即归还至你的手牌！',
+  },
 });
 
 export const STANCE_METADATA = deepFreeze({

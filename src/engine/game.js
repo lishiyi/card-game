@@ -2021,8 +2021,9 @@ function chooseEventOptionCore(state, choiceId) {
           id: 'masked_bandits_event',
           name: '蒙面强盗团',
           enemies: [
-            { templateId: 'looter', customName: '赤面盗匪·尖刺' },
-            { templateId: 'slaver_blue', customName: '赤面盗匪·罗密欧' },
+            { templateId: 'bandit_pointy' },
+            { templateId: 'bandit_romeo' },
+            { templateId: 'bandit_bear' },
           ],
         };
         state.lastEncounterId = banditsEncounter.id;

@@ -4933,7 +4933,7 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
     assert.ok(compInitial.cardTabText.includes('/233') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
     assert.equal(compInitial.totalRelicCards, 103, 'Relics tab lists all 103 relics');
     assert.equal(compInitial.totalPotionCards, 28, 'Potions tab lists all 28 potions');
-    assert.equal(compInitial.totalEnemyCards, 47, 'Enemies tab lists all 47 enemies');
+    assert.equal(compInitial.totalEnemyCards, 61, 'Enemies tab lists all 61 enemies');
     assert.ok(compInitial.undiscoveredCount > 0 && compInitial.silhouettes > 0, 'Unseen entries render as silhouettes');
     await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);
 
@@ -7742,6 +7742,97 @@ test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) 
     assert.equal(artifactAudit.artRemoved, true, 'Sentry Artifact badge must disappear once stripped to 0');
     assert.equal(artifactAudit.vulnBlocked, true, 'Vulnerable must not appear on Sentry when negated by Artifact');
     assert.equal(artifactAudit.sgArtVal, '3', 'Spheric Guardian must display 3 Artifact stacks in combat UI');
+
+    // 5. Section A E2E: Bronze Orb Stasis card-name tooltip, Red Slaver Entangled Attack lock UI, Bandits Trio & 4-Gremlin Pack SVGs
+    const sectionAAudit = await cdp.evaluate(`(async () => {
+      const app = window.__SPIRE_APP__;
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      const { endPlayerTurn, startCombat } = await import('./src/engine/combat.js');
+      const { createCardInstance } = await import('./src/data/cards.js');
+      const st = app.getState();
+
+      // 5a. Bronze Automaton spawns 2 Bronze Orbs -> Stasis steals Rare Bludgeon -> UI shows Stasis chip with exact sealed card name
+      startCombat(st, ENCOUNTERS.act2Boss.find((e) => e.id === 'automaton_boss'), 'boss');
+      st.player.block = 40;
+      endPlayerTurn(st);
+      const orbs = st.combat.enemies.filter((e) => e.templateId === 'bronze_orb');
+      const rareCard = createCardInstance(st, 'bludgeon', false);
+      st.combat.drawPile = [createCardInstance(st, 'strike', false), rareCard];
+      st.combat.discardPile = [];
+      orbs[0].intent = { id: 'orb_stasis', name: '静止力场', type: 'debuff', stasisSteal: true };
+      orbs[1].intent = { id: 'orb_support', name: '支援光束', type: 'defend', block: 8, supportBossBlock: true };
+      st.player.block = 40;
+      endPlayerTurn(st);
+      app.render();
+
+      const orbMinionTags = document.querySelectorAll('.enemy-side .minion-tag').length;
+      const orbSvgPresent = Boolean(document.querySelector('#enemy-unit-' + orbs[0].id + ' svg #ea-bo-eye'));
+      const stasisChip = document.querySelector('#enemy-unit-' + orbs[0].id + ' .status-chip[data-status-key="stasis"]');
+      const stasisTooltip = stasisChip?.dataset?.tooltipDesc || '';
+
+      // 5b. Red Slaver Entangled debuff disables Attack cards while keeping Skill cards playable
+      startCombat(st, ENCOUNTERS.normal.find((e) => e.id === 'red_slaver_solo'), 'normal');
+      st.player.statuses.entangled = 1;
+      const atkCard = createCardInstance(st, 'strike', false);
+      const sklCard = createCardInstance(st, 'defend', false);
+      st.combat.hand = [atkCard, sklCard];
+      st.player.energy = 3;
+      app.render();
+
+      const entangledChip = document.querySelector('#player-unit .status-chip[data-status-key="entangled"]');
+      const entangledPol = entangledChip?.querySelector('svg.status-svg')?.dataset?.statusPolarity || '';
+      const atkEl = document.getElementById('hand-card-' + atkCard.instanceId);
+      const sklEl = document.getElementById('hand-card-' + sklCard.instanceId);
+      const atkBlockedUi = Boolean(
+        atkEl?.classList.contains('unplayable-dim') &&
+          !atkEl?.classList.contains('playable') &&
+          atkEl?.dataset?.unplayableReason === 'unplayable'
+      );
+      const sklPlayableUi = Boolean(
+        sklEl?.classList.contains('playable') && !sklEl?.classList.contains('unplayable-dim')
+      );
+
+      // 5c. Bandits Trio & 4-Gremlin Pack bespoke SVGs render cleanly
+      startCombat(st, ENCOUNTERS.act2Hard.find((e) => e.id === 'bandit_trio'), 'normal');
+      app.render();
+      const banditDomCount = document.querySelectorAll('.enemy-side .fighter-unit').length;
+      const banditSvgsOk = Boolean(
+        document.querySelector('.enemy-side svg #ea-bp-cloak') &&
+          document.querySelector('.enemy-side svg #ea-br-cape') &&
+          document.querySelector('.enemy-side svg #ea-bb-body')
+      );
+
+      startCombat(st, ENCOUNTERS.hardNormal.find((e) => e.id === 'gremlin_pack'), 'normal');
+      app.render();
+      const gremlinDomCount = document.querySelectorAll('.enemy-side .fighter-unit').length;
+
+      return {
+        orbCount: orbs.length,
+        orbMinionTags,
+        orbSvgPresent,
+        stasisTooltip,
+        entangledPol,
+        atkBlockedUi,
+        sklPlayableUi,
+        banditDomCount,
+        banditSvgsOk,
+        gremlinDomCount,
+      };
+    })()`);
+
+    assert.equal(sectionAAudit.orbCount, 2, 'Automaton must spawn 2 Bronze Orbs');
+    assert.equal(sectionAAudit.orbMinionTags, 2, 'Both Bronze Orbs must render 爪牙 minion tag');
+    assert.equal(sectionAAudit.orbSvgPresent, true, 'Bronze Orb must render bespoke SVG');
+    assert.ok(
+      sectionAAudit.stasisTooltip.includes('重锤'),
+      `Stasis tooltip must name sealed card 【重锤】, got: ${sectionAAudit.stasisTooltip}`
+    );
+    assert.equal(sectionAAudit.entangledPol, 'debuff', 'Entangled must render crimson debuff octagonal badge');
+    assert.equal(sectionAAudit.atkBlockedUi, true, 'Entangled must dim & lock Attack cards as unplayable in hand UI');
+    assert.equal(sectionAAudit.sklPlayableUi, true, 'Entangled must keep Skill cards playable in hand UI');
+    assert.equal(sectionAAudit.banditDomCount, 3, 'Bandits Trio must render 3 enemies');
+    assert.equal(sectionAAudit.banditSvgsOk, true, 'Pointy, Romeo, and Bear must each render bespoke SVGs');
+    assert.equal(sectionAAudit.gremlinDomCount, 4, 'Gremlin Pack must render 4 gremlins');
 
     cdp.ws.close();
   } finally {

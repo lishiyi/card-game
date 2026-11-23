@@ -1,5 +1,5 @@
 /**
- * Hero-tier hand-crafted inline SVG illustrations for all 40 Spire enemies
+ * Hero-tier hand-crafted inline SVG illustrations for all 61 Spire enemies
  * (Act 1, Act 2, and Act 3 normal enemies, elites, and bosses).
  * Every enemy uses globally unique gradient IDs (`ea-<key>-*`) so multiple enemies
  * in the same combat DOM never collide.
@@ -1896,6 +1896,488 @@ export function getEnemySvg(artKey, mode = 'normal') {
           <circle cx="58" cy="68" r="7" fill="hsl(352, 96%, 66%)" stroke="hsl(48, 96%, 72%)" stroke-width="1.4" /><circle cx="58" cy="68" r="2.6" fill="hsl(292, 62%, 12%)" />
           <circle cx="38" cy="70" r="3.6" fill="hsl(148, 92%, 64%)" />
           <circle cx="80" cy="70" r="3.6" fill="hsl(148, 92%, 64%)" />
+        </svg>
+      `;
+
+    // =========================================================================
+    // LARGE & SMALL SLIMES
+    // =========================================================================
+    case 'acid_slime_l':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-asl-aura" cx="50%" cy="58%" r="52%">
+              <stop offset="0%" stop-color="hsla(128, 92%, 52%, 0.28)" />
+              <stop offset="100%" stop-color="hsla(0,0%,0%,0)" />
+            </radialGradient>
+            <radialGradient id="ea-asl-body" cx="38%" cy="30%" r="72%">
+              <stop offset="0%" stop-color="hsl(124, 78%, 58%)" />
+              <stop offset="54%" stop-color="hsl(138, 66%, 34%)" />
+              <stop offset="100%" stop-color="hsl(154, 62%, 13%)" />
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="60" r="54" fill="url(#ea-asl-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="50" ry="7.5" fill="hsla(0,0%,0%,0.54)" />
+          <g class="svg-float">
+            <circle cx="22" cy="30" r="5" fill="hsl(122, 96%, 64%)" opacity="0.82" />
+            <circle cx="96" cy="26" r="4.2" fill="hsl(122, 96%, 64%)" opacity="0.78" />
+            <circle cx="62" cy="16" r="3.4" fill="hsl(88, 98%, 74%)" opacity="0.84" />
+          </g>
+          <g class="svg-breathe">
+            <!-- Towering gelatinous large acid slime -->
+            <path d="M10 98 Q8 30 60 28 Q112 30 110 98 Q86 108 60 103 Q34 108 10 98 Z" fill="url(#ea-asl-body)" stroke="hsl(118, 94%, 72%)" stroke-width="2.4" />
+            <path d="M26 48 Q42 34 64 36" stroke="hsla(0,0%,100%,0.5)" stroke-width="4" stroke-linecap="round" fill="none" />
+            <!-- Split-ready shimmering fissure line -->
+            <path d="M60 32 Q56 54 62 72 Q58 88 60 100" stroke="hsla(84, 100%, 76%, 0.34)" stroke-width="2" stroke-dasharray="4 4" fill="none" />
+            <circle cx="90" cy="60" r="6" fill="hsla(0,0%,100%,0.2)" stroke="hsla(120, 96%, 82%, 0.4)" stroke-width="1" />
+            <circle cx="28" cy="78" r="4.6" fill="hsla(0,0%,100%,0.22)" />
+            <circle cx="82" cy="86" r="3.8" fill="hsla(0,0%,100%,0.2)" />
+            <!-- Fierce glowing yellow-lime eyes & wide dripping maw -->
+            <circle cx="42" cy="66" r="7.5" fill="hsla(52, 100%, 62%, 0.36)" />
+            <circle cx="42" cy="66" r="4.8" fill="hsl(52, 100%, 72%)" />
+            <circle cx="41" cy="66" r="1.9" fill="hsl(152, 68%, 12%)" />
+            <circle cx="78" cy="66" r="7.5" fill="hsla(52, 100%, 62%, 0.36)" />
+            <circle cx="78" cy="66" r="4.8" fill="hsl(52, 100%, 72%)" />
+            <circle cx="77" cy="66" r="1.9" fill="hsl(152, 68%, 12%)" />
+            <path d="M36 82 Q60 95 84 82 Q60 88 36 82 Z" fill="hsl(154, 72%, 12%)" stroke="hsl(88, 92%, 74%)" stroke-width="1.8" />
+          </g>
+        </svg>
+      `;
+
+    case 'spike_slime_l':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-ssl-aura" cx="50%" cy="56%" r="52%">
+              <stop offset="0%" stop-color="hsla(198, 92%, 58%, 0.28)" />
+              <stop offset="100%" stop-color="hsla(0,0%,0%,0)" />
+            </radialGradient>
+            <radialGradient id="ea-ssl-body" cx="38%" cy="32%" r="72%">
+              <stop offset="0%" stop-color="hsl(198, 72%, 62%)" />
+              <stop offset="56%" stop-color="hsl(210, 62%, 38%)" />
+              <stop offset="100%" stop-color="hsl(224, 58%, 15%)" />
+            </radialGradient>
+            <linearGradient id="ea-ssl-spike" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0%" stop-color="hsl(190, 94%, 92%)" />
+              <stop offset="100%" stop-color="hsl(206, 74%, 46%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="54" fill="url(#ea-ssl-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="50" ry="7.5" fill="hsla(0,0%,0%,0.54)" />
+          <g class="svg-breathe">
+            <!-- Towering crystalline dorsal spike crown -->
+            <polygon points="16,60 22,22 36,46 47,12 60,40 73,12 84,46 98,22 104,60" fill="url(#ea-ssl-spike)" stroke="hsl(210, 76%, 26%)" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M47 16 L51 40 M73 16 L69 40 M23 26 L30 46 M97 26 L90 46" stroke="hsla(0,0%,100%,0.6)" stroke-width="1.4" />
+            <!-- Colossal armored slime body -->
+            <path d="M11 98 Q10 38 60 36 Q110 38 109 98 Q85 108 60 103 Q35 108 11 98 Z" fill="url(#ea-ssl-body)" stroke="hsl(194, 92%, 78%)" stroke-width="2.4" />
+            <path d="M27 52 Q44 41 64 43" stroke="hsla(0,0%,100%,0.48)" stroke-width="3.6" stroke-linecap="round" fill="none" />
+            <!-- Split-ready shimmering fissure -->
+            <path d="M60 40 Q64 60 58 78 Q62 90 60 101" stroke="hsla(192, 100%, 84%, 0.36)" stroke-width="2" stroke-dasharray="4 4" fill="none" />
+            <!-- Piercing slanted eyes & jagged icy grin -->
+            <polygon points="36,64 51,69 40,74" fill="hsl(48, 100%, 72%)" />
+            <polygon points="84,64 69,69 80,74" fill="hsl(48, 100%, 72%)" />
+            <path d="M38 85 L46 80 L54 87 L60 80 L66 87 L74 80 L82 85" stroke="hsl(192, 92%, 90%)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          </g>
+        </svg>
+      `;
+
+    case 'acid_slime_s':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-ass-body" cx="42%" cy="36%" r="66%">
+              <stop offset="0%" stop-color="hsl(126, 78%, 58%)" />
+              <stop offset="60%" stop-color="hsl(142, 64%, 34%)" />
+              <stop offset="100%" stop-color="hsl(156, 62%, 15%)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="104" rx="28" ry="5" fill="hsla(0,0%,0%,0.44)" />
+          <g class="svg-float">
+            <circle cx="42" cy="52" r="3" fill="hsl(122, 94%, 68%)" opacity="0.82" />
+            <circle cx="78" cy="48" r="2.4" fill="hsl(90, 96%, 72%)" opacity="0.76" />
+          </g>
+          <g class="svg-breathe">
+            <path d="M32 96 Q30 62 60 61 Q90 62 88 96 Q74 102 60 99 Q46 102 32 96 Z" fill="url(#ea-ass-body)" stroke="hsl(122, 92%, 72%)" stroke-width="2" />
+            <path d="M42 71 Q50 65 62 66" stroke="hsla(0,0%,100%,0.54)" stroke-width="2.8" stroke-linecap="round" fill="none" />
+            <circle cx="50" cy="81" r="3.6" fill="hsl(50, 100%, 72%)" />
+            <circle cx="49.4" cy="81" r="1.4" fill="hsl(154, 68%, 14%)" />
+            <circle cx="70" cy="81" r="3.6" fill="hsl(50, 100%, 72%)" />
+            <circle cx="69.4" cy="81" r="1.4" fill="hsl(154, 68%, 14%)" />
+            <path d="M51 90 Q60 95 69 90" stroke="hsl(50, 82%, 90%)" stroke-width="2.2" fill="none" stroke-linecap="round" />
+          </g>
+        </svg>
+      `;
+
+    case 'spike_slime_s':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-sss-body" cx="42%" cy="36%" r="66%">
+              <stop offset="0%" stop-color="hsl(198, 70%, 62%)" />
+              <stop offset="60%" stop-color="hsl(210, 58%, 38%)" />
+              <stop offset="100%" stop-color="hsl(224, 58%, 16%)" />
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="104" rx="28" ry="5" fill="hsla(0,0%,0%,0.44)" />
+          <g class="svg-breathe">
+            <polygon points="39,69 44,49 53,63 60,42 67,63 76,49 81,69" fill="hsl(194, 84%, 82%)" stroke="hsl(210, 74%, 28%)" stroke-width="1.5" stroke-linejoin="round" />
+            <path d="M32 96 Q31 64 60 63 Q89 64 88 96 Q74 102 60 99 Q46 102 32 96 Z" fill="url(#ea-sss-body)" stroke="hsl(194, 90%, 78%)" stroke-width="2" />
+            <path d="M42 73 Q50 67 61 68" stroke="hsla(0,0%,100%,0.5)" stroke-width="2.6" stroke-linecap="round" fill="none" />
+            <polygon points="46,79 55,82 48,85" fill="hsl(48, 100%, 72%)" />
+            <polygon points="74,79 65,82 72,85" fill="hsl(48, 100%, 72%)" />
+            <path d="M51 91 L56 88 L60 92 L64 88 L69 91" stroke="hsl(194, 88%, 92%)" stroke-width="2.1" fill="none" stroke-linecap="round" />
+          </g>
+        </svg>
+      `;
+
+    // =========================================================================
+    // RED SLAVER & GREMLIN FAMILY
+    // =========================================================================
+    case 'slaver_red':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-sr-cloak" x1="0" y1="0" x2="0.2" y2="1">
+              <stop offset="0%" stop-color="hsl(356, 70%, 46%)" />
+              <stop offset="60%" stop-color="hsl(352, 66%, 28%)" />
+              <stop offset="100%" stop-color="hsl(344, 64%, 13%)" />
+            </linearGradient>
+            <linearGradient id="ea-sr-iron" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(28, 22%, 86%)" />
+              <stop offset="100%" stop-color="hsl(14, 24%, 38%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="38" ry="6.2" fill="hsla(0,0%,0%,0.5)" />
+          <g class="svg-breathe">
+            <!-- Coiled iron entangling net on left arm -->
+            <ellipse cx="22" cy="70" rx="13" ry="16" fill="hsla(24, 32%, 22%, 0.45)" stroke="hsl(30, 38%, 62%)" stroke-width="1.6" />
+            <path d="M13 62 L31 78 M13 78 L31 62 M22 54 V86 M10 70 H34" stroke="hsl(32, 34%, 72%)" stroke-width="1.1" opacity="0.85" />
+            <!-- Crimson hooded cloak -->
+            <path d="M32 42 Q60 28 84 44 L92 104 L26 104 Z" fill="url(#ea-sr-cloak)" stroke="hsl(8, 82%, 64%)" stroke-width="1.9" />
+            <path d="M40 50 L80 86 M40 60 L76 92" stroke="hsl(34, 48%, 52%)" stroke-width="2.4" opacity="0.82" />
+            <path d="M42 20 Q60 10 76 22 L74 44 Q60 49 44 44 Z" fill="url(#ea-sr-cloak)" stroke="hsl(8, 82%, 64%)" stroke-width="1.8" />
+            <rect x="46" y="26" width="26" height="14" rx="4" fill="hsl(348, 52%, 10%)" />
+            <circle cx="53" cy="33" r="2.8" fill="hsl(44, 100%, 66%)" />
+            <circle cx="65" cy="33" r="2.8" fill="hsl(44, 100%, 66%)" />
+            <!-- Wicked barbed trident -->
+            <line x1="94" y1="26" x2="90" y2="104" stroke="hsl(26, 36%, 48%)" stroke-width="4" stroke-linecap="round" />
+            <path d="M84 12 L86 28 H102 L104 12 M94 8 L94 28" stroke="url(#ea-sr-iron)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <polygon points="94,5 98,14 90,14" fill="url(#ea-sr-iron)" />
+          </g>
+        </svg>
+      `;
+
+    case 'fat_gremlin':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-fg-skin" cx="44%" cy="38%" r="64%">
+              <stop offset="0%" stop-color="hsl(74, 44%, 52%)" />
+              <stop offset="60%" stop-color="hsl(68, 42%, 32%)" />
+              <stop offset="100%" stop-color="hsl(58, 44%, 15%)" />
+            </radialGradient>
+            <linearGradient id="ea-fg-club" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(34, 52%, 56%)" />
+              <stop offset="100%" stop-color="hsl(24, 46%, 22%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="40" ry="6.6" fill="hsla(0,0%,0%,0.5)" />
+          <g class="svg-breathe">
+            <!-- Heavy wooden mallet -->
+            <line x1="92" y1="42" x2="84" y2="90" stroke="hsl(28, 42%, 38%)" stroke-width="4.5" stroke-linecap="round" />
+            <rect x="78" y="24" width="28" height="20" rx="5" transform="rotate(-14 92 34)" fill="url(#ea-fg-club)" stroke="hsl(38, 62%, 70%)" stroke-width="1.6" />
+            <!-- Stubby horns & wide ears -->
+            <polygon points="42,36 30,24 48,30" fill="hsl(40, 40%, 82%)" stroke="hsl(26, 28%, 30%)" stroke-width="1.2" />
+            <polygon points="74,36 86,24 68,30" fill="hsl(40, 40%, 82%)" stroke="hsl(26, 28%, 30%)" stroke-width="1.2" />
+            <!-- Rotund heavy belly torso -->
+            <ellipse cx="58" cy="70" rx="34" ry="32" fill="url(#ea-fg-skin)" stroke="hsl(78, 56%, 64%)" stroke-width="2" />
+            <path d="M26 76 Q58 86 90 76 L88 86 Q58 95 28 86 Z" fill="hsl(24, 42%, 22%)" stroke="hsl(38, 58%, 54%)" stroke-width="1.2" />
+            <!-- Dopey fierce eyes & underbite fangs -->
+            <circle cx="47" cy="52" r="4.5" fill="hsl(46, 100%, 72%)" /><circle cx="47" cy="52" r="2" fill="hsl(40, 62%, 12%)" />
+            <circle cx="69" cy="52" r="4.5" fill="hsl(46, 100%, 72%)" /><circle cx="69" cy="52" r="2" fill="hsl(40, 62%, 12%)" />
+            <path d="M44 64 Q58 70 72 64" stroke="hsl(42, 54%, 14%)" stroke-width="3" fill="none" stroke-linecap="round" />
+            <polygon points="47,66 50,59 53,66" fill="hsl(44, 62%, 92%)" />
+            <polygon points="63,66 66,59 69,66" fill="hsl(44, 62%, 92%)" />
+          </g>
+        </svg>
+      `;
+
+    case 'shield_gremlin':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-shg-skin" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(168, 48%, 48%)" />
+              <stop offset="100%" stop-color="hsl(178, 50%, 20%)" />
+            </linearGradient>
+            <linearGradient id="ea-shg-shield" x1="0.1" y1="0" x2="0.9" y2="1">
+              <stop offset="0%" stop-color="hsl(210, 54%, 64%)" />
+              <stop offset="52%" stop-color="hsl(216, 48%, 38%)" />
+              <stop offset="100%" stop-color="hsl(224, 52%, 18%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="34" ry="6" fill="hsla(0,0%,0%,0.48)" />
+          <g class="svg-breathe">
+            <!-- Little gremlin ears & iron helm peeking over shield -->
+            <polygon points="40,36 22,26 44,28" fill="url(#ea-shg-skin)" stroke="hsl(168, 58%, 66%)" stroke-width="1.3" />
+            <polygon points="80,36 98,26 76,28" fill="url(#ea-shg-skin)" stroke="hsl(168, 58%, 66%)" stroke-width="1.3" />
+            <path d="M40 36 Q60 16 80 36 L78 46 H42 Z" fill="hsl(214, 34%, 44%)" stroke="hsl(206, 56%, 76%)" stroke-width="1.8" />
+            <circle cx="51" cy="40" r="3" fill="hsl(48, 100%, 72%)" />
+            <circle cx="69" cy="40" r="3" fill="hsl(48, 100%, 72%)" />
+            <!-- Oversized riveted tower shield -->
+            <path d="M24 44 L60 36 L96 44 L90 88 L60 105 L30 88 Z" fill="url(#ea-shg-shield)" stroke="hsl(44, 82%, 70%)" stroke-width="2.4" stroke-linejoin="round" />
+            <path d="M60 38 V103 M28 66 H92" stroke="hsl(44, 78%, 64%)" stroke-width="2.2" opacity="0.72" />
+            <circle cx="60" cy="66" r="10" fill="hsl(42, 76%, 54%)" stroke="hsl(48, 96%, 86%)" stroke-width="1.8" />
+            <circle cx="34" cy="52" r="2" fill="hsl(48, 92%, 82%)" /><circle cx="86" cy="52" r="2" fill="hsl(48, 92%, 82%)" />
+            <circle cx="37" cy="84" r="2" fill="hsl(48, 92%, 82%)" /><circle cx="83" cy="84" r="2" fill="hsl(48, 92%, 82%)" />
+          </g>
+        </svg>
+      `;
+
+    case 'sneaky_gremlin':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-sng-skin" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0%" stop-color="hsl(268, 54%, 52%)" />
+              <stop offset="100%" stop-color="hsl(258, 56%, 18%)" />
+            </linearGradient>
+            <linearGradient id="ea-sng-blade" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(190, 42%, 94%)" />
+              <stop offset="100%" stop-color="hsl(214, 24%, 44%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="30" ry="5.6" fill="hsla(0,0%,0%,0.48)" />
+          <g class="svg-breathe">
+            <!-- Long swept pointy ears -->
+            <path d="M44 42 L14 26 L48 34 Z" fill="url(#ea-sng-skin)" stroke="hsl(276, 74%, 72%)" stroke-width="1.4" />
+            <path d="M76 42 L106 26 L72 34 Z" fill="url(#ea-sng-skin)" stroke="hsl(276, 74%, 72%)" stroke-width="1.4" />
+            <!-- Lean crouched agile silhouette -->
+            <path d="M40 46 Q60 30 80 46 L74 98 L46 98 Z" fill="url(#ea-sng-skin)" stroke="hsl(278, 72%, 70%)" stroke-width="1.8" />
+            <path d="M45 78 L75 78 L72 96 L60 90 L48 96 Z" fill="hsl(246, 36%, 14%)" />
+            <!-- Sly squinting glowing eyes & smirk -->
+            <path d="M46 53 Q52 49 57 54 L47 57 Z" fill="hsl(48, 100%, 70%)" />
+            <path d="M74 53 Q68 49 63 54 L73 57 Z" fill="hsl(48, 100%, 70%)" />
+            <path d="M50 67 Q60 72 72 65" stroke="hsl(46, 84%, 88%)" stroke-width="2.2" fill="none" stroke-linecap="round" />
+            <!-- Wicked curved assassin dagger -->
+            <path d="M78 66 L108 42 L94 74 Z" fill="url(#ea-sng-blade)" stroke="hsl(268, 48%, 34%)" stroke-width="1.4" />
+            <path d="M42 68 L20 56 L30 74 Z" fill="url(#ea-sng-blade)" stroke="hsl(268, 48%, 34%)" stroke-width="1.3" />
+          </g>
+        </svg>
+      `;
+
+    case 'gremlin_wizard':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-gw-aura" cx="56%" cy="48%" r="50%">
+              <stop offset="0%" stop-color="hsla(296, 94%, 60%, 0.3)" />
+              <stop offset="100%" stop-color="hsla(0,0%,0%,0)" />
+            </radialGradient>
+            <linearGradient id="ea-gw-robe" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0%" stop-color="hsl(266, 62%, 44%)" />
+              <stop offset="100%" stop-color="hsl(248, 60%, 16%)" />
+            </linearGradient>
+            <radialGradient id="ea-gw-orb" cx="44%" cy="40%" r="58%">
+              <stop offset="0%" stop-color="hsl(52, 100%, 96%)" />
+              <stop offset="50%" stop-color="hsl(304, 98%, 64%)" />
+              <stop offset="100%" stop-color="hsl(268, 86%, 32%)" />
+            </radialGradient>
+          </defs>
+          <circle cx="62" cy="56" r="52" fill="url(#ea-gw-aura)" class="svg-pulse" />
+          <ellipse cx="58" cy="108" rx="34" ry="5.8" fill="hsla(0,0%,0%,0.5)" />
+          <g class="svg-breathe">
+            <!-- Arcane robe & starry trim -->
+            <path d="M32 54 Q58 44 82 54 L90 104 L26 104 Z" fill="url(#ea-gw-robe)" stroke="hsl(288, 78%, 68%)" stroke-width="1.8" />
+            <path d="M36 96 L84 96" stroke="hsl(46, 92%, 68%)" stroke-width="2" stroke-dasharray="4 4" />
+            <!-- Shadowed face under brim with glowing magenta eyes -->
+            <ellipse cx="58" cy="52" rx="14" ry="11" fill="hsl(258, 56%, 12%)" />
+            <circle cx="52" cy="52" r="3.2" fill="hsl(308, 100%, 72%)" class="svg-pulse" />
+            <circle cx="64" cy="52" r="3.2" fill="hsl(308, 100%, 72%)" class="svg-pulse" />
+            <!-- Oversized tilted wizard hat -->
+            <path d="M18 48 Q58 34 96 48 Q58 55 18 48 Z" fill="hsl(258, 60%, 26%)" stroke="hsl(46, 92%, 68%)" stroke-width="1.6" />
+            <path d="M34 44 L54 8 L78 44 Z" fill="url(#ea-gw-robe)" stroke="hsl(288, 78%, 68%)" stroke-width="1.8" />
+            <polygon points="56,22 58,27 63,27 59,30 61,35 56,32 51,35 53,30 49,27 54,27" fill="hsl(48, 100%, 74%)" />
+            <!-- Glowing blast staff -->
+            <line x1="94" y1="36" x2="90" y2="104" stroke="hsl(32, 48%, 48%)" stroke-width="3.6" stroke-linecap="round" />
+            <circle cx="94" cy="30" r="11" fill="url(#ea-gw-orb)" stroke="hsl(190, 96%, 78%)" stroke-width="1.6" class="svg-pulse" />
+          </g>
+        </svg>
+      `;
+
+    // =========================================================================
+    // ACT 2 BOSS MINIONS (BRONZE ORB & TORCH HEAD)
+    // =========================================================================
+    case 'bronze_orb':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-bo-aura" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="hsla(188, 98%, 60%, 0.34)" />
+              <stop offset="100%" stop-color="hsla(0,0%,0%,0)" />
+            </radialGradient>
+            <linearGradient id="ea-bo-brass" x1="0.1" y1="0" x2="0.9" y2="1">
+              <stop offset="0%" stop-color="hsl(44, 78%, 68%)" />
+              <stop offset="52%" stop-color="hsl(34, 58%, 40%)" />
+              <stop offset="100%" stop-color="hsl(24, 52%, 16%)" />
+            </linearGradient>
+            <radialGradient id="ea-bo-eye" cx="44%" cy="42%" r="58%">
+              <stop offset="0%" stop-color="hsl(54, 100%, 96%)" />
+              <stop offset="50%" stop-color="hsl(186, 100%, 62%)" />
+              <stop offset="100%" stop-color="hsl(208, 86%, 24%)" />
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="56" r="50" fill="url(#ea-bo-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="106" rx="28" ry="5.2" fill="hsla(0,0%,0%,0.48)" />
+          <g class="svg-float">
+            <!-- Gyroscopic outer bronze rings -->
+            <ellipse cx="60" cy="56" rx="42" ry="15" transform="rotate(-24 60 56)" fill="none" stroke="hsl(44, 84%, 66%)" stroke-width="3.2" />
+            <ellipse cx="60" cy="56" rx="42" ry="15" transform="rotate(24 60 56)" fill="none" stroke="hsl(188, 92%, 70%)" stroke-width="2" stroke-dasharray="7 4" />
+            <!-- Core bronze mechanical sphere -->
+            <circle cx="60" cy="56" r="27" fill="url(#ea-bo-brass)" stroke="hsl(48, 92%, 78%)" stroke-width="2.4" />
+            <circle cx="60" cy="56" r="18" fill="hsl(216, 48%, 12%)" stroke="hsl(46, 86%, 68%)" stroke-width="2" />
+            <circle cx="60" cy="56" r="12" fill="url(#ea-bo-eye)" class="svg-pulse" />
+            <circle cx="60" cy="56" r="4.4" fill="hsl(0, 0%, 100%)" />
+            <!-- Four cardinal brass stabilizers -->
+            <rect x="57" y="21" width="6" height="9" rx="1.5" fill="hsl(44, 82%, 62%)" />
+            <rect x="57" y="82" width="6" height="9" rx="1.5" fill="hsl(44, 82%, 62%)" />
+            <rect x="25" y="53" width="9" height="6" rx="1.5" fill="hsl(44, 82%, 62%)" />
+            <rect x="86" y="53" width="9" height="6" rx="1.5" fill="hsl(44, 82%, 62%)" />
+          </g>
+        </svg>
+      `;
+
+    case 'torch_head':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="ea-th-aura" cx="50%" cy="38%" r="48%">
+              <stop offset="0%" stop-color="hsla(154, 98%, 54%, 0.34)" />
+              <stop offset="100%" stop-color="hsla(0,0%,0%,0)" />
+            </radialGradient>
+            <linearGradient id="ea-th-cloak" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0%" stop-color="hsl(264, 46%, 32%)" />
+              <stop offset="100%" stop-color="hsl(254, 52%, 11%)" />
+            </linearGradient>
+            <linearGradient id="ea-th-flame" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stop-color="hsl(164, 96%, 42%)" />
+              <stop offset="56%" stop-color="hsl(150, 98%, 68%)" />
+              <stop offset="100%" stop-color="hsl(136, 100%, 92%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="44" r="46" fill="url(#ea-th-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="108" rx="32" ry="5.6" fill="hsla(0,0%,0%,0.5)" />
+          <g class="svg-breathe">
+            <!-- Tattered collector-minion robe -->
+            <path d="M36 52 Q60 44 84 52 L90 104 L74 98 L60 106 L46 98 L30 104 Z" fill="url(#ea-th-cloak)" stroke="hsl(160, 74%, 56%)" stroke-width="1.8" />
+            <!-- Iron brazier collar -->
+            <path d="M42 46 H78 L72 56 H48 Z" fill="hsl(42, 68%, 48%)" stroke="hsl(28, 46%, 20%)" stroke-width="1.4" />
+            <!-- Blazing emerald skull flame head -->
+            <path d="M60 10 Q80 28 74 47 H46 Q40 28 60 10 Z" fill="url(#ea-th-flame)" class="svg-float" />
+            <ellipse cx="60" cy="36" rx="11" ry="10" fill="hsl(166, 78%, 16%)" opacity="0.72" />
+            <circle cx="55" cy="35" r="2.8" fill="hsl(142, 100%, 84%)" />
+            <circle cx="65" cy="35" r="2.8" fill="hsl(142, 100%, 84%)" />
+            <path d="M55 42 H65" stroke="hsl(142, 92%, 78%)" stroke-width="2" stroke-linecap="round" />
+          </g>
+        </svg>
+      `;
+
+    // =========================================================================
+    // ACT 2 MASKED BANDITS TRIO (POINTY, ROMEO, BEAR)
+    // =========================================================================
+    case 'bandit_pointy':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-bp-cloak" x1="0" y1="0" x2="0.4" y2="1">
+              <stop offset="0%" stop-color="hsl(352, 62%, 40%)" />
+              <stop offset="100%" stop-color="hsl(342, 54%, 14%)" />
+            </linearGradient>
+            <linearGradient id="ea-bp-steel" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(44, 26%, 94%)" />
+              <stop offset="100%" stop-color="hsl(214, 18%, 44%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="32" ry="5.6" fill="hsla(0,0%,0%,0.48)" />
+          <g class="svg-breathe">
+            <!-- Slim roguish body -->
+            <path d="M40 48 Q60 40 80 48 L82 102 L38 102 Z" fill="url(#ea-bp-cloak)" stroke="hsl(8, 76%, 62%)" stroke-width="1.8" />
+            <!-- Pointed crimson cowl & red bandit mask -->
+            <path d="M42 42 L60 10 L78 42 Q60 48 42 42 Z" fill="url(#ea-bp-cloak)" stroke="hsl(8, 76%, 62%)" stroke-width="1.8" />
+            <path d="M46 32 Q60 28 74 32 L73 41 Q60 45 47 41 Z" fill="hsl(356, 78%, 36%)" />
+            <circle cx="54" cy="36" r="2.6" fill="hsl(48, 100%, 70%)" />
+            <circle cx="66" cy="36" r="2.6" fill="hsl(48, 100%, 70%)" />
+            <!-- Twin crossed stiletto daggers -->
+            <path d="M38 66 L10 44 L26 72 Z" fill="url(#ea-bp-steel)" stroke="hsl(34, 48%, 46%)" stroke-width="1.3" />
+            <path d="M82 66 L110 44 L94 72 Z" fill="url(#ea-bp-steel)" stroke="hsl(34, 48%, 46%)" stroke-width="1.3" />
+          </g>
+        </svg>
+      `;
+
+    case 'bandit_romeo':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-br-cape" x1="0" y1="0" x2="0.6" y2="1">
+              <stop offset="0%" stop-color="hsl(354, 74%, 48%)" />
+              <stop offset="100%" stop-color="hsl(340, 68%, 16%)" />
+            </linearGradient>
+            <linearGradient id="ea-br-rapier" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(48, 92%, 88%)" />
+              <stop offset="100%" stop-color="hsl(36, 70%, 44%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="108" rx="36" ry="6" fill="hsla(0,0%,0%,0.5)" />
+          <g class="svg-breathe">
+            <!-- Flowing flamboyant crimson cape -->
+            <path d="M30 46 Q60 36 88 46 L96 104 L24 104 Z" fill="url(#ea-br-cape)" stroke="hsl(44, 86%, 64%)" stroke-width="1.9" />
+            <path d="M46 48 L60 98 L74 48" fill="none" stroke="hsl(44, 90%, 66%)" stroke-width="2" />
+            <!-- Feathered scarlet tricorne hat & red domino mask -->
+            <path d="M74 22 Q94 8 100 18 Q88 26 74 28 Z" fill="hsl(46, 98%, 68%)" stroke="hsl(28, 72%, 44%)" stroke-width="1.1" />
+            <path d="M34 30 Q60 12 86 30 Q60 36 34 30 Z" fill="hsl(348, 66%, 24%)" stroke="hsl(44, 86%, 64%)" stroke-width="1.6" />
+            <circle cx="60" cy="38" r="12" fill="hsl(28, 42%, 68%)" stroke="hsl(348, 56%, 24%)" stroke-width="1.4" />
+            <path d="M48 35 Q60 31 72 35 L71 42 Q60 45 49 42 Z" fill="hsl(356, 82%, 40%)" />
+            <circle cx="55" cy="38" r="2.4" fill="hsl(48, 100%, 76%)" />
+            <circle cx="65" cy="38" r="2.4" fill="hsl(48, 100%, 76%)" />
+            <!-- Gilded duelist rapier -->
+            <line x1="84" y1="68" x2="112" y2="28" stroke="url(#ea-br-rapier)" stroke-width="3" stroke-linecap="round" />
+            <circle cx="84" cy="68" r="5" fill="hsl(44, 88%, 60%)" stroke="hsl(26, 48%, 22%)" stroke-width="1.2" />
+          </g>
+        </svg>
+      `;
+
+    case 'bandit_bear':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="ea-bb-body" x1="0.1" y1="0" x2="0.8" y2="1">
+              <stop offset="0%" stop-color="hsl(24, 46%, 42%)" />
+              <stop offset="56%" stop-color="hsl(18, 42%, 26%)" />
+              <stop offset="100%" stop-color="hsl(14, 44%, 13%)" />
+            </linearGradient>
+            <linearGradient id="ea-bb-mask" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="hsl(356, 80%, 48%)" />
+              <stop offset="100%" stop-color="hsl(348, 74%, 26%)" />
+            </linearGradient>
+          </defs>
+          <ellipse cx="60" cy="109" rx="45" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <g class="svg-breathe">
+            <!-- Hulking broad-shouldered brute torso -->
+            <path d="M18 44 Q60 24 102 44 L92 104 L28 104 Z" fill="url(#ea-bb-body)" stroke="hsl(32, 52%, 56%)" stroke-width="2.2" />
+            <!-- Fur-trimmed heavy pauldrons & leather cross-harness -->
+            <ellipse cx="26" cy="48" rx="12" ry="9" fill="hsl(28, 36%, 24%)" stroke="hsl(36, 48%, 54%)" stroke-width="1.6" />
+            <ellipse cx="94" cy="48" rx="12" ry="9" fill="hsl(28, 36%, 24%)" stroke="hsl(36, 48%, 54%)" stroke-width="1.6" />
+            <path d="M32 46 L88 86 M88 46 L32 86" stroke="hsl(24, 38%, 16%)" stroke-width="5.5" />
+            <circle cx="60" cy="66" r="6" fill="hsl(42, 76%, 56%)" stroke="hsl(24, 42%, 18%)" stroke-width="1.4" />
+            <!-- Red-masked strongman head -->
+            <rect x="42" y="18" width="36" height="28" rx="10" fill="hsl(24, 42%, 58%)" stroke="hsl(18, 44%, 20%)" stroke-width="1.8" />
+            <path d="M42 26 Q60 22 78 26 L77 38 Q60 42 43 38 Z" fill="url(#ea-bb-mask)" />
+            <circle cx="52" cy="32" r="2.8" fill="hsl(48, 100%, 74%)" />
+            <circle cx="68" cy="32" r="2.8" fill="hsl(48, 100%, 74%)" />
+            <!-- Massive iron-studded gauntlets -->
+            <circle cx="20" cy="76" r="11" fill="hsl(212, 22%, 34%)" stroke="hsl(40, 74%, 64%)" stroke-width="1.8" />
+            <circle cx="100" cy="76" r="11" fill="hsl(212, 22%, 34%)" stroke="hsl(40, 74%, 64%)" stroke-width="1.8" />
+          </g>
         </svg>
       `;
 

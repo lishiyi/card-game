@@ -11,7 +11,7 @@ import {
   getCardStats,
   getEffectiveCardCost,
 } from '../src/data/cards.js';
-import { ENCOUNTERS } from '../src/data/enemies.js';
+import { ENCOUNTERS, GREMLIN_POOL } from '../src/data/enemies.js';
 import {
   getRelicIcon,
   POTION_LIBRARY,
@@ -22,6 +22,7 @@ import {
 } from '../src/data/relics.js';
 import {
   applyStatus,
+  canPlayCard,
   confirmPendingCardChoice,
   confirmScryChoice,
   discardHandCard,
@@ -38,7 +39,7 @@ import {
   toggleScryChoice,
   usePotion,
 } from '../src/engine/combat.js';
-import { createNewRun, grantRelicToPlayer } from '../src/engine/game.js';
+import { chooseEventOption, createNewRun, grantRelicToPlayer } from '../src/engine/game.js';
 import {
   calculateAttackDamage,
   calculateCardBlock,
@@ -3318,4 +3319,322 @@ test('Canonical Enemy Artifact (Option A): Sentry 1, Spheric Guardian 3, Bronze 
   startCombat(ddA9, ENCOUNTERS.act3Boss.find((e) => e.id === 'donu_deca_boss'), 'boss');
   assert.equal(ddA9.combat.enemies.find((e) => e.templateId === 'donu').statuses.artifact, 3, 'Donu scales to 3 Artifact at A9+');
   assert.equal(ddA9.combat.enemies.find((e) => e.templateId === 'deca').statuses.artifact, 3, 'Deca scales to 3 Artifact at A9+');
+});
+
+test('Section A1 — Full Gremlin Family (Fat, Shield, Sneaky, Wizard, Mad) & Randomized Gremlin Gang / Leader Summons', () => {
+  // 1. Gremlin Pack draws 4 gremlins from the canonical 5-type pool (max 1 Shield, max 1 Wizard)
+  const seenTypes = new Set();
+  for (let seed = 99301; seed <= 99315; seed += 1) {
+    const run = createNewRun({ seed, characterId: 'ironclad', skipNeow: true });
+    startCombat(run, ENCOUNTERS.hardNormal.find((e) => e.id === 'gremlin_pack'), 'normal');
+    assert.equal(run.combat.enemies.length, 4, 'Gremlin Pack must spawn 4 gremlins');
+    for (const e of run.combat.enemies) {
+      assert.ok(GREMLIN_POOL.includes(e.templateId), `Unexpected gremlin template: ${e.templateId}`);
+      seenTypes.add(e.templateId);
+    }
+    assert.ok(run.combat.enemies.filter((e) => e.templateId === 'shield_gremlin').length <= 1);
+    assert.ok(run.combat.enemies.filter((e) => e.templateId === 'gremlin_wizard').length <= 1);
+  }
+  assert.equal(seenTypes.size, 5, 'All 5 gremlin archetypes must appear across randomized packs');
+
+  // 2. Fat Gremlin applies Weak; Sneaky Gremlin deals 9; Shield Gremlin protects ally then switches to Shield Bash when alone; Wizard charges 2 turns then deals 25
+  const squad = setupCustomCombat(99320, {
+    id: 'gremlin_mechanics_test',
+    name: '地精全家测试',
+    enemies: [
+      { templateId: 'fat_gremlin' },
+      { templateId: 'shield_gremlin' },
+      { templateId: 'sneaky_gremlin' },
+      { templateId: 'gremlin_wizard' },
+    ],
+  });
+  const [fat, shield, sneaky, wizard] = squad.combat.enemies;
+  assert.equal(fat.intent.damage, 4);
+  assert.equal(fat.intent.applyPlayerStatuses.weak, 1);
+  assert.equal(shield.intent.id, 'gremlin_protect');
+  assert.equal(shield.intent.protectRandomAlly, true);
+  assert.equal(sneaky.intent.damage, 9);
+  assert.equal(wizard.intent.id, 'wizard_charge_1');
+
+  squad.player.block = 30;
+  endPlayerTurn(squad);
+  assert.ok((squad.player.statuses.weak ?? 0) >= 1, 'Fat Gremlin must inflict Weak');
+  assert.ok(
+    [fat, sneaky, wizard].some((ally) => ally.block >= 7),
+    'Shield Gremlin must shield a living ally'
+  );
+  assert.equal(wizard.intent.id, 'wizard_charge_2', 'Wizard advances to 2nd charge turn');
+
+  squad.player.block = 30;
+  endPlayerTurn(squad);
+  assert.equal(wizard.intent.id, 'ultimate_blast', 'Wizard charges into 25-dmg Ultimate Blast on Turn 3');
+  assert.equal(wizard.intent.damage, 25);
+
+  // Solo Shield Gremlin uses Shield Bash (6 dmg) instead of Protect
+  const soloShield = setupCustomCombat(99321, {
+    id: 'solo_shield_test',
+    name: '独狼盾地精',
+    enemies: [{ templateId: 'shield_gremlin' }],
+  });
+  assert.equal(soloShield.combat.enemies[0].intent.id, 'shield_bash');
+  assert.equal(soloShield.combat.enemies[0].intent.damage, 6);
+
+  // 3. Gremlin Leader spawns with 2 random minions from GREMLIN_POOL and rallies from GREMLIN_POOL
+  const leaderTypes = new Set();
+  for (let s = 99330; s <= 99342; s += 1) {
+    const r = createNewRun({ seed: s, characterId: 'ironclad', skipNeow: true });
+    startCombat(r, ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite'), 'elite');
+    const minions = r.combat.enemies.filter((e) => e.isMinion);
+    assert.equal(minions.length, 2);
+    for (const m of minions) leaderTypes.add(m.templateId);
+  }
+  assert.ok(leaderTypes.size >= 4, `Gremlin Leader minions must diversify across GREMLIN_POOL, saw ${[...leaderTypes]}`);
+});
+
+test('Section A2 — Slime L/M/S Sizes & 2-Stage Split Chain (Slime Boss -> Large -> Medium + Poison Split + Small Slimes)', () => {
+  // 1. Slime Boss splits into Acid Slime (L) + Spike Slime (L) at <= 50% HP, and EACH Large Slime splits into 2 Medium Slimes at <= 50% HP!
+  const run = setupCustomCombat(99401, ENCOUNTERS.boss.find((e) => e.id === 'slime_boss_enc'));
+  const boss = run.combat.enemies[0];
+  boss.hp = 60;
+  const strike = createCardInstance(run, 'strike', false); // 6 dmg -> 54 HP (<= 70)
+  run.combat.hand = [strike];
+  run.player.energy = 3;
+  playCard(run, strike.instanceId, boss.id);
+  assert.equal(boss.intent.id, 'split');
+  assert.deepEqual(boss.intent.splitInto, ['acid_slime_l', 'spike_slime_l']);
+
+  endPlayerTurn(run);
+  assert.equal(run.combat.enemies.length, 2);
+  const [acidL, spikeL] = run.combat.enemies;
+  assert.equal(acidL.templateId, 'acid_slime_l');
+  assert.equal(spikeL.templateId, 'spike_slime_l');
+  assert.equal(acidL.hp, 54);
+  assert.equal(acidL.maxHp, 54);
+  assert.equal(acidL.statuses.splitThreshold, 1, 'Split Large Acid Slime must have splitThreshold');
+  assert.equal(spikeL.statuses.splitThreshold, 1, 'Split Large Spike Slime must have splitThreshold');
+
+  // Drop Acid Slime (L) below half HP (54 -> 24) via attack, and drop Spike Slime (L) via Poison!
+  acidL.hp = 30;
+  const bash = createCardInstance(run, 'bash', false); // 8 dmg -> 22 HP (<= 27)
+  run.combat.hand = [bash];
+  run.player.energy = 3;
+  playCard(run, bash.instanceId, acidL.id);
+  assert.equal(acidL.intent.id, 'split', 'Large Acid Slime must interrupt to split at <= 50% HP');
+  assert.deepEqual(acidL.intent.splitInto, ['acid_slime', 'acid_slime']);
+
+  spikeL.hp = 29;
+  spikeL.statuses.poison = 4; // Poison tick drops 29 -> 25 (<= 27) and triggers split on its turn!
+  run.player.block = 40;
+  endPlayerTurn(run);
+
+  assert.equal(run.combat.enemies.length, 4, 'Both Large Slimes must split into 2 Medium Slimes each (4 total)');
+  const mediums = run.combat.enemies;
+  assert.equal(mediums.filter((e) => e.templateId === 'acid_slime').length, 2);
+  assert.equal(mediums.filter((e) => e.templateId === 'spike_slime').length, 2);
+  assert.equal(mediums.every((e) => !e.statuses.splitThreshold), true, 'Medium Slimes must not split further');
+  assert.equal(mediums.filter((e) => e.templateId === 'acid_slime')[0].hp, 22);
+  assert.equal(mediums.filter((e) => e.templateId === 'spike_slime')[0].hp, 25);
+
+  // 2. Small Slimes (S) swarm encounter & movesets
+  const swarm = setupCustomCombat(99402, ENCOUNTERS.hardNormal.find((e) => e.id === 'slime_swarm_small'));
+  assert.equal(swarm.combat.enemies.length, 5);
+  assert.equal(swarm.combat.enemies.filter((e) => e.templateId === 'spike_slime_s').length, 3);
+  assert.equal(swarm.combat.enemies.filter((e) => e.templateId === 'acid_slime_s').length, 2);
+  assert.equal(swarm.combat.enemies.find((e) => e.templateId === 'spike_slime_s').intent.damage, 5);
+  assert.equal(swarm.combat.enemies.find((e) => e.templateId === 'acid_slime_s').intent.id, 'lick_s');
+});
+
+test('Section A3 — Act 2 Boss Summons: Bronze Automaton + Bronze Orbs (Stasis steal/return & cooldown) and The Collector + Torch Heads', () => {
+  // 1. Bronze Automaton: Turn 0 spawns 2 Bronze Orb minions -> Orb steals highest-rarity card via Stasis -> killing Orb returns card -> killing Automaton makes remaining Orb flee
+  const baRun = createNewRun({ seed: 99501, characterId: 'ironclad', skipNeow: true });
+  startCombat(baRun, ENCOUNTERS.act2Boss.find((e) => e.id === 'automaton_boss'), 'boss');
+  const auto = baRun.combat.enemies[0];
+  assert.equal(auto.intent.id, 'spawn_orbs', 'Bronze Automaton Turn 0 must intend Spawn Orbs');
+
+  endPlayerTurn(baRun);
+  const orbs = baRun.combat.enemies.filter((e) => e.templateId === 'bronze_orb');
+  assert.equal(orbs.length, 2, 'Bronze Automaton must summon 2 Bronze Orbs');
+  assert.equal(orbs.every((o) => o.isMinion), true, 'Bronze Orbs must be flagged as minions');
+  assert.equal(auto.intent.id, 'flail_beams', 'Automaton Turn 1 follows with Flail');
+
+  // Place a Rare card (Bludgeon) + starter Strikes in drawPile; force Orb 0 to execute Stasis and Orb 1 to execute Support Beam
+  const rareBludgeon = createCardInstance(baRun, 'bludgeon', false);
+  baRun.combat.drawPile = [
+    createCardInstance(baRun, 'strike', false),
+    rareBludgeon,
+    createCardInstance(baRun, 'defend', false),
+  ];
+  baRun.combat.discardPile = [];
+  orbs[0].intent = { id: 'orb_stasis', name: '静止力场', type: 'debuff', stasisSteal: true };
+  orbs[1].intent = { id: 'orb_support', name: '支援光束', type: 'defend', block: 8, supportBossBlock: true };
+  auto.block = 0;
+  baRun.player.block = 40;
+  endPlayerTurn(baRun);
+
+  assert.equal(orbs[0].stasisUsed, true);
+  assert.equal(orbs[0].statuses.stasis, 1, 'Bronze Orb must display stasis status after stealing');
+  assert.equal(orbs[0].stasisCard.instanceId, rareBludgeon.instanceId, 'Stasis must steal the highest-rarity card (Rare Bludgeon)');
+  assert.equal(
+    baRun.combat.drawPile.some((c) => c.instanceId === rareBludgeon.instanceId) ||
+      baRun.combat.hand.some((c) => c.instanceId === rareBludgeon.instanceId),
+    false,
+    'Sealed card must be removed from player piles while held by Bronze Orb'
+  );
+  assert.ok(auto.block >= 8, 'Orb 1 Support Beam must shield Bronze Automaton');
+
+  // Destroy Orb 0 -> Bludgeon immediately returns to hand!
+  orbs[0].hp = 4;
+  orbs[0].block = 0;
+  const finisher = createCardInstance(baRun, 'strike', false);
+  baRun.combat.hand = [finisher];
+  baRun.player.energy = 3;
+  playCard(baRun, finisher.instanceId, orbs[0].id);
+  assert.equal(
+    baRun.combat.hand.some((c) => c.instanceId === rareBludgeon.instanceId),
+    true,
+    'Destroying Bronze Orb must immediately return sealed card to hand'
+  );
+  assert.equal(baRun.combat.enemies.some((e) => e.id === orbs[0].id), false, 'Dead Bronze Orb pruned from battlefield');
+
+  // Kill Bronze Automaton while Orb 1 is still alive -> Orb 1 flees for instant victory!
+  auto.hp = 5;
+  auto.block = 0;
+  const killBoss = createCardInstance(baRun, 'strike', false);
+  baRun.combat.hand = [killBoss];
+  baRun.player.energy = 3;
+  playCard(baRun, killBoss.instanceId, auto.id);
+  assert.equal(baRun.combat.status, 'victory', 'Killing Bronze Automaton causes surviving Bronze Orb minion to flee');
+  assert.equal(baRun.combat.fledEnemyIds.length, 1);
+
+  // Verify Automaton Hyper Beam -> Cooldown (automaton_stunned) on A0
+  const baCycle = createNewRun({ seed: 99502, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(baCycle, ENCOUNTERS.act2Boss.find((e) => e.id === 'automaton_boss'), 'boss');
+  const bossC = baCycle.combat.enemies[0];
+  bossC.turnIndex = 5; // step = (5-1)%6 = 4 -> Hyper Beam
+  bossC.intent = { id: 'hyper_beam', name: '超能光束', type: 'attack', damage: 38, hits: 1 };
+  baCycle.player.block = 50;
+  endPlayerTurn(baCycle);
+  assert.equal(bossC.intent.id, 'automaton_stunned', 'Automaton must enter overload cooldown after Hyper Beam at A0');
+  assert.equal(getEnemyIntentPreview(bossC, baCycle.player).label, '冷却');
+
+  // 2. The Collector: Turn 0 spawns 2 Torch Head minions -> Turn 3 You Are Mine -> killing Collector makes Torch Heads flee
+  const colRun = createNewRun({ seed: 99503, characterId: 'ironclad', skipNeow: true });
+  startCombat(colRun, ENCOUNTERS.act2Boss.find((e) => e.id === 'collector_boss'), 'boss');
+  const collector = colRun.combat.enemies[0];
+  assert.equal(collector.intent.id, 'collector_spawn', 'The Collector Turn 0 must spawn Torch Heads');
+
+  endPlayerTurn(colRun);
+  const torches = colRun.combat.enemies.filter((e) => e.templateId === 'torch_head');
+  assert.equal(torches.length, 2, 'The Collector must summon 2 Torch Head minions');
+  assert.equal(torches.every((t) => t.isMinion), true);
+  assert.equal(torches[0].intent.damage, 7);
+
+  // Advance to Turn 3 -> You Are Mine mega debuff
+  collector.turnIndex = 2;
+  colRun.player.block = 50;
+  endPlayerTurn(colRun);
+  assert.equal(collector.intent.id, 'you_are_mine', 'The Collector must queue You Are Mine on Turn 4 (turnIndex=3)');
+
+  // Kill Collector while Torch Heads live -> instant minion-flee victory!
+  collector.hp = 5;
+  collector.block = 0;
+  const killCol = createCardInstance(colRun, 'strike', false);
+  colRun.combat.hand = [killCol];
+  colRun.player.energy = 3;
+  playCard(colRun, killCol.instanceId, collector.id);
+  assert.equal(colRun.combat.status, 'victory', 'Killing The Collector causes Torch Head minions to flee');
+  assert.equal(colRun.combat.fledEnemyIds.length, 2);
+});
+
+test('Section A4 — Red Slaver (Entangled + Slavers Trio), Masked Bandits Trio (Pointy/Romeo/Bear), and Act 3 Jaw Worm Horde', () => {
+  // 1. Red Slaver Entangled blocks Attacks (but Skills remain playable), Artifact blocks Entangled, and Entangled clears at end of player turn
+  const rsRun = setupCustomCombat(99601, {
+    id: 'red_slaver_test',
+    name: '红衣奴隶贩测试',
+    enemies: [{ templateId: 'slaver_red' }],
+  });
+  const redSlaver = rsRun.combat.enemies[0];
+  assert.equal(redSlaver.intent.id, 'stab_red', 'Red Slaver opens with 13-dmg Stab');
+  assert.equal(redSlaver.intent.damage, 13);
+
+  redSlaver.intent = {
+    id: 'entangle',
+    name: '投网缠缚',
+    type: 'debuff',
+    applyPlayerStatuses: { entangled: 1 },
+    markEntangleUsed: true,
+  };
+  endPlayerTurn(rsRun);
+  assert.equal(redSlaver.entangleUsed, true);
+  assert.equal(rsRun.player.statuses.entangled, 1);
+
+  const strike = createCardInstance(rsRun, 'strike', false);
+  const defend = createCardInstance(rsRun, 'defend', false);
+  rsRun.combat.hand = [strike, defend];
+  rsRun.player.energy = 3;
+  assert.equal(canPlayCard(rsRun, strike.instanceId).playable, false, 'Entangled must block Attack cards');
+  assert.equal(canPlayCard(rsRun, defend.instanceId).playable, true, 'Entangled must still allow Skill cards');
+  assert.equal(playCard(rsRun, defend.instanceId).ok, true);
+
+  // End turn clears Entangled; Artifact blocks Entangled cleanly
+  redSlaver.intent = {
+    id: 'entangle',
+    name: '投网缠缚',
+    type: 'debuff',
+    applyPlayerStatuses: { entangled: 1 },
+    markEntangleUsed: true,
+  };
+  rsRun.player.statuses.artifact = 1;
+  endPlayerTurn(rsRun);
+  assert.equal(rsRun.player.statuses.entangled ?? 0, 0, 'Entangled clears at end of turn and Artifact blocks re-application');
+  assert.equal(rsRun.player.statuses.artifact ?? 0, 0, 'Artifact consumed blocking Entangled');
+
+  // Act 2 Slavers Elite spawns all 3 canonical Slavers (Blue + Taskmaster + Red)
+  const slaverElite = setupCustomCombat(99602, ENCOUNTERS.act2Elite.find((e) => e.id === 'slaver_taskmaster_elite'));
+  assert.deepEqual(
+    slaverElite.combat.enemies.map((e) => e.templateId),
+    ['slaver_blue', 'slaver_taskmaster', 'slaver_red']
+  );
+
+  // 2. Masked Bandits event spawns Pointy + Romeo + Bear with canonical Turn 0 / Turn 1 movesets
+  const mbRun = createNewRun({ seed: 99603, characterId: 'ironclad', skipNeow: true });
+  mbRun.act = 2;
+  mbRun.screen = 'event';
+  mbRun.eventState = {
+    eventId: 'masked_bandits',
+    resolved: false,
+    pendingPurge: false,
+    pendingCardAction: null,
+    libraryChoices: null,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(mbRun, 'fight_bandits').ok, true);
+  assert.deepEqual(
+    mbRun.combat.enemies.map((e) => e.templateId),
+    ['bandit_pointy', 'bandit_romeo', 'bandit_bear']
+  );
+  const [pointy, romeo, bear] = mbRun.combat.enemies;
+  assert.equal(pointy.intent.damage, 5);
+  assert.equal(pointy.intent.hits, 2);
+  assert.equal(romeo.intent.id, 'romeo_mock');
+  assert.equal(bear.intent.id, 'bear_hug');
+
+  mbRun.player.block = 20;
+  endPlayerTurn(mbRun);
+  assert.equal(mbRun.player.statuses.dexterity, -2, 'Bear Hug must reduce player Dexterity by 2');
+  assert.equal(romeo.intent.id, 'agonizing_slash', 'Romeo follows Mock with Agonizing Slash');
+  assert.equal(bear.intent.id, 'bear_lunge', 'Bear follows Bear Hug with Lunge');
+
+  // 3. Act 3 Jaw Worm Horde spawns 3 Jaw Worms pre-buffed with Bellow (+3 Str, +6 Block; A9+: +4 Str, +8 Block)
+  const jwA0 = createNewRun({ seed: 99604, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(jwA0, ENCOUNTERS.act3Hard.find((e) => e.id === 'jaw_worm_horde'), 'normal');
+  assert.equal(jwA0.combat.enemies.length, 3);
+  assert.equal(jwA0.combat.enemies.every((e) => e.templateId === 'jaw_worm' && e.hordeMode), true);
+  assert.equal(jwA0.combat.enemies.every((e) => e.statuses.strength === 3 && e.block === 6), true);
+
+  const jwA9 = createNewRun({ seed: 99605, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(jwA9, ENCOUNTERS.act3Hard.find((e) => e.id === 'jaw_worm_horde'), 'normal');
+  assert.equal(jwA9.combat.enemies.every((e) => e.statuses.strength === 4 && e.block === 8), true);
 });

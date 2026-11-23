@@ -12,7 +12,10 @@ import {
 } from '../data/cards.js';
 import {
   createEnemyInstance,
+  drawGremlinGang,
+  ENEMY_TEMPLATES,
   getGuardianDefensiveIntent,
+  resolveEncounterSpecs,
   rollEnemyIntent,
 } from '../data/enemies.js';
 import {
@@ -412,6 +415,7 @@ function handleMinionsFleeIfLeaderDead(state) {
     m.block = 0;
     m.intent = null;
     m.fled = true;
+    m.stasisCard = null;
     m._deathHandled = true;
     combat.fledEnemyIds.push(m.id);
   }
@@ -450,6 +454,30 @@ function handleEnemyDeathPassives(state, deadEnemy) {
   if (!combat || !deadEnemy || deadEnemy._deathHandled) return;
   deadEnemy._deathHandled = true;
   combat.defeatedEnemiesCount = (combat.defeatedEnemiesCount ?? 0) + 1;
+
+  if (deadEnemy.stasisCard) {
+    const returnedCard = deadEnemy.stasisCard;
+    deadEnemy.stasisCard = null;
+    if (deadEnemy.statuses) {
+      delete deadEnemy.statuses.stasis;
+    }
+    const cardName = getCardStats(returnedCard)?.name || returnedCard.cardId;
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(returnedCard);
+      pushCombatLog(
+        combat,
+        `【${deadEnemy.name}】被摧毁，被封印的【${cardName}】已归还至你的手牌！`,
+        'status'
+      );
+    } else {
+      combat.discardPile.push(returnedCard);
+      pushCombatLog(
+        combat,
+        `【${deadEnemy.name}】被摧毁，手牌已满，被封印的【${cardName}】已归还至你的弃牌堆！`,
+        'status'
+      );
+    }
+  }
 
   if ((deadEnemy.statuses?.sporeCloud ?? 0) > 0) {
     const spores = deadEnemy.statuses.sporeCloud;
@@ -876,29 +904,42 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
     }
   }
 
-  // Boss Slime Boss 50% HP Split trigger
-  if (
-    enemy.templateId === 'slime_boss' &&
-    enemy.hp > 0 &&
-    enemy.hp <= Math.floor(enemy.maxHp / 2) &&
-    enemy.intent?.id !== 'split'
-  ) {
-    delete enemy.statuses.splitThreshold;
-    enemy.intent = {
-      id: 'split',
-      name: '巨体分裂',
-      type: 'buff',
-      splitInto: ['acid_slime', 'spike_slime'],
-      summary: '意图：分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各自继承当前生命值）',
-    };
-    pushCombatLog(
-      combat,
-      `【${enemy.name}】生命跌破半数，打断原定行动并准备【巨体分裂】！`,
-      'status'
-    );
-  }
+  checkSlimeSplitTrigger(combat, enemy);
 
   return hpLoss;
+}
+
+function checkSlimeSplitTrigger(combat, enemy) {
+  if (!combat || !enemy || enemy.hp <= 0) return false;
+  const splitChildren = ENEMY_TEMPLATES[enemy.templateId]?.splitInto;
+  if (!Array.isArray(splitChildren) || splitChildren.length === 0) return false;
+  if ((enemy.statuses?.splitThreshold ?? 0) <= 0) return false;
+  if (enemy.hp > Math.floor(enemy.maxHp / 2)) return false;
+  if (enemy.intent?.id === 'split') return false;
+
+  delete enemy.statuses.splitThreshold;
+  const splitName =
+    enemy.templateId === 'slime_boss'
+      ? '巨体分裂'
+      : enemy.templateId === 'acid_slime_l'
+        ? '酸液分裂'
+        : '尖刺分裂';
+  const childNames = splitChildren
+    .map((cid) => ENEMY_TEMPLATES[cid]?.name || cid)
+    .join('与');
+  enemy.intent = {
+    id: 'split',
+    name: splitName,
+    type: 'buff',
+    splitInto: [...splitChildren],
+    summary: `意图：分裂为${childNames}（各自继承当前生命值）`,
+  };
+  pushCombatLog(
+    combat,
+    `【${enemy.name}】生命跌破半数，打断原定行动并准备【${splitName}】！`,
+    'status'
+  );
+  return true;
 }
 
 function handlePlayerHpLostTriggers(state, { isAttack = false } = {}) {
@@ -2513,7 +2554,8 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   const innateCards = shuffledDeck.filter((c) => getCardStats(c).innate);
   const normalCards = shuffledDeck.filter((c) => !getCardStats(c).innate);
 
-  const enemies = encounter.enemies.map((spec) => createEnemyInstance(state, spec));
+  const resolvedSpecs = resolveEncounterSpecs(state, encounter);
+  const enemies = resolvedSpecs.map((spec) => createEnemyInstance(state, spec));
 
   const combat = {
     encounterId: encounter.id,
@@ -2560,6 +2602,9 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
 
   state.combat = combat;
   state.screen = 'combat';
+  if (enemies.length === 1 && enemies[0].templateId === 'shield_gremlin') {
+    enemies[0].intent = rollEnemyIntent(state, enemies[0]);
+  }
   state.player.penNibActive = hasRelic(state, 'pen_nib') && (state.relicCounters?.pen_nib ?? 0) === 9;
 
   pushCombatLog(combat, `遭遇战斗：${encounter.name}！`, 'info');
@@ -2823,6 +2868,9 @@ export function canPlayCard(state, instanceId) {
   const canMedKitPlay = stats.unplayable && stats.type === 'status' && hasRelic(state, 'medical_kit');
   if (stats.unplayable && !canMedKitPlay) {
     return { playable: false, reason: '该卡牌不可打出' };
+  }
+  if (stats.type === 'attack' && (state.player.statuses?.entangled ?? 0) > 0) {
+    return { playable: false, reason: '处于【缠网】状态，本回合无法打出攻击牌' };
   }
   if (
     stats.requireAllHandAttacks &&
@@ -3809,8 +3857,19 @@ export function playCard(
       const topCard = combat.drawPile.shift();
       if (topCard) {
         const topStats = getCardStats(topCard);
-        if (topStats.unplayable && !(topStats.type === 'status' && hasRelic(state, 'medical_kit'))) {
-          pushCombatLog(combat, `【${stats.name}】翻出不可打出的【${topStats.name}】并将其消耗。`, 'info');
+        const blockedByEntangle =
+          topStats.type === 'attack' && (state.player.statuses?.entangled ?? 0) > 0;
+        if (
+          blockedByEntangle ||
+          (topStats.unplayable && !(topStats.type === 'status' && hasRelic(state, 'medical_kit')))
+        ) {
+          pushCombatLog(
+            combat,
+            blockedByEntangle
+              ? `处于【缠网】状态，【${stats.name}】翻出的攻击牌【${topStats.name}】无法打出并被消耗。`
+              : `【${stats.name}】翻出不可打出的【${topStats.name}】并将其消耗。`,
+            'info'
+          );
           exhaustCardsBatch(state, [topCard]);
         } else {
           const aliveForHavoc = getAliveEnemies(combat);
@@ -4404,6 +4463,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   combat.playedAttackLastTurn = (combat.attacksPlayedThisTurn ?? 0) > 0;
   combat.cardsPlayedLastTurn = combat.cardsPlayedThisTurn ?? 0;
   delete state.player.statuses.noDraw;
+  delete state.player.statuses.entangled;
   delete state.player.statuses.burst;
   delete state.player.statuses.doubleTap;
   delete state.player.statuses.duplication;
@@ -4686,6 +4746,9 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
           'status'
         );
       }
+      if (actualPoisonLoss > 0) {
+        checkSlimeSplitTrigger(combat, enemy);
+      }
       if (poisonStacks - 1 <= 0) {
         delete enemy.statuses.poison;
       } else {
@@ -4695,7 +4758,11 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
     const intent = enemy.intent;
     if (intent) {
-      if (intent.id === 'asleep_idle' || intent.id === 'stunned') {
+      if (
+        intent.id === 'asleep_idle' ||
+        intent.id === 'stunned' ||
+        intent.id === 'automaton_stunned'
+      ) {
         if (intent.id === 'stunned') {
           delete enemy.statuses.stunned;
           enemy.awakeTurnIndex = 0;
@@ -4704,44 +4771,41 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             `【${enemy.name}】处于眩晕状态，本回合跳过行动并恢复清醒！`,
             'status'
           );
+        } else if (intent.id === 'automaton_stunned') {
+          pushCombatLog(combat, `【${enemy.name}】核心过载冷却中，本回合跳过行动！`, 'info');
         } else {
           pushCombatLog(combat, `【${enemy.name}】正在沉睡，没有采取进攻行动。`, 'info');
         }
         enemy.lastMoveId = intent.id;
       } else {
-        // Slime Boss Split execution
+        // Generic Slime Split execution (Slime Boss -> Large Slimes -> Medium Slimes)
         if (Array.isArray(intent.splitInto) && intent.splitInto.length > 0) {
           const splitHp = Math.max(1, enemy.hp);
           const idx = combat.enemies.findIndex((e) => e.id === enemy.id);
-          const childA = createEnemyInstance(state, {
-            templateId: intent.splitInto[0],
-            customName: '巨型酸液史莱姆',
-            customHp: splitHp,
-            customRole: 'normal',
+          const children = intent.splitInto.map((childTplId) => {
+            const child = createEnemyInstance(state, {
+              templateId: childTplId,
+              customHp: splitHp,
+              customRole: 'normal',
+            });
+            if (hasRelic(state, 'philosophers_stone')) {
+              applyStatus(child, 'strength', 1);
+            }
+            if (hasDailyModifier(state, 'lethality')) {
+              applyStatus(child, 'strength', 3);
+            }
+            return child;
           });
-          const childB = createEnemyInstance(state, {
-            templateId: intent.splitInto[1],
-            customName: '巨型尖刺史莱姆',
-            customHp: splitHp,
-            customRole: 'normal',
-          });
-          if (hasRelic(state, 'philosophers_stone')) {
-            applyStatus(childA, 'strength', 1);
-            applyStatus(childB, 'strength', 1);
-          }
-          if (hasDailyModifier(state, 'lethality')) {
-            applyStatus(childA, 'strength', 3);
-            applyStatus(childB, 'strength', 3);
-          }
           if (idx !== -1) {
-            combat.enemies.splice(idx, 1, childA, childB);
+            combat.enemies.splice(idx, 1, ...children);
           } else {
             enemy.hp = 0;
-            combat.enemies.push(childA, childB);
+            combat.enemies.push(...children);
           }
+          const childLabels = children.map((c) => `【${c.name}】`).join('与');
           pushCombatLog(
             combat,
-            `【${enemy.name}】分裂为【${childA.name}】与【${childB.name}】（各 ${splitHp} 点生命）！`,
+            `【${enemy.name}】分裂为${childLabels}（各 ${splitHp} 点生命）！`,
             'status'
           );
           continue;
@@ -4814,6 +4878,32 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             `【${enemy.name}】为全体敌方单位施加 ${intent.allEnemiesBlock} 点格挡！`,
             'block'
           );
+        } else if (intent.protectRandomAlly && intent.block) {
+          const otherAllies = getAliveEnemies(combat).filter((e) => e.id !== enemy.id);
+          const shieldTarget = otherAllies.length > 0 ? pickRandom(state, otherAllies) : enemy;
+          shieldTarget.block += intent.block;
+          pushCombatLog(
+            combat,
+            shieldTarget.id === enemy.id
+              ? `【${enemy.name}】举盾自保，获得 ${intent.block} 点格挡！`
+              : `【${enemy.name}】举盾护卫，为【${shieldTarget.name}】施加 ${intent.block} 点格挡！`,
+            'block'
+          );
+        } else if (intent.supportBossBlock && intent.block) {
+          const aliveNow = getAliveEnemies(combat);
+          const bossTarget =
+            aliveNow.find((e) => !e.isMinion && e.id !== enemy.id) ||
+            pickRandom(
+              state,
+              aliveNow.filter((e) => e.id !== enemy.id)
+            ) ||
+            enemy;
+          bossTarget.block += intent.block;
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】发射支援光束，为【${bossTarget.name}】提供 ${intent.block} 点格挡！`,
+            'block'
+          );
         } else if (intent.block) {
           enemy.block += intent.block;
           pushCombatLog(combat, `【${enemy.name}】获得 ${intent.block} 点格挡。`, 'block');
@@ -4852,6 +4942,57 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
           enemy.pendingHaste = false;
           enemy.hasteUsed = true;
         }
+        if (intent.markEntangleUsed) {
+          enemy.entangleUsed = true;
+        }
+
+        if (intent.stasisSteal) {
+          enemy.stasisUsed = true;
+          const sourcePile =
+            combat.drawPile.length > 0
+              ? combat.drawPile
+              : combat.discardPile.length > 0
+                ? combat.discardPile
+                : null;
+          if (sourcePile) {
+            const RARITY_RANK = {
+              rare: 4,
+              uncommon: 3,
+              common: 2,
+              starter: 1,
+              special: 1,
+              status: 0,
+              curse: 0,
+            };
+            let maxRank = -1;
+            for (const c of sourcePile) {
+              const rank = RARITY_RANK[getCardStats(c)?.rarity] ?? 0;
+              if (rank > maxRank) maxRank = rank;
+            }
+            const topCandidates = sourcePile.filter(
+              (c) => (RARITY_RANK[getCardStats(c)?.rarity] ?? 0) === maxRank
+            );
+            const stolen = pickRandom(state, topCandidates);
+            if (stolen) {
+              const removeIdx = sourcePile.indexOf(stolen);
+              if (removeIdx !== -1) sourcePile.splice(removeIdx, 1);
+              enemy.stasisCard = stolen;
+              applyStatus(enemy, 'stasis', 1);
+              const stolenName = getCardStats(stolen)?.name || stolen.cardId;
+              pushCombatLog(
+                combat,
+                `【${enemy.name}】释放【静止力场】，封印了你的【${stolenName}】（摧毁该单位即可归还）！`,
+                'status'
+              );
+            }
+          } else {
+            pushCombatLog(
+              combat,
+              `【${enemy.name}】释放【静止力场】，但你的抽牌堆与弃牌堆已空，未能封印任何卡牌！`,
+              'info'
+            );
+          }
+        }
 
         if (intent.applyAllEnemiesStatuses) {
           for (const ally of getAliveEnemies(combat)) {
@@ -4878,15 +5019,22 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
         if (intent.applyPlayerStatuses) {
           for (const [statusKey, val] of Object.entries(intent.applyPlayerStatuses)) {
-            applyStatus(state.player, statusKey, val, { appliedDuringEnemyTurn: true });
             const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
-            pushCombatLog(
-              combat,
-              val < 0
-                ? `【${enemy.name}】使你失去 ${Math.abs(val)} 点【${statusName}】！`
-                : `【${enemy.name}】对你施加 ${val} 层【${statusName}】。`,
-              'status'
-            );
+            if (applyStatus(state.player, statusKey, val, { appliedDuringEnemyTurn: true })) {
+              pushCombatLog(
+                combat,
+                val < 0
+                  ? `【${enemy.name}】使你失去 ${Math.abs(val)} 点【${statusName}】！`
+                  : `【${enemy.name}】对你施加 ${val} 层【${statusName}】。`,
+                'status'
+              );
+            } else {
+              pushCombatLog(
+                combat,
+                `你的【人工制品】抵消了【${enemy.name}】的【${statusName}】！`,
+                'status'
+              );
+            }
           }
         }
 
@@ -4949,15 +5097,24 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
         if (intent.summonMinions) {
           pruneDefeatedEnemies(combat);
-          const currentMinions = getAliveEnemies(combat).filter(
-            (e) => e.templateId === intent.summonMinions
-          ).length;
+          const aliveMinions = getAliveEnemies(combat).filter((e) => e.isMinion);
+          const currentMinions = aliveMinions.length;
           const summonCap = intent.summonMax ?? 4;
           const canSpawn = Math.max(0, Math.min(intent.summonCount ?? 1, summonCap - currentMinions));
-          let spawnedCount = 0;
-          for (let s = 0; s < canSpawn; s += 1) {
+          let templateIdsToSpawn = [];
+          if (canSpawn > 0) {
+            if (Array.isArray(intent.summonMinions)) {
+              templateIdsToSpawn = drawGremlinGang(state, canSpawn, {
+                existingTemplateIds: aliveMinions.map((e) => e.templateId),
+              });
+            } else {
+              templateIdsToSpawn = Array.from({ length: canSpawn }, () => intent.summonMinions);
+            }
+          }
+          const spawnedNames = [];
+          for (const tplId of templateIdsToSpawn) {
             const minion = createEnemyInstance(state, {
-              templateId: intent.summonMinions,
+              templateId: tplId,
               customHp: intent.summonHp,
               isMinion: true,
             });
@@ -4968,14 +5125,15 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
               applyStatus(minion, 'strength', 3);
             }
             combat.enemies.push(minion);
-            spawnedCount += 1;
+            spawnedNames.push(minion.name);
           }
-          if (spawnedCount > 0) {
-            pushCombatLog(
-              combat,
-              `【${enemy.name}】召唤了 ${spawnedCount} 个【${combat.enemies[combat.enemies.length - 1].name}】！`,
-              'status'
-            );
+          if (spawnedNames.length > 0) {
+            const uniqueNames = [...new Set(spawnedNames)];
+            const desc =
+              uniqueNames.length === 1
+                ? `${spawnedNames.length} 个【${uniqueNames[0]}】`
+                : spawnedNames.map((n) => `【${n}】`).join('、');
+            pushCombatLog(combat, `【${enemy.name}】召唤了 ${desc}！`, 'status');
           } else {
             pushCombatLog(combat, `【${enemy.name}】尝试召唤爪牙，但场上已达上限（${summonCap} 个）。`, 'info');
           }

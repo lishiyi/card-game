@@ -891,6 +891,24 @@ export const STATUS_SVG_ART = Object.freeze({
     `<path d="M7.6 5.6 H16.4 L12 11.8 L16.4 18.4 H7.6 L12 11.8 Z" fill="hsla(212, 86%, 72%, 0.42)" stroke="hsl(204, 96%, 82%)" stroke-width="1.2" stroke-linejoin="round"/>
      <circle cx="12" cy="15.8" r="1.3" fill="hsl(46, 100%, 78%)"/>`
   ),
+  entangled: wrapStatusSvg(
+    'entangled',
+    'hsl(354, 58%, 22%)',
+    'hsl(342, 58%, 10%)',
+    'hsl(12, 90%, 66%)',
+    `<path d="M5.6 6.2 L18.4 17.8 M18.4 6.2 L5.6 17.8 M12 4.8 V19.2 M4.8 12 H19.2" stroke="hsl(28, 36%, 74%)" stroke-width="1.3" stroke-linecap="round"/>
+     <circle cx="12" cy="12" r="5.2" fill="none" stroke="hsl(14, 86%, 68%)" stroke-width="1.4" stroke-dasharray="2.4 1.6"/>
+     <circle cx="12" cy="12" r="2" fill="hsl(354, 92%, 62%)" stroke="hsl(44, 96%, 84%)" stroke-width="0.9"/>`
+  ),
+  stasis: wrapStatusSvg(
+    'stasis',
+    'hsl(192, 60%, 20%)',
+    'hsl(214, 62%, 9%)',
+    'hsl(188, 96%, 68%)',
+    `<rect x="7.8" y="6.2" width="8.4" height="11.6" rx="1.5" fill="hsl(42, 74%, 56%)" stroke="hsl(48, 96%, 84%)" stroke-width="1.1"/>
+     <path d="M9.8 9.2 H14.2 M9.8 12 H14.2 M9.8 14.8 H12.8" stroke="hsl(28, 54%, 24%)" stroke-width="1.2" stroke-linecap="round"/>
+     <polygon points="12,3.8 19.2,8 19.2,16 12,20.2 4.8,16 4.8,8" fill="hsla(188, 96%, 64%, 0.22)" stroke="hsl(186, 100%, 74%)" stroke-width="1.4" stroke-linejoin="round"/>`
+  ),
 });
 
 export const STATUS_NEGATIVE_SVG_ART = Object.freeze({
@@ -942,6 +960,8 @@ export const STATUS_NO_COUNT_IF_ONE = Object.freeze(
     'lifeLink',
     'reactive',
     'shifting',
+    'entangled',
+    'stasis',
   ])
 );
 

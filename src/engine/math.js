@@ -152,7 +152,7 @@ export function getEnemyIntentPreview(enemy, player) {
         totalDamage: 0,
         block,
         label: `格挡 ${block}`,
-        detail: `意图：获得 ${block} 点格挡`,
+        detail: intent.summary || `意图：获得 ${block} 点格挡`,
       };
     case 'defend_buff':
       return {
@@ -163,7 +163,7 @@ export function getEnemyIntentPreview(enemy, player) {
         totalDamage: 0,
         block,
         label: `盾${block} · 强化`,
-        detail: `意图：获得 ${block} 点格挡并提升自身属性`,
+        detail: intent.summary || `意图：获得 ${block} 点格挡并提升自身属性`,
       };
     case 'buff':
       return {
@@ -195,7 +195,12 @@ export function getEnemyIntentPreview(enemy, player) {
         perHitDamage: 0,
         totalDamage: 0,
         block: 0,
-        label: intent.id === 'stunned' ? '眩晕' : '沉睡',
+        label:
+          intent.id === 'stunned'
+            ? '眩晕'
+            : intent.id === 'automaton_stunned'
+              ? '冷却'
+              : '沉睡',
         detail: intent.summary || '意图：沉睡或眩晕中，本回合不会攻击',
       };
     default:

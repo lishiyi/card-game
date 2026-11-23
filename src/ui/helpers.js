@@ -335,7 +335,11 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
         (key === 'strength' || key === 'dexterity') && val < 0 ? 'debuff' : metaInfo.polarity;
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
       const displayVal = key === 'slow' ? `+${(entity?.slowStacks ?? 0) * 10}%` : `${val}`;
-      const descText = metaInfo.describe(val, entity?.slowStacks ?? 0);
+      let descText = metaInfo.describe(val, entity?.slowStacks ?? 0);
+      if (key === 'stasis' && entity?.stasisCard) {
+        const stolenName = getCardStats(entity.stasisCard)?.name || entity.stasisCard.cardId;
+        descText = `已封印你的卡牌【${stolenName}】：击败该单位后立即归还至你的手牌！`;
+      }
       const hideCount = key !== 'slow' && val === 1;
       const svgMarkup = getStatusSvg(key, { polarity, scope: entityScope });
       return `<span

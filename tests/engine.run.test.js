@@ -2087,7 +2087,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients & all 233 cards resolve valid, richly de-duplicated vector art', () => {
+test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients & all 233 cards resolve valid, richly de-duplicated vector art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
@@ -2112,7 +2112,7 @@ test('Art Integrity: all 3 heroes & 47 enemies have unique hero-tier gradients &
   }
 
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
-  assert.equal(enemyEntries.length, 47);
+  assert.equal(enemyEntries.length, 61);
 
   for (const [id, tpl] of enemyEntries) {
     const svg = getCharacterSvg(tpl.artKey || id);
@@ -2903,10 +2903,10 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 97 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
+test('Status Art Integrity: all 99 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 97, `Expected 97 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 99, `Expected 99 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();

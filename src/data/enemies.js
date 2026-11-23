@@ -1,6 +1,6 @@
 import { hasDailyModifier } from '../engine/daily.js';
 import { getEnemyIntentPreview } from '../engine/math.js';
-import { nextRandom, randomInt } from '../engine/rng.js';
+import { nextRandom, pickRandom, randomInt, shuffled } from '../engine/rng.js';
 
 function deepFreeze(obj) {
   if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
@@ -10,6 +10,48 @@ function deepFreeze(obj) {
     }
   }
   return obj;
+}
+
+export const GREMLIN_POOL = deepFreeze([
+  'mad_gremlin',
+  'fat_gremlin',
+  'shield_gremlin',
+  'sneaky_gremlin',
+  'gremlin_wizard',
+]);
+
+// Canonical Slay the Spire Gremlin Gang weighted ticket bag:
+// at most 2 Mad, 2 Sneaky, 2 Fat, 1 Shield, 1 Wizard per gang draw.
+const GREMLIN_GANG_TICKETS = deepFreeze([
+  'mad_gremlin',
+  'mad_gremlin',
+  'sneaky_gremlin',
+  'sneaky_gremlin',
+  'fat_gremlin',
+  'fat_gremlin',
+  'shield_gremlin',
+  'gremlin_wizard',
+]);
+
+export function drawGremlinGang(state, count = 4, options = {}) {
+  const existingCounts = new Map();
+  if (Array.isArray(options.existingTemplateIds)) {
+    for (const id of options.existingTemplateIds) {
+      existingCounts.set(id, (existingCounts.get(id) ?? 0) + 1);
+    }
+  }
+  const available = [];
+  const usedFromExisting = new Map(existingCounts);
+  for (const ticket of GREMLIN_GANG_TICKETS) {
+    const cur = usedFromExisting.get(ticket) ?? 0;
+    if (cur > 0) {
+      usedFromExisting.set(ticket, cur - 1);
+    } else {
+      available.push(ticket);
+    }
+  }
+  const bag = available.length >= count ? available : [...GREMLIN_GANG_TICKETS];
+  return shuffled(state, bag).slice(0, count);
 }
 
 export const ENEMY_TEMPLATES = deepFreeze({
@@ -46,9 +88,27 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [11, 14],
     initialStatuses: { curlUp: 4 },
   },
+  acid_slime_l: {
+    id: 'acid_slime_l',
+    name: '大型酸液史莱姆',
+    role: 'normal',
+    artKey: 'acid_slime_l',
+    hpRange: [65, 69],
+    splitInto: ['acid_slime', 'acid_slime'],
+    initialStatuses: { splitThreshold: 1 },
+  },
+  spike_slime_l: {
+    id: 'spike_slime_l',
+    name: '大型尖刺史莱姆',
+    role: 'normal',
+    artKey: 'spike_slime_l',
+    hpRange: [64, 70],
+    splitInto: ['spike_slime', 'spike_slime'],
+    initialStatuses: { splitThreshold: 1 },
+  },
   acid_slime: {
     id: 'acid_slime',
-    name: '酸液史莱姆',
+    name: '中型酸液史莱姆',
     role: 'normal',
     artKey: 'acid_slime',
     hpRange: [28, 32],
@@ -56,10 +116,26 @@ export const ENEMY_TEMPLATES = deepFreeze({
   },
   spike_slime: {
     id: 'spike_slime',
-    name: '尖刺史莱姆',
+    name: '中型尖刺史莱姆',
     role: 'normal',
     artKey: 'spike_slime',
     hpRange: [28, 32],
+    initialStatuses: {},
+  },
+  acid_slime_s: {
+    id: 'acid_slime_s',
+    name: '小型酸液史莱姆',
+    role: 'normal',
+    artKey: 'acid_slime_s',
+    hpRange: [8, 12],
+    initialStatuses: {},
+  },
+  spike_slime_s: {
+    id: 'spike_slime_s',
+    name: '小型尖刺史莱姆',
+    role: 'normal',
+    artKey: 'spike_slime_s',
+    hpRange: [10, 14],
     initialStatuses: {},
   },
   fungi_beast: {
@@ -78,6 +154,14 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [44, 48],
     initialStatuses: {},
   },
+  slaver_red: {
+    id: 'slaver_red',
+    name: '红衣奴隶贩',
+    role: 'normal',
+    artKey: 'slaver_red',
+    hpRange: [46, 50],
+    initialStatuses: {},
+  },
   looter: {
     id: 'looter',
     name: '尖塔劫匪',
@@ -93,6 +177,38 @@ export const ENEMY_TEMPLATES = deepFreeze({
     artKey: 'mad_gremlin',
     hpRange: [16, 19],
     initialStatuses: { angry: 1 },
+  },
+  fat_gremlin: {
+    id: 'fat_gremlin',
+    name: '胖地精',
+    role: 'normal',
+    artKey: 'fat_gremlin',
+    hpRange: [13, 17],
+    initialStatuses: {},
+  },
+  shield_gremlin: {
+    id: 'shield_gremlin',
+    name: '盾地精',
+    role: 'normal',
+    artKey: 'shield_gremlin',
+    hpRange: [12, 15],
+    initialStatuses: {},
+  },
+  sneaky_gremlin: {
+    id: 'sneaky_gremlin',
+    name: '狡猾地精',
+    role: 'normal',
+    artKey: 'sneaky_gremlin',
+    hpRange: [10, 14],
+    initialStatuses: {},
+  },
+  gremlin_wizard: {
+    id: 'gremlin_wizard',
+    name: '地精法师',
+    role: 'normal',
+    artKey: 'gremlin_wizard',
+    hpRange: [21, 25],
+    initialStatuses: {},
   },
 
   // === Act 1 Elites ===
@@ -144,6 +260,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     role: 'boss',
     artKey: 'slime_boss',
     hpRange: [140, 140],
+    splitInto: ['acid_slime_l', 'spike_slime_l'],
     initialStatuses: { splitThreshold: 1 },
   },
 
@@ -215,6 +332,30 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [92, 102],
     initialStatuses: {},
   },
+  bandit_pointy: {
+    id: 'bandit_pointy',
+    name: '强盗·尖刺',
+    role: 'normal',
+    artKey: 'bandit_pointy',
+    hpRange: [28, 32],
+    initialStatuses: {},
+  },
+  bandit_romeo: {
+    id: 'bandit_romeo',
+    name: '强盗·罗密欧',
+    role: 'normal',
+    artKey: 'bandit_romeo',
+    hpRange: [34, 38],
+    initialStatuses: {},
+  },
+  bandit_bear: {
+    id: 'bandit_bear',
+    name: '强盗·熊',
+    role: 'normal',
+    artKey: 'bandit_bear',
+    hpRange: [36, 42],
+    initialStatuses: {},
+  },
   book_of_stabbing: {
     id: 'book_of_stabbing',
     name: '刺击魔典',
@@ -247,12 +388,30 @@ export const ENEMY_TEMPLATES = deepFreeze({
     hpRange: [195, 195],
     initialStatuses: { metallicize: 4, artifact: 3 },
   },
+  bronze_orb: {
+    id: 'bronze_orb',
+    name: '青铜球',
+    role: 'normal',
+    artKey: 'bronze_orb',
+    hpRange: [32, 38],
+    isMinion: true,
+    initialStatuses: {},
+  },
   the_collector: {
     id: 'the_collector',
     name: '暗影收藏家',
     role: 'boss',
     artKey: 'the_collector',
     hpRange: [185, 185],
+    initialStatuses: {},
+  },
+  torch_head: {
+    id: 'torch_head',
+    name: '火炬头',
+    role: 'normal',
+    artKey: 'torch_head',
+    hpRange: [30, 35],
+    isMinion: true,
     initialStatuses: {},
   },
   the_champ: {
@@ -426,7 +585,7 @@ export const ENCOUNTERS = deepFreeze({
       name: '泥沼双怪',
       enemies: [
         { templateId: 'acid_slime' },
-        { templateId: 'spike_slime', customHp: 14, customName: '小型尖刺史莱姆' },
+        { templateId: 'spike_slime_s' },
       ],
     },
     {
@@ -434,7 +593,7 @@ export const ENCOUNTERS = deepFreeze({
       name: '虱虫与史莱姆',
       enemies: [
         { templateId: 'red_louse' },
-        { templateId: 'acid_slime', customHp: 16, customName: '小型酸液史莱姆' },
+        { templateId: 'acid_slime_s' },
       ],
     },
     {
@@ -447,6 +606,11 @@ export const ENCOUNTERS = deepFreeze({
       name: '铁钩巡猎',
       enemies: [{ templateId: 'slaver_blue' }],
     },
+    {
+      id: 'red_slaver_solo',
+      name: '红衣捕奴手',
+      enemies: [{ templateId: 'slaver_red' }],
+    },
   ],
   hardNormal: [
     {
@@ -456,11 +620,13 @@ export const ENCOUNTERS = deepFreeze({
     },
     {
       id: 'gremlin_pack',
-      name: '地精袭扰小队',
+      name: '地精袭扰群',
+      randomGremlinCount: 4,
       enemies: [
         { templateId: 'mad_gremlin' },
-        { templateId: 'red_louse' },
-        { templateId: 'green_louse' },
+        { templateId: 'fat_gremlin' },
+        { templateId: 'shield_gremlin' },
+        { templateId: 'sneaky_gremlin' },
       ],
     },
     {
@@ -474,14 +640,43 @@ export const ENCOUNTERS = deepFreeze({
       enemies: [{ templateId: 'slaver_blue', customHp: 40 }, { templateId: 'red_louse' }],
     },
     {
+      id: 'red_slaver_and_slime',
+      name: '红衣捕奴手与史莱姆',
+      enemies: [{ templateId: 'slaver_red', customHp: 42 }, { templateId: 'acid_slime_s' }],
+    },
+    {
       id: 'looter_and_gremlin',
-      name: '劫匪与狂怒地精',
-      enemies: [{ templateId: 'looter', customHp: 39 }, { templateId: 'mad_gremlin', customHp: 17 }],
+      name: '劫匪与地精搭档',
+      enemies: [
+        { templateId: 'looter', customHp: 39 },
+        { templateId: 'mad_gremlin', templatePool: GREMLIN_POOL },
+      ],
     },
     {
       id: 'jaw_worm_and_slime',
       name: '颚虫与虱虫',
       enemies: [{ templateId: 'jaw_worm' }, { templateId: 'green_louse' }],
+    },
+    {
+      id: 'large_acid_slime_solo',
+      name: '大型酸液史莱姆',
+      enemies: [{ templateId: 'acid_slime_l' }],
+    },
+    {
+      id: 'large_spike_slime_solo',
+      name: '大型尖刺史莱姆',
+      enemies: [{ templateId: 'spike_slime_l' }],
+    },
+    {
+      id: 'slime_swarm_small',
+      name: '史莱姆小队',
+      enemies: [
+        { templateId: 'spike_slime_s' },
+        { templateId: 'acid_slime_s' },
+        { templateId: 'spike_slime_s' },
+        { templateId: 'acid_slime_s' },
+        { templateId: 'spike_slime_s' },
+      ],
     },
     {
       id: 'tri_lice_swarm',
@@ -623,6 +818,15 @@ export const ENCOUNTERS = deepFreeze({
       name: '异蛇巢穴',
       enemies: [{ templateId: 'snecko' }],
     },
+    {
+      id: 'bandit_trio',
+      name: '蒙面强盗三人组',
+      enemies: [
+        { templateId: 'bandit_pointy' },
+        { templateId: 'bandit_romeo' },
+        { templateId: 'bandit_bear' },
+      ],
+    },
   ],
   act2Elite: [
     {
@@ -632,16 +836,21 @@ export const ENCOUNTERS = deepFreeze({
     },
     {
       id: 'slaver_taskmaster_elite',
-      name: '精英：督军与捕奴手',
-      enemies: [{ templateId: 'slaver_blue' }, { templateId: 'slaver_taskmaster' }],
+      name: '精英：捕奴三人组',
+      enemies: [
+        { templateId: 'slaver_blue', customHp: 40 },
+        { templateId: 'slaver_taskmaster', customHp: 56 },
+        { templateId: 'slaver_red', customHp: 42 },
+      ],
     },
     {
       id: 'gremlin_leader_elite',
       name: '精英：地精首领',
+      randomGremlinMinions: 2,
       enemies: [
-        { templateId: 'mad_gremlin', customHp: 17, isMinion: true },
+        { templateId: 'mad_gremlin', isMinion: true },
         { templateId: 'gremlin_leader' },
-        { templateId: 'mad_gremlin', customHp: 17, isMinion: true },
+        { templateId: 'sneaky_gremlin', isMinion: true },
       ],
     },
   ],
@@ -722,6 +931,15 @@ export const ENCOUNTERS = deepFreeze({
       ],
     },
     {
+      id: 'jaw_worm_horde',
+      name: '深层颚虫群',
+      enemies: [
+        { templateId: 'jaw_worm', hordeMode: true },
+        { templateId: 'jaw_worm', hordeMode: true },
+        { templateId: 'jaw_worm', hordeMode: true },
+      ],
+    },
+    {
       id: 'spire_growth_solo',
       name: '尖塔蔓生体',
       enemies: [{ templateId: 'spire_growth' }],
@@ -773,6 +991,31 @@ export const ENCOUNTERS = deepFreeze({
   ],
 });
 
+export function resolveEncounterSpecs(state, encounter) {
+  if (!encounter) return [];
+  if (typeof encounter.randomGremlinCount === 'number' && encounter.randomGremlinCount > 0) {
+    return drawGremlinGang(state, encounter.randomGremlinCount).map((templateId) => ({ templateId }));
+  }
+  if (typeof encounter.randomGremlinMinions === 'number' && encounter.randomGremlinMinions > 0) {
+    const drawn = drawGremlinGang(state, encounter.randomGremlinMinions);
+    let drawIdx = 0;
+    return (encounter.enemies || []).map((spec) => {
+      if (spec.isMinion && drawIdx < drawn.length) {
+        const pickedId = drawn[drawIdx];
+        drawIdx += 1;
+        return { ...spec, templateId: pickedId, isMinion: true };
+      }
+      return spec;
+    });
+  }
+  return (encounter.enemies || []).map((spec) => {
+    if (Array.isArray(spec.templatePool) && spec.templatePool.length > 0) {
+      return { ...spec, templateId: pickRandom(state, spec.templatePool) };
+    }
+    return spec;
+  });
+}
+
 const STATUS_ZH_LABELS = Object.freeze({
   strength: '力量',
   dexterity: '敏捷',
@@ -787,6 +1030,8 @@ const STATUS_ZH_LABELS = Object.freeze({
   hex: '妖术',
   confused: '混乱',
   constricted: '缠绕',
+  entangled: '缠网',
+  stasis: '静止力场',
 });
 
 const STATUS_CARD_ZH_LABELS = Object.freeze({
@@ -805,6 +1050,10 @@ function rebuildA9IntentSummary(intent) {
   }
   if (typeof intent.allEnemiesBlock === 'number' && intent.allEnemiesBlock > 0) {
     parts.push(`使全体友方单位获得 ${intent.allEnemiesBlock} 点格挡`);
+  } else if (intent.protectRandomAlly && typeof intent.block === 'number' && intent.block > 0) {
+    parts.push(`为一名随机存活友方施加 ${intent.block} 点格挡`);
+  } else if (intent.supportBossBlock && typeof intent.block === 'number' && intent.block > 0) {
+    parts.push(`为首领提供 ${intent.block} 点格挡`);
   } else if (typeof intent.block === 'number' && intent.block > 0) {
     parts.push(`获得 ${intent.block} 点格挡`);
   }
@@ -851,9 +1100,18 @@ const SWARM_NORMAL_IDS = new Set([
   'green_louse',
   'acid_slime',
   'spike_slime',
+  'acid_slime_s',
+  'spike_slime_s',
   'fungi_beast',
   'mad_gremlin',
+  'fat_gremlin',
+  'shield_gremlin',
+  'sneaky_gremlin',
+  'gremlin_wizard',
   'byrd',
+  'bronze_orb',
+  'torch_head',
+  'bandit_pointy',
   'spiker',
   'exploder',
   'repulsor',
@@ -994,9 +1252,9 @@ export function createEnemyInstance(state, spec) {
   if (asc >= 9) {
     if (tpl.id === 'lagavulin') statuses.metallicize = 6;
     if (tpl.id === 'the_guardian') statuses.modeShift = 28;
-    if (tpl.id === 'louse_red' || tpl.id === 'louse_green') statuses.curlUp = 5;
+    if (tpl.id === 'red_louse' || tpl.id === 'green_louse') statuses.curlUp = 5;
     if (tpl.id === 'fungi_beast') statuses.sporeCloud = 3;
-    if (tpl.id === 'red_slaver' || tpl.id === 'gremlin_angry') statuses.angry = 2;
+    if (tpl.id === 'mad_gremlin') statuses.angry = 2;
     if (tpl.id === 'byrd') statuses.flight = 4;
     if (tpl.id === 'orb_walker') statuses.ritual = 3;
     if (tpl.id === 'spiker') statuses.thorns = 4;
@@ -1010,9 +1268,23 @@ export function createEnemyInstance(state, spec) {
     }
   }
 
+  if (spec.initialStatuses) {
+    for (const [k, v] of Object.entries(spec.initialStatuses)) {
+      statuses[k] = (statuses[k] ?? 0) + v;
+    }
+  }
+
   let initialBlock = statuses.metallicize ? statuses.metallicize : 0;
   if (typeof tpl.initialBlock === 'number' && tpl.initialBlock > 0) {
     initialBlock += tpl.initialBlock + (asc >= 9 ? (tpl.id === 'shelled_parasite' ? 2 : 6) : 0);
+  }
+  if (spec.hordeMode && tpl.id === 'jaw_worm') {
+    // Canonical Act 3 Jaw Worm Horde: starts as if Bellow was already cast
+    statuses.strength = (statuses.strength ?? 0) + (asc >= 9 ? 4 : 3);
+    initialBlock += asc >= 9 ? 8 : 6;
+  }
+  if (typeof spec.customBlock === 'number' && spec.customBlock > 0) {
+    initialBlock += Math.floor(spec.customBlock);
   }
 
   const enemy = {
@@ -1052,6 +1324,10 @@ export function createEnemyInstance(state, spec) {
     hasteUsed: false,
     darklingRegrowTurns: 0,
     implantUsed: false,
+    entangleUsed: false,
+    stasisUsed: false,
+    stasisCard: null,
+    hordeMode: Boolean(spec.hordeMode),
     tempStrengthRestore: 0,
     isMinion: Boolean(spec.isMinion || tpl.isMinion),
     intent: null,
@@ -1152,7 +1428,7 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
     }
 
     case 'jaw_worm': {
-      if (enemy.turnIndex === 0) {
+      if (enemy.turnIndex === 0 && !enemy.hordeMode) {
         return [
           {
             probability: 1,
@@ -1256,6 +1532,63 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
       ];
     }
 
+    case 'acid_slime_l': {
+      if (
+        enemy.hp > 0 &&
+        enemy.hp <= Math.floor(enemy.maxHp / 2) &&
+        (enemy.statuses?.splitThreshold ?? 0) > 0
+      ) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'split',
+              name: '酸液分裂',
+              type: 'buff',
+              splitInto: ['acid_slime', 'acid_slime'],
+              summary: '意图：分裂为 2 只中型酸液史莱姆（各自继承当前生命值）',
+            },
+          },
+        ];
+      }
+      const step = enemy.turnIndex % 3;
+      if (step === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'corrosive_spit_l',
+              name: '剧酸喷吐',
+              type: 'attack_debuff',
+              damage: 11,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'slimed', count: 2 }],
+            },
+          },
+        ];
+      }
+      if (step === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'lick_l',
+              name: '强酸舔舐',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 2 },
+              summary: '意图：给予玩家 2 层虚弱',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'tackle_l', name: '巨体撞击', type: 'attack', damage: 16, hits: 1 },
+        },
+      ];
+    }
+
     case 'acid_slime': {
       if (enemy.turnIndex % 3 === 0) {
         return [
@@ -1294,6 +1627,77 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
       ];
     }
 
+    case 'acid_slime_s': {
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'lick_s',
+              name: '酸液轻舔',
+              type: 'debuff',
+              applyPlayerStatuses: { weak: 1 },
+              summary: '意图：给予玩家 1 层虚弱',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'tackle_s', name: '轻撞', type: 'attack', damage: 3, hits: 1 },
+        },
+      ];
+    }
+
+    case 'spike_slime_l': {
+      if (
+        enemy.hp > 0 &&
+        enemy.hp <= Math.floor(enemy.maxHp / 2) &&
+        (enemy.statuses?.splitThreshold ?? 0) > 0
+      ) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'split',
+              name: '尖刺分裂',
+              type: 'buff',
+              splitInto: ['spike_slime', 'spike_slime'],
+              summary: '意图：分裂为 2 只中型尖刺史莱姆（各自继承当前生命值）',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex % 2 === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'flame_tackle_l',
+              name: '巨刺冲撞',
+              type: 'attack_debuff',
+              damage: 16,
+              hits: 1,
+              addDiscardCards: [{ cardId: 'slimed', count: 2 }],
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'lick_frail_l',
+            name: '麻痹重液',
+            type: 'debuff',
+            applyPlayerStatuses: { frail: 2 },
+            summary: '意图：给予玩家 2 层脆弱',
+          },
+        },
+      ];
+    }
+
     case 'spike_slime': {
       if (enemy.turnIndex % 2 === 0) {
         return [
@@ -1320,6 +1724,15 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
             applyPlayerStatuses: { frail: 1 },
             summary: '意图：给予玩家 1 层脆弱',
           },
+        },
+      ];
+    }
+
+    case 'spike_slime_s': {
+      return [
+        {
+          probability: 1,
+          intent: { id: 'spike_tackle_s', name: '尖刺突撞', type: 'attack', damage: 5, hits: 1 },
         },
       ];
     }
@@ -1379,6 +1792,74 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
       ];
     }
 
+    case 'slaver_red': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: { id: 'stab_red', name: '三叉戟刺击', type: 'attack', damage: 13, hits: 1 },
+          },
+        ];
+      }
+      if (!enemy.entangleUsed) {
+        const pool = [
+          {
+            weight: 0.25,
+            intent: {
+              id: 'entangle',
+              name: '投网缠缚',
+              type: 'debuff',
+              applyPlayerStatuses: { entangled: 1 },
+              markEntangleUsed: true,
+              summary: '意图：抛出铁网施加【缠网】（下回合无法打出任何攻击牌）！',
+            },
+          },
+          {
+            weight: enemy.lastMoveId === 'scrape' ? 0.2 : 0.45,
+            intent: {
+              id: 'scrape',
+              name: '倒钩撕裂',
+              type: 'attack_debuff',
+              damage: 8,
+              hits: 1,
+              applyPlayerStatuses: { vulnerable: 1 },
+            },
+          },
+          {
+            weight: enemy.lastMoveId === 'stab_red' ? 0.25 : 0.3,
+            intent: { id: 'stab_red', name: '三叉戟刺击', type: 'attack', damage: 13, hits: 1 },
+          },
+        ];
+        const total = pool.reduce((s, x) => s + x.weight, 0) || 1;
+        return pool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+      }
+      if (enemy.lastMoveId !== 'scrape') {
+        return [
+          {
+            probability: 0.55,
+            intent: {
+              id: 'scrape',
+              name: '倒钩撕裂',
+              type: 'attack_debuff',
+              damage: 8,
+              hits: 1,
+              applyPlayerStatuses: { vulnerable: 1 },
+            },
+          },
+          {
+            probability: 0.45,
+            intent: { id: 'stab_red', name: '三叉戟刺击', type: 'attack', damage: 13, hits: 1 },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'stab_red', name: '三叉戟刺击', type: 'attack', damage: 13, hits: 1 },
+        },
+      ];
+    }
+
     case 'looter': {
       if (enemy.turnIndex < 2) {
         return [
@@ -1419,6 +1900,102 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
         {
           probability: 1,
           intent: { id: 'scratch', name: '疯狂抓挠', type: 'attack', damage: 5, hits: 1 },
+        },
+      ];
+    }
+
+    case 'fat_gremlin': {
+      const asc = enemy.ascension ?? 0;
+      const debuffs = asc >= 9 ? { weak: 1, frail: 1 } : { weak: 1 };
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'fat_smash',
+            name: '沉重拍击',
+            type: 'attack_debuff',
+            damage: 4,
+            hits: 1,
+            applyPlayerStatuses: debuffs,
+          },
+        },
+      ];
+    }
+
+    case 'shield_gremlin': {
+      const aliveAllies = combat?.enemies
+        ? combat.enemies.filter((e) => e.hp > 0 && e.id !== enemy.id).length
+        : 1;
+      if (aliveAllies > 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'gremlin_protect',
+              name: '举盾护卫',
+              type: 'defend',
+              block: 7,
+              protectRandomAlly: true,
+              summary: '意图：举起圆盾，为一名随机存活友方施加 7 点格挡',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: { id: 'shield_bash', name: '盾牌猛击', type: 'attack', damage: 6, hits: 1 },
+        },
+      ];
+    }
+
+    case 'sneaky_gremlin': {
+      return [
+        {
+          probability: 1,
+          intent: { id: 'puncture', name: '卑劣偷袭', type: 'attack', damage: 9, hits: 1 },
+        },
+      ];
+    }
+
+    case 'gremlin_wizard': {
+      const chargeStep = enemy.turnIndex % 3;
+      if (chargeStep === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'wizard_charge_1',
+              name: '聚能吟唱',
+              type: 'buff',
+              summary: '意图：正在聚能蓄力（1/2），2 回合后将释放高伤【终极冲击波】！',
+            },
+          },
+        ];
+      }
+      if (chargeStep === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'wizard_charge_2',
+              name: '魔力满溢',
+              type: 'buff',
+              summary: '意图：蓄力即将完成（2/2），下回合将释放【终极冲击波】（25 点伤害）！',
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'ultimate_blast',
+            name: '终极冲击波',
+            type: 'attack',
+            damage: 25,
+            hits: 1,
+          },
         },
       ];
     }
@@ -1647,8 +2224,8 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
               id: 'split',
               name: '巨体分裂',
               type: 'buff',
-              splitInto: ['acid_slime', 'spike_slime'],
-              summary: '意图：分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各自继承当前生命值）',
+              splitInto: ['acid_slime_l', 'spike_slime_l'],
+              summary: '意图：分裂为大型酸液史莱姆与大型尖刺史莱姆（各自继承当前生命值）',
             },
           },
         ];
@@ -2022,11 +2599,10 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
                 id: 'leader_rally',
                 name: '集结号角',
                 type: 'buff',
-                summonMinions: 'mad_gremlin',
+                summonMinions: GREMLIN_POOL,
                 summonCount: 2,
                 summonMax: 2,
-                summonHp: 17,
-                summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
+                summary: '意图：吹响号角，随机召唤 2 名【地精】爪牙增援！',
               },
             },
           ];
@@ -2038,11 +2614,10 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
               id: 'leader_rally',
               name: '集结号角',
               type: 'buff',
-              summonMinions: 'mad_gremlin',
+              summonMinions: GREMLIN_POOL,
               summonCount: 2,
               summonMax: 2,
-              summonHp: 17,
-              summary: '意图：吹响号角，召唤 2 名【狂怒地精】增援！',
+              summary: '意图：吹响号角，随机召唤 2 名【地精】爪牙增援！',
             },
           },
           {
@@ -2077,11 +2652,10 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
             id: 'leader_rally',
             name: '集结号角',
             type: 'buff',
-            summonMinions: 'mad_gremlin',
+            summonMinions: GREMLIN_POOL,
             summonCount: 2,
             summonMax: 2,
-            summonHp: 17,
-            summary: '意图：吹响号角，补齐至多 2 名【狂怒地精】增援！',
+            summary: '意图：吹响号角，随机补齐至多 2 名【地精】爪牙增援！',
           },
         });
       }
@@ -2092,29 +2666,30 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
     }
 
     case 'bronze_automaton': {
-      const step = enemy.turnIndex % 4;
-      if (step === 0) {
+      if (enemy.turnIndex === 0) {
         return [
           {
             probability: 1,
             intent: {
-              id: 'boost_core',
-              name: '齿轮超频',
-              type: 'defend_buff',
-              block: 10,
-              applySelfStatuses: { strength: 2 },
-              summary: '意图：获得 10 点格挡与 2 点力量',
+              id: 'spawn_orbs',
+              name: '部署青铜球',
+              type: 'buff',
+              summonMinions: 'bronze_orb',
+              summonCount: 2,
+              summonMax: 2,
+              summary: '意图：部署 2 台【青铜球】爪牙（会封印你的高稀有度卡牌并为首领提供格挡）！',
             },
           },
         ];
       }
-      if (step === 1) {
+      const step = (enemy.turnIndex - 1) % 6;
+      if (step === 0 || step === 2) {
         return [
           {
             probability: 1,
             intent: {
               id: 'flail_beams',
-              name: '双联光束',
+              name: '双联连枷',
               type: 'attack',
               damage: 7,
               hits: 2,
@@ -2122,16 +2697,46 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
           },
         ];
       }
-      if (step === 2) {
+      if (step === 1 || step === 3) {
         return [
           {
             probability: 1,
             intent: {
-              id: 'charge_hyper',
-              name: '超能聚束',
-              type: 'defend',
-              block: 12,
-              summary: '意图：获得 12 点格挡，下回合发射毁灭性的【超能光束】！',
+              id: 'boost_core',
+              name: '齿轮超频',
+              type: 'defend_buff',
+              block: 9,
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：获得 9 点格挡与 3 点力量',
+            },
+          },
+        ];
+      }
+      if (step === 4) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'hyper_beam',
+              name: '超能光束',
+              type: 'attack',
+              damage: 38,
+              hits: 1,
+            },
+          },
+        ];
+      }
+      if ((enemy.ascension ?? 0) >= 9) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'boost_core',
+              name: '齿轮超频',
+              type: 'defend_buff',
+              block: 9,
+              applySelfStatuses: { strength: 3 },
+              summary: '意图：进阶核心无冷却——获得 9 点格挡与 3 点力量！',
             },
           },
         ];
@@ -2140,48 +2745,107 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
         {
           probability: 1,
           intent: {
-            id: 'hyper_beam',
-            name: '超能光束',
-            type: 'attack',
-            damage: 34,
-            hits: 1,
+            id: 'automaton_stunned',
+            name: '过载冷却',
+            type: 'sleep',
+            summary: '意图：发射超能光束后核心过载冷却，本回合无法行动！',
           },
         },
       ];
     }
 
-    case 'the_collector': {
-      const step = enemy.turnIndex % 4;
-      if (step === 0) {
+    case 'bronze_orb': {
+      if (!enemy.stasisUsed) {
         return [
           {
-            probability: 1,
+            probability: 0.75,
             intent: {
-              id: 'emerald_ward',
-              name: '翠焰王座',
-              type: 'defend_buff',
-              block: 11,
-              applySelfStatuses: { strength: 2 },
-              summary: '意图：获得 11 点格挡与 2 点力量',
+              id: 'orb_stasis',
+              name: '静止力场',
+              type: 'debuff',
+              stasisSteal: true,
+              summary: '意图：释放【静止力场】，封印你抽牌堆或弃牌堆中稀有度最高的一张牌（摧毁该青铜球后归还）！',
             },
           },
-        ];
-      }
-      if (step === 1) {
-        return [
           {
-            probability: 1,
+            probability: 0.15,
             intent: {
-              id: 'fireball_col',
-              name: '冥翠火球',
+              id: 'orb_support',
+              name: '支援光束',
+              type: 'defend',
+              block: 8,
+              supportBossBlock: true,
+              summary: '意图：发射支援光束，为首领提供 8 点格挡',
+            },
+          },
+          {
+            probability: 0.1,
+            intent: {
+              id: 'orb_beam',
+              name: '能量光束',
               type: 'attack',
-              damage: 14,
+              damage: 7,
               hits: 1,
             },
           },
         ];
       }
-      if (step === 2) {
+      if (enemy.lastMoveId === 'orb_beam') {
+        return [
+          {
+            probability: 0.7,
+            intent: {
+              id: 'orb_support',
+              name: '支援光束',
+              type: 'defend',
+              block: 8,
+              supportBossBlock: true,
+              summary: '意图：发射支援光束，为首领提供 8 点格挡',
+            },
+          },
+          {
+            probability: 0.3,
+            intent: { id: 'orb_beam', name: '能量光束', type: 'attack', damage: 7, hits: 1 },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 0.55,
+          intent: {
+            id: 'orb_support',
+            name: '支援光束',
+            type: 'defend',
+            block: 8,
+            supportBossBlock: true,
+            summary: '意图：发射支援光束，为首领提供 8 点格挡',
+          },
+        },
+        {
+          probability: 0.45,
+          intent: { id: 'orb_beam', name: '能量光束', type: 'attack', damage: 7, hits: 1 },
+        },
+      ];
+    }
+
+    case 'the_collector': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'collector_spawn',
+              name: '召唤火炬头',
+              type: 'buff',
+              summonMinions: 'torch_head',
+              summonCount: 2,
+              summonMax: 2,
+              summary: '意图：从冥火王座召唤 2 名【火炬头】爪牙！',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex === 3) {
         return [
           {
             probability: 1,
@@ -2195,15 +2859,166 @@ export function getEnemyIntentCandidates(enemy, player = null, combat = null) {
           },
         ];
       }
+      const aliveMinions = combat?.enemies
+        ? combat.enemies.filter((e) => e.hp > 0 && e.id !== enemy.id).length
+        : 2;
+      const pool = [
+        {
+          weight: 0.45,
+          intent: {
+            id: 'fireball_col',
+            name: '冥翠火球',
+            type: 'attack',
+            damage: 16,
+            hits: 1,
+          },
+        },
+        {
+          weight: 0.3,
+          intent: {
+            id: 'emerald_ward',
+            name: '翠焰王座',
+            type: 'defend_buff',
+            block: 12,
+            applyAllEnemiesStatuses: { strength: 3 },
+            summary: '意图：获得 12 点格挡，并使全体敌方获得 3 点【力量】！',
+          },
+        },
+      ];
+      if (aliveMinions < 2) {
+        pool.push({
+          weight: 0.25,
+          intent: {
+            id: 'collector_spawn',
+            name: '召唤火炬头',
+            type: 'buff',
+            summonMinions: 'torch_head',
+            summonCount: 2,
+            summonMax: 2,
+            summary: '意图：补齐至多 2 名【火炬头】爪牙！',
+          },
+        });
+      }
+      const filtered = pool.filter(
+        (x) => !(x.intent.id === enemy.lastMoveId && x.intent.id !== 'fireball_col')
+      );
+      const activePool = filtered.length > 0 ? filtered : pool;
+      const total = activePool.reduce((s, x) => s + x.weight, 0) || 1;
+      return activePool.map((x) => ({ probability: x.weight / total, intent: x.intent }));
+    }
+
+    case 'torch_head': {
       return [
         {
           probability: 1,
           intent: {
-            id: 'dark_volley',
-            name: '暗影齐射',
+            id: 'torch_tackle',
+            name: '冥火冲撞',
             type: 'attack',
             damage: 7,
-            hits: 3,
+            hits: 1,
+          },
+        },
+      ];
+    }
+
+    case 'bandit_pointy': {
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'pointy_stab',
+            name: '双匕乱刺',
+            type: 'attack',
+            damage: 5,
+            hits: 2,
+          },
+        },
+      ];
+    }
+
+    case 'bandit_romeo': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'romeo_mock',
+              name: '轻佻嘲弄',
+              type: 'buff',
+              summary: '意图：傲慢挑衅（“熊，上！”），本回合不造成伤害',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex % 2 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'agonizing_slash',
+              name: '剧痛挥砍',
+              type: 'attack_debuff',
+              damage: 10,
+              hits: 1,
+              applyPlayerStatuses: { weak: 2 },
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'cross_slash',
+            name: '十字交叉斩',
+            type: 'attack',
+            damage: 15,
+            hits: 1,
+          },
+        },
+      ];
+    }
+
+    case 'bandit_bear': {
+      if (enemy.turnIndex === 0) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'bear_hug',
+              name: '熊抱窒息',
+              type: 'debuff',
+              applyPlayerStatuses: { dexterity: -2 },
+              summary: '意图：凶猛熊抱，使你本场战斗永久失去 2 点【敏捷】！',
+            },
+          },
+        ];
+      }
+      if (enemy.turnIndex % 2 === 1) {
+        return [
+          {
+            probability: 1,
+            intent: {
+              id: 'bear_lunge',
+              name: '重拳猛扑',
+              type: 'attack_block',
+              damage: 9,
+              hits: 1,
+              block: 9,
+            },
+          },
+        ];
+      }
+      return [
+        {
+          probability: 1,
+          intent: {
+            id: 'bear_maul',
+            name: '铁掌拍击',
+            type: 'attack',
+            damage: 18,
+            hits: 1,
           },
         },
       ];
@@ -3211,7 +4026,10 @@ export function predictNextTurnIntents(
 
   if (curIntent && Array.isArray(curIntent.splitInto) && curIntent.splitInto.length > 0) {
     const splitHp = Math.max(1, enemy.hp);
-    const detail = `分裂为巨型酸液史莱姆与巨型尖刺史莱姆（各 ${splitHp} 点生命），下回合分别施放腐蚀喷吐与尖刺冲撞`;
+    const childNames = curIntent.splitInto
+      .map((cid) => ENEMY_TEMPLATES[cid]?.name || cid)
+      .join('与');
+    const detail = `分裂为${childNames}（各 ${splitHp} 点生命），分裂体将于下回合开始行动`;
     return {
       summaryText: '下回合：分裂双史莱姆',
       tooltipLines: [`• 双体分裂行动：${detail}`],
@@ -3224,7 +4042,7 @@ export function predictNextTurnIntents(
           type: 'attack_debuff',
           isAttack: true,
           totalDamage: 15,
-          label: '双史莱姆攻击',
+          label: '双史莱姆行动',
           detail,
         },
       ],
@@ -3405,6 +4223,8 @@ export function predictNextTurnIntents(
     };
   }
   const nextImplantUsed = Boolean(enemy.implantUsed || curIntent?.id === 'wm_implant');
+  const nextEntangleUsed = Boolean(enemy.entangleUsed || curIntent?.markEntangleUsed);
+  const nextStasisUsed = Boolean(enemy.stasisUsed || curIntent?.stasisSteal);
 
   const simEnemy = {
     ...enemy,
@@ -3422,6 +4242,8 @@ export function predictNextTurnIntents(
     pendingHaste: nextPendingHaste,
     hasteUsed: nextHasteUsed,
     implantUsed: nextImplantUsed,
+    entangleUsed: nextEntangleUsed,
+    stasisUsed: nextStasisUsed,
     lastMoveId: curIntent?.id ?? enemy.lastMoveId ?? null,
     mode: nextMode,
     offensiveStep: nextOffensiveStep,
@@ -3454,10 +4276,22 @@ export function predictNextTurnIntents(
   });
 
   let conditionalNote = '';
+  const tplSplit = ENEMY_TEMPLATES[enemy.templateId]?.splitInto;
   if (enemy.templateId === 'the_guardian' && enemy.mode === 'offensive') {
     conditionalNote = '若本回合触发【形态转换】，将切换防御形态并使用【翻滚撞击】';
-  } else if (enemy.templateId === 'slime_boss' && enemy.hp > Math.floor(enemy.maxHp / 2)) {
-    conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合改为【巨体分裂】`;
+  } else if (
+    Array.isArray(tplSplit) &&
+    tplSplit.length > 0 &&
+    (enemy.statuses?.splitThreshold ?? 0) > 0 &&
+    enemy.hp > Math.floor(enemy.maxHp / 2)
+  ) {
+    const splitName =
+      enemy.templateId === 'slime_boss'
+        ? '巨体分裂'
+        : enemy.templateId === 'acid_slime_l'
+          ? '酸液分裂'
+          : '尖刺分裂';
+    conditionalNote = `若生命降至 ${Math.floor(enemy.maxHp / 2)} 或以下，下回合将打断行动改为【${splitName}】并继承当前生命值`;
   } else if (enemy.templateId === 'lagavulin' && (enemy.statuses?.asleep ?? 0) > 0) {
     conditionalNote = '若本回合造成穿透格挡的生命伤害，将提前惊醒并眩晕 1 回合（跳过下次行动）';
   } else if (enemy.templateId === 'byrd' && (enemy.statuses?.flight ?? 0) > 0) {
@@ -3478,8 +4312,20 @@ export function predictNextTurnIntents(
     conditionalNote = `【游移】：每造成 1 点生命伤害即临时降低其 1 点力量！撑过剩余 ${enemy.statuses?.fading ?? 1} 回合即可自动获胜`;
   } else if (enemy.templateId === 'writhing_mass') {
     conditionalNote = '【应激反应】：每次攻击命中都会随机刷新本回合意图——看到危险重击或【寄生植入】时可用低费攻击牌刷走！';
+  } else if (enemy.templateId === 'gremlin_wizard') {
+    conditionalNote = '蓄力 2 回合后将释放 25 点高伤【终极冲击波】，优先集火击杀！';
+  } else if (enemy.templateId === 'slaver_red' && !enemy.entangleUsed) {
+    conditionalNote = '尚未施放【投网缠缚】（使你下回合无法打出攻击牌），可保留人工制品或防御牌应对！';
   } else if (enemy.templateId === 'gremlin_leader') {
-    conditionalNote = '优先清理【狂怒地精】爪牙可迫使其消耗回合吹响【集结号角】而非强化全队！';
+    conditionalNote = '优先清理【地精】爪牙可迫使其消耗回合吹响【集结号角】而非强化全队！';
+  } else if (enemy.templateId === 'bronze_automaton') {
+    conditionalNote = '开场部署 2 台【青铜球】爪牙；击败本体后剩余青铜球会直接逃跑，击毁青铜球可夺回被封印卡牌！';
+  } else if (enemy.templateId === 'bronze_orb') {
+    conditionalNote = enemy.stasisCard
+      ? '该青铜球已通过【静止力场】封印你的一张卡牌，击毁它即可立即归还手牌！'
+      : '【静止力场】会封印你抽牌/弃牌堆中稀有度最高的一张牌，击毁后归还！';
+  } else if (enemy.templateId === 'the_collector') {
+    conditionalNote = '首回合召唤 2 名【火炬头】爪牙，第 4 回合施放【你属于我！】三重诅咒；击败本体后爪牙逃跑直接获胜！';
   } else if (enemy.templateId === 'hexaghost' && enemy.turnIndex === 0) {
     conditionalNote = '【分裂烈焰】每段伤害 = max(2, ⌊你当前生命 ÷ 14⌋ + 1)（随当前生命动态变化）';
   } else if (enemy.templateId === 'the_champ' && (enemy.champPhase ?? 1) === 1 && enemy.hp > Math.floor(enemy.maxHp / 2)) {
