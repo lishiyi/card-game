@@ -8242,3 +8242,175 @@ test('E2E Act 4 & Three Keys: HUD 3-key pill (desktop & 390px mobile zero overfl
     await teardownSession({ server, browser, cdp });
   }
 });
+
+test('E2E: Havoc & random card reveal overlay + Fatal (斩杀) keyword tooltip & Minion preview suppression (Desktop & 390px Mobile)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  const { server, port } = await startStaticServer();
+  let browser = null;
+  let cdp = null;
+  try {
+    browser = await launchHeadlessChromium();
+    const debugPort = new URL(browser.browserWsUrl).port;
+    const targetsResp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+    const targets = await targetsResp.json();
+    const pageTarget = targets.find((x) => x.type === 'page');
+    assert.ok(pageTarget);
+    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 350));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    const desktopAudit = await cdp.evaluate(`(async () => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      const { startCombat } = await import('./src/engine/combat.js');
+      const { transitionCombatVictory } = await import('./src/engine/game.js');
+
+      const glEnc = ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite');
+      startCombat(st, glEnc, 'elite', transitionCombatVictory);
+      const c = st.combat;
+      const minion = c.enemies.find((e) => e.isMinion);
+      const leader = c.enemies.find((e) => e.templateId === 'gremlin_leader');
+      minion.hp = 5;
+      minion.block = 0;
+      leader.hp = 5;
+      leader.block = 0;
+
+      c.hand = [
+        { instanceId: 'e2e_havoc', cardId: 'havoc', upgraded: false },
+        { instanceId: 'e2e_feed', cardId: 'feed', upgraded: false },
+        { instanceId: 'e2e_tg', cardId: 'true_grit', upgraded: false },
+        { instanceId: 'e2e_def', cardId: 'defend', upgraded: false },
+      ];
+      c.drawPile = [{ instanceId: 'e2e_bash', cardId: 'bash', upgraded: false }];
+      c.discardPile = [];
+      st.player.energy = 6;
+      app.render();
+
+      // 1. Feed keyword trigger displays 斩杀 and opens tooltip without playing card
+      const feedKwEl = document.querySelector('#hand-card-e2e_feed .card-kw-trigger');
+      const feedKwText = feedKwEl?.textContent?.trim() || '';
+      const handLenBeforeKw = c.hand.length;
+      feedKwEl?.click();
+      const tooltipEl = document.getElementById('spire-tooltip');
+      const tooltipVisible = Boolean(tooltipEl && !tooltipEl.hidden);
+      const tooltipText = tooltipEl?.textContent || '';
+      const handLenAfterKw = c.hand.length;
+      document.body.click();
+
+      // 2. Select Feed -> verify Minion preview warns 爪牙不触发斩杀 while Leader preview shows +3上限
+      document.getElementById('hand-card-e2e_feed')?.click();
+      const minionPreviewText =
+        document.querySelector('#enemy-unit-' + minion.id + ' .preview-pill.lethal')?.textContent?.trim() || '';
+      const leaderPreviewText =
+        document.querySelector('#enemy-unit-' + leader.id + ' .preview-pill.lethal')?.textContent?.trim() || '';
+
+      // 3. Kill Minion with Feed -> maxHp must NOT increase!
+      const maxHpBeforeFeed = st.player.maxHp;
+      document.getElementById('enemy-unit-' + minion.id)?.click();
+      const maxHpAfterFeed = st.player.maxHp;
+
+      // Keep leader alive with high HP so Havoc -> Bash doesn't end combat prematurely
+      leader.hp = 80;
+      leader.maxHp = 80;
+      for (const e of c.enemies) {
+        if (e.hp > 0 && e.id !== leader.id) e.hp = 80;
+      }
+      app.render();
+
+      // 4. Play Havoc -> verify visual .fx-card-reveal-stage shows Bash + #combat-banner names 痛击
+      document.getElementById('hand-card-e2e_havoc')?.click();
+      const revealStage = document.querySelector('#spire-fx-layer .fx-card-reveal-stage[data-fx-reveal="true"]');
+      const revealItem = revealStage?.querySelector('.fx-card-reveal-item[data-reveal-kind="auto_play"][data-reveal-card-id="bash"]');
+      const revealCardName = revealItem?.querySelector('.card-name')?.textContent?.trim() || '';
+      const revealBadgeText = revealItem?.querySelector('.fx-card-reveal-badge')?.textContent?.trim() || '';
+      const bannerTextAfterHavoc = document.getElementById('combat-banner')?.textContent?.trim() || '';
+
+      return {
+        feedKwText,
+        handUnchangedOnKwClick: handLenBeforeKw === handLenAfterKw,
+        tooltipVisible,
+        tooltipHasFatalExplain: tooltipText.includes('斩杀') && tooltipText.includes('爪牙'),
+        minionPreviewText,
+        leaderPreviewText,
+        maxHpBeforeFeed,
+        maxHpAfterFeed,
+        hasRevealStage: Boolean(revealStage),
+        hasBashRevealItem: Boolean(revealItem),
+        revealCardName,
+        revealBadgeText,
+        bannerTextAfterHavoc,
+      };
+    })()`);
+
+    assert.ok(desktopAudit.feedKwText.includes('斩杀'), `Feed must show 斩杀 keyword chip, got: ${desktopAudit.feedKwText}`);
+    assert.equal(desktopAudit.handUnchangedOnKwClick, true, 'Clicking 斩杀 keyword chip must NOT play Feed');
+    assert.equal(desktopAudit.tooltipVisible, true, 'Clicking 斩杀 keyword chip must open tooltip');
+    assert.equal(desktopAudit.tooltipHasFatalExplain, true, 'Fatal tooltip must mention 斩杀 & 爪牙');
+    assert.ok(
+      desktopAudit.minionPreviewText.includes('爪牙不触发斩杀') && !desktopAudit.minionPreviewText.includes('+3上限'),
+      `Minion lethal preview for Feed must suppress +3上限 and warn 爪牙不触发斩杀, got: ${desktopAudit.minionPreviewText}`
+    );
+    assert.ok(
+      desktopAudit.leaderPreviewText.includes('+3上限'),
+      `Non-minion leader lethal preview for Feed must show +3上限, got: ${desktopAudit.leaderPreviewText}`
+    );
+    assert.equal(desktopAudit.maxHpAfterFeed, desktopAudit.maxHpBeforeFeed, 'Killing Minion with Feed in UI must not increase maxHp');
+    assert.equal(desktopAudit.hasRevealStage, true, 'Playing Havoc must spawn .fx-card-reveal-stage overlay');
+    assert.equal(desktopAudit.hasBashRevealItem, true, 'Havoc reveal stage must display the auto-played Bash card');
+    assert.equal(desktopAudit.revealCardName, '痛击', 'Havoc reveal card must render card title 痛击');
+    assert.ok(desktopAudit.revealBadgeText.includes('破灭自动打出'), `Reveal badge must say 破灭自动打出, got: ${desktopAudit.revealBadgeText}`);
+    assert.ok(
+      desktopAudit.bannerTextAfterHavoc.includes('破灭自动打出【痛击】'),
+      `Combat banner must show Havoc played card summary, got: ${desktopAudit.bannerTextAfterHavoc}`
+    );
+
+    // 5. Switch to 390x844 mobile viewport and play True Grit (random exhaust) -> reveal + 0px horizontal overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const mobileAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      app.render();
+      const el = document.getElementById('hand-card-e2e_tg');
+      el?.click();
+      const stillThere = document.getElementById('hand-card-e2e_tg');
+      if (stillThere) stillThere.click();
+
+      const revealItem = document.querySelector('#spire-fx-layer .fx-card-reveal-item[data-reveal-kind="random_exhaust"][data-reveal-card-id="defend"]');
+      const bannerText = document.getElementById('combat-banner')?.textContent?.trim() || '';
+      const overflowPx = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+      return {
+        hasRandomExhaustReveal: Boolean(revealItem),
+        bannerText,
+        overflowPx,
+      };
+    })()`);
+
+    assert.equal(mobileAudit.hasRandomExhaustReveal, true, 'Mobile True Grit must spawn random_exhaust card reveal for Defend');
+    assert.ok(
+      mobileAudit.bannerText.includes('坚毅随机消耗【防御】'),
+      `Mobile combat banner must show True Grit random exhaust summary, got: ${mobileAudit.bannerText}`
+    );
+    assert.ok(mobileAudit.overflowPx <= 0, `390px mobile with card reveal overlay must have zero horizontal overflow (got ${mobileAudit.overflowPx}px)`);
+
+    cdp.ws.close();
+  } finally {
+    await teardownSession({ server, browser, cdp });
+  }
+});

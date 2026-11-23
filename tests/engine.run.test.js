@@ -16,6 +16,7 @@ import {
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
 import { CARD_THEME_ART, getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
+import { getGlossaryEntries } from '../src/ui/glossary.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
@@ -3148,4 +3149,43 @@ test('Act 4 & Three Keys Full Lifecycle: Ruby Recall, Burning Elite Emerald Key,
   assert.equal(report.heartVictory, true);
   const shareText = formatShareableBattleReport(report);
   assert.ok(shareText.includes('心脏斩杀'), 'Shareable report must announce Heart Victory');
+});
+
+test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inline highlights, trait chips & glossary', () => {
+  const expectedFatalIds = new Set(['feed', 'hand_of_greed', 'lesson_learned']);
+
+  for (const card of Object.values(CARD_LIBRARY)) {
+    const hasFatalFlag = Boolean(card.base?.fatal || card.upgraded?.fatal);
+    const hasFatalProp = Boolean(
+      card.base?.maxHpOnKill || card.base?.goldOnKill || card.base?.fatalPermanentUpgrade
+    );
+    assert.equal(
+      hasFatalFlag,
+      expectedFatalIds.has(card.id),
+      `Card ${card.id} fatal flag mismatch (expected ${expectedFatalIds.has(card.id)})`
+    );
+    assert.equal(
+      hasFatalProp,
+      hasFatalFlag,
+      `Card ${card.id} fatal reward property must align with fatal flag`
+    );
+  }
+
+  for (const cardId of expectedFatalIds) {
+    const inst = { instanceId: `kw_${cardId}`, cardId, upgraded: false };
+    const stats = getCardStats(inst);
+    const desc = formatCardDescription(inst, null);
+    assert.ok(desc.text.includes('斩杀时，'), `${cardId} description must use canonical "斩杀时，" phrasing, got: ${desc.text}`);
+    const descHtml = formatCardDescHtml(desc.text);
+    assert.ok(descHtml.includes('<span class="card-kw-inline">斩杀</span>'), `${cardId} description HTML must highlight 斩杀`);
+    const kws = extractCardKeywords(stats, desc.text);
+    const fatalKw = kws.find((k) => k.key === '斩杀');
+    assert.ok(fatalKw && fatalKw.isTrait === true, `${cardId} must extract 斩杀 as a trait keyword`);
+    assert.ok(fatalKw.desc.includes('爪牙'), '斩杀 keyword tooltip must explain Minion exclusion');
+  }
+
+  const glossaryEntries = getGlossaryEntries();
+  const fatalEntry = glossaryEntries.find((e) => e.id === 'kw_fatal');
+  assert.ok(fatalEntry, 'Glossary must include kw_fatal entry');
+  assert.ok(fatalEntry.name.includes('斩杀') && fatalEntry.description.includes('狂宴') && fatalEntry.description.includes('贪婪之手') && fatalEntry.description.includes('勤学奋进'));
 });

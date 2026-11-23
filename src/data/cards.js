@@ -572,8 +572,8 @@ export const CARD_LIBRARY = deepFreeze({
     rarity: 'rare',
     target: 'enemy',
     price: 140,
-    base: { cost: 1, damage: 10, hits: 1, maxHpOnKill: 3, exhaust: true },
-    upgraded: { cost: 1, damage: 12, hits: 1, maxHpOnKill: 4, exhaust: true },
+    base: { cost: 1, damage: 10, hits: 1, fatal: true, maxHpOnKill: 3, exhaust: true },
+    upgraded: { cost: 1, damage: 12, hits: 1, fatal: true, maxHpOnKill: 4, exhaust: true },
   },
   immolate: {
     id: 'immolate',
@@ -1916,8 +1916,8 @@ export const CARD_LIBRARY = deepFreeze({
     rarity: 'rare',
     target: 'enemy',
     price: 148,
-    base: { cost: 2, damage: 10, hits: 1, fatalPermanentUpgrade: true, exhaust: true },
-    upgraded: { cost: 2, damage: 13, hits: 1, fatalPermanentUpgrade: true, exhaust: true },
+    base: { cost: 2, damage: 10, hits: 1, fatal: true, fatalPermanentUpgrade: true, exhaust: true },
+    upgraded: { cost: 2, damage: 13, hits: 1, fatal: true, fatalPermanentUpgrade: true, exhaust: true },
   },
   ragnarok: {
     id: 'ragnarok',
@@ -2059,8 +2059,8 @@ export const CARD_LIBRARY = deepFreeze({
     rarity: 'rare',
     target: 'enemy',
     price: 165,
-    base: { cost: 2, damage: 20, hits: 1, goldOnKill: 20 },
-    upgraded: { cost: 2, damage: 25, hits: 1, goldOnKill: 25 },
+    base: { cost: 2, damage: 20, hits: 1, fatal: true, goldOnKill: 20 },
+    upgraded: { cost: 2, damage: 25, hits: 1, fatal: true, goldOnKill: 25 },
   },
   master_of_strategy: {
     id: 'master_of_strategy',
@@ -3133,13 +3133,13 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push(`本场战斗每次打出后基础伤害降低 ${stats.damageDecayPerPlay} 点。`);
   }
   if (stats.goldOnKill) {
-    parts.push(`若以此牌斩杀敌人，永久获得 ${stats.goldOnKill} 枚金币。`);
+    parts.push(`斩杀时，永久获得 ${stats.goldOnKill} 枚金币。`);
   }
   if (stats.maxHpOnKill) {
-    parts.push(`若以此牌斩杀敌人，永久提高 ${stats.maxHpOnKill} 点最大生命。`);
+    parts.push(`斩杀时，永久提高 ${stats.maxHpOnKill} 点最大生命。`);
   }
   if (stats.fatalPermanentUpgrade) {
-    parts.push('若以此牌斩杀敌人，永久升级牌组中随机 1 张可升级卡牌。');
+    parts.push('斩杀时，永久升级牌组中随机 1 张可升级卡牌。');
   }
   if (stats.judgmentThreshold) {
     parts.push(`若目标敌人当前生命值不高于 ${stats.judgmentThreshold} 点，立即将其生命值归零！`);

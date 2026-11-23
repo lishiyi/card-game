@@ -3785,3 +3785,352 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
     assert.equal(heartA9.intent.damage, 45, 'A9+ Echo deals 45 damage');
   }
 });
+
+test('Havoc & random card effects emit structured cardReveals, clear logs, and follow canonical STS rules', () => {
+  // 1. Havoc playing an Attack (Bash): free, exhausted, target & card revealed
+  const s1 = setupCustomCombat(77101, ENCOUNTERS.floor1[0]);
+  const enemy1 = s1.combat.enemies[0];
+  enemy1.hp = 60;
+  enemy1.maxHp = 60;
+  const havoc1 = createCardInstance(s1, 'havoc', false);
+  const bash1 = createCardInstance(s1, 'bash', false);
+  s1.combat.hand = [havoc1];
+  s1.combat.drawPile = [bash1];
+  s1.combat.discardPile = [];
+  s1.player.energy = 3;
+
+  const res1 = playCard(s1, havoc1.instanceId);
+  assert.equal(res1.ok, true);
+  assert.equal(s1.player.energy, 2, 'Havoc costs 1 energy and plays top card for free');
+  assert.equal(enemy1.hp, 52, 'Bash played via Havoc deals 8 damage');
+  assert.equal(enemy1.statuses.vulnerable, 2, 'Bash played via Havoc applies 2 Vulnerable');
+  assert.ok(s1.combat.exhaustPile.some((c) => c.instanceId === bash1.instanceId), 'Attack played via Havoc is exhausted');
+  assert.equal(res1.cardReveals.length, 1);
+  assert.equal(res1.cardReveals[0].kind, 'auto_play');
+  assert.equal(res1.cardReveals[0].card.cardId, 'bash');
+  assert.equal(res1.cardReveals[0].exhausted, true);
+  assert.equal(res1.cardReveals[0].targetName, enemy1.name);
+  assert.ok(res1.cardReveals[0].summary.includes('痛击'));
+
+  // 2. Havoc playing a Power (Inflame): power activates and is NOT placed into exhaustPile (canonical STS)
+  const s2 = setupCustomCombat(77102, ENCOUNTERS.floor1[0]);
+  const havoc2 = createCardInstance(s2, 'havoc', true); // 0 cost
+  const inflame2 = createCardInstance(s2, 'inflame', false);
+  s2.combat.hand = [havoc2];
+  s2.combat.drawPile = [inflame2];
+  s2.combat.discardPile = [];
+  s2.player.energy = 3;
+
+  const res2 = playCard(s2, havoc2.instanceId);
+  assert.equal(res2.ok, true);
+  assert.equal(s2.player.statuses.strength, 2, 'Inflame played via Havoc grants +2 Strength');
+  assert.equal(
+    s2.combat.exhaustPile.some((c) => c.instanceId === inflame2.instanceId),
+    false,
+    'Powers played via Havoc remain active and must NOT enter exhaustPile'
+  );
+  assert.equal(res2.cardReveals.length, 1);
+  assert.equal(res2.cardReveals[0].kind, 'auto_play');
+  assert.equal(res2.cardReveals[0].card.cardId, 'inflame');
+  assert.equal(res2.cardReveals[0].exhausted, false);
+
+  // 3. Havoc playing an X-cost card (Whirlwind): uses current remaining energy as X WITHOUT spending energy
+  const s3 = setupCustomCombat(77103, ENCOUNTERS.floor1[0]);
+  const enemy3 = s3.combat.enemies[0];
+  enemy3.hp = 60;
+  enemy3.maxHp = 60;
+  const havoc3 = createCardInstance(s3, 'havoc', false); // costs 1 -> 2 energy left
+  const whirl3 = createCardInstance(s3, 'whirlwind', false); // 5 dmg * X
+  s3.combat.hand = [havoc3];
+  s3.combat.drawPile = [whirl3];
+  s3.combat.discardPile = [];
+  s3.player.energy = 3;
+
+  const res3 = playCard(s3, havoc3.instanceId);
+  assert.equal(res3.ok, true);
+  assert.equal(s3.player.energy, 2, 'Havoc playing Whirlwind must NOT drain remaining energy');
+  assert.equal(enemy3.hp, 50, 'Whirlwind via Havoc deals 5 * 2 = 10 damage using remaining 2 energy');
+  assert.ok(s3.combat.exhaustPile.some((c) => c.instanceId === whirl3.instanceId));
+
+  // 4. Havoc flipping Unplayable (Wound) or blocked Clash: exhausts and reports auto_exhaust reveal
+  const s4 = setupCustomCombat(77104, ENCOUNTERS.floor1[0]);
+  const havoc4 = createCardInstance(s4, 'havoc', true);
+  const wound4 = createCardInstance(s4, 'wound', false);
+  s4.combat.hand = [havoc4];
+  s4.combat.drawPile = [wound4];
+  s4.combat.discardPile = [];
+
+  const res4 = playCard(s4, havoc4.instanceId);
+  assert.equal(res4.ok, true);
+  assert.ok(s4.combat.exhaustPile.some((c) => c.instanceId === wound4.instanceId));
+  assert.equal(res4.cardReveals[0].kind, 'auto_exhaust');
+  assert.equal(res4.cardReveals[0].card.cardId, 'wound');
+
+  const s4b = setupCustomCombat(77105, ENCOUNTERS.floor1[0]);
+  const enemy4b = s4b.combat.enemies[0];
+  enemy4b.hp = 50;
+  const havoc4b = createCardInstance(s4b, 'havoc', true);
+  const defend4b = createCardInstance(s4b, 'defend', false);
+  const clash4b = createCardInstance(s4b, 'clash', false);
+  s4b.combat.hand = [havoc4b, defend4b];
+  s4b.combat.drawPile = [clash4b];
+  s4b.combat.discardPile = [];
+
+  const res4b = playCard(s4b, havoc4b.instanceId);
+  assert.equal(res4b.ok, true);
+  assert.equal(enemy4b.hp, 50, 'Clash flipped by Havoc with non-attack in hand must not deal damage');
+  assert.ok(s4b.combat.exhaustPile.some((c) => c.instanceId === clash4b.instanceId));
+  assert.equal(res4b.cardReveals[0].kind, 'auto_exhaust');
+  assert.equal(res4b.cardReveals[0].card.cardId, 'clash');
+
+  // 5. Havoc with empty draw + discard pile reports empty reveal
+  const s5 = setupCustomCombat(77106, ENCOUNTERS.floor1[0]);
+  const havoc5 = createCardInstance(s5, 'havoc', true);
+  s5.combat.hand = [havoc5];
+  s5.combat.drawPile = [];
+  s5.combat.discardPile = [];
+
+  const res5 = playCard(s5, havoc5.instanceId);
+  assert.equal(res5.ok, true);
+  assert.equal(res5.cardReveals.length, 1);
+  assert.equal(res5.cardReveals[0].kind, 'empty');
+  assert.equal(res5.cardReveals[0].card, null);
+
+  // 6. Havoc -> Havoc -> Strike chain emits both reveals in order
+  const s6 = setupCustomCombat(77107, ENCOUNTERS.floor1[0]);
+  const enemy6 = s6.combat.enemies[0];
+  enemy6.hp = 60;
+  const havoc6a = createCardInstance(s6, 'havoc', true);
+  const havoc6b = createCardInstance(s6, 'havoc', false);
+  const strike6 = createCardInstance(s6, 'strike', false);
+  s6.combat.hand = [havoc6a];
+  s6.combat.drawPile = [havoc6b, strike6];
+  s6.combat.discardPile = [];
+
+  const res6 = playCard(s6, havoc6a.instanceId);
+  assert.equal(res6.ok, true);
+  assert.equal(enemy6.hp, 54);
+  assert.equal(res6.cardReveals.length, 2);
+  assert.equal(res6.cardReveals[0].card.cardId, 'havoc');
+  assert.equal(res6.cardReveals[1].card.cardId, 'strike');
+
+  // 7. True Grit (unupgraded) random exhaust + All-Out Attack random discard + Dead Branch generation
+  const s7 = setupCustomCombat(77108, ENCOUNTERS.floor1[0]);
+  grantRelicToPlayer(s7, 'dead_branch');
+  const tg = createCardInstance(s7, 'true_grit', false);
+  const d1 = createCardInstance(s7, 'defend', false);
+  s7.combat.hand = [tg, d1];
+  s7.player.energy = 3;
+
+  const res7 = playCard(s7, tg.instanceId);
+  assert.equal(res7.ok, true);
+  assert.ok(res7.cardReveals.some((r) => r.kind === 'random_exhaust' && r.card.cardId === 'defend'));
+  assert.ok(res7.cardReveals.some((r) => r.kind === 'random_generate' && Boolean(r.card?.cardId)));
+  assert.ok(
+    s7.combat.logs.some((l) => l.message.includes('枯木树枝') && l.message.includes('生成了 【')),
+    'Dead Branch log must include the exact generated card name'
+  );
+
+  const s8 = setupCustomCombat(77109, ENCOUNTERS.floor1[0]);
+  const aoa = createCardInstance(s8, 'all_out_attack', false);
+  const sCard = createCardInstance(s8, 'strike', false);
+  s8.combat.hand = [aoa, sCard];
+  s8.player.energy = 3;
+  const res8 = playCard(s8, aoa.instanceId);
+  assert.equal(res8.ok, true);
+  assert.ok(res8.cardReveals.some((r) => r.kind === 'random_discard' && r.card.cardId === 'strike'));
+
+  // 8. Elixir potion exhausting Status with Dead Branch also surfaces cardReveals
+  const s9 = setupCustomCombat(77110, ENCOUNTERS.floor1[0]);
+  grantRelicToPlayer(s9, 'dead_branch');
+  s9.player.potions = ['elixir_potion', null, null];
+  s9.combat.hand = [createCardInstance(s9, 'wound', false)];
+  const res9 = usePotion(s9, 0);
+  assert.equal(res9.ok, true);
+  assert.ok(res9.cardReveals.some((r) => r.kind === 'random_generate' && Boolean(r.card?.cardId)));
+});
+
+test('Canonical Fatal (斩杀) keyword: Feed, Hand of Greed & Lesson Learned exclude Minions, revivable Darklings & Phase-1 Awakened One', () => {
+  // 1. All 3 Fatal cards declare fatal: true
+  for (const id of ['feed', 'hand_of_greed', 'lesson_learned']) {
+    assert.equal(CARD_LIBRARY[id].base.fatal, true, `${id} base must have fatal: true`);
+    assert.equal(CARD_LIBRARY[id].upgraded.fatal, true, `${id} upgraded must have fatal: true`);
+  }
+
+  // 2. Gremlin Leader encounter: killing Minion gremlin with Feed / Hand of Greed / Lesson Learned must NOT trigger Fatal!
+  const glEnc = ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite');
+  assert.ok(glEnc);
+
+  const sMinion = createNewRun({ seed: 77201, characterId: 'ironclad', skipNeow: true });
+  startCombat(sMinion, glEnc, 'elite');
+  const gremlinMinion = sMinion.combat.enemies.find((e) => e.isMinion);
+  const gremlinLeader = sMinion.combat.enemies.find((e) => e.templateId === 'gremlin_leader');
+  assert.ok(gremlinMinion && gremlinLeader);
+
+  gremlinMinion.hp = 5;
+  gremlinMinion.block = 0;
+  gremlinLeader.hp = 5;
+  gremlinLeader.block = 0;
+
+  const feedCard = createCardInstance(sMinion, 'feed', false);
+  const hogCard = createCardInstance(sMinion, 'hand_of_greed', false);
+  const llCard = createCardInstance(sMinion, 'lesson_learned', false);
+  sMinion.combat.hand = [feedCard, hogCard, llCard];
+  sMinion.player.energy = 10;
+
+  // Preview on Minion must suppress Fatal bonuses and flag isFatalBlockedByMinion
+  const feedMinionPrev = previewCardDamageOnEnemy(sMinion, feedCard, gremlinMinion);
+  assert.equal(feedMinionPrev.isLethal, true);
+  assert.equal(feedMinionPrev.maxHpOnKill, 0, 'Feed preview on Minion must NOT show +maxHp');
+  assert.equal(feedMinionPrev.fatalEligible, false);
+  assert.equal(feedMinionPrev.isFatalBlockedByMinion, true);
+
+  const hogMinionPrev = previewCardDamageOnEnemy(sMinion, hogCard, gremlinMinion);
+  assert.equal(hogMinionPrev.goldOnKill, 0, 'Hand of Greed preview on Minion must NOT show +gold');
+  assert.equal(hogMinionPrev.isFatalBlockedByMinion, true);
+
+  const llMinionPrev = previewCardDamageOnEnemy(sMinion, llCard, gremlinMinion);
+  assert.equal(llMinionPrev.fatalPermanentUpgrade, false, 'Lesson Learned preview on Minion must NOT show +upgrade');
+  assert.equal(llMinionPrev.isFatalBlockedByMinion, true);
+
+  // Preview on non-Minion Gremlin Leader MUST show +3 maxHp
+  const feedLeaderPrev = previewCardDamageOnEnemy(sMinion, feedCard, gremlinLeader);
+  assert.equal(feedLeaderPrev.isLethal, true);
+  assert.equal(feedLeaderPrev.maxHpOnKill, 3);
+  assert.equal(feedLeaderPrev.fatalEligible, true);
+  assert.equal(feedLeaderPrev.isFatalBlockedByMinion, false);
+
+  // Kill Minion #1 with Feed -> maxHp unchanged + explicit log
+  const maxHpBefore = sMinion.player.maxHp;
+  assert.equal(playCard(sMinion, feedCard.instanceId, gremlinMinion.id).ok, true);
+  assert.equal(sMinion.player.maxHp, maxHpBefore, 'Killing Minion with Feed must NOT increase maxHp');
+  assert.ok(sMinion.combat.logs.some((l) => l.message.includes('爪牙单位不会触发【斩杀】')));
+
+  // Kill Minion #2 with Hand of Greed -> gold unchanged!
+  const gremlinMinion2 = sMinion.combat.enemies.find((e) => e.isMinion && e.hp > 0);
+  assert.ok(gremlinMinion2);
+  gremlinMinion2.hp = 5;
+  gremlinMinion2.block = 0;
+  const goldBefore = sMinion.player.gold;
+  assert.equal(playCard(sMinion, hogCard.instanceId, gremlinMinion2.id).ok, true);
+  assert.equal(sMinion.player.gold, goldBefore, 'Killing Minion with Hand of Greed must NOT grant gold');
+
+  // Also test Lesson Learned on Bronze Orb / Torch Head / Dagger minions -> 0 deck upgrades
+  const sOrb = createNewRun({ seed: 77202, characterId: 'watcher', skipNeow: true });
+  startCombat(sOrb, ENCOUNTERS.act2Boss.find((e) => e.id === 'automaton_boss'), 'boss');
+  endPlayerTurn(sOrb); // Automaton spawns 2 Bronze Orbs
+  const orb = sOrb.combat.enemies.find((e) => e.templateId === 'bronze_orb');
+  assert.ok(orb && orb.isMinion);
+  orb.hp = 5;
+  orb.block = 0;
+  const llOrb = createCardInstance(sOrb, 'lesson_learned', false);
+  sOrb.combat.hand = [llOrb];
+  sOrb.player.energy = 3;
+  const upgradedBefore = sOrb.player.deck.filter((c) => c.upgraded).length;
+  assert.equal(playCard(sOrb, llOrb.instanceId, orb.id).ok, true);
+  assert.equal(
+    sOrb.player.deck.filter((c) => c.upgraded).length,
+    upgradedBefore,
+    'Killing Bronze Orb minion with Lesson Learned must NOT permanently upgrade deck'
+  );
+
+  // 3. Darklings (Life Link): killing 1st Darkling does NOT trigger Fatal; killing FINAL Darkling DOES trigger Fatal!
+  const darkEnc = ENCOUNTERS.act3Early.find((e) => e.id === 'darkling_trio');
+  const sDark = createNewRun({ seed: 77203, characterId: 'ironclad', skipNeow: true });
+  startCombat(sDark, darkEnc, 'normal');
+  const [dA, dB, dC] = sDark.combat.enemies;
+  dA.hp = 5;
+  dB.hp = 5;
+  dC.hp = 5;
+  const feedD1 = createCardInstance(sDark, 'feed', false);
+  const hogD2 = createCardInstance(sDark, 'hand_of_greed', false);
+  const llD3 = createCardInstance(sDark, 'lesson_learned', false);
+  sDark.combat.hand = [feedD1, hogD2, llD3];
+  sDark.player.energy = 10;
+
+  // Non-final Darkling preview suppresses Fatal
+  const prevNonFinal = previewCardDamageOnEnemy(sDark, feedD1, dA);
+  assert.equal(prevNonFinal.fatalEligible, false);
+  assert.equal(prevNonFinal.isFatalBlockedNonFinal, true);
+  assert.equal(prevNonFinal.maxHpOnKill, 0);
+
+  const darkMaxHpBefore = sDark.player.maxHp;
+  assert.equal(playCard(sDark, feedD1.instanceId, dA.id).ok, true);
+  assert.equal(sDark.player.maxHp, darkMaxHpBefore, 'Revivable Darkling #1 must NOT trigger Feed');
+  assert.ok(dA.darklingRegrowTurns > 0);
+
+  const darkGoldBefore = sDark.player.gold;
+  assert.equal(playCard(sDark, hogD2.instanceId, dB.id).ok, true);
+  assert.equal(sDark.player.gold, darkGoldBefore, 'Revivable Darkling #2 must NOT trigger Hand of Greed');
+
+  // Final living Darkling preview ALLOWS Fatal & executing Lesson Learned upgrades a deck card + emits reveal!
+  const prevFinal = previewCardDamageOnEnemy(sDark, llD3, dC);
+  assert.equal(prevFinal.fatalEligible, true);
+  assert.equal(prevFinal.fatalPermanentUpgrade, true);
+  const darkUpgBefore = sDark.player.deck.filter((c) => c.upgraded).length;
+  const resFinalDark = playCard(sDark, llD3.instanceId, dC.id);
+  assert.equal(resFinalDark.ok, true);
+  assert.equal(
+    sDark.player.deck.filter((c) => c.upgraded).length,
+    darkUpgBefore + 1,
+    'Killing FINAL Darkling MUST trigger Fatal Lesson Learned permanent upgrade'
+  );
+  assert.ok(resFinalDark.cardReveals.some((r) => r.kind === 'random_upgrade'));
+
+  // 4. Awakened One Phase 1 vs Phase 2
+  const awkEnc = ENCOUNTERS.act3Boss.find((e) => e.id === 'awakened_one_boss');
+  const sAwk = createNewRun({ seed: 77204, characterId: 'ironclad', skipNeow: true });
+  startCombat(sAwk, awkEnc, 'boss');
+  const awk = sAwk.combat.enemies[0];
+  awk.hp = 5;
+  awk.block = 0;
+  const feedP1 = createCardInstance(sAwk, 'feed', false);
+  sAwk.combat.hand = [feedP1];
+  sAwk.player.energy = 3;
+
+  const p1Prev = previewCardDamageOnEnemy(sAwk, feedP1, awk);
+  assert.equal(p1Prev.fatalEligible, false);
+  assert.equal(p1Prev.isFatalBlockedNonFinal, true);
+  assert.equal(p1Prev.maxHpOnKill, 0);
+
+  const awkMaxHpBefore = sAwk.player.maxHp;
+  assert.equal(playCard(sAwk, feedP1.instanceId, awk.id).ok, true);
+  assert.equal(awk.unawakened, false, 'Awakened One enters Phase 2');
+  assert.equal(sAwk.player.maxHp, awkMaxHpBefore, 'Killing Awakened One Phase 1 must NOT trigger Feed');
+
+  // Phase 2 Awakened One DOES trigger Feed!
+  awk.hp = 5;
+  awk.block = 0;
+  const feedP2 = createCardInstance(sAwk, 'feed', false);
+  sAwk.combat.hand = [feedP2];
+  sAwk.player.energy = 3;
+  assert.equal(previewCardDamageOnEnemy(sAwk, feedP2, awk).maxHpOnKill, 3);
+  assert.equal(playCard(sAwk, feedP2.instanceId, awk.id).ok, true);
+  assert.equal(sAwk.player.maxHp, awkMaxHpBefore + 3, 'Killing Awakened One Phase 2 MUST trigger Feed +3 maxHp');
+
+  // 5. Act 1 Gremlin Pack (non-minion gremlins) DOES trigger Feed!
+  const packEnc = ENCOUNTERS.hardNormal.find((e) => e.id === 'gremlin_pack');
+  const sPack = createNewRun({ seed: 77205, characterId: 'ironclad', skipNeow: true });
+  startCombat(sPack, packEnc, 'normal');
+  const packGremlin = sPack.combat.enemies[0];
+  assert.equal(packGremlin.isMinion, false);
+  packGremlin.hp = 5;
+  packGremlin.block = 0;
+  const feedPack = createCardInstance(sPack, 'feed', false);
+  sPack.combat.hand = [feedPack];
+  sPack.player.energy = 3;
+  const packMaxHpBefore = sPack.player.maxHp;
+  assert.equal(playCard(sPack, feedPack.instanceId, packGremlin.id).ok, true);
+  assert.equal(sPack.player.maxHp, packMaxHpBefore + 3, 'Non-minion Act 1 Gremlin Pack enemy MUST trigger Feed');
+
+  // 6. Legacy save compatibility: reconcileCombatState backfills missing isMinion flags
+  const sLegacy = createNewRun({ seed: 77206, characterId: 'ironclad', skipNeow: true });
+  startCombat(sLegacy, glEnc, 'elite');
+  for (const e of sLegacy.combat.enemies) {
+    delete e.isMinion;
+  }
+  reconcileCombatState(sLegacy);
+  const backfilledMinions = sLegacy.combat.enemies.filter((e) => e.templateId !== 'gremlin_leader');
+  assert.ok(backfilledMinions.length >= 2);
+  assert.ok(backfilledMinions.every((e) => e.isMinion === true), 'reconcileCombatState must backfill isMinion on Gremlin Leader minions');
+});

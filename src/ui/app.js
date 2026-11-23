@@ -855,6 +855,22 @@ export function mountSpireApp(rootEl) {
     }
   }
 
+  function formatCardRevealNotice(res) {
+    const reveals = Array.isArray(res?.cardReveals) ? res.cardReveals : [];
+    if (reveals.length === 0) return '';
+    return reveals
+      .map((r) => r?.summary)
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  function triggerCardRevealFx(res) {
+    const reveals = Array.isArray(res?.cardReveals) ? res.cardReveals : [];
+    if (reveals.length > 0) {
+      fxManager.spawnCardRevealFx(reveals, state);
+    }
+  }
+
   function executeCardPlayWithFx(instanceId, targetEnemyId) {
     const card = state.combat?.hand?.find((c) => c.instanceId === instanceId);
     const stats = card ? getCardStats(card) : null;
@@ -872,7 +888,8 @@ export function mountSpireApp(rootEl) {
 
     const res = runPlayCard(state, instanceId, targetEnemyId);
     clearCombatSelection();
-    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    const revealNotice = res.ok ? formatCardRevealNotice(res) : '';
+    setNotice(res.ok ? revealNotice : res.reason, res.ok ? 'normal' : 'warn');
     render();
 
     if (res.ok) {
@@ -893,6 +910,7 @@ export function mountSpireApp(rootEl) {
         cardStats: stats,
         targetEnemyId,
       });
+      triggerCardRevealFx(res);
     } else {
       soundEngine.play('error');
     }
@@ -907,7 +925,8 @@ export function mountSpireApp(rootEl) {
         ? runDiscardHandCard(state, instanceId)
         : runResolveCardChoice(state, instanceId);
     clearCombatSelection();
-    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    const revealNotice = res.ok ? formatCardRevealNotice(res) : '';
+    setNotice(res.ok ? revealNotice : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
       const cue =
@@ -920,6 +939,7 @@ export function mountSpireApp(rootEl) {
               : 'card_skill';
       soundEngine.play(cue);
       fxManager.reconcileCombatFx(prevSnap, state, 'card', soundEngine);
+      triggerCardRevealFx(res);
     } else {
       soundEngine.play('error');
     }
@@ -1029,11 +1049,13 @@ export function mountSpireApp(rootEl) {
     const prevSnap = fxManager.captureCombatSnapshot(state);
     const res = runUsePotion(state, slot, targetEnemyId);
     clearCombatSelection();
-    setNotice(res.ok ? '' : res.reason, res.ok ? 'normal' : 'warn');
+    const revealNotice = res.ok ? formatCardRevealNotice(res) : '';
+    setNotice(res.ok ? revealNotice : res.reason, res.ok ? 'normal' : 'warn');
     render();
     if (res.ok) {
       soundEngine.play('potion');
       fxManager.reconcileCombatFx(prevSnap, state, 'potion', soundEngine);
+      triggerCardRevealFx(res);
     } else {
       soundEngine.play('error');
     }

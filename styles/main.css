@@ -8575,3 +8575,181 @@ body.spire-dragging {
     margin-left: auto;
   }
 }
+
+/* === Non-Blocking Card Reveal Overlay (Havoc / Random Exhaust / Discard / Upgrade / Dead Branch) === */
+@keyframes fxCardRevealLifecycle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 16px) scale(0.84);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.02);
+  }
+  18%, 78% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -18px) scale(0.94);
+  }
+}
+
+.fx-card-reveal-stage {
+  position: fixed;
+  top: clamp(64px, 12vh, 114px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  max-width: calc(100vw - 20px);
+  pointer-events: none;
+  z-index: 96;
+  animation: fxCardRevealLifecycle calc(2100ms * var(--anim-scale, 1)) cubic-bezier(0.2, 0.85, 0.25, 1) forwards;
+}
+
+.fx-card-reveal-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 174px;
+}
+
+.fx-card-reveal-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  color: hsl(44, 100%, 92%);
+  background: linear-gradient(180deg, hsla(18, 66%, 22%, 0.96), hsla(14, 58%, 13%, 0.96));
+  border: 1px solid hsl(28, 92%, 60%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 14px hsla(24, 96%, 56%, 0.35);
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.fx-card-reveal-item.tone-auto_exhaust .fx-card-reveal-badge {
+  color: hsl(346, 100%, 92%);
+  background: linear-gradient(180deg, hsla(344, 60%, 24%, 0.96), hsla(330, 52%, 13%, 0.96));
+  border-color: hsl(350, 88%, 62%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 14px hsla(348, 86%, 54%, 0.35);
+}
+
+.fx-card-reveal-item.tone-random_exhaust .fx-card-reveal-badge {
+  color: hsl(294, 100%, 92%);
+  background: linear-gradient(180deg, hsla(288, 52%, 25%, 0.96), hsla(282, 46%, 14%, 0.96));
+  border-color: hsl(292, 82%, 68%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 14px hsla(290, 82%, 60%, 0.35);
+}
+
+.fx-card-reveal-item.tone-random_discard .fx-card-reveal-badge {
+  color: hsl(204, 100%, 92%);
+  background: linear-gradient(180deg, hsla(208, 48%, 22%, 0.96), hsla(212, 42%, 13%, 0.96));
+  border-color: hsl(202, 78%, 62%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 14px hsla(204, 80%, 56%, 0.32);
+}
+
+.fx-card-reveal-item.tone-random_upgrade .fx-card-reveal-badge {
+  color: hsl(50, 100%, 90%);
+  background: linear-gradient(180deg, hsla(44, 64%, 24%, 0.96), hsla(136, 46%, 14%, 0.96));
+  border-color: hsl(48, 96%, 64%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 16px hsla(48, 96%, 58%, 0.42);
+}
+
+.fx-card-reveal-item.tone-random_generate .fx-card-reveal-badge {
+  color: hsl(142, 100%, 90%);
+  background: linear-gradient(180deg, hsla(146, 54%, 21%, 0.96), hsla(152, 46%, 12%, 0.96));
+  border-color: hsl(144, 78%, 56%);
+  box-shadow: 0 6px 18px hsla(0, 0%, 0%, 0.72), 0 0 14px hsla(144, 78%, 50%, 0.35);
+}
+
+.fx-card-reveal-card-wrap {
+  pointer-events: none;
+}
+
+.fx-card-reveal-card-wrap .game-card {
+  width: 146px;
+  min-height: 204px;
+  padding: 8px 8px 7px;
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 22px hsla(28, 96%, 56%, 0.42);
+  pointer-events: none;
+}
+
+.fx-card-reveal-item.tone-auto_exhaust .fx-card-reveal-card-wrap .game-card {
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 22px hsla(348, 86%, 54%, 0.42);
+}
+
+.fx-card-reveal-item.tone-random_exhaust .fx-card-reveal-card-wrap .game-card {
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 22px hsla(290, 82%, 58%, 0.42);
+}
+
+.fx-card-reveal-item.tone-random_discard .fx-card-reveal-card-wrap .game-card {
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 22px hsla(204, 80%, 56%, 0.38);
+}
+
+.fx-card-reveal-item.tone-random_upgrade .fx-card-reveal-card-wrap .game-card {
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 24px hsla(48, 96%, 58%, 0.48);
+}
+
+.fx-card-reveal-item.tone-random_generate .fx-card-reveal-card-wrap .game-card {
+  box-shadow: 0 14px 32px hsla(0, 0%, 0%, 0.82), 0 0 22px hsla(144, 78%, 50%, 0.42);
+}
+
+.fx-card-reveal-card-wrap .card-art-frame {
+  height: 66px;
+}
+
+.fx-card-reveal-more {
+  align-self: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-ivory);
+  background: hsla(26, 22%, 14%, 0.94);
+  border: 1px solid var(--accent-brass);
+  box-shadow: 0 6px 16px hsla(0, 0%, 0%, 0.65);
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .fx-card-reveal-stage {
+    top: 56px;
+    gap: 8px;
+  }
+
+  .fx-card-reveal-item {
+    max-width: 152px;
+    gap: 4px;
+  }
+
+  .fx-card-reveal-badge {
+    font-size: 0.66rem;
+    padding: 3px 7px;
+  }
+
+  .fx-card-reveal-card-wrap .game-card {
+    width: 126px;
+    min-height: 174px;
+    padding: 7px 7px 6px;
+  }
+
+  .fx-card-reveal-card-wrap .card-art-frame {
+    height: 54px;
+  }
+
+  .fx-card-reveal-card-wrap .card-desc {
+    font-size: 0.68rem;
+  }
+}

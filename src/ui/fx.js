@@ -6,6 +6,7 @@
  * - Attacker lunge, hit-flash, heavy shake, KO dissolve & audio escalation
  */
 
+import { escapeHtml, renderCardHtml } from './helpers.js';
 import { ANIM_SPEED_OPTIONS } from './settings.js';
 
 const IMPACT_SVG_TEMPLATES = Object.freeze({
@@ -563,10 +564,87 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     }
   }
 
+  function getCardRevealBadgeText(item) {
+    const src = item.sourceName || '效果';
+    switch (item.kind) {
+      case 'auto_play': {
+        const tail = item.exhausted ? '消耗' : '能力生效';
+        const target = item.targetName ? ` · → ${item.targetName}` : '';
+        return `🔥 ${src}自动打出 · ${tail}${target}`;
+      }
+      case 'auto_exhaust':
+        return `💀 ${src}翻出 · 不可打出消耗`;
+      case 'random_exhaust':
+        return `🔥 ${src}随机消耗`;
+      case 'random_discard':
+        return `💨 ${src}随机弃置`;
+      case 'random_upgrade':
+        return `✨ ${src}随机升级`;
+      case 'random_generate':
+        return `🌿 ${src}随机生成`;
+      default:
+        return item.summary || `${src}触发`;
+    }
+  }
+
+  function spawnCardRevealFx(reveals, state) {
+    if (!Array.isArray(reveals) || reveals.length === 0) return;
+    const scale = getAnimScale();
+    if (scale <= 0 || !fxLayerEl) return;
+
+    const cardItems = reveals.filter((r) => r && r.card && r.card.cardId);
+    if (cardItems.length === 0) return;
+
+    for (const stale of fxLayerEl.querySelectorAll('.fx-card-reveal-stage')) {
+      stale.remove();
+    }
+
+    const maxVisible = typeof window !== 'undefined' && window.innerWidth <= 520 ? 2 : 3;
+    const shown = cardItems.slice(0, maxVisible);
+    const overflowCount = Math.max(0, cardItems.length - shown.length);
+
+    const stage = document.createElement('div');
+    stage.className = 'fx-card-reveal-stage';
+    stage.dataset.fxReveal = 'true';
+    stage.setAttribute('aria-hidden', 'true');
+
+    const itemsHtml = shown
+      .map((item, idx) => {
+        const badgeText = getCardRevealBadgeText(item);
+        const cardHtml = renderCardHtml(item.card, {
+          idPrefix: `fx-reveal-${idx}`,
+          action: 'noop',
+          disabled: false,
+          combatContext: state?.combat
+            ? { player: state.player, targetEnemy: null, combat: state.combat }
+            : null,
+        });
+        const tone = item.kind || 'auto_play';
+        return `
+          <div
+            class="fx-card-reveal-item tone-${escapeHtml(tone)}"
+            data-reveal-kind="${escapeHtml(tone)}"
+            data-reveal-card-id="${escapeHtml(item.card.cardId)}"
+          >
+            <div class="fx-card-reveal-badge">${escapeHtml(badgeText)}</div>
+            <div class="fx-card-reveal-card-wrap">${cardHtml}</div>
+          </div>
+        `;
+      })
+      .join('');
+
+    const overflowHtml =
+      overflowCount > 0 ? `<div class="fx-card-reveal-more">+${overflowCount} 张</div>` : '';
+
+    stage.innerHTML = `${itemsHtml}${overflowHtml}`;
+    spawnElementWithCleanup(stage, 2150);
+  }
+
   return {
     applyAnimSpeedAttr,
     captureCombatSnapshot,
     spawnCardFlyFx,
+    spawnCardRevealFx,
     spawnImpactSvg,
     reconcileCombatFx,
   };

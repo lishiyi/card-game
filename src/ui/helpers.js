@@ -46,6 +46,7 @@ export const CARD_KEYWORD_DEFS = Object.freeze({
   虚无: '回合结束时若仍在手牌，将自动消耗移出本场战斗。',
   消耗: '打出或触发消耗后移入消耗堆，本场战斗不再洗回抽牌堆。',
   不能被打出: '无法正常打出，仅能被弃置、消耗或由特定遗物处理。',
+  斩杀: '仅当使用此牌彻底击败一名非【爪牙】敌人时触发效果（击杀爪牙、触发复活的暗影虫或一阶段觉醒者不会触发）。',
   预见: '检视抽牌堆顶对应张数的牌，并可任意勾选弃置。',
   真言: '每累计达到 10 点，立即消耗 10 点并进入【神格】姿态。',
   愤怒: '姿态：造成与受到的攻击伤害均变为双倍（×2）。',
@@ -70,7 +71,7 @@ export const CARD_KEYWORD_DEFS = Object.freeze({
 });
 
 const INLINE_KW_REGEX =
-  /(不能被打出|人工制品|无实体|固有|保留|虚无|消耗|预见|真言|愤怒|平静|神格|印记|中毒|易伤|虚弱|力量|敏捷)/g;
+  /(不能被打出|人工制品|无实体|固有|保留|虚无|消耗|斩杀|预见|真言|愤怒|平静|神格|印记|中毒|易伤|虚弱|力量|敏捷)/g;
 
 export function formatCardDescHtml(text) {
   return escapeHtml(text).replace(
@@ -92,6 +93,15 @@ export function extractCardKeywords(stats, descText = '') {
   if (stats?.retain) add('保留', true);
   if (stats?.ethereal) add('虚无', true);
   if (stats?.exhaust || descText.includes('消耗。')) add('消耗', true);
+  if (
+    stats?.fatal ||
+    stats?.maxHpOnKill ||
+    stats?.goldOnKill ||
+    stats?.fatalPermanentUpgrade ||
+    descText.includes('斩杀')
+  ) {
+    add('斩杀', true);
+  }
   if (stats?.unplayable && descText.includes('不能被打出')) add('不能被打出', true);
 
   const mechanicChecks = [

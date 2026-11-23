@@ -101,9 +101,20 @@ function renderEnemyPreviewBadge(rootEl, enemy, preview, isFocused) {
     if (preview.maxHpOnKill > 0) bonusParts.push(`+${preview.maxHpOnKill}上限`);
     if (preview.fatalPermanentUpgrade) bonusParts.push('+永久升级');
     const bonusNote = bonusParts.length > 0 ? ` ${bonusParts.join(' ')}` : '';
-    const label = preview.isShieldBreak
-      ? `破盾斩杀 (-${preview.totalDamage}${bonusNote})`
-      : `斩杀 (-${preview.totalDamage}${bonusNote})`;
+    let label;
+    if (preview.isFatalBlockedByMinion) {
+      label = preview.isShieldBreak
+        ? `破盾击杀 (-${preview.totalDamage} · 爪牙不触发斩杀)`
+        : `击杀 (-${preview.totalDamage} · 爪牙不触发斩杀)`;
+    } else if (preview.isFatalBlockedNonFinal) {
+      label = preview.isShieldBreak
+        ? `破盾击倒 (-${preview.totalDamage} · 非斩杀)`
+        : `击倒 (-${preview.totalDamage} · 非斩杀)`;
+    } else {
+      label = preview.isShieldBreak
+        ? `破盾斩杀 (-${preview.totalDamage}${bonusNote})`
+        : `斩杀 (-${preview.totalDamage}${bonusNote})`;
+    }
     pills.push(`<span class="preview-pill lethal" data-preview-kind="lethal">☠ ${escapeHtml(label)}</span>`);
   } else if (preview.isPoisonLethal) {
     unitEl.classList.add('preview-poison-lethal');

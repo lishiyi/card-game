@@ -220,3 +220,30 @@ export function getEnemyIntentPreview(enemy, player) {
       };
   }
 }
+
+/**
+ * Canonical Slay the Spire "Fatal" (斩杀) target eligibility check.
+ * Fatal triggers ONLY when definitively defeating a non-Minion enemy:
+ * - Minions (`isMinion: true`: Gremlin Leader's gremlins, Bronze Orbs, Torch Heads, Reptomancer Daggers) never trigger Fatal.
+ * - Awakened One Phase 1 (`unawakened: true`) revives into Phase 2 and never triggers Fatal.
+ * - Darklings with Life Link while another Darkling is still alive enter Regrow instead of truly dying, so they do not trigger Fatal (only the final Darkling kill does).
+ */
+export function canTriggerFatalOnEnemy(combat, enemy) {
+  if (!enemy || enemy.isMinion || enemy.fled) return false;
+  if (enemy.templateId === 'awakened_one' && enemy.unawakened) return false;
+  if ((enemy.statuses?.lifeLink ?? 0) > 0) {
+    const otherLiving = (combat?.enemies || []).some(
+      (other) => other && other.id !== enemy.id && other.hp > 0
+    );
+    if (otherLiving) return false;
+  }
+  return true;
+}
+
+export function isFatalEnemyKill(enemy, wasAliveBefore) {
+  if (!wasAliveBefore || !enemy) return false;
+  if (enemy.hp > 0) return false;
+  if (enemy.isMinion || enemy.fled) return false;
+  if ((enemy.darklingRegrowTurns ?? 0) > 0) return false;
+  return true;
+}

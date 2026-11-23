@@ -18,7 +18,7 @@ import {
   RUSHDOWN_MAX_TRIGGERS_PER_TURN,
   VELVET_CHOKER_CARD_LIMIT,
 } from './combat.js';
-import { calculateAttackDamage, getEnemyIntentPreview } from './math.js';
+import { calculateAttackDamage, canTriggerFatalOnEnemy, getEnemyIntentPreview } from './math.js';
 
 function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   const initialBlock = Math.max(0, enemy.block ?? 0);
@@ -232,11 +232,22 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     projectedPoison > 0 &&
     projectedPoison >= baseResult.remainingHp;
 
+  const fatalEligible = canTriggerFatalOnEnemy(state.combat, enemy);
+  const hasFatalEffect = Boolean(
+    stats.fatal || stats.goldOnKill || stats.maxHpOnKill || stats.fatalPermanentUpgrade
+  );
+  const isFatalBlockedByMinion = Boolean(hasFatalEffect && enemy.isMinion);
+  const isFatalBlockedNonFinal = Boolean(hasFatalEffect && !fatalEligible && !enemy.isMinion);
+
   return {
     ...baseResult,
-    goldOnKill: stats.goldOnKill ?? 0,
-    maxHpOnKill: stats.maxHpOnKill ?? 0,
-    fatalPermanentUpgrade: Boolean(stats.fatalPermanentUpgrade),
+    goldOnKill: fatalEligible ? (stats.goldOnKill ?? 0) : 0,
+    maxHpOnKill: fatalEligible ? (stats.maxHpOnKill ?? 0) : 0,
+    fatalPermanentUpgrade: fatalEligible && Boolean(stats.fatalPermanentUpgrade),
+    hasFatalEffect,
+    fatalEligible,
+    isFatalBlockedByMinion,
+    isFatalBlockedNonFinal,
     poisonAdded,
     projectedPoison,
     isPoisonLethal,

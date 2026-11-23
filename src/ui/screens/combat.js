@@ -136,7 +136,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             }
             ${
               enemy.isMinion
-                ? `<span class="minion-tag" tabindex="0" data-tooltip-title="爪牙" data-tooltip-tag="随从单位" data-tooltip-desc="属于主敌召唤或随行的爪牙单位：击败所有非爪牙敌人后，剩余爪牙会立即逃跑并直接赢得战斗！" data-tooltip-tone="buff">爪牙</span>`
+                ? `<span class="minion-tag" tabindex="0" data-tooltip-title="爪牙" data-tooltip-tag="随从单位" data-tooltip-desc="属于主敌召唤或随行的爪牙单位：击败所有非爪牙敌人后，剩余爪牙会立即逃跑并直接赢得战斗；击杀爪牙不会触发【斩杀】类卡牌效果（如狂宴、贪婪之手、勤学奋进）！" data-tooltip-tone="buff">爪牙</span>`
                 : ''
             }
             ${

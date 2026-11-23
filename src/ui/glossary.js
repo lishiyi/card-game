@@ -90,6 +90,13 @@ const CORE_MECHANIC_ENTRIES = [
     description: '打出或触发消耗后移入【消耗堆】，本场战斗内不再进入洗牌循环，战斗结束后恢复。可触发【无惧疼痛】叠甲、【黑暗之拥】抽牌与【卡戎之灰】全体轰炸。',
   },
   {
+    id: 'kw_fatal',
+    name: '斩杀 (Fatal)',
+    category: 'mechanics',
+    tag: '卡牌词条',
+    description: '仅当使用带有【斩杀】词条的卡牌（如【狂宴】、【贪婪之手】、【勤学奋进】）彻底击败一名非【爪牙】敌人时触发永久奖励。击杀爪牙单位（地精首领随从、青铜球、火炬头、魔刃飞刀）、可复活的暗影虫或一阶段觉醒者均不会触发斩杀效果。',
+  },
+  {
     id: 'kw_card_choice',
     name: '自选消耗 / 自选升级 / 预见 (Scry)',
     category: 'mechanics',
