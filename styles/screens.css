@@ -437,10 +437,14 @@ button.loot-reward-card.loot-kind-potion:hover {
   background: radial-gradient(circle, hsl(40, 48%, 20%), var(--bg-abyss));
 }
 
-.loot-badge-relic {
+.loot-badge-relic,
+.loot-icon-badge.loot-badge-relic {
+  width: 50px;
+  height: 50px;
   color: hsl(276, 86%, 78%);
-  border-color: hsla(276, 68%, 62%, 0.65);
-  background: radial-gradient(circle, hsl(274, 42%, 22%), var(--bg-abyss));
+  border: none;
+  border-radius: 50%;
+  background: transparent;
 }
 
 .loot-badge-potion {

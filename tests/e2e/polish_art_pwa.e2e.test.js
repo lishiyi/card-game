@@ -1718,10 +1718,12 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
         cardClaimed: true,
       };
       app.render();
-      const rewardSvg = document.querySelector('#btn-claim-relic .loot-badge-relic svg.relic-svg');
+      const rewardBadge = document.querySelector('#btn-claim-relic .loot-badge-relic');
+      const rewardSvg = rewardBadge?.querySelector('svg.relic-svg');
       const extraRewardSvg = document.querySelector('#btn-claim-extra-relic .loot-badge-relic svg.relic-svg');
       const rewardKey = rewardSvg?.dataset?.relicSvg || '';
       const rewardW = rewardSvg ? Math.round(rewardSvg.getBoundingClientRect().width) : 0;
+      const rewardBadgeBorder = rewardBadge ? getComputedStyle(rewardBadge).borderStyle : '';
       const extraRewardKey = extraRewardSvg?.dataset?.relicSvg || '';
 
       // Claim War Paint -> triggers Relic Upgrade Reveal modal with bespoke war_paint SVG
@@ -1747,6 +1749,7 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
         restKeys,
         rewardKey,
         rewardW,
+        rewardBadgeBorder,
         extraRewardKey,
         revealKey,
         revealW,
@@ -1761,20 +1764,21 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
       ['velvet_choker', 'runic_pyramid', 'black_star'],
       'Boss Relic Altar must render bespoke SVGs for all 3 offered boss relics'
     );
-    assert.ok(desktopScreensAudit.bossKeys.every((x) => x.w >= 32), 'Boss Relic Altar SVGs must render >=32px');
+    assert.ok(desktopScreensAudit.bossKeys.every((x) => x.w >= 44), 'Boss Relic Altar SVGs must render >=44px without redundant rim padding');
     assert.equal(desktopScreensAudit.shopRelicKey, 'whetstone', 'Shop general relic must render bespoke whetstone SVG');
     assert.equal(desktopScreensAudit.shopExKey, 'clockwork_souvenir', 'Shop exclusive relic must render bespoke clockwork_souvenir SVG');
     assert.deepEqual(desktopScreensAudit.restKeys, ['girya', 'shovel', 'peace_pipe'], 'Campfire relic actions must render bespoke Girya, Shovel & Peace Pipe SVGs');
     assert.equal(desktopScreensAudit.rewardKey, 'war_paint', 'Reward relic plaque must render bespoke war_paint SVG');
-    assert.ok(desktopScreensAudit.rewardW >= 32, `Desktop reward relic SVG must be >=32px, got ${desktopScreensAudit.rewardW}px`);
+    assert.equal(desktopScreensAudit.rewardBadgeBorder, 'none', 'Reward relic medallion must not have a square outer border');
+    assert.ok(desktopScreensAudit.rewardW >= 46, `Desktop reward relic SVG must be enlarged >=46px, got ${desktopScreensAudit.rewardW}px`);
     assert.equal(desktopScreensAudit.extraRewardKey, 'calipers', 'Black Star extra reward plaque must render bespoke calipers SVG');
     assert.equal(desktopScreensAudit.revealKey, 'war_paint', 'Upgrade reveal modal must render bespoke war_paint SVG');
-    assert.ok(desktopScreensAudit.revealW >= 28, `Upgrade reveal modal relic SVG must be >=28px, got ${desktopScreensAudit.revealW}px`);
+    assert.ok(desktopScreensAudit.revealW >= 36, `Upgrade reveal modal relic SVG must be >=36px, got ${desktopScreensAudit.revealW}px`);
     assert.ok(desktopScreensAudit.compDiscoveredCount >= 1, 'Compendium Relics tab must render bespoke discovered relic SVGs');
     assert.ok(desktopScreensAudit.compUndiscoveredCount >= 1, 'Compendium Relics tab must render undiscovered silhouette SVGs');
     assert.equal(desktopScreensAudit.dupSvgDefIds, 0, 'Simultaneous HUD + Compendium relic SVGs must have zero duplicate gradient IDs');
 
-    // 3. 390px Mobile: 12 equipped relics in top HUD + Reward screen -> crisp tiles <=34px & zero horizontal overflow
+    // 3. 390px Mobile: 12 equipped relics in top HUD + Reward screen -> frameless enlarged medallions <=34px & zero horizontal overflow
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 390,
       height: 844,
@@ -1790,6 +1794,7 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
       const maxBadgeH = Math.max(...hudBadges.map((el) => Math.round(el.getBoundingClientRect().height)));
       const hudSvgs = [...document.querySelectorAll('.top-hud .relic-badge svg.relic-svg')];
       const minSvgW = Math.min(...hudSvgs.map((el) => Math.round(el.getBoundingClientRect().width)));
+      const firstBadgeStyle = hudBadges[0] ? getComputedStyle(hudBadges[0]) : null;
       const mobileOverflow = document.documentElement.scrollWidth - window.innerWidth;
       return {
         badgeCount: hudBadges.length,
@@ -1797,13 +1802,17 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
         maxBadgeW,
         maxBadgeH,
         minSvgW,
+        firstBadgeBorder: firstBadgeStyle?.borderStyle || '',
+        firstBadgeRadius: firstBadgeStyle?.borderRadius || '',
         mobileOverflow,
       };
     })()`);
 
     assert.ok(mobileAudit.badgeCount >= 11 && mobileAudit.svgCount === mobileAudit.badgeCount, `Every mobile HUD relic badge must render a bespoke SVG (${mobileAudit.svgCount}/${mobileAudit.badgeCount})`);
     assert.ok(mobileAudit.maxBadgeW <= 34 && mobileAudit.maxBadgeH <= 34, `Mobile HUD relic badges must remain compact <=34px, got ${mobileAudit.maxBadgeW}x${mobileAudit.maxBadgeH}`);
-    assert.ok(mobileAudit.minSvgW >= 20, `Mobile HUD relic SVGs must stay crisp >=20px, got ${mobileAudit.minSvgW}px`);
+    assert.equal(mobileAudit.firstBadgeBorder, 'none', 'Mobile HUD relic badge must have zero outer square border');
+    assert.equal(mobileAudit.firstBadgeRadius, '50%', 'Mobile HUD relic badge container must match circular medallion shape');
+    assert.ok(mobileAudit.minSvgW >= 30, `Frameless mobile HUD relic SVGs must enlarge to >=30px, got ${mobileAudit.minSvgW}px`);
     assert.ok(mobileAudit.mobileOverflow <= 1, `390px mobile screen with 12 relic SVGs must have zero horizontal overflow, got ${mobileAudit.mobileOverflow}px`);
   } finally {
     await session?.close();

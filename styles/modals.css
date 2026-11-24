@@ -477,8 +477,8 @@ body.spire-modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -491,16 +491,16 @@ body.spire-modal-open {
 }
 
 .relic-icon-comp {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
 }
 
 .relic-inline-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
   vertical-align: middle;
 }
@@ -529,8 +529,8 @@ body.spire-modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
 }
 
@@ -544,13 +544,13 @@ body.spire-modal-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: radial-gradient(circle, hsla(24, 52%, 22%, 0.7), hsla(22, 32%, 8%, 0.92));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.48), inset 0 0 0 1px hsla(40, 74%, 62%, 0.34);
-  padding: 2px;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
 }
 
 .boss-relic-meta {
@@ -567,8 +567,8 @@ body.spire-modal-open {
 }
 
 .loot-icon-badge .relic-svg {
-  width: 38px;
-  height: 38px;
+  width: 50px;
+  height: 50px;
 }
 
 .relic-counter-short {
