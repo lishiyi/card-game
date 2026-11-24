@@ -571,6 +571,12 @@ body.spire-modal-open {
   height: 50px;
 }
 
+.loot-icon-badge .potion-icon-svg {
+  width: 48px;
+  height: 48px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.65));
+}
+
 .relic-counter-short {
   display: none;
 }

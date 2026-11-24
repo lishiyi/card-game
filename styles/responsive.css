@@ -724,8 +724,10 @@
     min-height: 34px;
     padding: 0;
     gap: 0;
-    border-radius: 8px;
-    border-width: 1.5px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
 
   .top-hud.run-hud .potion-slot .potion-name-label {
@@ -733,16 +735,51 @@
   }
 
   .top-hud.run-hud .potion-slot .potion-icon-svg {
-    width: 22px;
-    height: 22px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .top-hud.run-hud .potion-slot.empty {
+    background: transparent;
+    border: none;
   }
 
   .top-hud.run-hud .potion-slot.filled {
-    background: radial-gradient(
-      circle at 50% 62%,
-      color-mix(in srgb, var(--potion-accent, hsl(36, 40%, 40%)) 24%, hsl(26, 18%, 16%)),
-      hsl(24, 18%, 12%)
-    );
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .top-hud.run-hud .potion-slot.filled .potion-icon-svg {
+    filter:
+      drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7))
+      drop-shadow(0 0 5px color-mix(in srgb, var(--potion-accent, transparent) 38%, transparent));
+  }
+
+  .top-hud.run-hud .potion-slot.filled.popover-active {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    transform: translateY(-1px) scale(1.08);
+  }
+
+  .top-hud.run-hud .potion-slot.filled.popover-active .potion-icon-svg {
+    filter:
+      brightness(1.18)
+      drop-shadow(0 0 6px var(--potion-accent, var(--accent-brass)));
+  }
+
+  .top-hud.run-hud .potion-slot.filled:hover:not(:disabled),
+  .top-hud.run-hud .potion-tooltip-anchor:hover .potion-slot.filled {
+    background: transparent;
+    border: none;
+    transform: translateY(-1px) scale(1.06);
+  }
+
+  .top-hud.run-hud .potion-slot:focus-visible .potion-icon-svg {
+    filter:
+      brightness(1.14)
+      drop-shadow(0 0 5px var(--accent-brass));
   }
 
   .top-hud.run-hud .potion-discard-inline {
@@ -1172,7 +1209,8 @@
     height: 40px;
   }
 
-  .loot-icon-badge.loot-badge-relic {
+  .loot-icon-badge.loot-badge-relic,
+  .loot-icon-badge.loot-badge-potion {
     width: 44px;
     height: 44px;
   }
@@ -1180,6 +1218,11 @@
   .loot-icon-badge .relic-svg {
     width: 44px;
     height: 44px;
+  }
+
+  .loot-icon-badge .potion-icon-svg {
+    width: 42px;
+    height: 42px;
   }
 
   .loot-card-title {
@@ -1771,16 +1814,16 @@
   }
 
   .top-hud.run-hud .potion-slot {
-    width: 30px;
+    width: 32px;
     height: 32px;
-    min-width: 30px;
+    min-width: 32px;
     min-height: 32px;
-    border-radius: 8px;
+    border-radius: 50%;
   }
 
   .top-hud.run-hud .potion-slot .potion-icon-svg {
-    width: 20px;
-    height: 20px;
+    width: 31px;
+    height: 31px;
   }
 
   .top-hud.run-hud .top-actions {
@@ -1971,8 +2014,8 @@
   }
 
   .top-hud.run-hud .potion-slot .potion-icon-svg {
-    width: 19px;
-    height: 19px;
+    width: 28px;
+    height: 28px;
   }
 
   .top-hud.run-hud .top-actions,

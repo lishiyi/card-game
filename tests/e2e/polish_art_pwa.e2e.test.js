@@ -583,7 +583,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       const hudRect = document.querySelector('.top-hud.run-hud').getBoundingClientRect();
       const pot0 = document.getElementById('potion-slot-0');
       const pot0Rect = pot0.getBoundingClientRect();
+      const pot0Border = getComputedStyle(pot0).borderStyle;
       const pot0Svg = pot0.querySelector('svg[data-potion-icon="fire_potion"]');
+      const pot0SvgW = pot0Svg ? Math.round(pot0Svg.getBoundingClientRect().width) : 0;
       st.player.potions[2] = null;
       app.render();
       const pot2Svg = document.getElementById('potion-slot-2')?.querySelector('svg[data-potion-icon="empty"]');
@@ -594,6 +596,8 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       // 7a. Tapping filled potion icon on 390px opens Potion Popover without consuming it immediately
       document.getElementById('potion-slot-0').click();
       const popoverEl = document.getElementById('hud-potion-popover');
+      const popoverIconEl = popoverEl?.querySelector('.hud-potion-popover-icon');
+      const popoverIconBorder = popoverIconEl ? getComputedStyle(popoverIconEl).borderStyle : '';
       const popoverTitle = popoverEl?.querySelector('.hud-potion-popover-title')?.textContent?.trim() || '';
       const stillOwnedAfterFirstTap = st.player.potions[0] === 'fire_potion';
       const drinkBtn = document.getElementById('btn-popover-drink-potion');
@@ -652,6 +656,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
         hudHeight: Math.round(hudRect.height),
         pot0Width: Math.round(pot0Rect.width),
         pot0Height: Math.round(pot0Rect.height),
+        pot0Border,
+        pot0SvgW,
+        popoverIconBorder,
         hasFireSvg: Boolean(pot0Svg),
         hasEmptySvg: Boolean(pot2Svg),
         potLabelHidden,
@@ -678,6 +685,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
 
     assert.ok(hudAcAudit.hudHeight <= 125, `Option A+C mobile HUD must be <= 125px tall, got ${hudAcAudit.hudHeight}px`);
     assert.ok(hudAcAudit.pot0Width <= 32 && hudAcAudit.pot0Height <= 32, `Mobile potion icon must be compact <=32px, got ${hudAcAudit.pot0Width}x${hudAcAudit.pot0Height}`);
+    assert.equal(hudAcAudit.pot0Border, 'none', 'Mobile HUD potion slot must not have a square outer border');
+    assert.ok(hudAcAudit.pot0SvgW >= 30, `Frameless mobile HUD potion bottle SVG must enlarge to >=30px, got ${hudAcAudit.pot0SvgW}px`);
+    assert.equal(hudAcAudit.popoverIconBorder, 'none', 'Mobile potion popover icon must not have a square outer border');
     assert.equal(hudAcAudit.hasFireSvg, true, 'Fire potion renders dedicated SVG bottle');
     assert.equal(hudAcAudit.hasEmptySvg, true, 'Empty potion slot renders empty glass flask SVG');
     assert.equal(hudAcAudit.potLabelHidden, true, 'Mobile potion icon hides long name label');
@@ -1712,18 +1722,22 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
         relicClaimed: false,
         extraRelicId: 'calipers',
         extraRelicClaimed: false,
-        potionId: null,
-        potionClaimed: true,
+        potionId: 'fire_potion',
+        potionClaimed: false,
         cardChoices: [],
         cardClaimed: true,
       };
       app.render();
       const rewardBadge = document.querySelector('#btn-claim-relic .loot-badge-relic');
       const rewardSvg = rewardBadge?.querySelector('svg.relic-svg');
+      const rewardPotionBadge = document.querySelector('#btn-claim-potion .loot-badge-potion');
+      const rewardPotionSvg = rewardPotionBadge?.querySelector('svg.potion-icon-svg');
       const extraRewardSvg = document.querySelector('#btn-claim-extra-relic .loot-badge-relic svg.relic-svg');
       const rewardKey = rewardSvg?.dataset?.relicSvg || '';
       const rewardW = rewardSvg ? Math.round(rewardSvg.getBoundingClientRect().width) : 0;
       const rewardBadgeBorder = rewardBadge ? getComputedStyle(rewardBadge).borderStyle : '';
+      const rewardPotionW = rewardPotionSvg ? Math.round(rewardPotionSvg.getBoundingClientRect().width) : 0;
+      const rewardPotionBorder = rewardPotionBadge ? getComputedStyle(rewardPotionBadge).borderStyle : '';
       const extraRewardKey = extraRewardSvg?.dataset?.relicSvg || '';
 
       // Claim War Paint -> triggers Relic Upgrade Reveal modal with bespoke war_paint SVG
@@ -1750,6 +1764,8 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
         rewardKey,
         rewardW,
         rewardBadgeBorder,
+        rewardPotionW,
+        rewardPotionBorder,
         extraRewardKey,
         revealKey,
         revealW,
@@ -1771,6 +1787,8 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
     assert.equal(desktopScreensAudit.rewardKey, 'war_paint', 'Reward relic plaque must render bespoke war_paint SVG');
     assert.equal(desktopScreensAudit.rewardBadgeBorder, 'none', 'Reward relic medallion must not have a square outer border');
     assert.ok(desktopScreensAudit.rewardW >= 46, `Desktop reward relic SVG must be enlarged >=46px, got ${desktopScreensAudit.rewardW}px`);
+    assert.equal(desktopScreensAudit.rewardPotionBorder, 'none', 'Reward potion icon must not have a square outer border');
+    assert.ok(desktopScreensAudit.rewardPotionW >= 44, `Desktop reward potion SVG must be enlarged >=44px, got ${desktopScreensAudit.rewardPotionW}px`);
     assert.equal(desktopScreensAudit.extraRewardKey, 'calipers', 'Black Star extra reward plaque must render bespoke calipers SVG');
     assert.equal(desktopScreensAudit.revealKey, 'war_paint', 'Upgrade reveal modal must render bespoke war_paint SVG');
     assert.ok(desktopScreensAudit.revealW >= 36, `Upgrade reveal modal relic SVG must be >=36px, got ${desktopScreensAudit.revealW}px`);
