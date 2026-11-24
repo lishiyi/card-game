@@ -2902,8 +2902,9 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
     assert.ok(RELIC_SVG_ART[id], `Missing bespoke SVG illustration for relic "${id}"`);
     const svg = getRelicSvg(id);
     assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Relic "${id}" must return valid inline SVG`);
-    assert.ok(svg.includes('viewBox="0 0 36 36"'), `Relic "${id}" must use standardized 36x36 medallion viewBox`);
+    assert.ok(svg.includes('viewBox="0 0 36 36"'), `Relic "${id}" must use standardized 36x36 viewBox`);
     assert.ok(svg.includes(`data-relic-svg="${id}"`), `Relic "${id}" must expose data-relic-svg="${id}"`);
+    assert.equal(svg.includes(`stroke="url(#ra-${id}-rim)"`), false, `Relic "${id}" must render frameless silhouette without hard outer circular border`);
 
     const defsIds = [...svg.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
     assert.ok(defsIds.length >= 2, `Relic "${id}" must define radial/linear gradient IDs`);

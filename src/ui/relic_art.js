@@ -1,12 +1,12 @@
 /**
  * Complete bespoke inline SVG illustration library for all 103 relics in RELIC_LIBRARY.
- * Every relic is hand-crafted on a crisp 36x36 dark-fantasy medallion canvas with unique `ra-*`
- * gradient IDs (optionally scoped via `options.scope` to prevent DOM ID collisions when the
- * same relic appears simultaneously in HUD, Compendium, Shop, Reward, or Battle Report).
+ * Every relic is hand-crafted as a frameless floating silhouette on a 36x36 canvas with
+ * a soft borderless ambient glow and unique `ra-*` gradient IDs (optionally scoped via
+ * `options.scope` to prevent DOM ID collisions across HUD, Compendium, Shop, Reward, and Reports).
  */
 
 function wrapRelicSvg(key, bg1, bg2, rim, inner) {
-  return `<svg viewBox="0 0 36 36" class="relic-svg" data-relic-svg="${key}" aria-hidden="true"><defs><radialGradient id="ra-${key}-bg" cx="38%" cy="32%" r="68%"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></radialGradient><linearGradient id="ra-${key}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${rim}"/><stop offset="100%" stop-color="rgba(18,14,12,0.85)"/></linearGradient></defs><circle cx="18" cy="18" r="16.5" fill="url(#ra-${key}-bg)" stroke="url(#ra-${key}-rim)" stroke-width="1.35"/><path d="M8.5 10.5 A12.5 12.5 0 0 1 25.5 8.5" fill="none" stroke="rgba(255,250,235,0.16)" stroke-width="1.2" stroke-linecap="round"/>${inner}</svg>`;
+  return `<svg viewBox="0 0 36 36" class="relic-svg" data-relic-svg="${key}" aria-hidden="true"><defs><radialGradient id="ra-${key}-bg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${rim}" stop-opacity="0.24"/><stop offset="56%" stop-color="${bg1}" stop-opacity="0.11"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></radialGradient><linearGradient id="ra-${key}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${rim}" stop-opacity="0.22"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></linearGradient></defs><circle cx="18" cy="18" r="17" fill="url(#ra-${key}-bg)"/><g transform="translate(18 18) scale(1.24) translate(-18 -18)">${inner}</g></svg>`;
 }
 
 function scopeSvgIds(svg, suffix) {
@@ -352,10 +352,10 @@ export const RELIC_SVG_ART = Object.freeze({
     'hsl(354, 48%, 10%)',
     'hsl(24, 86%, 62%)',
     `<g transform="rotate(-32 18 18)">
-       <rect x="6.5" y="16" width="23" height="4" rx="2" fill="hsl(42, 46%, 90%)" stroke="hsl(28, 34%, 44%)" stroke-width="0.9"/>
-       <circle cx="7" cy="16.5" r="2.2" fill="hsl(42, 46%, 90%)"/><circle cx="7" cy="19.5" r="2.2" fill="hsl(42, 46%, 90%)"/>
-       <circle cx="29" cy="16.5" r="2.2" fill="hsl(42, 46%, 90%)"/><circle cx="29" cy="19.5" r="2.2" fill="hsl(42, 46%, 90%)"/>
-       <ellipse cx="18" cy="18" rx="8.2" ry="6.2" fill="hsl(10, 74%, 40%)" stroke="hsl(24, 78%, 62%)" stroke-width="1.2"/>
+       <rect x="7.5" y="16" width="21" height="4" rx="2" fill="hsl(42, 46%, 90%)" stroke="hsl(28, 34%, 44%)" stroke-width="0.9"/>
+       <circle cx="8" cy="16.5" r="2.1" fill="hsl(42, 46%, 90%)"/><circle cx="8" cy="19.5" r="2.1" fill="hsl(42, 46%, 90%)"/>
+       <circle cx="28" cy="16.5" r="2.1" fill="hsl(42, 46%, 90%)"/><circle cx="28" cy="19.5" r="2.1" fill="hsl(42, 46%, 90%)"/>
+       <ellipse cx="18" cy="18" rx="8" ry="6.1" fill="hsl(10, 74%, 40%)" stroke="hsl(24, 78%, 62%)" stroke-width="1.2"/>
        <path d="M13 15.5 Q18 13.5 23 15.5" fill="none" stroke="hsla(36, 96%, 78%, 0.72)" stroke-width="1.5" stroke-linecap="round"/>
      </g>`
   ),
