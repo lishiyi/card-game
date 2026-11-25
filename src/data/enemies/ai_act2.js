@@ -778,7 +778,7 @@ export const ACT2_ENEMY_AI_HANDLERS = {
             id: 'champ_execute',
             name: '处决',
             type: 'attack',
-            damage: 7,
+            damage: 9,
             hits: 2,
           },
         },

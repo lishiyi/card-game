@@ -181,7 +181,8 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'read_final_chapter',
         label: '强读终章秘奥',
-        detail: '失去 14 点生命，随机获得 1 张【稀有】卡牌加入牌组！',
+        detail:
+          '失去 16 点生命，获得事件专属遗物【英雄宝典】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！',
       },
       {
         id: 'skim_preface',
@@ -441,7 +442,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'recall_3',
         label: '直面尖塔真相',
-        detail: '失去 12 点生命：直接获得 1 张金色【无色稀有牌+】与 1 件随机遗物！',
+        detail: '失去 15 点生命：直接获得 1 张金色【无色稀有牌+】与 1 件随机遗物！',
       },
     ],
   },
@@ -807,12 +808,12 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'study_portal',
         label: '研习星门符文',
-        detail: '安全增益：随机升级牌组中 2 张牌，并随机获得 1 瓶药水（若有空栏位）。',
+        detail: '安全增益：随机升级牌组中 1 张牌，并随机获得 1 瓶药水（若有空栏位）。',
       },
       {
         id: 'siphon_portal',
         label: '强行汲取星能',
-        detail: '失去 12 点生命，随机获得 1 张已升级的【无色稀有牌+】与 1 件随机遗物！',
+        detail: '失去 16 点生命，随机获得 1 张已升级的【无色稀有牌+】与 1 件随机遗物！',
       },
       {
         id: 'leave_portal',
@@ -875,7 +876,7 @@ export function getEventTuning(ascension = 0) {
     idolSmashHpLoss: isA8 ? 18 : 14,
     idolSmashGold: isA8 ? 120 : 135,
     idolCurseGold: isA8 ? 150 : 175,
-    tomeFinalHpLoss: isA8 ? 18 : 14,
+    tomeFinalHpLoss: isA8 ? 20 : 16,
     tomeSkimHpLoss: isA8 ? 8 : 5,
     alchemistBuyGold: isA8 ? 45 : 35,
     alchemistMutagenMaxHp: isA8 ? 4 : 6,
@@ -899,7 +900,7 @@ export function getEventTuning(ascension = 0) {
     mindBloomAwakeMaxHpPct: isA8 ? 22 : 15,
     mindBloomRichGold: isA8 ? 360 : 450,
     sensoryRecall2HpLoss: isA8 ? 8 : 5,
-    sensoryRecall3HpLoss: isA8 ? 16 : 12,
+    sensoryRecall3HpLoss: isA8 ? 20 : 15,
     windingMadnessHpLoss: isA8 ? 16 : 12,
     windingRetraceHealPct: isA8 ? 20 : 25,
     windingPushMaxHpPct: isA8 ? 9 : 6,
@@ -920,7 +921,7 @@ export function getEventTuning(ascension = 0) {
     fallingImpactHpLoss: isA8 ? 20 : 15,
     sphereHpLoss: isA8 ? 20 : 16,
     moaiMaxHpLossPct: isA8 ? 15 : 10,
-    portalSiphonHpLoss: isA8 ? 16 : 12,
+    portalSiphonHpLoss: isA8 ? 21 : 16,
     forgeAltarGold: isA8 ? 100 : 85,
     forgeAltarHpLoss: isA8 ? 14 : 10,
   };
@@ -960,7 +961,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
       accept_curse_gold: `获得 ${t.idolCurseGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
     },
     cursed_tome: {
-      read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，随机获得 1 张【稀有】卡牌加入牌组！`,
+      read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，获得事件专属遗物【英雄宝典】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！`,
       skim_preface: `失去 ${t.tomeSkimHpLoss} 点生命，随机获得 1 张【罕见】卡牌加入牌组。`,
     },
     potion_alchemist: {

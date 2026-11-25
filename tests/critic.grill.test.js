@@ -208,6 +208,7 @@ test('[Critic / grill-it] runRestartCombat resists non-combat calls, clears Boss
 
   // 3. After Act 1 Boss victory, transitions to boss_reward, combatSnapshot is cleared, and settleAct1Victory completes run
   bossState.combat.enemies[0].hp = 10;
+  bossState.player.potions[0] = 'fire_potion';
   runUsePotion(bossState, 0, bossState.combat.enemies[0].id);
   assert.equal(bossState.screen, 'boss_reward');
   assert.equal(bossState.combatSnapshot, null);
@@ -512,9 +513,9 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
           }
         } else if (eventId === 'cursed_tome') {
           const choice =
-            state.player.hp > 28
+            state.player.hp > evTune.tomeFinalHpLoss + 8
               ? 'read_final_chapter'
-              : state.player.hp > 14
+              : state.player.hp > evTune.tomeSkimHpLoss + 8
                 ? 'skim_preface'
                 : 'close_tome';
           assert.equal(chooseEventOption(state, choice).ok, true);
@@ -593,8 +594,8 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
             assert.equal(chooseEventOption(state, 'augment_leave').ok, true);
           }
         } else if (eventId === 'sensory_stone') {
-          const c3 = (state.ascension ?? 0) >= 8 ? 16 : 12;
-          const c2 = (state.ascension ?? 0) >= 8 ? 8 : 5;
+          const c3 = evTune.sensoryRecall3HpLoss;
+          const c2 = evTune.sensoryRecall2HpLoss;
           if (state.player.hp > c3 + 10 && seed % 3 === 0) {
             assert.equal(chooseEventOption(state, 'recall_3').ok, true);
           } else if (state.player.hp > c2 + 8 && seed % 2 === 0) {

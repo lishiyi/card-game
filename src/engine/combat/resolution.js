@@ -360,11 +360,10 @@ export function drawCards(state, count, options = {}) {
     getAliveEnemies(combat).length > 0
   ) {
     combat._melangeScryQueued = false;
-    addPlayerBlock(state, 7);
-    gainMantra(state, 4);
+    gainMantra(state, 2);
     pushCombatLog(
       combat,
-      `遗物【${RELIC_LIBRARY.melange.name}】触发：获得 4 点【真言】与 7 点格挡！`,
+      `遗物【${RELIC_LIBRARY.melange.name}】触发：获得 2 点【真言】！`,
       'status'
     );
     if (combat.drawPile.length > 0 && combat.status === 'ongoing') {

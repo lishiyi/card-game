@@ -177,7 +177,7 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
       })`);
       assert.equal(restartedAudit.turn, 1);
       assert.deepEqual(restartedAudit.handIds, initialHandIds);
-      assert.equal(restartedAudit.potion0, 'fire_potion');
+      assert.equal(restartedAudit.potion0, 'fury_potion');
       assert.ok(restartedAudit.energyText.startsWith('3/3'));
       assert.ok(restartedAudit.bannerText.includes('已重启本场战斗'));
     }
@@ -259,8 +259,8 @@ test('Real Chromium E2E: Common/Uncommon/Rare card colors, Smith cost-reduction 
     assert.equal(isPotionDisabledOnMap, true, 'Potion button should be disabled outside combat');
     const mapPotionTip = await hoverSelector('#potion-slot-0');
     assert.equal(mapPotionTip.hidden, false, 'Hovering disabled potion button must still trigger wrapper tooltip');
-    assert.equal(mapPotionTip.title, '火焰药水');
-    assert.ok(mapPotionTip.desc.includes('造成 20 点固定伤害'));
+    assert.equal(mapPotionTip.title, '狂怒药水');
+    assert.ok(mapPotionTip.desc.includes('力量'));
 
     const emptySlot2Tip = await hoverSelector('#potion-slot-2');
     assert.equal(emptySlot2Tip.hidden, false, 'Hovering 3rd empty potion slot must show tooltip');

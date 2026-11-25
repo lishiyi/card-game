@@ -101,7 +101,7 @@ test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) 
 
     assert.deepEqual(
       potionUiAudit.charPotionIcons,
-      ['fire_potion', 'poison_potion', 'miracle_potion'],
+      ['fury_potion', 'poison_potion', 'stance_potion'],
       'Character Select must render bespoke starter potion SVGs for all 3 classes'
     );
     assert.equal(potionUiAudit.rewardPotionIcon, 'stance_potion', 'Reward plaque must render bespoke stance_potion SVG');
@@ -279,8 +279,20 @@ test('E2E: Distinct Bespoke Potion SVGs (HUD/Reward/Shop/Compendium/CharSelect) 
         sklEl?.classList.contains('playable') && !sklEl?.classList.contains('unplayable-dim')
       );
 
-      // 5c. Bandits Trio & 4-Gremlin Pack bespoke SVGs render cleanly
-      startCombat(st, ENCOUNTERS.act2Hard.find((e) => e.id === 'bandit_trio'), 'normal');
+      // 5c. Bandits Trio (Event encounter) & 4-Gremlin Pack bespoke SVGs render cleanly
+      startCombat(
+        st,
+        {
+          id: 'masked_bandits_event',
+          name: '蒙面强盗团',
+          enemies: [
+            { templateId: 'bandit_pointy' },
+            { templateId: 'bandit_romeo' },
+            { templateId: 'bandit_bear' },
+          ],
+        },
+        'normal'
+      );
       app.render();
       const banditDomCount = document.querySelectorAll('.enemy-side .fighter-unit').length;
       const banditSvgsOk = Boolean(
@@ -548,7 +560,7 @@ test('E2E Act 4 & Three Keys: HUD 3-key pill (desktop & 390px mobile zero overfl
     assert.equal(act4FlowAudit.hasSurroundedChip, true, 'Player must display Surrounded debuff chip');
     assert.ok(act4FlowAudit.backAttackText.includes('背袭'), `Expected back-attack tag, got: ${act4FlowAudit.backAttackText}`);
     assert.equal(act4FlowAudit.hasHeartSvg, true, 'Corrupt Heart must render bespoke SVG');
-    assert.equal(act4FlowAudit.invincibleVal, '200', 'Corrupt Heart must display Invincible 200 cap');
+    assert.equal(act4FlowAudit.invincibleVal, '180', 'Corrupt Heart must display Invincible 180 cap');
     assert.equal(act4FlowAudit.hasBeatOfDeathChip, true, 'Corrupt Heart must display Beat of Death chip');
     assert.ok(act4FlowAudit.victoryHeading.includes('心脏斩杀'), `Expected Heart Victory heading, got: ${act4FlowAudit.victoryHeading}`);
     assert.equal(act4FlowAudit.hasHeartVictoryPill, true);

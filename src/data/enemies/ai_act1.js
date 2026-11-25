@@ -678,6 +678,7 @@ export const ACT1_ENEMY_AI_HANDLERS = {
       ];
     }
     if (enemy.turnIndex % 3 === 1) {
+      const vulnAmt = (enemy.ascension ?? 0) >= 9 ? 2 : 1;
       return [
         {
           probability: 1,
@@ -687,7 +688,7 @@ export const ACT1_ENEMY_AI_HANDLERS = {
             type: 'attack_debuff',
             damage: 6,
             hits: 1,
-            applyPlayerStatuses: { vulnerable: 2 },
+            applyPlayerStatuses: { vulnerable: vulnAmt },
           },
         },
       ];
@@ -914,9 +915,8 @@ export const ACT1_ENEMY_AI_HANDLERS = {
           intent: {
             id: 'preparing',
             name: '庞然蓄力',
-            type: 'defend',
-            block: 8,
-            summary: '意图：获得 8 点格挡并蓄力，下回合发动泰山压顶！',
+            type: 'buff',
+            summary: '意图：正在蓄力凝聚，下回合发动泰山压顶！',
           },
         },
       ];
@@ -928,7 +928,7 @@ export const ACT1_ENEMY_AI_HANDLERS = {
           id: 'slime_crush',
           name: '泰山压顶',
           type: 'attack',
-          damage: 30,
+          damage: 26,
           hits: 1,
         },
       },

@@ -417,6 +417,7 @@ test('Body Slam description and execution dynamically reflect live Block + Modif
   assert.equal(enemy.hp, 32);
 
   // Use Fire Potion in slot 0 (deals 20 fixed damage, ignoring Vulnerable!)
+  state.player.potions[0] = 'fire_potion';
   const potRes = usePotion(state, 0, enemy.id);
   assert.equal(potRes.ok, true);
   assert.equal(enemy.hp, 12);
@@ -555,9 +556,9 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(Object.keys(RELIC_LIBRARY).length, 103);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 3);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 25);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 24);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 22);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 8);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 9);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
@@ -1551,12 +1552,12 @@ test('Priority 1 Enemies: Wound, Book of Stabbing Painful Stabs, Taskmaster, Hex
   assert.equal(champ.statuses.poison, undefined);
   assert.equal(champ.statuses.strength, 6);
   assert.equal(champ.intent.id, 'champ_execute');
-  assert.equal(champ.intent.damage, 7);
+  assert.equal(champ.intent.damage, 9);
   assert.equal(champ.intent.hits, 2);
 
   champState.player.block = 50;
   const beforeExecHp = champState.player.hp;
-  endPlayerTurn(champState); // Execute deals (7+6)*2 = 26 -> 50 block absorbs all, next turn is NOT immediate Execute (step advances)
+  endPlayerTurn(champState); // Execute deals (9+6)*2 = 30 -> 50 block absorbs all, next turn is NOT immediate Execute (step advances)
   assert.equal(champState.player.hp, beforeExecHp);
   assert.notEqual(champ.intent.id, 'champ_execute');
 });
@@ -2303,7 +2304,7 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   playCard(mState, worship.instanceId);
   assert.equal(mState.combat.stance, 'divinity');
   assert.equal(mState.player.statuses.mantra, 1, 'Excess Mantra carries over past 10');
-  assert.equal(mState.player.energy, 6, '5 - 1 - 1 + 3 (Divinity) = 6');
+  assert.equal(mState.player.energy, 5, '5 - 1 - 2 + 3 (Divinity) = 5');
   const hpBeforeBril = mEnemy.hp;
   playCard(mState, brilliance.instanceId, mEnemy.id);
   assert.equal(hpBeforeBril - mEnemy.hp, 69, 'Brilliance scales with combatMantra (12+11=23) and triples in Divinity (69)');
@@ -2382,11 +2383,12 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   assert.equal(previewCardDamageOnEnemy(kState, judg, e2)?.isLethal, true);
   assert.equal(previewCardDamageOnEnemy(kState, judg, e1), null);
 
-  // Pressure Points ignores e1's 10 block and deals 9 direct HP loss
+  // Pressure Points ignores e1's 10 block, deals 10 direct HP loss, and opens Scry 2
   const e1HpBeforeMark = e1.hp;
   playCard(kState, pp.instanceId, e1.id);
-  assert.equal(e1.statuses.mark, 9);
-  assert.equal(e1.hp, e1HpBeforeMark - 9, 'Pressure Points Mark ignores enemy block');
+  if (kState.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(kState);
+  assert.equal(e1.statuses.mark, 10);
+  assert.equal(e1.hp, e1HpBeforeMark - 10, 'Pressure Points Mark ignores enemy block');
   assert.equal(e1.block, 10);
 
   // Crush Joints after Pressure Points (a Skill!) triggers Vulnerable
@@ -2549,15 +2551,16 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   assert.equal(usePotion(s3, 0).ok, true);
   assert.equal(s3.combat.stance, 'wrath');
   assert.ok(s3.player.block >= 8);
+  s3.player.statuses.mantra = 2;
   assert.equal(usePotion(s3, 1).ok, true);
   if (s3.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(s3);
-  assert.equal(s3.player.statuses.mantra, 6);
+  assert.equal(s3.player.statuses.mantra, 8);
   assert.equal(usePotion(s3, 2).ok, true);
   assert.equal(s3.player.statuses.platedArmor, 4);
-  // End turn with 0 cards played -> Art of War (+1E) + Pocketwatch (+2 draw triggers reshuffle -> Sundial +2E & Melange +4 Mantra => Divinity +3E! Total 3+1+2+3=9!)
+  // End turn with 0 cards played -> Art of War (+1E) + Pocketwatch (+2 draw triggers reshuffle -> Sundial +2E & Melange +2 Mantra => Divinity +3E! Total 3+1+2+3=9!)
   endPlayerTurn(s3);
   if (s3.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(s3);
-  assert.equal(s3.combat.stance, 'divinity', 'Melange (+4 Mantra) + Mantra Elixir (6) reached 10 Mantra -> Divinity!');
+  assert.equal(s3.combat.stance, 'divinity', 'Melange (+2 Mantra) + 8 Mantra reached 10 Mantra -> Divinity!');
   assert.equal(s3.player.energy, 9, 'Base 3 + Art of War (1) + Sundial (2) + Divinity (3) = 9 energy');
   assert.equal(s3.combat.hand.length, 7, 'Pocketwatch granted +2 extra draw (5 + 2 = 7) after <=3 cards played');
 
@@ -2695,7 +2698,7 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
 
   playCard(wa, mr.instanceId);
   assert.equal(wa.player.statuses.masterReality, 1);
-  assert.ok(wa.combat.hand.some((c) => c.cardId === 'safety' && c.upgraded), 'Master Reality generates upgraded Safety+');
+  assert.equal(wa.combat.hand.some((c) => c.cardId === 'safety'), false, 'Master Reality no longer grants free Safety+ on play');
 
   playCard(wa, reach.instanceId, enWa.id);
   const tvCard = wa.combat.drawPile.find((c) => c.cardId === 'through_violence');
@@ -2743,14 +2746,14 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   playCard(co, sB.instanceId); // 5th card after Panache -> triggers Panache!
   assert.equal(hpPre5th - enCo.hp, 8, 'Panache deals 8 AoE on 5th card played after activation');
 
-  // Tick 3 turns for The Bomb detonation (30 AoE)
+  // Tick 3 turns for The Bomb detonation (38 AoE)
   endPlayerTurn(co);
   assert.equal(co.combat.activeBombs[0].turns, 2);
   endPlayerTurn(co);
   assert.equal(co.combat.activeBombs[0].turns, 1);
   const hpPreBomb = enCo.hp;
   endPlayerTurn(co);
-  assert.equal(hpPreBomb - enCo.hp, 30, 'The Bomb detonates for 30 AoE after 3 turns');
+  assert.equal(hpPreBomb - enCo.hp, 38, 'The Bomb detonates for 38 AoE after 3 turns');
 });
 
 test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/60, cross-turn Chain & Swivel, Nirvana 0-discard/empty Scry, Blasphemy+Intangible, Vault vs Time Eater, 0-dmg Talk to the Hand, interactive Meditate', () => {
@@ -3230,9 +3233,10 @@ test('Canonical Enemy Artifact (Option A): Sentry 1, Spheric Guardian 3, Bronze 
   // 1. Sentry (Act 1 Elite): 1 Artifact each -> Bash strips 1 Artifact without applying Vulnerable; second Bash applies Vulnerable
   const sentryRun = createNewRun({ seed: 99201, characterId: 'ironclad', skipNeow: true });
   startCombat(sentryRun, ENCOUNTERS.elite.find((e) => e.id === 'twin_sentries_elite'), 'elite');
-  assert.equal(sentryRun.combat.enemies.length, 2);
+  assert.equal(sentryRun.combat.enemies.length, 3);
   assert.equal(sentryRun.combat.enemies[0].statuses.artifact, 1, 'Sentry A must start with 1 Artifact');
   assert.equal(sentryRun.combat.enemies[1].statuses.artifact, 1, 'Sentry B must start with 1 Artifact');
+  assert.equal(sentryRun.combat.enemies[2].statuses.artifact, 1, 'Sentry C must start with 1 Artifact');
 
   const s0 = sentryRun.combat.enemies[0];
   const bash1 = createCardInstance(sentryRun, 'bash', false);
@@ -3439,8 +3443,8 @@ test('Section A2 — Slime L/M/S Sizes & 2-Stage Split Chain (Slime Boss -> Larg
 
   // 2. Small Slimes (S) swarm encounter & movesets
   const swarm = setupCustomCombat(99402, ENCOUNTERS.hardNormal.find((e) => e.id === 'slime_swarm_small'));
-  assert.equal(swarm.combat.enemies.length, 5);
-  assert.equal(swarm.combat.enemies.filter((e) => e.templateId === 'spike_slime_s').length, 3);
+  assert.equal(swarm.combat.enemies.length, 4);
+  assert.equal(swarm.combat.enemies.filter((e) => e.templateId === 'spike_slime_s').length, 2);
   assert.equal(swarm.combat.enemies.filter((e) => e.templateId === 'acid_slime_s').length, 2);
   assert.equal(swarm.combat.enemies.find((e) => e.templateId === 'spike_slime_s').intent.damage, 5);
   assert.equal(swarm.combat.enemies.find((e) => e.templateId === 'acid_slime_s').intent.id, 'lick_s');
@@ -3701,14 +3705,14 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   assert.equal(ssA9.combat.enemies[1].statuses.artifact, 2);
   assert.equal(ssA9.combat.enemies[1].intent.addDrawCards?.[0]?.cardId, 'burn', 'A9+ Spear puts Burns in draw pile');
 
-  // 3. Corrupt Heart: Invincible 200 cap (A9+: 150) across Attack/Poison/Mark/Choke + reset on turn start,
+  // 3. Corrupt Heart: Invincible 180 cap (A9+: 150) across Attack/Poison/Mark/Choke + reset on turn start,
   //    Beat of Death (1 / A9+: 2), Debilitate 5 statuses, Blood Shots/Echo + Escalating Buffs!
   const hRun = createNewRun({ seed: 99704, characterId: 'ironclad', ascension: 0, skipNeow: true });
   startCombat(hRun, ENCOUNTERS.act4Boss[0], 'boss');
   const heart = hRun.combat.enemies[0];
   assert.equal(heart.templateId, 'corrupt_heart');
-  assert.equal(heart.hp, 550);
-  assert.equal(heart.statuses.invincible, 200);
+  assert.equal(heart.hp, 500);
+  assert.equal(heart.statuses.invincible, 180);
   assert.equal(heart.statuses.beatOfDeath, 1);
   assert.equal(heart.intent.id, 'heart_debilitate');
 
@@ -3723,17 +3727,17 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   assert.equal(hRun.player.hp, 80, 'Beat of Death must be blocked by Block gained from the card');
   assert.equal(hRun.player.block, 4, 'Beat of Death (1) consumes 1 point of Block');
 
-  // Invincible caps total HP loss to 200 per turn (including Attack, Mark, Choke, Poison)
+  // Invincible caps total HP loss to 180 per turn (including Attack, Mark, Choke, Poison)
   hRun.player.statuses.strength = 250;
   assert.equal(playCard(hRun, strikeCard.instanceId, heart.id).ok, true);
-  assert.equal(heart.hp, 350, 'Invincible 200 caps single 256-dmg strike to 200 HP loss');
+  assert.equal(heart.hp, 320, 'Invincible 180 caps single 256-dmg strike to 180 HP loss');
   assert.equal(heart.statuses.invincible, 0, 'Invincible decrements to 0 when cap reached');
   // Further damage (attack / poison) this turn deals 0 HP loss!
   dealDamageToEnemy(hRun, heart, 99, { isAttack: true });
-  assert.equal(heart.hp, 350, 'Heart cannot lose more HP once Invincible reaches 0');
+  assert.equal(heart.hp, 320, 'Heart cannot lose more HP once Invincible reaches 0');
 
   // End Turn 1 -> Heart casts Debilitate (Vulnerable 2, Weak 2, Frail 2 + 5 status cards in draw pile)
-  // and Start Turn 2 resets Invincible back to 200!
+  // and Start Turn 2 resets Invincible back to 180!
   hRun.combat.drawPile = [];
   hRun.combat.discardPile = [];
   endPlayerTurn(hRun);
@@ -3744,7 +3748,7 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   for (const statusCardId of ['dazed', 'slimed', 'wound', 'burn', 'void']) {
     assert.ok(allTurn2Cards.includes(statusCardId), `Debilitate must shuffle ${statusCardId} into draw pile`);
   }
-  assert.equal(heart.statuses.invincible, 200, 'Invincible must reset to 200 at start of next player turn');
+  assert.equal(heart.statuses.invincible, 180, 'Invincible must reset to 180 at start of next player turn');
   assert.ok(['heart_blood_shots', 'heart_echo'].includes(heart.intent.id), 'Turn 2 Heart attacks with Blood Shots or Echo');
 
   // Test Escalating Heart Buffs (1st: Artifact 2, 2nd: Beat of Death +1, 3rd: Painful Stabs, 4th: +10 Str, 5th: +50 Str)
@@ -4133,4 +4137,144 @@ test('Canonical Fatal (斩杀) keyword: Feed, Hand of Greed & Lesson Learned exc
   const backfilledMinions = sLegacy.combat.enemies.filter((e) => e.templateId !== 'gremlin_leader');
   assert.ok(backfilledMinions.length >= 2);
   assert.ok(backfilledMinions.every((e) => e.isMinion === true), 'reconcileCombatState must backfill isMinion on Gremlin Leader minions');
+});
+
+test('Comprehensive Balance Pass (P0/P1/P2): customHp A9 scaling, Slime Split exact HP, Slime Boss/Nob/Sentries/Heart, Indignation non-infinite, Melange shop tier, and card/event tuning', () => {
+  // 1. P0-1: customHp encounters (e.g., Slavers Elite, Double Orb Walkers) scale HP on A9, while Slime Split skips re-scaling
+  const slaversA0 = createNewRun({ seed: 88001, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  const slaversA9 = createNewRun({ seed: 88001, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  const slaverEnc = ENCOUNTERS.act2Elite.find((e) => e.id === 'slaver_taskmaster_elite');
+  startCombat(slaversA0, slaverEnc, 'elite');
+  startCombat(slaversA9, slaverEnc, 'elite');
+  const sumHp = (st) => st.combat.enemies.reduce((acc, e) => acc + e.maxHp, 0);
+  assert.ok(
+    sumHp(slaversA9) > sumHp(slaversA0),
+    `Slavers Elite customHp must scale at A9 (${sumHp(slaversA9)} > ${sumHp(slaversA0)})`
+  );
+
+  const orbsA0 = createNewRun({ seed: 88002, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  const orbsA9 = createNewRun({ seed: 88002, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  const orbEnc = ENCOUNTERS.act3Hard.find((e) => e.id === 'double_orb_walkers');
+  startCombat(orbsA0, orbEnc, 'normal');
+  startCombat(orbsA9, orbEnc, 'normal');
+  assert.ok(
+    sumHp(orbsA9) > sumHp(orbsA0),
+    `Double Orb Walkers customHp must scale at A9 (${sumHp(orbsA9)} > ${sumHp(orbsA0)})`
+  );
+
+  // Slime Split at A9 must inherit exact remaining HP (skipHpScaling: true) without inflating!
+  const splitA9 = createNewRun({ seed: 88003, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(splitA9, ENCOUNTERS.boss.find((e) => e.id === 'slime_boss_enc'), 'boss');
+  const sbA9 = splitA9.combat.enemies[0];
+  sbA9.hp = 50;
+  const strikeA9 = createCardInstance(splitA9, 'strike', false);
+  splitA9.combat.hand = [strikeA9];
+  splitA9.player.energy = 3;
+  playCard(splitA9, strikeA9.instanceId, sbA9.id);
+  assert.equal(sbA9.intent.id, 'split');
+  endPlayerTurn(splitA9);
+  assert.equal(splitA9.combat.enemies.length, 2);
+  assert.equal(splitA9.combat.enemies[0].hp, 44, 'A9 Slime Split child must inherit exact 44 HP without re-scaling');
+  assert.equal(splitA9.combat.enemies[1].hp, 44);
+
+  // 2. P0-2 & P1-1: Slime Boss 110 HP, Preparing 0 Block, Crush 26; Gremlin Nob Skull Bash 1 Vuln at A0 & 2 at A9
+  const sbA0Run = createNewRun({ seed: 88004, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(sbA0Run, ENCOUNTERS.boss.find((e) => e.id === 'slime_boss_enc'), 'boss');
+  const sbA0 = sbA0Run.combat.enemies[0];
+  assert.equal(sbA0.maxHp, 110, 'Slime Boss A0 HP is 110');
+  endPlayerTurn(sbA0Run); // Turn 0 Goop Spray -> Turn 1 Preparing
+  assert.equal(sbA0.intent.id, 'preparing');
+  assert.equal(sbA0.intent.block ?? 0, 0, 'Slime Boss Preparing grants 0 Block');
+  endPlayerTurn(sbA0Run); // Turn 1 Preparing -> Turn 2 Slime Crush
+  assert.equal(sbA0.intent.id, 'slime_crush');
+  assert.equal(sbA0.intent.damage, 26, 'Slime Boss Crush deals 26 base damage');
+
+  const nobA0Run = createNewRun({ seed: 88005, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(nobA0Run, ENCOUNTERS.elite.find((e) => e.id === 'gremlin_nob_elite'), 'elite');
+  const nobA0 = nobA0Run.combat.enemies[0];
+  assert.ok(nobA0.maxHp >= 68 && nobA0.maxHp <= 72, `Gremlin Nob A0 HP (${nobA0.maxHp}) in [68, 72]`);
+  endPlayerTurn(nobA0Run); // Turn 0 Bellow -> Turn 1 Skull Bash
+  assert.equal(nobA0.intent.id, 'skull_bash');
+  assert.equal(nobA0.intent.applyPlayerStatuses.vulnerable, 1, 'Gremlin Nob Skull Bash applies 1 Vulnerable at A0');
+
+  const nobA9Run = createNewRun({ seed: 88005, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(nobA9Run, ENCOUNTERS.elite.find((e) => e.id === 'gremlin_nob_elite'), 'elite');
+  endPlayerTurn(nobA9Run);
+  assert.equal(nobA9Run.combat.enemies[0].intent.applyPlayerStatuses.vulnerable, 2, 'Gremlin Nob Skull Bash applies 2 Vulnerable at A9+');
+
+  // 3. P0-3: Indignation canonical 1->1 cost, 0 Block, prevents 0-relic infinite
+  assert.equal(CARD_LIBRARY.indignation.base.cost, 1);
+  assert.equal(CARD_LIBRARY.indignation.upgraded.cost, 1);
+  assert.equal(CARD_LIBRARY.indignation.base.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.indignation.upgraded.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.indignation.base.ifInWrathVulnAllElseWrath, 3);
+  assert.equal(CARD_LIBRARY.indignation.upgraded.ifInWrathVulnAllElseWrath, 5);
+
+  const indRun = createNewRun({ seed: 88006, characterId: 'watcher', skipNeow: true });
+  indRun.player.relics = [];
+  startCombat(indRun, ENCOUNTERS.floor1[0], 'normal');
+  indRun.player.statuses.rushdown = 1;
+  indRun.player.energy = 3;
+  indRun.player.block = 0;
+  const indPlus = createCardInstance(indRun, 'indignation', true);
+  indRun.combat.hand = [indPlus];
+  playCard(indRun, indPlus.instanceId);
+  assert.equal(indRun.combat.stance, 'wrath');
+  assert.equal(indRun.player.energy, 2, 'Indignation+ spends 1 Energy (cannot create 0-cost infinite)');
+  assert.equal(indRun.player.block, 0, 'Indignation+ grants 0 Block');
+
+  // 4. P1-2, P1-4, P2-1, P2-2: Relic tier, Bandit encounter removal, and card stat balances
+  assert.equal(RELIC_LIBRARY.melange.tier, 'shop');
+  assert.equal(RELIC_LIBRARY.melange.price, 165);
+  assert.equal(
+    ENCOUNTERS.act2Hard.some((e) => e.id === 'bandit_trio'),
+    false,
+    'bandit_trio must be exclusive to masked_bandits event, not Act 2 hard normal pool'
+  );
+  assert.equal(CARD_LIBRARY.mental_fortress.base.applySelfStatuses.mentalFortress, 4);
+  assert.equal(CARD_LIBRARY.mental_fortress.upgraded.applySelfStatuses.mentalFortress, 6);
+  assert.equal(CARD_LIBRARY.sanctity.base.block, 6);
+  assert.equal(CARD_LIBRARY.sanctity.upgraded.block, 9);
+  assert.equal(CARD_LIBRARY.swivel.base.block, 10);
+  assert.equal(CARD_LIBRARY.swivel.upgraded.block, 14);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.base.block, 3);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.upgraded.block, 5);
+  assert.equal(CARD_LIBRARY.meditate.base.block, 3);
+  assert.equal(CARD_LIBRARY.meditate.upgraded.block, 5);
+  assert.equal(CARD_LIBRARY.battle_hymn.base.cost, 1);
+  assert.equal(CARD_LIBRARY.battle_hymn.upgraded.cost, 1);
+  assert.equal(CARD_LIBRARY.battle_hymn.upgraded.innate, true);
+  assert.equal(CARD_LIBRARY.master_reality.base.cost, 1);
+  assert.equal(CARD_LIBRARY.master_reality.upgraded.cost, 0);
+  assert.equal(CARD_LIBRARY.worship.base.cost, 2);
+  assert.equal(CARD_LIBRARY.worship.upgraded.cost, 2);
+  assert.equal(CARD_LIBRARY.worship.upgraded.retain, true);
+  assert.equal(CARD_LIBRARY.steadfast_guard.base.block, 7);
+  assert.equal(CARD_LIBRARY.steadfast_guard.upgraded.block, 10);
+  assert.equal(CARD_LIBRARY.rupture.upgraded.cost, 0);
+  assert.equal(CARD_LIBRARY.riddle_with_holes.base.damage, 4);
+  assert.equal(CARD_LIBRARY.riddle_with_holes.upgraded.damage, 5);
+  assert.equal(CARD_LIBRARY.thinking_ahead.base.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.thinking_ahead.upgraded.exhaust, false);
+  assert.equal(CARD_LIBRARY.the_bomb.base.plantBombDamage, 38);
+  assert.equal(CARD_LIBRARY.the_bomb.upgraded.plantBombDamage, 50);
+  assert.equal(Boolean(CARD_LIBRARY.the_bomb.base.exhaust), false);
+  assert.equal(CARD_LIBRARY.pressure_points.base.applyMarkAndTrigger, 10);
+  assert.equal(CARD_LIBRARY.pressure_points.upgraded.applyMarkAndTrigger, 14);
+  assert.equal(CARD_LIBRARY.pressure_points.base.scry, 2);
+  assert.equal(CARD_LIBRARY.pressure_points.upgraded.scry, 3);
+
+  // 5. P2-3: Secret Portal study_portal upgrades 1 card + 1 potion; siphon_portal costs 16 HP at A0
+  const spRun = createNewRun({ seed: 88007, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  spRun.player.potions = [null, null, null];
+  spRun.screen = 'event';
+  spRun.eventState = { eventId: 'secret_portal', resolved: false, upgradedCardIds: [], addedCardIds: [] };
+  assert.equal(chooseEventOption(spRun, 'study_portal').ok, true);
+  assert.equal(spRun.eventState.upgradedCardIds.length, 1, 'Secret Portal study_portal upgrades 1 card (not 2)');
+  assert.ok(spRun.player.potions[0], 'Secret Portal study_portal still grants 1 potion');
+
+  spRun.player.hp = 60;
+  spRun.eventState = { eventId: 'secret_portal', resolved: false, upgradedCardIds: [], addedCardIds: [] };
+  assert.equal(chooseEventOption(spRun, 'siphon_portal').ok, true);
+  assert.equal(spRun.player.hp, 44, 'Secret Portal siphon_portal costs 16 HP at A0 (60 - 16 = 44)');
 });

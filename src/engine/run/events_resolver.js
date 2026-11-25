@@ -241,15 +241,18 @@ const EVENT_OPTION_HANDLERS = {
       return { ok: false, reason: `当前生命值不足（需大于 ${tune.tomeFinalHpLoss} 点）` };
     }
     state.player.hp -= tune.tomeFinalHpLoss;
+    const gotEnchiridion = grantRelicToPlayer(state, 'enchiridion');
+    if (gotEnchiridion) {
+      state.eventState.resolved = true;
+      state.eventState.outcomeText = `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你领悟并收获了事件遗物【${RELIC_LIBRARY.enchiridion.name}】！`;
+      return { ok: true };
+    }
     const cardId = pickRandom(state, cards.rare);
     const created = createCardInstance(state, cardId, false);
     addCardToMasterDeck(state, created);
     state.eventState.addedCardIds = [created.instanceId];
-    const gotEnchiridion = grantRelicToPlayer(state, 'enchiridion');
     state.eventState.resolved = true;
-    state.eventState.outcomeText = gotEnchiridion
-      ? `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你领悟了稀有战技【${getCardStats(created).name}】并收获事件遗物【${RELIC_LIBRARY.enchiridion.name}】！`
-      : `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你领悟了稀有战技【${getCardStats(created).name}】！`;
+    state.eventState.outcomeText = `鲜血浸透书页（-${tune.tomeFinalHpLoss} 生命），你已持有【${RELIC_LIBRARY.enchiridion.name}】，转而领悟稀有战技【${getCardStats(created).name}】！`;
     return { ok: true };
   }
   if (choiceId === 'skim_preface') {
@@ -1177,7 +1180,7 @@ const EVENT_OPTION_HANDLERS = {
 
   secret_portal(state, choiceId, tune) {
   if (choiceId === 'study_portal') {
-    const upgraded = pickDistinct(state, getUpgradableDeckCards(state), 2);
+    const upgraded = pickDistinct(state, getUpgradableDeckCards(state), 1);
     for (const c of upgraded) {
       c.upgraded = true;
     }

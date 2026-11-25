@@ -29,7 +29,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
     maxEnergy: 3,
     starterRelic: 'burning_blood',
     bossStarterUpgrade: 'black_blood',
-    starterPotion: 'fire_potion',
+    starterPotion: 'fury_potion',
     archetypes: ['力量多段', '腐化消耗', '壁垒叠盾'],
     summary:
       '高血量与战后稳定回血的均衡战士。擅长叠加力量打出毁灭连击、围绕消耗牌触发联动，或筑起不破壁垒以盾反杀。',
@@ -91,7 +91,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
     maxEnergy: 3,
     starterRelic: 'pure_water',
     bossStarterUpgrade: 'holy_water',
-    starterPotion: 'miracle_potion',
+    starterPotion: 'stance_potion',
     archetypes: ['姿态舞', '真言神格', '预见保留'],
     summary:
       '洞察命运的盲眼苦行僧。在【平静】蓄能与【愤怒】双倍爆发之间灵动切换，汇聚 10 点【真言】步入三倍伤害的【神格】，或以【预见】与【保留】精算斩杀。',

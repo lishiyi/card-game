@@ -84,7 +84,7 @@ export const ASCENSION_DEFS = deepFreeze([
     level: 9,
     name: '进阶 9 · 强敌狂化',
     shortLabel: '进阶 9',
-    description: '含进阶 1–8；普通敌生命提至 +12%、攻击再 +1；精英与首领生命提至 +14%、攻击再 +1，负面状态、格挡与状态牌威胁全面升级。',
+    description: '含进阶 1–8；普通敌生命提至 +10%、攻击再 +1；精英与首领生命提至 +12%、攻击再 +1，且格挡、负面状态与状态牌威胁全面升级。',
   },
   {
     level: 10,

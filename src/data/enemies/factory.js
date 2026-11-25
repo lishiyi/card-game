@@ -16,12 +16,12 @@ export function createEnemyInstance(state, spec) {
       ? Math.max(1, Math.floor(spec.customHp))
       : randomInt(state, tpl.hpRange[0], tpl.hpRange[1]);
 
-  if (typeof spec.customHp !== 'number') {
+  if (!spec.skipHpScaling) {
     if (tpl.role === 'normal') {
-      if (asc >= 9) maxHp = Math.round(maxHp * 1.12);
+      if (asc >= 9) maxHp = Math.round(maxHp * 1.1);
       else if (asc >= 2) maxHp = Math.round(maxHp * 1.07);
     } else if (tpl.role === 'elite' || tpl.role === 'boss') {
-      if (asc >= 9) maxHp = Math.round(maxHp * 1.14);
+      if (asc >= 9) maxHp = Math.round(maxHp * 1.12);
       else if (asc >= 3) maxHp = Math.round(maxHp * 1.08);
     }
     if (hasDailyModifier(state, 'cursed_run')) {

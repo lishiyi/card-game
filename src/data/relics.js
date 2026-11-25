@@ -660,10 +660,10 @@ export const RELIC_LIBRARY = deepFreeze({
   melange: {
     id: 'melange',
     name: '美琅脂',
-    tier: 'uncommon',
+    tier: 'shop',
     character: 'watcher',
-    price: 218,
-    description: '每当你将弃牌堆洗入抽牌堆时，获得 4 点【真言】、7 点格挡并触发【预见 3】。',
+    price: 165,
+    description: '商店专属：每当你将弃牌堆洗入抽牌堆时，获得 2 点【真言】并触发【预见 3】。',
   },
   white_beast_statue: {
     id: 'white_beast_statue',

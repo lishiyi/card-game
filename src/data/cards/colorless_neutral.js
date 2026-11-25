@@ -340,8 +340,8 @@ export const COLORLESS_NEUTRAL_CARDS = {
     target: 'self',
     shopOnly: true,
     price: 156,
-    base: { cost: 0, draw: 2, block: 3, exhaust: true },
-    upgraded: { cost: 0, draw: 3, block: 5, exhaust: true },
+    base: { cost: 0, draw: 2, exhaust: true },
+    upgraded: { cost: 0, draw: 2, exhaust: false },
   },
   violence: {
     id: 'violence',
@@ -364,7 +364,7 @@ export const COLORLESS_NEUTRAL_CARDS = {
     target: 'self',
     shopOnly: true,
     price: 165,
-    base: { cost: 2, plantBombDamage: 30, plantBombTurns: 3, exhaust: true },
-    upgraded: { cost: 2, plantBombDamage: 40, plantBombTurns: 3, exhaust: true },
+    base: { cost: 2, plantBombDamage: 38, plantBombTurns: 3 },
+    upgraded: { cost: 2, plantBombDamage: 50, plantBombTurns: 3 },
   },
 };

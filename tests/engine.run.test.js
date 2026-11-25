@@ -156,7 +156,7 @@ test('Spire 3-4 col planar map guarantees zero F1-F5 Elites, F9 Treasure, non-cr
     const ascension = seed > 120 ? 1 : 0;
     const state = createNewRun({ seed, ascension });
     assert.equal(state.player.potions.length, 3, 'Player must start with 3 potion belt slots');
-    assert.deepEqual(state.player.potions, ['fire_potion', null, null]);
+    assert.deepEqual(state.player.potions, ['fury_potion', null, null]);
     assert.equal(state.map.length, 16);
     assert.ok(
       state.map[0].length >= 3 && state.map[0].length <= 4,
@@ -255,7 +255,8 @@ test('Combat victory transitions to Reward screen, warns on unclaimed Gold/Relic
 
   // Damage player slightly to verify Burning Blood +6 HP heal on victory
   state.player.hp = 60;
-  // Set enemy to 15 HP and finish with starting Fire Potion!
+  // Set enemy to 15 HP and finish with Fire Potion!
+  state.player.potions[0] = 'fire_potion';
   state.combat.enemies.forEach((e, idx) => {
     e.hp = idx === 0 ? 15 : 0;
   });
@@ -529,9 +530,21 @@ test('All 10 Unknown Events resolve accurately (Shining Light, Forge, Shrine, Re
   assert.notEqual(tfRes.card.cardId, oldFirst.cardId);
   assert.equal(wallState.player.deck.length, 10);
 
-  // 7. Cursed Tome rare card, Potion Alchemist, Mushroom Grotto, and Library Sanctum
+  // 7. Cursed Tome grants Event Relic Enchiridion (fallback Rare card if already owned), Potion Alchemist, Mushroom Grotto, and Library Sanctum
   const tomeState = createNewRun({ seed: 703 });
+  tomeState.player.hp = 70;
   tomeState.screen = 'event';
+  tomeState.eventState = {
+    eventId: 'cursed_tome',
+    resolved: false,
+    outcomeText: '',
+    upgradedCardIds: [],
+    addedCardIds: [],
+  };
+  assert.equal(chooseEventOption(tomeState, 'read_final_chapter').ok, true);
+  assert.equal(tomeState.player.hp, 54, 'Cursed Tome final chapter costs 16 HP at A0');
+  assert.equal(tomeState.player.relics.includes('enchiridion'), true, 'Cursed Tome grants Event Relic Enchiridion');
+  // Calling again when Enchiridion is already owned falls back to a Rare class card
   tomeState.eventState = {
     eventId: 'cursed_tome',
     resolved: false,
@@ -658,6 +671,7 @@ test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic 
   actState.rarePityBonus = 0.16;
   actState.player.hp = 40; // Missing 40 HP -> Act 2 transition heals 75% (30 HP) -> 70 HP!
   startCombat(actState, ENCOUNTERS.boss[0], 'boss');
+  actState.player.potions[0] = 'fire_potion';
   actState.combat.enemies[0].hp = 10;
   assert.equal(runUsePotion(actState, 0, actState.combat.enemies[0].id).ok, true);
   assert.equal(actState.screen, 'boss_reward');
@@ -1528,7 +1542,7 @@ test('Ascension 6-10 rules: damaged start & 2 potion slots (A6), gold & upgrade 
   assert.equal(a6Iron.player.maxHp, 75);
   assert.equal(a6Iron.player.hp, 68, 'Ironclad starts 68/75 on A6 (75 - floor(7.5))');
   assert.equal(a6Iron.player.potions.length, 2);
-  assert.equal(a6Iron.player.potions[0], 'fire_potion');
+  assert.equal(a6Iron.player.potions[0], 'fury_potion');
   assert.equal(a6Silent.player.maxHp, 65);
   assert.equal(a6Silent.player.hp, 59, 'Silent starts 59/65 on A6 (65 - floor(6.5))');
   assert.equal(a6Silent.player.potions.length, 2);
@@ -1907,7 +1921,7 @@ test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent 
   openEvent(stoneRun, 'sensory_stone');
   const stoneRelicsBefore = stoneRun.player.relics.length;
   assert.equal(chooseEventOption(stoneRun, 'recall_3').ok, true);
-  assert.equal(stoneRun.player.hp, 53);
+  assert.equal(stoneRun.player.hp, 50);
   assert.equal(stoneRun.player.relics.length, stoneRelicsBefore + 1);
   const addedRareColorless = stoneRun.player.deck.find((c) => c.instanceId === stoneRun.eventState.addedCardIds[0]);
   assert.equal(addedRareColorless.upgraded, true);
@@ -2005,7 +2019,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(wA0.player.stance, 'neutral');
   assert.equal(wA0.player.deck.length, 10);
   assert.deepEqual(wA0.player.relics, ['pure_water']);
-  assert.equal(wA0.player.potions[0], 'miracle_potion');
+  assert.equal(wA0.player.potions[0], 'stance_potion');
   assert.equal(wA0.player.deck.filter((c) => c.cardId === 'strike').length, 4);
   assert.equal(wA0.player.deck.filter((c) => c.cardId === 'defend').length, 4);
   assert.equal(wA0.player.deck.filter((c) => c.cardId === 'eruption').length, 1);

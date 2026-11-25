@@ -945,7 +945,7 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     await realTouchTap('#char-card-ironclad .char-potion-pill');
     const potionTip = await readTooltip();
     assert.equal(potionTip.open, true, 'Potion tooltip on Character Select must stay open after real touch tap');
-    assert.ok(potionTip.title.includes('火焰药水'), `Unexpected potion tooltip title: ${potionTip.title}`);
+    assert.ok(potionTip.title.includes('狂怒药水'), `Unexpected potion tooltip title: ${potionTip.title}`);
 
     // 6c. Real touch tap on unlocked A1 & A2 pills + locked A3 pill must show detailed tooltip & inline desc
     await realTouchTap('#btn-char-asc-1');

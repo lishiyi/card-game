@@ -132,13 +132,13 @@ export function applyAscensionIntentScaling(state, enemy, intent) {
 
   if (asc >= 9) {
     if (typeof next.allEnemiesBlock === 'number' && next.allEnemiesBlock > 0) {
-      next.allEnemiesBlock += 3;
+      next.allEnemiesBlock += 2;
       if (typeof next.block === 'number') {
-        next.block += 3;
+        next.block += 2;
       }
       mutatedNonDamage = true;
     } else if (typeof next.block === 'number' && next.block > 0) {
-      next.block += isEliteOrBoss ? 3 : 1;
+      next.block += isEliteOrBoss ? 2 : 1;
       mutatedNonDamage = true;
     }
 
@@ -189,7 +189,7 @@ export function applyAscensionIntentScaling(state, enemy, intent) {
       next.applyPlayerStatuses = scaledPlayer;
     }
 
-    if (Array.isArray(next.addDiscardCards) && next.addDiscardCards.length > 0) {
+    if (isEliteOrBoss && Array.isArray(next.addDiscardCards) && next.addDiscardCards.length > 0) {
       next.addDiscardCards = next.addDiscardCards.map((entry) => ({
         ...entry,
         count: (entry.count ?? 1) + 1,
@@ -197,7 +197,7 @@ export function applyAscensionIntentScaling(state, enemy, intent) {
       mutatedNonDamage = true;
     }
 
-    if (Array.isArray(next.addDrawCards) && next.addDrawCards.length > 0) {
+    if (isEliteOrBoss && Array.isArray(next.addDrawCards) && next.addDrawCards.length > 0) {
       next.addDrawCards = next.addDrawCards.map((entry) => ({
         ...entry,
         count: (entry.count ?? 1) + 1,

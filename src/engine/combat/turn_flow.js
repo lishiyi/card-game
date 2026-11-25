@@ -1267,6 +1267,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             const child = createEnemyInstance(state, {
               templateId: childTplId,
               customHp: splitHp,
+              skipHpScaling: true,
               customRole: 'normal',
             });
             if (hasRelic(state, 'philosophers_stone')) {

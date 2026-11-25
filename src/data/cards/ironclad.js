@@ -174,8 +174,8 @@ export const IRONCLAD_CARDS = {
     target: 'self',
     price: 58,
     retain: true,
-    base: { cost: 1, block: 9, retain: true },
-    upgraded: { cost: 1, block: 13, retain: true },
+    base: { cost: 1, block: 7, retain: true },
+    upgraded: { cost: 1, block: 10, retain: true },
   },
   wild_strike: {
     id: 'wild_strike',
@@ -459,7 +459,7 @@ export const IRONCLAD_CARDS = {
     target: 'self',
     price: 78,
     base: { cost: 1, applySelfStatuses: { rupture: 1 } },
-    upgraded: { cost: 1, applySelfStatuses: { rupture: 2 } },
+    upgraded: { cost: 0, applySelfStatuses: { rupture: 2 } },
   },
   // === Rare Cards (12) ===
   impervious: {

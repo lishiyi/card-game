@@ -215,7 +215,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '地精大块头',
     role: 'elite',
     artKey: 'gremlin_nob',
-    hpRange: [72, 76],
+    hpRange: [68, 72],
     initialStatuses: {},
   },
   sentry: {
@@ -223,7 +223,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '远古哨卫',
     role: 'elite',
     artKey: 'sentry',
-    hpRange: [33, 37],
+    hpRange: [27, 31],
     initialStatuses: { artifact: 1 },
   },
   lagavulin: {
@@ -257,7 +257,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '史莱姆首领',
     role: 'boss',
     artKey: 'slime_boss',
-    hpRange: [140, 140],
+    hpRange: [110, 110],
     splitInto: ['acid_slime_l', 'spike_slime_l'],
     initialStatuses: { splitThreshold: 1 },
   },
@@ -581,8 +581,8 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '腐化之心',
     role: 'boss',
     artKey: 'corrupt_heart',
-    hpRange: [550, 550],
-    initialStatuses: { invincible: 200, beatOfDeath: 1 },
+    hpRange: [500, 500],
+    initialStatuses: { invincible: 180, beatOfDeath: 1 },
   },
 });
 
@@ -697,7 +697,6 @@ export const ENCOUNTERS = deepFreeze({
         { templateId: 'acid_slime_s' },
         { templateId: 'spike_slime_s' },
         { templateId: 'acid_slime_s' },
-        { templateId: 'spike_slime_s' },
       ],
     },
     {
@@ -718,10 +717,11 @@ export const ENCOUNTERS = deepFreeze({
     },
     {
       id: 'twin_sentries_elite',
-      name: '精英：双子远古哨卫',
+      name: '精英：远古哨卫阵列',
       enemies: [
         { templateId: 'sentry', variantIndex: 0 },
         { templateId: 'sentry', variantIndex: 1 },
+        { templateId: 'sentry', variantIndex: 2 },
       ],
     },
     {
@@ -839,15 +839,6 @@ export const ENCOUNTERS = deepFreeze({
       id: 'snecko_solo',
       name: '异蛇巢穴',
       enemies: [{ templateId: 'snecko' }],
-    },
-    {
-      id: 'bandit_trio',
-      name: '蒙面强盗三人组',
-      enemies: [
-        { templateId: 'bandit_pointy' },
-        { templateId: 'bandit_romeo' },
-        { templateId: 'bandit_bear' },
-      ],
     },
   ],
   act2Elite: [

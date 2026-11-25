@@ -703,8 +703,8 @@ export const SILENT_CARDS = {
     rarity: 'uncommon',
     target: 'enemy',
     price: 80,
-    base: { cost: 2, damage: 3, hits: 5 },
-    upgraded: { cost: 2, damage: 4, hits: 5 },
+    base: { cost: 2, damage: 4, hits: 5 },
+    upgraded: { cost: 2, damage: 5, hits: 5 },
   },
   well_laid_plans: {
     id: 'well_laid_plans',
