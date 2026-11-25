@@ -366,14 +366,15 @@
 }
 
 .status-chip:hover,
-.status-chip:focus-visible {
+.status-chip:focus-visible,
+.status-chip.tooltip-active {
   transform: translateY(-1px) scale(1.06);
-  filter: brightness(1.14);
   outline: none;
 }
 
-.status-chip:focus-visible .status-icon {
-  outline: 2px solid var(--gold-accent);
+.status-chip:focus-visible .status-icon,
+.status-chip.tooltip-active .status-icon {
+  outline: 2px solid var(--gold-accent, var(--accent-brass));
   outline-offset: 2px;
 }
 

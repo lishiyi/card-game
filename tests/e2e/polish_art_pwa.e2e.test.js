@@ -1832,6 +1832,81 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
     assert.equal(mobileAudit.firstBadgeRadius, '50%', 'Mobile HUD relic badge container must match circular medallion shape');
     assert.ok(mobileAudit.minSvgW >= 30, `Frameless mobile HUD relic SVGs must enlarge to >=30px, got ${mobileAudit.minSvgW}px`);
     assert.ok(mobileAudit.mobileOverflow <= 1, `390px mobile screen with 12 relic SVGs must have zero horizontal overflow, got ${mobileAudit.mobileOverflow}px`);
+
+    // 4. Mobile tap regression: tapping HUD relics must never apply nested parent filter/transform or hide SVG icons
+    const firstRelicPt = await cdp.evaluate(`(() => {
+      const el = document.querySelector('.top-hud .relic-badge');
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    })()`);
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: firstRelicPt.x, y: firstRelicPt.y, id: 1 }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await new Promise((r) => setTimeout(r, 80));
+
+    const tapOpenAudit = await cdp.evaluate(`(() => {
+      const badge = document.querySelector('.top-hud .relic-badge');
+      const svg = badge?.querySelector('svg.relic-svg');
+      const tip = document.getElementById('spire-tooltip');
+      const badgeCs = badge ? getComputedStyle(badge) : null;
+      const svgCs = svg ? getComputedStyle(svg) : null;
+      const svgRect = svg ? svg.getBoundingClientRect() : { width: 0, height: 0 };
+      return {
+        tooltipVisible: Boolean(tip && !tip.hidden),
+        hasActiveClass: badge?.classList.contains('tooltip-active') ?? false,
+        badgeFilter: badgeCs?.filter || '',
+        badgeTransform: badgeCs?.transform || '',
+        svgOpacity: svgCs?.opacity || '',
+        svgVisibility: svgCs?.visibility || '',
+        svgWidthAttr: svg?.getAttribute('width') || '',
+        svgHeightAttr: svg?.getAttribute('height') || '',
+        svgW: Math.round(svgRect.width),
+        svgH: Math.round(svgRect.height),
+      };
+    })()`);
+    assert.equal(tapOpenAudit.tooltipVisible, true, 'Tapping mobile HUD relic must show pinned tooltip');
+    assert.equal(tapOpenAudit.hasActiveClass, true, 'Tapped HUD relic must receive .tooltip-active highlight');
+    assert.equal(tapOpenAudit.badgeFilter, 'none', 'Mobile HUD relic badge must NOT nest CSS filter on parent element');
+    assert.equal(tapOpenAudit.badgeTransform, 'none', 'Mobile HUD relic badge must NOT trigger transform layer promotion on tap');
+    assert.equal(tapOpenAudit.svgOpacity, '1');
+    assert.equal(tapOpenAudit.svgVisibility, 'visible');
+    assert.equal(tapOpenAudit.svgWidthAttr, '36');
+    assert.equal(tapOpenAudit.svgHeightAttr, '36');
+    assert.ok(tapOpenAudit.svgW >= 30 && tapOpenAudit.svgH >= 30, `Tapped relic SVG must remain >=30px, got ${tapOpenAudit.svgW}x${tapOpenAudit.svgH}`);
+
+    // Tap same relic again to dismiss tooltip -> active class clears and all relic SVGs stay visible
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: firstRelicPt.x, y: firstRelicPt.y, id: 2 }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await new Promise((r) => setTimeout(r, 80));
+
+    const tapCloseAudit = await cdp.evaluate(`(() => {
+      const badge = document.querySelector('.top-hud .relic-badge');
+      const tip = document.getElementById('spire-tooltip');
+      const svgs = [...document.querySelectorAll('.top-hud .relic-badge svg.relic-svg')];
+      return {
+        tooltipHidden: Boolean(tip && tip.hidden),
+        hasActiveClass: badge?.classList.contains('tooltip-active') ?? false,
+        allVisible: svgs.every((s) => {
+          const cs = getComputedStyle(s);
+          const r = s.getBoundingClientRect();
+          return cs.opacity === '1' && cs.visibility === 'visible' && r.width >= 30 && r.height >= 30;
+        }),
+      };
+    })()`);
+    assert.equal(tapCloseAudit.tooltipHidden, true, 'Second tap on HUD relic must dismiss tooltip');
+    assert.equal(tapCloseAudit.hasActiveClass, false, 'Dismissing tooltip must remove .tooltip-active');
+    assert.equal(tapCloseAudit.allVisible, true, 'All HUD relic SVGs must remain visible after tap-to-dismiss');
   } finally {
     await session?.close();
   }

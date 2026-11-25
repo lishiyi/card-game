@@ -293,6 +293,17 @@ export function mountSpireApp(rootEl) {
   }
 
   function hideTooltip() {
+    const prevAnchor = activeTooltipAnchor;
+    if (prevAnchor) {
+      prevAnchor.classList.remove('tooltip-active');
+      if (
+        isRecentTouchInteraction() &&
+        document.activeElement === prevAnchor &&
+        typeof prevAnchor.blur === 'function'
+      ) {
+        prevAnchor.blur();
+      }
+    }
     activeTooltipAnchor = null;
     tooltipPinnedByTap = false;
     tooltipEl.hidden = true;
@@ -331,6 +342,7 @@ export function mountSpireApp(rootEl) {
     }
     if (activeTooltipAnchor === anchorEl && !tooltipEl.hidden) {
       if (pinned) tooltipPinnedByTap = true;
+      anchorEl.classList.add('tooltip-active');
       positionTooltip(anchorEl);
       return;
     }
@@ -343,7 +355,11 @@ export function mountSpireApp(rootEl) {
       return;
     }
 
+    if (activeTooltipAnchor && activeTooltipAnchor !== anchorEl) {
+      activeTooltipAnchor.classList.remove('tooltip-active');
+    }
     activeTooltipAnchor = anchorEl;
+    activeTooltipAnchor.classList.add('tooltip-active');
     tooltipPinnedByTap = Boolean(pinned);
     tooltipEl.innerHTML = `
       <div class="spire-tooltip-head">

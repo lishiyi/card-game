@@ -227,7 +227,6 @@
     align-items: center;
     gap: 6px;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 1px;
   }
@@ -266,7 +265,6 @@
     min-width: 0;
     overflow-x: auto;
     flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 1px;
   }
@@ -293,7 +291,6 @@
     align-items: center;
     flex-wrap: nowrap;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     gap: 4px;
     padding: 1px 2px;
@@ -310,7 +307,6 @@
     overflow-x: auto;
     flex-wrap: nowrap;
     padding-bottom: 1px;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
 
@@ -626,6 +622,7 @@
     border: none;
     border-radius: 50%;
     box-shadow: none;
+    transition: none;
   }
 
   .top-hud .relic-badge.tier-uncommon,
@@ -637,23 +634,32 @@
     border-color: transparent;
   }
 
-  .top-hud .relic-badge:hover,
-  .top-hud .relic-badge:focus-visible {
+  .top-hud .relic-badge:hover {
     background: transparent;
     border-color: transparent;
-    transform: translateY(-1px) scale(1.06);
-    filter: brightness(1.14);
+    transform: none;
+    filter: none;
   }
 
-  .top-hud .relic-badge:focus-visible .relic-icon {
-    border-radius: 50%;
-    outline: 2px solid var(--accent-brass);
-    outline-offset: 1px;
+  .top-hud .relic-badge:focus-visible,
+  .top-hud .relic-badge.tooltip-active {
+    background: radial-gradient(
+      circle,
+      hsla(42, 86%, 62%, 0.24) 0%,
+      hsla(42, 86%, 62%, 0.08) 64%,
+      transparent 76%
+    );
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1.5px hsla(42, 86%, 62%, 0.85);
+    transform: none;
+    filter: none;
+    outline: none;
   }
 
   .top-hud .relic-badge.synergy-glow-buff {
     box-shadow: none;
     filter: none;
+    transform: none;
   }
 
   .top-hud .relic-badge.synergy-glow-buff .relic-svg {
@@ -666,6 +672,7 @@
   .top-hud .relic-badge.synergy-glow-warn {
     box-shadow: none;
     filter: none;
+    transform: none;
   }
 
   .top-hud .relic-badge.synergy-glow-warn .relic-svg {
@@ -2068,5 +2075,14 @@
 
   .map-node-btn.available:hover {
     transform: translate(-50%, -50%);
+  }
+
+  .relic-badge:hover,
+  .top-hud .relic-badge:hover,
+  .status-chip:hover,
+  .top-hud.run-hud .potion-slot.filled:hover:not(:disabled),
+  .top-hud.run-hud .potion-tooltip-anchor:hover .potion-slot.filled {
+    transform: none;
+    filter: none;
   }
 }

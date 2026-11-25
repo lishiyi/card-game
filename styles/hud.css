@@ -169,7 +169,8 @@
 }
 
 .relic-badge:hover,
-.relic-badge:focus-visible {
+.relic-badge:focus-visible,
+.relic-badge.tooltip-active {
   background: var(--surface-parchment);
   border-color: hsl(36, 30%, 40%);
   transform: translateY(-1px);

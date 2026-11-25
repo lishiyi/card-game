@@ -6,7 +6,7 @@
  */
 
 function wrapRelicSvg(key, bg1, bg2, rim, inner) {
-  return `<svg viewBox="0 0 36 36" class="relic-svg" data-relic-svg="${key}" aria-hidden="true"><defs><radialGradient id="ra-${key}-bg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${rim}" stop-opacity="0.24"/><stop offset="56%" stop-color="${bg1}" stop-opacity="0.11"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></radialGradient><linearGradient id="ra-${key}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${rim}" stop-opacity="0.22"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></linearGradient></defs><circle cx="18" cy="18" r="17" fill="url(#ra-${key}-bg)"/><g transform="translate(18 18) scale(1.24) translate(-18 -18)">${inner}</g></svg>`;
+  return `<svg viewBox="0 0 36 36" width="36" height="36" class="relic-svg" data-relic-svg="${key}" aria-hidden="true"><defs><radialGradient id="ra-${key}-bg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="${rim}" stop-opacity="0.24"/><stop offset="56%" stop-color="${bg1}" stop-opacity="0.11"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></radialGradient><linearGradient id="ra-${key}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${rim}" stop-opacity="0.22"/><stop offset="100%" stop-color="${bg2}" stop-opacity="0"/></linearGradient></defs><circle cx="18" cy="18" r="17" fill="url(#ra-${key}-bg)"/><g transform="translate(18 18) scale(1.24) translate(-18 -18)">${inner}</g></svg>`;
 }
 
 function scopeSvgIds(svg, suffix) {
@@ -1105,6 +1105,6 @@ export function getRelicSvg(relicId, options = {}) {
 }
 
 export function getUndiscoveredRelicSvg(scope = '') {
-  const raw = `<svg viewBox="0 0 36 36" class="relic-svg relic-svg-undiscovered" data-relic-svg="undiscovered" aria-hidden="true"><circle cx="18" cy="18" r="16.5" fill="hsl(24, 16%, 13%)" stroke="hsla(36, 28%, 48%, 0.42)" stroke-width="1.3" stroke-dasharray="3 2.5"/><path d="M14.8 14.2 C14.8 11.8 16.4 10.6 18.2 10.6 C20.2 10.6 21.5 11.8 21.5 13.7 C21.5 15.2 20.6 16.1 19.3 17 C18.4 17.6 18 18.2 18 19.4" fill="none" stroke="hsla(38, 36%, 68%, 0.72)" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="23.4" r="1.4" fill="hsla(38, 36%, 68%, 0.72)"/></svg>`;
+  const raw = `<svg viewBox="0 0 36 36" width="36" height="36" class="relic-svg relic-svg-undiscovered" data-relic-svg="undiscovered" aria-hidden="true"><circle cx="18" cy="18" r="16.5" fill="hsl(24, 16%, 13%)" stroke="hsla(36, 28%, 48%, 0.42)" stroke-width="1.3" stroke-dasharray="3 2.5"/><path d="M14.8 14.2 C14.8 11.8 16.4 10.6 18.2 10.6 C20.2 10.6 21.5 11.8 21.5 13.7 C21.5 15.2 20.6 16.1 19.3 17 C18.4 17.6 18 18.2 18 19.4" fill="none" stroke="hsla(38, 36%, 68%, 0.72)" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="23.4" r="1.4" fill="hsla(38, 36%, 68%, 0.72)"/></svg>`;
   return scope ? scopeSvgIds(raw, scope) : raw;
 }

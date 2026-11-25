@@ -471,6 +471,9 @@ body.spire-modal-open {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .relic-icon {
@@ -481,12 +484,14 @@ body.spire-modal-open {
   height: 22px;
   line-height: 1;
   flex-shrink: 0;
+  pointer-events: none;
 }
 
 .relic-svg {
   width: 100%;
   height: 100%;
   display: block;
+  pointer-events: none;
   filter: drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.72));
 }
 

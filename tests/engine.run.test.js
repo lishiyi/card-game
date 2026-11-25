@@ -2917,6 +2917,7 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
     const svg = getRelicSvg(id);
     assert.ok(svg.startsWith('<svg') && svg.endsWith('</svg>'), `Relic "${id}" must return valid inline SVG`);
     assert.ok(svg.includes('viewBox="0 0 36 36"'), `Relic "${id}" must use standardized 36x36 viewBox`);
+    assert.ok(svg.includes('width="36" height="36"'), `Relic "${id}" must specify explicit intrinsic width/height for WebKit stability`);
     assert.ok(svg.includes(`data-relic-svg="${id}"`), `Relic "${id}" must expose data-relic-svg="${id}"`);
     assert.equal(svg.includes(`stroke="url(#ra-${id}-rim)"`), false, `Relic "${id}" must render frameless silhouette without hard outer circular border`);
 

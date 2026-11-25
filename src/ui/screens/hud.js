@@ -32,7 +32,7 @@ export function renderTopHud({ state, ui }) {
     : 0;
 
   const relicsHtml = state.player.relics
-    .map((id) => {
+    .map((id, idx) => {
       const r = RELIC_LIBRARY[id];
       if (!r) return '';
       const tierLabel = RELIC_TIER_LABELS[r.tier] || '遗物';
@@ -87,7 +87,7 @@ export function renderTopHud({ state, ui }) {
         data-tooltip-tag="${escapeHtml(tierLabel)}"
         data-tooltip-desc="${escapeHtml(`${r.description}${tooltipExtra}`)}"
         data-tooltip-tone="relic"
-      ><span class="relic-icon" aria-hidden="true">${getRelicSvg(id, { scope: 'hud' })}</span><span class="relic-name-label">${escapeHtml(r.name)}</span>${counterHtml}</span>`;
+      ><span class="relic-icon" aria-hidden="true">${getRelicSvg(id, { scope: `hud-${idx}` })}</span><span class="relic-name-label">${escapeHtml(r.name)}</span>${counterHtml}</span>`;
     })
     .join('');
 

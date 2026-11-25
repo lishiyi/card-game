@@ -470,7 +470,16 @@
   color: hsl(148, 86%, 82%);
 }
 
-.relic-badge.synergy-glow-buff,
+.relic-badge.synergy-glow-buff {
+  box-shadow: 0 0 0 2px hsla(148, 72%, 58%, 0.88), 0 0 14px hsla(148, 78%, 54%, 0.55);
+  transform: translateY(-1px) scale(1.04);
+  z-index: 4;
+}
+
+.relic-badge.synergy-glow-buff .relic-svg {
+  filter: brightness(1.2) drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.72));
+}
+
 .block-pill.synergy-glow-buff {
   box-shadow: 0 0 0 2px hsla(148, 72%, 58%, 0.88), 0 0 14px hsla(148, 78%, 54%, 0.55);
   filter: brightness(1.2);
@@ -489,9 +498,12 @@
 
 .relic-badge.synergy-glow-warn {
   box-shadow: 0 0 0 2px hsla(8, 88%, 60%, 0.92), 0 0 14px hsla(8, 92%, 54%, 0.62);
-  filter: brightness(1.22);
   transform: translateY(-1px) scale(1.05);
   z-index: 4;
+}
+
+.relic-badge.synergy-glow-warn .relic-svg {
+  filter: brightness(1.22) drop-shadow(0 1.5px 3px rgba(0, 0, 0, 0.72));
 }
 
 .status-chip.synergy-glow-warn {
