@@ -657,6 +657,7 @@ export function mountSpireApp(rootEl) {
       const prevScreen = lastRenderedScreen;
       const screenChanged = Boolean(prevScreen && prevScreen !== menuScreenKey);
       lastRenderedScreen = menuScreenKey;
+      fxManager.clearPendingFx();
       fxLayerEl.innerHTML = '';
       const hasActiveRun = Boolean(state && state.screen !== 'game_over');
       const previewCharId = normalizeCharacterId(ui.selectedCharacterId || meta.selectedCharacterId);
@@ -692,6 +693,7 @@ export function mountSpireApp(rootEl) {
       ui.activePotionPopoverSlot = null;
     }
     if (state.screen !== 'combat') {
+      fxManager.clearPendingFx();
       fxLayerEl.innerHTML = '';
     }
 
@@ -755,6 +757,15 @@ export function mountSpireApp(rootEl) {
       if (nextHandTray) {
         const maxHandScroll = Math.max(0, nextHandTray.scrollWidth - nextHandTray.clientWidth);
         nextHandTray.scrollLeft = Math.min(savedHandScrollLeft, maxHandScroll);
+      }
+    }
+    if (state.screen === 'combat' && state.combat && state.combat.status === 'ongoing') {
+      const combatTurnKey = `${state.runId}:${state.act}:${state.floor}:${state.combat.encounterId}:${state.combat.turn}:${state.stats?.combatRestarts ?? 0}`;
+      if (screenChanged && state.combat.turn === 1 && ui.lastAnnouncedTurnKey !== combatTurnKey) {
+        ui.lastAnnouncedTurnKey = combatTurnKey;
+        fxManager.spawnTurnTransitionFx(null, state, soundEngine);
+      } else if (!prevScreen) {
+        ui.lastAnnouncedTurnKey = combatTurnKey;
       }
     }
     lastRenderedModal = ui.modal;

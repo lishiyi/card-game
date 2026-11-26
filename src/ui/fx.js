@@ -151,6 +151,24 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     };
   }
 
+  const pendingTimers = new Set();
+
+  function scheduleFxTimer(fn, ms) {
+    const id = window.setTimeout(() => {
+      pendingTimers.delete(id);
+      fn();
+    }, ms);
+    pendingTimers.add(id);
+    return id;
+  }
+
+  function clearPendingFx() {
+    for (const id of pendingTimers) {
+      window.clearTimeout(id);
+    }
+    pendingTimers.clear();
+  }
+
   function captureCombatSnapshot(state) {
     if (!state || state.screen !== 'combat' || !state.combat) return null;
     const playerEl = rootEl.querySelector('#player-unit');
@@ -179,11 +197,33 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         figRect: eRects.figRect,
       });
     }
+    const handCardRects = [];
+    const handEls = rootEl.querySelectorAll('#hand-tray .game-card');
+    for (const cardEl of handEls) {
+      if (handCardRects.length >= 6) break;
+      const r = cardEl.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) {
+        handCardRects.push({
+          left: r.left,
+          top: r.top,
+          width: r.width,
+          height: r.height,
+        });
+      }
+    }
+    const discardBtn = rootEl.querySelector('#btn-discard-pile');
+    const drawBtn = rootEl.querySelector('#btn-draw-pile');
     return {
       player: playerSnap,
       enemies,
       exhaustCount: state.combat.exhaustPile?.length ?? 0,
       handCount: state.combat.hand?.length ?? 0,
+      handInstanceIds: new Set((state.combat.hand || []).map((c) => String(c.instanceId))),
+      handCardRects,
+      discardPileRect: discardBtn ? discardBtn.getBoundingClientRect() : null,
+      drawPileRect: drawBtn ? drawBtn.getBoundingClientRect() : null,
+      encounterId: state.combat.encounterId || '',
+      reshuffleCount: state.combat.reshuffleCount ?? 0,
       turn: state.combat.turn ?? 1,
     };
   }
@@ -193,14 +233,14 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     if (scale <= 0 || !fxLayerEl) return;
     fxLayerEl.appendChild(el);
     const ttl = Math.max(120, Math.round(baseMs * scale) + 90);
-    window.setTimeout(() => {
+    scheduleFxTimer(() => {
       el.remove();
     }, ttl);
   }
 
-  function spawnFloatingPopup(rect, text, tone = 'damage', stackOffset = 0) {
+  function spawnFloatingPopup(rect, text, tone = 'damage', stackOffset = 0, options = {}) {
     const settings = getSettings ? getSettings() : null;
-    if (settings && !settings.showDamageNumbers) return;
+    if (!options.ignoreDamageSetting && settings && !settings.showDamageNumbers) return;
     if (!rect || (rect.width === 0 && rect.height === 0)) return;
     const scale = getAnimScale();
     if (scale <= 0) return;
@@ -208,12 +248,12 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     const pop = document.createElement('div');
     pop.className = `fx-float-popup fx-tone-${tone}`;
     pop.textContent = text;
-    const jitterX = Math.round((Math.random() - 0.5) * 24);
+    const jitterX = options.noJitter ? 0 : Math.round((Math.random() - 0.5) * 24);
     const x = Math.round(rect.left + rect.width / 2 + jitterX);
     const y = Math.round(rect.top + rect.height * 0.26 + stackOffset * 24);
     pop.style.left = `${x}px`;
     pop.style.top = `${y}px`;
-    spawnElementWithCleanup(pop, 820);
+    spawnElementWithCleanup(pop, options.baseMs ?? 820);
   }
 
   function spawnShieldBreakBurst(rect) {
@@ -287,7 +327,7 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     // Force reflow so rapid consecutive hits re-trigger animation cleanly
     void el.offsetWidth;
     el.classList.add(className);
-    window.setTimeout(() => {
+    scheduleFxTimer(() => {
       el.classList.remove(className);
     }, Math.max(120, Math.round(baseMs * scale)));
   }
@@ -562,6 +602,293 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         soundEngine.play('debuff');
       }
     }
+
+    // 5. Turn transition choreography (discard sweep -> turn banner -> reshuffle -> draw sweep)
+    //    or mid-turn deck reshuffle feedback
+    if (nextState.screen === 'combat' && nextState.combat && nextState.combat.status === 'ongoing') {
+      const turnAdvanced =
+        (nextState.combat.turn ?? 1) > (prevSnap.turn ?? 1) ||
+        (nextState.combat.encounterId || '') !== (prevSnap.encounterId || '');
+      if (turnAdvanced) {
+        spawnTurnTransitionFx(prevSnap, nextState, soundEngine);
+      } else if ((nextState.combat.reshuffleCount ?? 0) > (prevSnap.reshuffleCount ?? 0)) {
+        const drawBtn = rootEl.querySelector('#btn-draw-pile');
+        const drawRect = drawBtn ? drawBtn.getBoundingClientRect() : prevSnap.drawPileRect;
+        triggerUnitClass('#btn-draw-pile', 'fx-pile-pulse-shuffle', 560);
+        if (drawRect && (drawRect.width > 0 || drawRect.height > 0)) {
+          spawnFloatingPopup(drawRect, '↻ 洗牌', 'shuffle', -1, {
+            ignoreDamageSetting: true,
+            noJitter: true,
+            baseMs: 900,
+          });
+        }
+        if (soundEngine) {
+          soundEngine.play('card_shuffle');
+        }
+      }
+    }
+  }
+
+  function spawnPileSweepGhost(fromRect, toRect, mode = 'to-discard', delayMs = 0) {
+    const scale = getAnimScale();
+    if (scale <= 0 || !fxLayerEl || !fromRect || !toRect) return;
+    if (
+      (fromRect.width === 0 && fromRect.height === 0) ||
+      (toRect.width === 0 && toRect.height === 0)
+    ) {
+      return;
+    }
+
+    const startX = Math.round(fromRect.left + fromRect.width / 2);
+    const startY = Math.round(fromRect.top + fromRect.height / 2);
+    const dx = Math.round(toRect.left + toRect.width / 2 - startX);
+    const dy = Math.round(toRect.top + toRect.height / 2 - startY);
+
+    const ghost = document.createElement('div');
+    ghost.className = `fx-pile-card-ghost ${mode}`;
+    ghost.dataset.fxSweep = mode;
+    ghost.style.left = `${startX}px`;
+    ghost.style.top = `${startY}px`;
+    ghost.style.setProperty('--sweep-dx', `${dx}px`);
+    ghost.style.setProperty('--sweep-dy', `${dy}px`);
+    ghost.style.setProperty('--sweep-rot-start', mode === 'to-discard' ? '-6deg' : '-12deg');
+    ghost.style.setProperty('--sweep-rot-end', mode === 'to-discard' ? '14deg' : '4deg');
+    if (delayMs > 0) {
+      ghost.style.animationDelay = `${Math.round(delayMs * scale)}ms`;
+    }
+    spawnElementWithCleanup(ghost, 310 + delayMs);
+  }
+
+  function spawnTurnTransitionFx(prevSnap, nextState, soundEngine = null) {
+    if (!nextState || nextState.screen !== 'combat' || !nextState.combat) return;
+    if (nextState.combat.status !== 'ongoing') return;
+    const scale = getAnimScale();
+    if (scale <= 0 || !fxLayerEl) return;
+
+    const combat = nextState.combat;
+    const turn = combat.turn ?? 1;
+    const fallbackOpening = !prevSnap && turn === 1;
+    const summary = combat.lastTurnSummary || {
+      turn,
+      isOpeningTurn: fallbackOpening,
+      wasExtraTurn: false,
+      discardedCount: prevSnap ? prevSnap.handCount ?? 0 : 0,
+      retainedCount: 0,
+      etherealExhaustedCount: 0,
+      reshuffled: Boolean(prevSnap && (combat.reshuffleCount ?? 0) > (prevSnap.reshuffleCount ?? 0)),
+      drawnCount: combat.hand?.length ?? 0,
+      pendingScryDraw: false,
+      energy: nextState.player?.energy ?? 0,
+    };
+
+    const isOpening = Boolean(summary.isOpeningTurn || fallbackOpening);
+    const wasExtraTurn = Boolean(summary.wasExtraTurn);
+    const discardedCount = Math.max(0, summary.discardedCount ?? 0);
+    const retainedCount = Math.max(0, summary.retainedCount ?? 0);
+    const etherealExhaustedCount = Math.max(0, summary.etherealExhaustedCount ?? 0);
+    const reshuffled = Boolean(summary.reshuffled);
+    const drawnCount = Math.max(0, summary.drawnCount ?? 0);
+    const pendingScryDraw = Boolean(summary.pendingScryDraw);
+
+    // 1. Slay-the-Spire Turn Transition Banner (non-blocking)
+    for (const stale of fxLayerEl.querySelectorAll('.fx-turn-banner')) {
+      stale.remove();
+    }
+
+    const bannerKind = isOpening ? 'opening' : wasExtraTurn ? 'extra' : 'turn';
+    const eyebrowText = isOpening
+      ? combat.role === 'boss'
+        ? '👑 首领战 · 战斗开始'
+        : combat.role === 'elite'
+          ? '🔥 强敌遭遇 · 战斗开始'
+          : '⚔️ 战斗开始'
+      : wasExtraTurn
+        ? '✨ 额外回合'
+        : '你的回合';
+    const titleText = isOpening ? `第 ${turn} 回合 · 你的回合` : `第 ${turn} 回合`;
+
+    const flowChips = [];
+    if (!isOpening && discardedCount > 0) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-discard" data-turn-chip="discard">弃牌 ${discardedCount}</span>`
+      );
+    }
+    if (!isOpening && retainedCount > 0) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-retain" data-turn-chip="retain">保留 ${retainedCount}</span>`
+      );
+    }
+    if (!isOpening && etherealExhaustedCount > 0) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-exhaust" data-turn-chip="exhaust">虚无消耗 ${etherealExhaustedCount}</span>`
+      );
+    }
+    if (reshuffled) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-shuffle" data-turn-chip="shuffle">↻ 洗牌重抽</span>`
+      );
+    }
+    if (pendingScryDraw) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-draw" data-turn-chip="draw">预见后抽牌</span>`
+      );
+    } else if (drawnCount > 0) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-draw" data-turn-chip="draw">抽牌 +${drawnCount}</span>`
+      );
+    }
+    if (isOpening) {
+      flowChips.push(
+        `<span class="fx-turn-chip tone-energy" data-turn-chip="energy">⚡ 能量 ${escapeHtml(summary.energy ?? nextState.player?.energy ?? 0)}</span>`
+      );
+    }
+
+    const banner = document.createElement('div');
+    banner.className = `fx-turn-banner kind-${bannerKind}`;
+    banner.dataset.fxTurnBanner = 'true';
+    banner.dataset.turn = String(turn);
+    banner.dataset.turnKind = bannerKind;
+    banner.setAttribute('aria-hidden', 'true');
+    banner.innerHTML = `
+      <div class="fx-turn-eyebrow">${escapeHtml(eyebrowText)}</div>
+      <div class="fx-turn-title">${escapeHtml(titleText)}</div>
+      ${
+        flowChips.length > 0
+          ? `<div class="fx-turn-flow">${flowChips.join('<span class="fx-turn-sep" aria-hidden="true">›</span>')}</div>`
+          : ''
+      }
+    `;
+    spawnElementWithCleanup(banner, 1360);
+    triggerUnitClass('#combat-banner', 'fx-banner-turn-flash', 520);
+
+    // 2. Phase A — End-of-turn discard sweep into #btn-discard-pile
+    const discardBtn = rootEl.querySelector('#btn-discard-pile');
+    const discardRect = discardBtn ? discardBtn.getBoundingClientRect() : prevSnap?.discardPileRect;
+    if (!isOpening && discardedCount > 0) {
+      const sweepCount = Math.min(discardedCount, 5);
+      const sourceRects = Array.isArray(prevSnap?.handCardRects) ? prevSnap.handCardRects : [];
+      const handTray = rootEl.querySelector('#hand-tray');
+      const fallbackRect = handTray
+        ? handTray.getBoundingClientRect()
+        : {
+            left: window.innerWidth * 0.38,
+            top: window.innerHeight * 0.78,
+            width: Math.max(120, window.innerWidth * 0.24),
+            height: 80,
+          };
+      if (discardRect) {
+        for (let i = 0; i < sweepCount; i += 1) {
+          const src = sourceRects[i] || {
+            left: fallbackRect.left + ((i + 0.5) / sweepCount) * fallbackRect.width - 20,
+            top: fallbackRect.top + fallbackRect.height * 0.35,
+            width: 40,
+            height: 54,
+          };
+          spawnPileSweepGhost(src, discardRect, 'to-discard', i * 26);
+        }
+        triggerUnitClass('#btn-discard-pile', 'fx-pile-pulse-discard', 420);
+        spawnFloatingPopup(discardRect, `弃牌 +${discardedCount}`, 'discard', -1, {
+          ignoreDamageSetting: true,
+          noJitter: true,
+          baseMs: 840,
+        });
+      }
+    }
+    if (!isOpening && etherealExhaustedCount > 0) {
+      triggerUnitClass('#btn-exhaust-pile', 'fx-pile-pulse-exhaust', 420);
+    }
+
+    // 3. Pre-arm fresh-draw card deal-in immediately at t=0 with base delay (zero flicker with .card-deal-in)
+    const drawDelayMs = !isOpening && discardedCount > 0 ? Math.round(145 * scale) : 0;
+    const prevHandIds = prevSnap?.handInstanceIds || null;
+    const initialHandCards = [...rootEl.querySelectorAll('#hand-tray .game-card')];
+    const initialFreshCards =
+      prevHandIds && prevHandIds.size > 0
+        ? initialHandCards.filter((el) => !prevHandIds.has(String(el.dataset.instanceId || '')))
+        : initialHandCards;
+    const targetDrawCards = drawnCount > 0
+      ? (initialFreshCards.length > 0 ? initialFreshCards : initialHandCards)
+      : [];
+
+    targetDrawCards.forEach((cardEl, idx) => {
+      cardEl.style.setProperty('--fresh-idx', String(idx));
+      cardEl.style.setProperty('--fresh-base-delay', `${drawDelayMs}ms`);
+      cardEl.classList.remove('fx-card-fresh-draw');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('fx-card-fresh-draw');
+      scheduleFxTimer(() => {
+        cardEl.classList.remove('fx-card-fresh-draw');
+      }, drawDelayMs + Math.max(180, Math.round((360 + idx * 42) * scale)));
+    });
+
+    // 4. Phase B — Reshuffle & new-turn draw sweep from #btn-draw-pile into #hand-tray
+    const runDrawPhase = () => {
+      if (nextState.screen !== 'combat' || !nextState.combat || nextState.combat.status !== 'ongoing') {
+        return;
+      }
+      const drawBtn = rootEl.querySelector('#btn-draw-pile');
+      const drawRect = drawBtn ? drawBtn.getBoundingClientRect() : prevSnap?.drawPileRect;
+      triggerUnitClass('#energy-orb', 'fx-energy-refill', 440);
+
+      let drawPopupOffset = -1;
+      if (reshuffled) {
+        triggerUnitClass('#btn-draw-pile', 'fx-pile-pulse-shuffle', 560);
+        if (drawRect && (drawRect.width > 0 || drawRect.height > 0)) {
+          spawnFloatingPopup(drawRect, '↻ 洗牌', 'shuffle', drawPopupOffset, {
+            ignoreDamageSetting: true,
+            noJitter: true,
+            baseMs: 920,
+          });
+          drawPopupOffset -= 1;
+        }
+        if (soundEngine) {
+          soundEngine.play('card_shuffle');
+        }
+      }
+
+      if (drawnCount > 0) {
+        if (!reshuffled) {
+          triggerUnitClass('#btn-draw-pile', 'fx-pile-pulse-draw', 420);
+        }
+        const liveCards = targetDrawCards.filter((el) => el.isConnected);
+        const sweepCount = Math.min(drawnCount, Math.max(liveCards.length, 1), 6);
+        const handTray = rootEl.querySelector('#hand-tray');
+        const trayRect = handTray ? handTray.getBoundingClientRect() : null;
+        if (drawRect && (drawRect.width > 0 || drawRect.height > 0)) {
+          for (let i = 0; i < sweepCount; i += 1) {
+            const cardRect = liveCards[i]?.getBoundingClientRect();
+            const destRect =
+              cardRect && cardRect.width > 0 && cardRect.height > 0
+                ? cardRect
+                : trayRect
+                  ? {
+                      left: trayRect.left + ((i + 0.5) / sweepCount) * trayRect.width - 20,
+                      top: trayRect.top + trayRect.height * 0.4,
+                      width: 40,
+                      height: 54,
+                    }
+                  : null;
+            if (destRect) {
+              spawnPileSweepGhost(drawRect, destRect, 'from-draw', i * 36);
+            }
+          }
+          spawnFloatingPopup(drawRect, `抽牌 +${drawnCount}`, 'draw', drawPopupOffset, {
+            ignoreDamageSetting: true,
+            noJitter: true,
+            baseMs: 860,
+          });
+        }
+        if (soundEngine && !reshuffled) {
+          soundEngine.play('card_draw');
+        }
+      }
+    };
+
+    if (drawDelayMs > 0) {
+      scheduleFxTimer(runDrawPhase, drawDelayMs);
+    } else {
+      runDrawPhase();
+    }
   }
 
   function getCardRevealBadgeText(item) {
@@ -642,9 +969,11 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
 
   return {
     applyAnimSpeedAttr,
+    clearPendingFx,
     captureCombatSnapshot,
     spawnCardFlyFx,
     spawnCardRevealFx,
+    spawnTurnTransitionFx,
     spawnImpactSvg,
     reconcileCombatFx,
   };

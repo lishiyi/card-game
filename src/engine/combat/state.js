@@ -365,6 +365,7 @@ export function reshuffleDiscardIntoDraw(state, { triggerRelics = true } = {}) {
   if (!combat || combat.discardPile.length === 0) return false;
   combat.drawPile = [...combat.drawPile, ...shuffled(state, combat.discardPile)];
   combat.discardPile = [];
+  combat.reshuffleCount = (combat.reshuffleCount ?? 0) + 1;
   pushCombatLog(combat, '弃牌堆已重新洗入抽牌堆。', 'info');
 
   if (triggerRelics && combat.status === 'ongoing') {

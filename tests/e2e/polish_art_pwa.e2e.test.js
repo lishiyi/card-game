@@ -2157,3 +2157,157 @@ test('E2E: Event & Relic card-upgrade smith audio parity + Combat Buff/Debuff SV
     await session?.close();
   }
 });
+
+test('E2E: Slay-the-Spire Turn Transition Banner & Discard/Reshuffle/Draw Card Sweeps (Desktop, 390px Mobile & animSpeed=off)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 320));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    // 1. Clear Floor 0 Neow blessing and enter Floor 1 combat -> verify Turn 1 opening banner + draw sweep ghosts
+    const enteredCombat = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.neowState = null;
+      app.render();
+      const node = document.querySelector('.map-node-btn.available') || document.getElementById('map-node-f1_c0');
+      if (!node) return false;
+      node.click();
+      return app.getState().screen === 'combat';
+    })()`);
+    assert.equal(enteredCombat, true, 'Must enter Floor 1 combat');
+    await new Promise((r) => setTimeout(r, 40));
+
+    const openingAudit = await cdp.evaluate(`(() => {
+      const banner = document.querySelector('#spire-fx-layer .fx-turn-banner[data-fx-turn-banner="true"]');
+      const drawGhosts = document.querySelectorAll('#spire-fx-layer .fx-pile-card-ghost[data-fx-sweep="from-draw"]').length;
+      const cs = banner ? getComputedStyle(banner) : null;
+      return {
+        hasBanner: Boolean(banner),
+        turn: banner?.dataset?.turn || '',
+        kind: banner?.dataset?.turnKind || '',
+        text: banner?.textContent?.replace(/\\s+/g, ' ').trim() || '',
+        pointerEvents: cs?.pointerEvents || '',
+        drawGhosts,
+      };
+    })()`);
+    assert.equal(openingAudit.hasBanner, true, 'Entering combat must spawn opening turn banner');
+    assert.equal(openingAudit.turn, '1');
+    assert.equal(openingAudit.kind, 'opening');
+    assert.ok(openingAudit.text.includes('第 1 回合') && openingAudit.text.includes('抽牌'), `Expected opening draw text, got: ${openingAudit.text}`);
+    assert.equal(openingAudit.pointerEvents, 'none', 'Turn banner must remain 100% non-blocking');
+    assert.ok(openingAudit.drawGhosts >= 1, `Opening turn must spawn from-draw card sweep ghosts, got ${openingAudit.drawGhosts}`);
+
+    // 2. Click End Turn -> immediately verify Turn 2 banner with Discard + Draw chips & to-discard sweep,
+    //    then after ~180ms verify from-draw sweep appears!
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.combat.enemies.forEach((e) => {
+        e.hp = 120;
+        e.maxHp = 120;
+        e.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+      });
+      app.render();
+      document.getElementById('btn-end-turn')?.click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 35));
+
+    const turn2DiscardAudit = await cdp.evaluate(`(() => {
+      const banner = document.querySelector('#spire-fx-layer .fx-turn-banner[data-fx-turn-banner="true"]');
+      const discardGhosts = document.querySelectorAll('#spire-fx-layer .fx-pile-card-ghost[data-fx-sweep="to-discard"]').length;
+      const hasDiscardChip = Boolean(banner?.querySelector('[data-turn-chip="discard"]'));
+      const hasDrawChip = Boolean(banner?.querySelector('[data-turn-chip="draw"]'));
+      return {
+        turn: banner?.dataset?.turn || '',
+        kind: banner?.dataset?.turnKind || '',
+        text: banner?.textContent?.replace(/\\s+/g, ' ').trim() || '',
+        discardGhosts,
+        hasDiscardChip,
+        hasDrawChip,
+      };
+    })()`);
+    assert.equal(turn2DiscardAudit.turn, '2');
+    assert.equal(turn2DiscardAudit.kind, 'turn');
+    assert.equal(turn2DiscardAudit.hasDiscardChip, true, `Turn 2 banner must display 弃牌 chip, got: ${turn2DiscardAudit.text}`);
+    assert.equal(turn2DiscardAudit.hasDrawChip, true, `Turn 2 banner must display 抽牌 chip, got: ${turn2DiscardAudit.text}`);
+    assert.ok(turn2DiscardAudit.discardGhosts >= 1, `Ending turn with cards in hand must sweep cards to discard pile, got ${turn2DiscardAudit.discardGhosts}`);
+
+    await new Promise((r) => setTimeout(r, 175));
+    const turn2DrawAudit = await cdp.evaluate(`(() => ({
+      drawGhosts: document.querySelectorAll('#spire-fx-layer .fx-pile-card-ghost[data-fx-sweep="from-draw"]').length,
+      freshCards: document.querySelectorAll('#hand-tray .game-card.fx-card-fresh-draw').length,
+    }))()`);
+    assert.ok(turn2DrawAudit.drawGhosts >= 1, `New turn must sweep newly drawn cards from draw pile, got ${turn2DrawAudit.drawGhosts}`);
+
+    // 3. 390px Mobile: force reshuffle on Turn 3 -> verify ↻ 洗牌重抽 chip & zero overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.combat.drawPile = st.combat.drawPile.slice(0, 1);
+      app.render();
+      document.getElementById('btn-end-turn')?.click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 40));
+
+    const mobileShuffleAudit = await cdp.evaluate(`(() => {
+      const banner = document.querySelector('#spire-fx-layer .fx-turn-banner[data-fx-turn-banner="true"]');
+      const rect = banner ? banner.getBoundingClientRect() : { left: -1, right: 999, width: 0 };
+      const hasShuffleChip = Boolean(banner?.querySelector('[data-turn-chip="shuffle"]'));
+      const overflow = document.documentElement.scrollWidth - window.innerWidth;
+      return {
+        turn: banner?.dataset?.turn || '',
+        hasShuffleChip,
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+        overflow,
+      };
+    })()`);
+    assert.equal(mobileShuffleAudit.turn, '3');
+    assert.equal(mobileShuffleAudit.hasShuffleChip, true, 'Reshuffling on turn draw must display ↻ 洗牌重抽 chip');
+    assert.ok(mobileShuffleAudit.left >= 0 && mobileShuffleAudit.right <= 390 && mobileShuffleAudit.width > 80, `390px mobile turn banner must fit within viewport, got [${mobileShuffleAudit.left}, ${mobileShuffleAudit.right}]`);
+    assert.ok(mobileShuffleAudit.overflow <= 1, `390px mobile turn transition must cause zero horizontal overflow, got ${mobileShuffleAudit.overflow}px`);
+
+    // 4. animSpeed='off' suppresses overlay banner & card sweep ghosts cleanly
+    await cdp.evaluate(`(() => {
+      document.getElementById('btn-hud-more')?.click();
+      document.getElementById('btn-open-settings')?.click();
+      document.querySelector('[data-action="set-anim-speed"][data-speed="off"]')?.click();
+      document.querySelector('[data-action="close-modal"]')?.click();
+      document.getElementById('spire-fx-layer').innerHTML = '';
+      document.getElementById('btn-end-turn')?.click();
+    })()`);
+    await new Promise((r) => setTimeout(r, 60));
+    const offAudit = await cdp.evaluate(`(() => ({
+      banners: document.querySelectorAll('#spire-fx-layer .fx-turn-banner').length,
+      sweeps: document.querySelectorAll('#spire-fx-layer .fx-pile-card-ghost').length,
+    }))()`);
+    assert.equal(offAudit.banners, 0, 'animSpeed=off must suppress turn transition banner');
+    assert.equal(offAudit.sweeps, 0, 'animSpeed=off must suppress discard/draw sweep ghosts');
+  } finally {
+    await session?.close();
+  }
+});

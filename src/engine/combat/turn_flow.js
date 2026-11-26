@@ -185,6 +185,12 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   const combat = state.combat;
   if (!combat || combat.status !== 'ongoing') return;
 
+  const prevTurnTransition = combat._pendingTurnSummary || null;
+  delete combat._pendingTurnSummary;
+  const reshuffleBeforeTurn = prevTurnTransition
+    ? (prevTurnTransition.reshuffleCountBefore ?? 0)
+    : (combat.reshuffleCount ?? 0);
+
   combat.turn += 1;
   combat.phase = 'player';
   combat.cardsPlayedThisTurn = 0;
@@ -506,9 +512,13 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     nextTurnDraw +
     simmeringDraw;
 
+  const handBeforeTurnDraw = combat.hand.length;
+  let pendingScryDraw = false;
+
   // Foresight: Scry before drawing turn cards (resumes turn draw via drawAfterScry)
   const foresightAmt = state.player.statuses.foresight ?? 0;
   if (foresightAmt > 0 && combat.drawPile.length > 0 && toolsDraw === 0) {
+    pendingScryDraw = true;
     initiateScry(state, foresightAmt, '先见之明', { drawAfterScry: totalTurnDraw });
   } else {
     if (foresightAmt > 0 && combat.drawPile.length === 0) {
@@ -569,6 +579,19 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
       );
     }
   }
+
+  combat.lastTurnSummary = {
+    turn: combat.turn,
+    isOpeningTurn: combat.turn === 1 && !prevTurnTransition,
+    wasExtraTurn: Boolean(prevTurnTransition?.wasExtraTurn),
+    discardedCount: prevTurnTransition?.discardedCount ?? 0,
+    retainedCount: prevTurnTransition?.retainedCount ?? 0,
+    etherealExhaustedCount: prevTurnTransition?.etherealExhaustedCount ?? 0,
+    reshuffled: (combat.reshuffleCount ?? 0) > reshuffleBeforeTurn,
+    drawnCount: Math.max(0, combat.hand.length - handBeforeTurnDraw),
+    pendingScryDraw,
+    energy: state.player.energy,
+  };
 
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     finalizeCombatVictory(state, onVictoryCallback);
@@ -643,6 +666,8 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     defeatedEnemiesCount: 0,
     fledEnemyIds: [],
     pendingCardReveals: [],
+    reshuffleCount: 0,
+    lastTurnSummary: null,
     logs: [],
     logSeq: 0,
   };
@@ -1011,9 +1036,11 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   const handCountBeforeDiscard = combat.hand.length;
+  const reshuffleCountBeforeEndTurn = combat.reshuffleCount ?? 0;
   const establishmentDiscount = state.player.statuses.establishment ?? 0;
   const etherealToExhaust = [];
   const retainedHand = [];
+  let discardedEndOfTurnCount = 0;
   for (const cardInstance of combat.hand) {
     const stats = getCardStats(cardInstance);
     const keepByTempRetain = Boolean(cardInstance.tempRetainTurn);
@@ -1040,9 +1067,17 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       }
     } else {
       combat.discardPile.push(cardInstance);
+      discardedEndOfTurnCount += 1;
     }
   }
   combat.hand = retainedHand;
+
+  const endTurnSummaryBase = {
+    discardedCount: discardedEndOfTurnCount,
+    retainedCount: retainedHand.length,
+    etherealExhaustedCount: etherealToExhaust.length,
+    reshuffleCountBefore: reshuffleCountBeforeEndTurn,
+  };
 
   if (etherealToExhaust.length > 0) {
     exhaustCardsBatch(state, etherealToExhaust);
@@ -1137,6 +1172,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   if (combat.extraTurnQueued) {
     combat.extraTurnQueued = false;
     decayRoundStatuses(state.player);
+    combat._pendingTurnSummary = { ...endTurnSummaryBase, wasExtraTurn: true };
     startPlayerTurn(state, onVictoryCallback);
     return { ok: true, outcome: state.combat?.status ?? combat.status };
   }
@@ -1844,6 +1880,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   // 5. Start next Player turn
+  combat._pendingTurnSummary = { ...endTurnSummaryBase, wasExtraTurn: false };
   startPlayerTurn(state, onVictoryCallback);
   return { ok: true, outcome: state.combat?.status ?? combat.status };
 }

@@ -21,6 +21,9 @@ export const COMBAT_ACTIONS = {
       ctx.setNotice(res.reason, 'warn');
     }
     ctx.render();
+    if (res.ok && ctx.fxManager) {
+      ctx.fxManager.spawnTurnTransitionFx(null, state, soundEngine);
+    }
   },
 
   'click-hand-card'(ctx, target) {

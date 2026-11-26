@@ -4278,3 +4278,65 @@ test('Comprehensive Balance Pass (P0/P1/P2): customHp A9 scaling, Slime Split ex
   assert.equal(chooseEventOption(spRun, 'siphon_portal').ok, true);
   assert.equal(spRun.player.hp, 44, 'Secret Portal siphon_portal costs 16 HP at A0 (60 - 16 = 44)');
 });
+
+test('Turn Transition Telemetry: lastTurnSummary tracks Turn 1 opening draw, end-of-turn discard/retain/ethereal counts, reshuffles, and Vault extra turn', () => {
+  // 1. Turn 1 opening summary
+  const run = createNewRun({ seed: 89101, characterId: 'ironclad', skipNeow: true });
+  startCombat(run, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = run.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  assert.equal(run.combat.reshuffleCount, 0);
+  assert.equal(run.combat.lastTurnSummary.turn, 1);
+  assert.equal(run.combat.lastTurnSummary.isOpeningTurn, true);
+  assert.equal(run.combat.lastTurnSummary.discardedCount, 0);
+  assert.equal(run.combat.lastTurnSummary.drawnCount, 5);
+  assert.equal(run.combat.lastTurnSummary.reshuffled, false);
+
+  // 2. End Turn 1 with 3 normal cards + 1 Retain card (Miracle) + 1 Ethereal card (Dazed)
+  const c1 = createCardInstance(run, 'strike', false);
+  const c2 = createCardInstance(run, 'defend', false);
+  const c3 = createCardInstance(run, 'strike', false);
+  const retainedMiracle = createCardInstance(run, 'miracle', false);
+  const ethDazed = createCardInstance(run, 'dazed', false);
+  run.combat.hand = [c1, c2, c3, retainedMiracle, ethDazed];
+  run.combat.drawPile = Array.from({ length: 6 }, () => createCardInstance(run, 'strike', false));
+  run.combat.discardPile = [];
+  endPlayerTurn(run);
+  assert.equal(run.combat.lastTurnSummary.turn, 2);
+  assert.equal(run.combat.lastTurnSummary.isOpeningTurn, false);
+  assert.equal(run.combat.lastTurnSummary.wasExtraTurn, false);
+  assert.equal(run.combat.lastTurnSummary.discardedCount, 3);
+  assert.equal(run.combat.lastTurnSummary.retainedCount, 1);
+  assert.equal(run.combat.lastTurnSummary.etherealExhaustedCount, 1);
+  assert.equal(run.combat.lastTurnSummary.reshuffled, false);
+  assert.equal(run.combat.lastTurnSummary.drawnCount, 5);
+
+  // 3. End Turn 2 with only 1 card left in drawPile -> triggers reshuffle & increments reshuffleCount
+  run.combat.hand = [
+    createCardInstance(run, 'strike', false),
+    createCardInstance(run, 'defend', false),
+  ];
+  run.combat.drawPile = [createCardInstance(run, 'strike', false)];
+  run.combat.discardPile = Array.from({ length: 5 }, () => createCardInstance(run, 'defend', false));
+  endPlayerTurn(run);
+  assert.equal(run.combat.lastTurnSummary.turn, 3);
+  assert.equal(run.combat.lastTurnSummary.discardedCount, 2);
+  assert.equal(run.combat.lastTurnSummary.reshuffled, true);
+  assert.equal(run.combat.reshuffleCount, 1);
+  assert.equal(run.combat.lastTurnSummary.drawnCount, 5);
+
+  // 4. Watcher Vault triggers extra turn summary flag
+  const vRun = createNewRun({ seed: 89102, characterId: 'watcher', skipNeow: true });
+  startCombat(vRun, ENCOUNTERS.floor1[0], 'normal');
+  vRun.combat.enemies[0].hp = 200;
+  const vault = createCardInstance(vRun, 'vault', true);
+  const extraStrike = createCardInstance(vRun, 'strike', false);
+  vRun.combat.hand = [vault, extraStrike];
+  vRun.player.energy = 3;
+  playCard(vRun, vault.instanceId);
+  assert.equal(vRun.combat.lastTurnSummary.turn, 2);
+  assert.equal(vRun.combat.lastTurnSummary.wasExtraTurn, true);
+  assert.equal(vRun.combat.lastTurnSummary.discardedCount, 1);
+  assert.equal(vRun.combat.lastTurnSummary.drawnCount, 5);
+});
