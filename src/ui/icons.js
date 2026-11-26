@@ -290,6 +290,88 @@ function renderCharacterSvgRaw(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'defect':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg hero-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="df-aura" cx="50%" cy="52%" r="48%">
+              <stop offset="0%" stop-color="hsla(198, 96%, 56%, 0.32)" />
+              <stop offset="65%" stop-color="hsla(216, 80%, 34%, 0.12)" />
+              <stop offset="100%" stop-color="hsla(0, 0%, 0%, 0)" />
+            </radialGradient>
+            <linearGradient id="df-hull" x1="0.1" y1="0" x2="0.9" y2="1">
+              <stop offset="0%" stop-color="hsl(206, 46%, 52%)" />
+              <stop offset="50%" stop-color="hsl(214, 48%, 32%)" />
+              <stop offset="100%" stop-color="hsl(222, 54%, 14%)" />
+            </linearGradient>
+            <linearGradient id="df-cape" x1="0" y1="0" x2="0.6" y2="1">
+              <stop offset="0%" stop-color="hsl(28, 42%, 34%)" />
+              <stop offset="58%" stop-color="hsl(22, 38%, 20%)" />
+              <stop offset="100%" stop-color="hsl(18, 42%, 10%)" />
+            </linearGradient>
+            <linearGradient id="df-brass" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(46, 86%, 76%)" />
+              <stop offset="55%" stop-color="hsl(36, 66%, 48%)" />
+              <stop offset="100%" stop-color="hsl(26, 56%, 24%)" />
+            </linearGradient>
+            <radialGradient id="df-core" cx="44%" cy="40%" r="58%">
+              <stop offset="0%" stop-color="hsl(52, 100%, 96%)" />
+              <stop offset="42%" stop-color="hsl(190, 100%, 72%)" />
+              <stop offset="100%" stop-color="hsl(210, 96%, 44%)" />
+            </radialGradient>
+          </defs>
+          <circle cx="60" cy="60" r="52" fill="url(#df-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="39" ry="7" fill="hsla(0,0%,0%,0.54)" />
+          <ellipse cx="60" cy="109" rx="44" ry="8.5" fill="none" stroke="hsla(196, 98%, 62%, 0.46)" stroke-width="1.2" stroke-dasharray="6 5" />
+          <!-- Tattered mechanical shroud & hanging cables -->
+          <path d="M34 48 Q16 70 19 102 L34 97 L43 104 L55 98 L46 48 Z" fill="url(#df-cape)" stroke="hsl(36, 54%, 48%)" stroke-width="1.2" />
+          <path d="M84 48 Q98 68 95 100 L82 96 L74 103 L66 96 L74 48 Z" fill="url(#df-cape)" stroke="hsl(36, 48%, 42%)" stroke-width="1.2" opacity="0.92" />
+          <!-- Articulated steel legs -->
+          <path d="M44 86 L54 86 L51 106 L41 105 Z" fill="url(#df-hull)" stroke="hsl(200, 62%, 62%)" stroke-width="1.3" />
+          <path d="M66 86 L76 86 L79 105 L69 106 Z" fill="url(#df-hull)" stroke="hsl(200, 62%, 62%)" stroke-width="1.3" />
+          <circle cx="48" cy="94" r="2.6" fill="url(#df-brass)" />
+          <circle cx="72" cy="94" r="2.6" fill="url(#df-brass)" />
+          <g class="svg-breathe">
+            <!-- Riveted automaton torso & cracked core chamber -->
+            <path d="M36 46 Q60 37 84 46 L78 88 Q60 94 42 88 Z" fill="url(#df-hull)" stroke="hsl(198, 72%, 68%)" stroke-width="1.8" />
+            <path d="M40 50 Q60 43 80 50" stroke="hsla(192, 100%, 88%, 0.62)" stroke-width="1.5" fill="none" />
+            <!-- Cracked glowing energy core in chest -->
+            <circle cx="60" cy="64" r="12.5" fill="hsl(222, 62%, 12%)" stroke="url(#df-brass)" stroke-width="2" />
+            <circle cx="60" cy="64" r="9.2" fill="url(#df-core)" class="svg-pulse" />
+            <path d="M54 57 L60 64 L57 71 M66 59 L61 64 L66 69" stroke="hsl(220, 62%, 14%)" stroke-width="1.4" fill="none" stroke-linecap="round" />
+            <!-- Exposed copper conduits & waist gear -->
+            <path d="M42 78 Q60 83 78 78" stroke="url(#df-brass)" stroke-width="2.6" fill="none" />
+            <circle cx="60" cy="81" r="3" fill="hsl(194, 100%, 74%)" stroke="hsl(220, 56%, 18%)" stroke-width="1" />
+            <!-- Layered automaton shoulders & claw gauntlets -->
+            <path d="M21 56 Q28 38 44 46 L40 65 Q27 66 21 56 Z" fill="url(#df-hull)" stroke="url(#df-brass)" stroke-width="1.5" />
+            <path d="M99 56 Q92 38 76 46 L80 65 Q93 66 99 56 Z" fill="url(#df-hull)" stroke="url(#df-brass)" stroke-width="1.5" />
+            <path d="M22 65 L14 82 L22 78 L20 88 L28 79 L32 66 Z" fill="url(#df-hull)" stroke="hsl(194, 88%, 68%)" stroke-width="1.2" />
+            <path d="M98 65 L106 82 L98 78 L100 88 L92 79 L88 66 Z" fill="url(#df-hull)" stroke="hsl(194, 88%, 68%)" stroke-width="1.2" />
+            <!-- Iconic Defect angular automaton head, antenna & glowing golden-cyan eye -->
+            <path d="M44 21 Q60 11 76 21 L78 41 Q60 49 42 41 Z" fill="url(#df-hull)" stroke="hsl(198, 76%, 70%)" stroke-width="1.8" />
+            <path d="M48 20 Q60 14 72 20" stroke="hsla(192, 100%, 92%, 0.72)" stroke-width="1.6" fill="none" />
+            <!-- Head crest & fractured brow antenna -->
+            <path d="M60 13 L60 6 M60 6 L66 10" stroke="url(#df-brass)" stroke-width="2" stroke-linecap="round" fill="none" />
+            <circle cx="60" cy="6" r="2.2" fill="hsl(48, 100%, 76%)" class="svg-pulse" />
+            <path d="M46 28 L74 28 L71 38 L49 38 Z" fill="hsl(224, 58%, 10%)" stroke="url(#df-brass)" stroke-width="1.2" />
+            <!-- Single radiant golden optic lens with cyan halo -->
+            <circle cx="60" cy="33" r="6.2" fill="hsla(46, 100%, 66%, 0.28)" class="svg-pulse" />
+            <circle cx="60" cy="33" r="4.1" fill="hsl(48, 100%, 72%)" stroke="hsl(192, 100%, 80%)" stroke-width="1.1" />
+            <circle cx="59" cy="32" r="1.5" fill="hsl(54, 100%, 98%)" />
+          </g>
+          <!-- Mini orbiting elemental orb motes (Lightning, Frost, Dark) -->
+          <g class="svg-float">
+            <circle cx="20" cy="32" r="6" fill="hsl(48, 100%, 64%)" stroke="hsl(54, 100%, 92%)" stroke-width="1.1" opacity="0.92" />
+            <polygon points="21,28 17.5,32.5 20.5,32.5 19,36.5 22.8,31.5 20,31.5" fill="hsl(216, 78%, 22%)" />
+          </g>
+          <g class="svg-float">
+            <circle cx="100" cy="30" r="6" fill="hsl(194, 98%, 68%)" stroke="hsl(188, 100%, 94%)" stroke-width="1.1" opacity="0.92" />
+            <polygon points="100,26 103.5,30 100,34 96.5,30" fill="hsl(0, 0%, 100%)" opacity="0.88" />
+          </g>
+          <circle cx="104" cy="52" r="3.2" fill="hsl(278, 86%, 56%)" stroke="hsl(286, 100%, 82%)" stroke-width="0.9" opacity="0.85" class="svg-pulse" />
+        </svg>
+      `;
+
     default: {
       const enemySvg = getEnemySvg(artKey, mode);
       if (enemySvg) return enemySvg;
@@ -300,6 +382,28 @@ function renderCharacterSvgRaw(artKey, mode = 'normal') {
       `;
     }
   }
+}
+
+export function getOrbSvg(orbType, idSuffix = '') {
+  let raw;
+  switch (orbType) {
+    case 'lightning':
+      raw = `<svg viewBox="0 0 28 28" class="orb-svg orb-svg-lightning" data-orb-svg="lightning" aria-hidden="true"><defs><radialGradient id="orb-l-g" cx="38%" cy="32%" r="68%"><stop offset="0%" stop-color="hsl(54, 100%, 94%)"/><stop offset="48%" stop-color="hsl(46, 100%, 62%)"/><stop offset="100%" stop-color="hsl(204, 92%, 44%)"/></radialGradient></defs><circle cx="14" cy="14" r="12.2" fill="url(#orb-l-g)" stroke="hsl(50, 100%, 84%)" stroke-width="1.6"/><polygon points="15.8,5.4 9.6,15 13.8,15 11.8,22.6 18.8,12.6 14.6,12.6" fill="hsl(222, 68%, 16%)" stroke="hsl(54, 100%, 92%)" stroke-width="0.8" stroke-linejoin="round"/></svg>`;
+      break;
+    case 'frost':
+      raw = `<svg viewBox="0 0 28 28" class="orb-svg orb-svg-frost" data-orb-svg="frost" aria-hidden="true"><defs><radialGradient id="orb-f-g" cx="38%" cy="32%" r="68%"><stop offset="0%" stop-color="hsl(190, 100%, 96%)"/><stop offset="52%" stop-color="hsl(196, 94%, 64%)"/><stop offset="100%" stop-color="hsl(216, 86%, 40%)"/></radialGradient></defs><circle cx="14" cy="14" r="12.2" fill="url(#orb-f-g)" stroke="hsl(188, 100%, 88%)" stroke-width="1.6"/><polygon points="14,5.4 19.6,14 14,22.6 8.4,14" fill="hsla(192, 100%, 96%, 0.72)" stroke="hsl(214, 78%, 28%)" stroke-width="1.1" stroke-linejoin="round"/><path d="M14 7.8 V20.2 M9.8 14 H18.2" stroke="hsl(212, 82%, 30%)" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+      break;
+    case 'dark':
+      raw = `<svg viewBox="0 0 28 28" class="orb-svg orb-svg-dark" data-orb-svg="dark" aria-hidden="true"><defs><radialGradient id="orb-d-g" cx="42%" cy="38%" r="66%"><stop offset="0%" stop-color="hsl(288, 92%, 64%)"/><stop offset="52%" stop-color="hsl(270, 78%, 28%)"/><stop offset="100%" stop-color="hsl(258, 72%, 9%)"/></radialGradient></defs><circle cx="14" cy="14" r="12.2" fill="url(#orb-d-g)" stroke="hsl(286, 94%, 74%)" stroke-width="1.6"/><circle cx="14" cy="14" r="5.6" fill="hsl(256, 72%, 8%)" stroke="hsl(292, 98%, 76%)" stroke-width="1.2"/><path d="M8.4 10.6 Q14 7.2 19.6 10.6 M8.4 17.4 Q14 20.8 19.6 17.4" fill="none" stroke="hsla(294, 100%, 84%, 0.72)" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+      break;
+    case 'plasma':
+      raw = `<svg viewBox="0 0 28 28" class="orb-svg orb-svg-plasma" data-orb-svg="plasma" aria-hidden="true"><defs><radialGradient id="orb-p-g" cx="40%" cy="36%" r="66%"><stop offset="0%" stop-color="hsl(54, 100%, 96%)"/><stop offset="44%" stop-color="hsl(36, 100%, 64%)"/><stop offset="82%" stop-color="hsl(188, 96%, 54%)"/><stop offset="100%" stop-color="hsl(214, 88%, 34%)"/></radialGradient></defs><circle cx="14" cy="14" r="12.2" fill="url(#orb-p-g)" stroke="hsl(48, 100%, 86%)" stroke-width="1.6"/><ellipse cx="14" cy="14" rx="9" ry="3.8" transform="rotate(-28 14 14)" fill="none" stroke="hsl(54, 100%, 94%)" stroke-width="1.2"/><ellipse cx="14" cy="14" rx="9" ry="3.8" transform="rotate(28 14 14)" fill="none" stroke="hsl(186, 100%, 86%)" stroke-width="1.2"/><circle cx="14" cy="14" r="2.8" fill="hsl(54, 100%, 98%)"/></svg>`;
+      break;
+    default:
+      raw = `<svg viewBox="0 0 28 28" class="orb-svg orb-svg-empty" data-orb-svg="empty" aria-hidden="true"><circle cx="14" cy="14" r="11.2" fill="hsla(214, 34%, 14%, 0.45)" stroke="hsla(198, 72%, 64%, 0.48)" stroke-width="1.5" stroke-dasharray="3.2 2.6"/><circle cx="14" cy="14" r="3.4" fill="hsla(198, 64%, 58%, 0.2)"/></svg>`;
+      break;
+  }
+  return idSuffix ? scopeSvgIds(raw, idSuffix) : raw;
 }
 
 export function getNodeIconSvg(type) {

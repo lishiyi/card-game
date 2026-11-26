@@ -964,20 +964,40 @@ function renderDiscardPileChoiceModal({ state }) {
   const pending = state?.combat?.pendingCardChoice;
   if (
     !pending ||
-    (pending.mode !== 'discard_to_draw' && pending.mode !== 'retrieve_discard_retain')
+    (pending.mode !== 'discard_to_draw' &&
+      pending.mode !== 'retrieve_discard_retain' &&
+      pending.mode !== 'retrieve_discard_to_hand' &&
+      pending.mode !== 'pick_from_draw')
   ) {
     return '';
   }
   const candidates = Array.isArray(pending.candidates) ? pending.candidates : [];
   const selectedSet = new Set(pending.selectedIds || []);
   const isMeditate = pending.mode === 'retrieve_discard_retain';
+  const isDrawPick = pending.mode === 'pick_from_draw';
+  const isDiscardToHand = pending.mode === 'retrieve_discard_to_hand';
 
   const heading = isMeditate
     ? `冥想 · 从弃牌堆取回并保留（${pending.sourceName}）`
-    : `弃牌置顶 · ${pending.sourceName}`;
+    : isDrawPick
+      ? `搜寻 · 从抽牌堆检索（${pending.sourceName}）`
+      : isDiscardToHand
+        ? `全息取回 · 从弃牌堆加入手牌（${pending.sourceName}）`
+        : `弃牌置顶 · ${pending.sourceName}`;
   const subtitle = isMeditate
     ? `点击选择最多 ${pending.count} 张弃牌加入手牌并赋予本回合保留（已选 ${selectedSet.size}/${pending.count}），完成后点击确认。`
-    : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
+    : isDrawPick
+      ? `点击选择 ${pending.remaining} 张抽牌堆中的卡牌直接加入手牌（已按费用与名称排序）。`
+      : isDiscardToHand
+        ? `点击选择 ${pending.remaining} 张弃牌直接加入手牌。`
+        : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
+  const pickLabel = isMeditate
+    ? '点击取回保留'
+    : isDrawPick
+      ? '点击检索入手'
+      : isDiscardToHand
+        ? '点击取回入手'
+        : '点击置于牌堆顶';
 
   const cardsHtml = candidates
     .map((c, idx) =>
@@ -988,7 +1008,7 @@ function renderDiscardPileChoiceModal({ state }) {
         selected: isMeditate && selectedSet.has(c.instanceId),
         discardPickSelectable: true,
         discardPickSelected: isMeditate && selectedSet.has(c.instanceId),
-        discardPickLabel: isMeditate ? '点击取回保留' : '点击置于牌堆顶',
+        discardPickLabel: pickLabel,
         hotkey: idx < 9 ? idx + 1 : undefined,
         combatContext: {
           player: state.player,
@@ -1059,6 +1079,7 @@ function renderCompendiumModal({ meta, ui }) {
     ironclad: '铁甲战士',
     silent: '静默猎手',
     watcher: '观者',
+    defect: '故障机器人',
     colorless: '无色',
     any: '通用',
   };
@@ -1073,7 +1094,7 @@ function renderCompendiumModal({ meta, ui }) {
   let contentHtml = '';
 
   if (tab === 'cards') {
-    const classOrder = { ironclad: 0, silent: 1, watcher: 2, colorless: 3, special: 4 };
+    const classOrder = { ironclad: 0, silent: 1, watcher: 2, defect: 3, colorless: 4, special: 5 };
     const rarityOrder = { starter: 0, common: 1, uncommon: 2, rare: 3, special: 4, status: 5, curse: 6 };
     const getCardGroup = (def) => {
       if (def.type === 'curse' || def.type === 'status' || def.rarity === 'special') return 'special';
@@ -1096,6 +1117,7 @@ function renderCompendiumModal({ meta, ui }) {
       ['ironclad', '铁甲战士'],
       ['silent', '静默猎手'],
       ['watcher', '观者'],
+      ['defect', '故障机器人'],
       ['colorless', '无色'],
       ['special', '衍生/状态/诅咒'],
     ]
@@ -1345,7 +1367,12 @@ export function renderModal({ state, meta, settings, ui }) {
       if (pendingMode === 'scry') {
         return renderScryChoiceModal({ state });
       }
-      if (pendingMode === 'discard_to_draw' || pendingMode === 'retrieve_discard_retain') {
+      if (
+        pendingMode === 'discard_to_draw' ||
+        pendingMode === 'retrieve_discard_retain' ||
+        pendingMode === 'retrieve_discard_to_hand' ||
+        pendingMode === 'pick_from_draw'
+      ) {
         return renderDiscardPileChoiceModal({ state });
       }
     }

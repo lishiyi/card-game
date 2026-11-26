@@ -749,6 +749,12 @@ body.spire-dragging {
   color: hsl(288, 94%, 86%);
 }
 
+.character-hud-pill.char-defect {
+  background: hsla(208, 56%, 20%, 0.92);
+  border: 1px solid hsla(198, 82%, 58%, 0.8);
+  color: hsl(196, 96%, 86%);
+}
+
 .spire-shell[data-character='silent'] .energy-orb {
   background: radial-gradient(circle at 34% 30%, hsl(146, 72%, 44%), hsl(160, 58%, 19%));
   border-color: hsl(146, 78%, 58%);
@@ -759,6 +765,149 @@ body.spire-dragging {
   background: radial-gradient(circle at 34% 30%, hsl(282, 68%, 50%), hsl(270, 58%, 22%));
   border-color: hsl(44, 86%, 64%);
   box-shadow: 0 0 22px hsla(284, 78%, 54%, 0.48), inset 0 1px 0 hsla(44, 96%, 84%, 0.42);
+}
+
+.spire-shell[data-character='defect'] .energy-orb {
+  background: radial-gradient(circle at 34% 30%, hsl(196, 86%, 52%), hsl(214, 68%, 22%));
+  border-color: hsl(192, 92%, 68%);
+  box-shadow: 0 0 22px hsla(198, 88%, 52%, 0.5), inset 0 1px 0 hsla(190, 100%, 88%, 0.45);
+}
+
+/* === Defect Adaptive Orb Rail (Desktop Side Rail + Mobile Inline Rail) === */
+
+.fighters-group.player-side.has-defect-orbs {
+  align-items: center;
+  gap: 8px;
+}
+
+.orb-rail {
+  cursor: help;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.orb-rail:focus-visible,
+.orb-rail.tooltip-active {
+  outline: none;
+  border-color: hsla(196, 94%, 68%, 0.85);
+  box-shadow: 0 0 0 1.5px hsla(196, 94%, 68%, 0.55), 0 0 14px hsla(200, 90%, 54%, 0.34);
+}
+
+.orb-rail-inline {
+  display: none;
+}
+
+.orb-rail-side {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 6px 5px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, hsla(212, 34%, 13%, 0.78), hsla(218, 32%, 8%, 0.84));
+  border: 1px solid hsla(200, 68%, 52%, 0.36);
+  box-shadow: inset 0 1px 0 hsla(196, 92%, 82%, 0.12), 0 4px 12px hsla(0, 0%, 0%, 0.38);
+  flex-shrink: 0;
+}
+
+.orb-rail-side.is-one-col {
+  grid-template-columns: 1fr;
+}
+
+.orb-rail-side.is-two-col {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  padding: 5px 5px;
+}
+
+.orb-slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.orb-rail-side.is-two-col .orb-slot {
+  width: 28px;
+  height: 28px;
+}
+
+.orb-slot .orb-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.orb-slot.orb-empty {
+  opacity: 0.72;
+}
+
+.orb-slot.orb-lightning {
+  filter: drop-shadow(0 0 4px hsla(48, 100%, 62%, 0.45));
+}
+
+.orb-slot.orb-frost {
+  filter: drop-shadow(0 0 4px hsla(194, 96%, 64%, 0.48));
+}
+
+.orb-slot.orb-dark {
+  filter: drop-shadow(0 0 5px hsla(276, 86%, 58%, 0.56));
+}
+
+.orb-slot.orb-plasma {
+  filter: drop-shadow(0 0 5px hsla(38, 100%, 64%, 0.56));
+}
+
+.orb-slot.orb-front {
+  box-shadow:
+    0 0 0 1.8px hsl(46, 98%, 68%),
+    0 0 10px hsla(46, 98%, 60%, 0.54);
+}
+
+.orb-val {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 15px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: hsla(220, 34%, 8%, 0.94);
+  border: 1px solid hsla(200, 74%, 68%, 0.72);
+  color: hsl(200, 100%, 95%);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+.orb-slot.orb-lightning .orb-val {
+  border-color: hsla(48, 96%, 66%, 0.82);
+  color: hsl(50, 100%, 88%);
+}
+
+.orb-slot.orb-frost .orb-val {
+  border-color: hsla(192, 94%, 68%, 0.82);
+  color: hsl(192, 100%, 90%);
+}
+
+.orb-slot.orb-dark .orb-val {
+  border-color: hsla(280, 86%, 68%, 0.86);
+  color: hsl(286, 96%, 88%);
+}
+
+.orb-slot.orb-plasma .orb-val {
+  border-color: hsla(34, 98%, 66%, 0.86);
+  color: hsl(44, 100%, 88%);
 }
 
 /* === Watcher Stances (Calm / Wrath / Divinity) & Wrath Danger Banner === */

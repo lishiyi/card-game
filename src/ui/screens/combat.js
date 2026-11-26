@@ -4,18 +4,19 @@
 
 import { canUpgradeCard, getCardStats } from '../../data/cards.js';
 import { predictNextTurnIntents } from '../../data/enemies.js';
-import { POTION_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
+import { ORB_METADATA, POTION_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
 import {
   canPlayCard,
   getActivePendingCardChoice,
   getAliveEnemies,
+  getOrbOutputValues,
   hasPendingCardChoice,
   hasRelic,
 } from '../../engine/combat.js';
 import { getEnemyIntentPreview } from '../../engine/math.js';
 import { isCardBonusConditionMet } from '../../engine/tactics.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
-import { getCharacterSvg, getIntentIconSvg } from '../icons.js';
+import { getCharacterSvg, getIntentIconSvg, getOrbSvg } from '../icons.js';
 
 export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy }) {
   const combat = state.combat;
@@ -317,6 +318,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   } else if (pendingMode === 'retrieve_discard_retain') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择最多 ${pendingChoice.count} 张牌取回并保留……`;
     bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'retrieve_discard_to_hand') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'pick_from_draw') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
+    bannerClass = 'scry-prompt';
   } else if (isTargetingEnemy) {
     const itemName = selectedCardStats
       ? selectedCardStats.name
@@ -361,6 +368,75 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       ? totalEnemyAttackIncoming - (state.player.block ?? 0)
       : 0;
 
+  const maxOrbSlots = Math.max(0, state.player.maxOrbSlots ?? 0);
+  const playerOrbs = Array.isArray(state.player.orbs) ? state.player.orbs : [];
+  const hasOrbRail = maxOrbSlots > 0;
+  let orbRailTooltipTitle = '';
+  let orbRailTooltipTag = '';
+  let orbRailTooltipDesc = '';
+  const renderOrbRailHtml = (variant) => {
+    if (!hasOrbRail) return '';
+    const focusVal = state.player.statuses?.focus ?? 0;
+    const isElectro = (state.player.statuses?.electro ?? 0) > 0;
+    const focusNote = focusVal !== 0 ? ` · 集中 ${focusVal > 0 ? `+${focusVal}` : focusVal}` : '';
+    orbRailTooltipTitle = `充能球槽位 (${playerOrbs.length}/${maxOrbSlots})`;
+    orbRailTooltipTag = `先进先出${focusNote}`;
+    const lines = [];
+    for (let i = 0; i < maxOrbSlots; i += 1) {
+      const orb = playerOrbs[i];
+      const prefix = i === 0 ? `#1 队首（下次激发）` : `#${i + 1}`;
+      if (!orb) {
+        lines.push(`${prefix}：空槽位`);
+        continue;
+      }
+      const meta = ORB_METADATA[orb.type];
+      const vals = getOrbOutputValues(orb, state.player);
+      if (orb.type === 'lightning') {
+        lines.push(
+          `${prefix} · ⚡${meta.name}：被动 ${vals.passive} 伤${isElectro ? '(全体)' : ''} / 激发 ${vals.evoke} 伤${isElectro ? '(全体)' : ''}`
+        );
+      } else if (orb.type === 'frost') {
+        lines.push(`${prefix} · ❄️${meta.name}：被动 ${vals.passive} 盾 / 激发 ${vals.evoke} 盾`);
+      } else if (orb.type === 'dark') {
+        lines.push(`${prefix} · 🌑${meta.name}：每回合 +${vals.passive} / 激发 ${vals.evoke} 伤（最低血敌）`);
+      } else if (orb.type === 'plasma') {
+        lines.push(`${prefix} · ☀️${meta.name}：回合开始 +${vals.passive} 能 / 激发 +${vals.evoke} 能`);
+      }
+    }
+    orbRailTooltipDesc = lines.join('\n');
+
+    const slotsHtml = Array.from({ length: maxOrbSlots }, (_, idx) => {
+      const orb = playerOrbs[idx] || null;
+      const isFront = idx === 0 && Boolean(orb);
+      if (!orb) {
+        return `<span class="orb-slot orb-empty" data-orb-index="${idx}">${getOrbSvg('empty', `${variant}_e${idx}`)}</span>`;
+      }
+      const vals = getOrbOutputValues(orb, state.player);
+      const valLabel = orb.type === 'plasma' ? `+${vals.displayVal}` : String(vals.displayVal);
+      return `<span class="orb-slot orb-filled orb-${escapeHtml(orb.type)} ${isFront ? 'orb-front' : ''}" data-orb-index="${idx}" data-orb-type="${escapeHtml(orb.type)}">${getOrbSvg(orb.type, `${variant}_o${idx}`)}<span class="orb-val">${escapeHtml(valLabel)}</span></span>`;
+    }).join('');
+
+    const railId = variant === 'desktop' ? 'player-orb-rail-desktop' : 'player-orb-rail-mobile';
+    const layoutClass =
+      variant === 'desktop'
+        ? `orb-rail orb-rail-side ${maxOrbSlots > 5 ? 'is-two-col' : 'is-one-col'}`
+        : `orb-rail orb-rail-inline ${maxOrbSlots > 5 ? 'is-compact' : ''}`;
+    return `<div
+      id="${railId}"
+      class="${layoutClass}"
+      data-orb-rail="${variant}"
+      data-orb-slots="${maxOrbSlots}"
+      data-orb-count="${playerOrbs.length}"
+      tabindex="0"
+      role="button"
+      aria-label="${escapeHtml(`${orbRailTooltipTitle}，点击查看详情`)}"
+      data-tooltip-title="${escapeHtml(orbRailTooltipTitle)}"
+      data-tooltip-tag="${escapeHtml(orbRailTooltipTag)}"
+      data-tooltip-desc="${escapeHtml(orbRailTooltipDesc)}"
+      data-tooltip-tone="buff"
+    >${slotsHtml}</div>`;
+  };
+
   const mobileChoiceHint =
     pendingMode === 'retain'
       ? `点选保留牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
@@ -372,11 +448,15 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             ? '点击下方手牌升级'
             : pendingMode === 'scry'
               ? '请在弹窗完成预见'
-              : pendingMode === 'discard_to_draw' || pendingMode === 'retrieve_discard_retain'
+              : pendingMode === 'discard_to_draw' ||
+                  pendingMode === 'retrieve_discard_retain' ||
+                  pendingMode === 'retrieve_discard_to_hand'
                 ? '请在弹窗从弃牌堆选牌'
-                : settings?.mobileTapConfirm
-                  ? '点选预览 · 再点/上滑出牌'
-                  : '左右滑选牌 · 上滑拖出牌';
+                : pendingMode === 'pick_from_draw'
+                  ? '请在弹窗从抽牌堆检索'
+                  : settings?.mobileTapConfirm
+                    ? '点选预览 · 再点/上滑出牌'
+                    : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
     pendingMode === 'retain'
@@ -393,9 +473,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
   const playerAuraClasses = [
     currentStance !== 'neutral' ? `stance-${escapeHtml(currentStance)}` : '',
+    hasOrbRail ? 'has-orb-rail' : '',
     state.player.block > 0 ? 'has-block' : '',
     (state.player.statuses?.poison ?? 0) > 0 ? 'is-poisoned' : '',
-    (state.player.statuses?.strength ?? 0) > 0 || (state.player.statuses?.vigor ?? 0) > 0
+    (state.player.statuses?.strength ?? 0) > 0 ||
+    (state.player.statuses?.vigor ?? 0) > 0 ||
+    (state.player.statuses?.focus ?? 0) > 0
       ? 'is-empowered'
       : '',
   ]
@@ -411,10 +494,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
 
     <section class="combat-arena" id="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
       <div class="synergy-callout-bar" id="synergy-callout-bar" aria-live="polite" hidden></div>
-      <div class="fighters-group player-side">
+      <div class="fighters-group player-side ${hasOrbRail ? 'has-defect-orbs' : ''}">
         <div class="fighter-unit ${playerAuraClasses}" id="player-unit" data-stance="${escapeHtml(currentStance)}">
           <div class="intent-stack">
-            <div class="intent-badge">第 ${escapeHtml(combat.turn)} 回合</div>
+            <div class="intent-badge player-turn-badge">第 ${escapeHtml(combat.turn)} 回合</div>
+            ${renderOrbRailHtml('mobile')}
             ${
               currentStance !== 'neutral'
                 ? `<div
@@ -444,6 +528,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           </div>
           ${renderStatusesHtml(state.player, '自身')}
         </div>
+        ${renderOrbRailHtml('desktop')}
       </div>
 
       <div class="fighters-group enemy-side">
@@ -516,7 +601,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       </div>
 
       <div class="mobile-hand-bar" id="mobile-hand-bar">
-        <span class="mobile-hand-meta">手牌 ${escapeHtml(combat.hand.length)} / 10</span>
+        <span class="mobile-hand-meta">手牌 ${escapeHtml(combat.hand.length)} / 10${hasOrbRail ? ` · T${escapeHtml(combat.turn)}` : ''}</span>
         <span class="mobile-hand-hint">${mobileChoiceHint}</span>
         <button
           type="button"

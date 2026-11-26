@@ -5,6 +5,7 @@
 import { IRONCLAD_CARD_ART } from './card_art/ironclad.js';
 import { SILENT_CARD_ART } from './card_art/silent.js';
 import { WATCHER_CARD_ART } from './card_art/watcher.js';
+import { DEFECT_CARD_ART } from './card_art/defect.js';
 import { COLORLESS_SPECIAL_CARD_ART, CARD_THEME_ART } from './card_art/colorless_special.js';
 
 export { CARD_THEME_ART };
@@ -13,6 +14,7 @@ export const SIGNATURE_CARD_ART = Object.freeze({
   ...IRONCLAD_CARD_ART,
   ...SILENT_CARD_ART,
   ...WATCHER_CARD_ART,
+  ...DEFECT_CARD_ART,
   ...COLORLESS_SPECIAL_CARD_ART,
 });
 
@@ -35,10 +37,29 @@ export function getCardArtKey(cardId, stats = {}, activeCharId = null) {
   }
 
   if (cardId === 'defend') {
-    return char === 'silent' ? 'silent_cloak' : char === 'watcher' ? 'watcher_calm' : 'iron_shield';
+    return char === 'silent'
+      ? 'silent_cloak'
+      : char === 'watcher'
+        ? 'watcher_calm'
+        : char === 'defect'
+          ? 'defect_defend'
+          : 'iron_shield';
   }
   if (cardId === 'strike') {
-    return char === 'silent' ? 'silent_shiv' : char === 'watcher' ? 'watcher_martial' : 'iron_slash';
+    return char === 'silent'
+      ? 'silent_shiv'
+      : char === 'watcher'
+        ? 'watcher_martial'
+        : char === 'defect'
+          ? 'defect_strike'
+          : 'iron_slash';
+  }
+
+  if (char === 'defect') {
+    if (type === 'power') return 'defect_power';
+    if (stats.channelOrb || stats.channelOrbs || stats.evokeFront) return 'defect_orb';
+    if (type === 'skill' && (stats.block ?? 0) > 0) return 'defect_defend';
+    return 'defect_strike';
   }
 
   if (char === 'watcher') {

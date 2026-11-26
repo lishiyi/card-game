@@ -60,6 +60,14 @@ export const CARD_KEYWORD_DEFS = Object.freeze({
   虚弱: '造成的攻击伤害降低 25%（每回合结束减少 1 层）。',
   力量: '每 1 点力量使每次攻击伤害 +1（负值则减伤）。',
   敏捷: '每 1 点敏捷使卡牌提供的格挡 +1（负值则减甲）。',
+  充能: '将充能球填入右侧最前的空槽位；若槽位已满，则先自动【激发】队首充能球腾出空位。',
+  激发: '移除并引爆队首充能球（金框标示），立即触发其高额激发效果。',
+  集中: '每 1 点集中使闪电/冰霜/黑暗球的被动与激发数值 +1（负值则降低，不影响等离子球）。',
+  锁定: '带有锁定的敌人受到闪电球与黑暗球的伤害提高 50%（每回合结束减少 1 层）。',
+  闪电球: '被动：回合结束对随机敌人造成 3 伤；激发：对随机敌人造成 8 伤（受集中与锁定加成）。',
+  冰霜球: '被动：回合结束获得 2 格挡；激发：获得 5 格挡（受集中加成）。',
+  黑暗球: '被动：回合结束自身蓄能 +6；激发：对当前生命最低的敌人造成累计伤害。',
+  等离子球: '被动：回合开始 +1 能量；激发：立即 +2 能量（不受集中影响）。',
   小刀: '衍生攻击（0费）：造成 4 点伤害，消耗。',
   奇迹: '衍生技能（0费）：保留，获得 1 点能量，消耗。',
   惩恶: '衍生攻击（1费）：保留，造成 12 点伤害，消耗。',
@@ -71,7 +79,7 @@ export const CARD_KEYWORD_DEFS = Object.freeze({
 });
 
 const INLINE_KW_REGEX =
-  /(不能被打出|人工制品|无实体|固有|保留|虚无|消耗|斩杀|预见|真言|愤怒|平静|神格|印记|中毒|易伤|虚弱|力量|敏捷)/g;
+  /(不能被打出|人工制品|等离子球|闪电球|冰霜球|黑暗球|无实体|固有|保留|虚无|消耗|斩杀|预见|真言|愤怒|平静|神格|印记|充能|激发|集中|锁定|中毒|易伤|虚弱|力量|敏捷)/g;
 
 export function formatCardDescHtml(text) {
   return escapeHtml(text).replace(
@@ -111,6 +119,14 @@ export function extractCardKeywords(stats, descText = '') {
     ['平静', () => descText.includes('【平静】')],
     ['神格', () => descText.includes('【神格】')],
     ['印记', () => descText.includes('【印记】')],
+    ['闪电球', () => descText.includes('闪电球')],
+    ['冰霜球', () => descText.includes('冰霜球')],
+    ['黑暗球', () => descText.includes('黑暗球')],
+    ['等离子球', () => descText.includes('等离子球')],
+    ['充能', () => descText.includes('充能')],
+    ['激发', () => descText.includes('激发')],
+    ['集中', () => descText.includes('集中')],
+    ['锁定', () => descText.includes('锁定')],
     ['无实体', () => descText.includes('无实体')],
     ['人工制品', () => descText.includes('人工制品')],
     ['中毒', () => descText.includes('中毒')],
@@ -346,7 +362,9 @@ export function renderStatusesHtml(entity, ownerLabel = '状态') {
         describe: () => '',
       };
       const polarity =
-        (key === 'strength' || key === 'dexterity') && val < 0 ? 'debuff' : metaInfo.polarity;
+        (key === 'strength' || key === 'dexterity' || key === 'focus') && val < 0
+          ? 'debuff'
+          : metaInfo.polarity;
       const polarityLabel = polarity === 'debuff' ? '负面状态' : '正面状态';
       const displayVal = key === 'slow' ? `+${(entity?.slowStacks ?? 0) * 10}%` : `${val}`;
       let descText = metaInfo.describe(val, entity?.slowStacks ?? 0);

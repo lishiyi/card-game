@@ -1079,6 +1079,100 @@ export const RELIC_SVG_ART = Object.freeze({
      <polygon points="7,18.5 10,16.8 10,20.2" fill="hsl(12, 92%, 60%)"/><polygon points="29,18.5 26,16.8 26,20.2" fill="hsl(12, 92%, 60%)"/>
      <rect x="15.5" y="24" width="5" height="3.2" rx="1" fill="hsl(44, 90%, 64%)" stroke="hsl(24, 54%, 22%)" stroke-width="0.9"/>`
   ),
+
+  // === THE DEFECT RELICS (9) ===
+  cracked_core: wrapRelicSvg(
+    'cracked_core',
+    'hsl(204, 62%, 24%)',
+    'hsl(222, 60%, 10%)',
+    'hsl(192, 96%, 66%)',
+    `<circle cx="18" cy="18" r="10.2" fill="hsl(216, 46%, 22%)" stroke="hsl(42, 84%, 64%)" stroke-width="1.8"/>
+     <circle cx="18" cy="18" r="7.2" fill="hsl(194, 96%, 56%)" stroke="hsl(188, 100%, 84%)" stroke-width="1"/>
+     <path d="M13 11.5 L18 17.5 L15.5 24.5 M23 13 L18.5 18 L22.5 23" fill="none" stroke="hsl(222, 62%, 12%)" stroke-width="1.5" stroke-linecap="round"/>
+     <polygon points="19.5,11 15,18.2 18.2,18.2 16.8,24 21.5,16.8 18.5,16.8" fill="hsl(52, 100%, 84%)"/>`
+  ),
+  data_disk: wrapRelicSvg(
+    'data_disk',
+    'hsl(206, 56%, 24%)',
+    'hsl(226, 54%, 10%)',
+    'hsl(194, 92%, 68%)',
+    `<rect x="8.5" y="8.5" width="19" height="19" rx="2.4" fill="hsl(214, 52%, 34%)" stroke="hsl(194, 88%, 72%)" stroke-width="1.4"/>
+     <rect x="12" y="8.5" width="12" height="7" rx="1" fill="hsl(210, 26%, 78%)" stroke="hsl(218, 42%, 24%)" stroke-width="0.9"/>
+     <rect x="19" y="10" width="2.8" height="4.2" rx="0.5" fill="hsl(218, 48%, 22%)"/>
+     <rect x="11.5" y="18.2" width="13" height="7.5" rx="1" fill="hsl(42, 76%, 84%)" stroke="hsl(36, 58%, 46%)" stroke-width="0.8"/>
+     <path d="M13.5 21 H22.5 M13.5 23.4 H20" stroke="hsl(204, 86%, 46%)" stroke-width="1.2" stroke-linecap="round"/>`
+  ),
+  gold_plated_cables: wrapRelicSvg(
+    'gold_plated_cables',
+    'hsl(40, 62%, 24%)',
+    'hsl(218, 52%, 10%)',
+    'hsl(46, 98%, 68%)',
+    `<path d="M8.5 24 C10 14 14 10 18 18 C22 26 26 22 27.5 12" fill="none" stroke="hsl(44, 96%, 62%)" stroke-width="3.6" stroke-linecap="round"/>
+     <path d="M8.5 24 C10 14 14 10 18 18 C22 26 26 22 27.5 12" fill="none" stroke="hsl(54, 100%, 88%)" stroke-width="1.2" stroke-linecap="round"/>
+     <rect x="6.5" y="21.5" width="4.4" height="5.5" rx="1" fill="hsl(212, 34%, 56%)" stroke="hsl(46, 96%, 74%)" stroke-width="1"/>
+     <rect x="25.1" y="9" width="4.4" height="5.5" rx="1" fill="hsl(212, 34%, 56%)" stroke="hsl(46, 96%, 74%)" stroke-width="1"/>
+     <circle cx="18" cy="18" r="2.6" fill="hsl(192, 100%, 72%)"/>`
+  ),
+  symbiotic_virus: wrapRelicSvg(
+    'symbiotic_virus',
+    'hsl(280, 58%, 22%)',
+    'hsl(258, 62%, 9%)',
+    'hsl(288, 94%, 68%)',
+    `<circle cx="18" cy="18" r="6.8" fill="hsl(276, 76%, 34%)" stroke="hsl(292, 98%, 74%)" stroke-width="1.5"/>
+     <circle cx="18" cy="18" r="3" fill="hsl(142, 96%, 62%)"/>
+     <path d="M18 7.5 V11.2 M18 24.8 V28.5 M7.5 18 H11.2 M24.8 18 H28.5 M10.6 10.6 L13.2 13.2 M22.8 22.8 L25.4 25.4 M25.4 10.6 L22.8 13.2 M13.2 22.8 L10.6 25.4" stroke="hsl(288, 92%, 72%)" stroke-width="1.6" stroke-linecap="round"/>
+     <circle cx="18" cy="7.2" r="1.6" fill="hsl(142, 96%, 66%)"/><circle cx="18" cy="28.8" r="1.6" fill="hsl(142, 96%, 66%)"/><circle cx="7.2" cy="18" r="1.6" fill="hsl(142, 96%, 66%)"/><circle cx="28.8" cy="18" r="1.6" fill="hsl(142, 96%, 66%)"/>`
+  ),
+  emotion_chip: wrapRelicSvg(
+    'emotion_chip',
+    'hsl(328, 56%, 22%)',
+    'hsl(228, 56%, 10%)',
+    'hsl(342, 94%, 68%)',
+    `<rect x="10" y="10" width="16" height="16" rx="2.4" fill="hsl(224, 42%, 18%)" stroke="hsl(44, 92%, 68%)" stroke-width="1.5"/>
+     <path d="M13 6.8 V10 M18 6.8 V10 M23 6.8 V10 M13 26 V29.2 M18 26 V29.2 M23 26 V29.2 M6.8 13 H10 M6.8 18 H10 M6.8 23 H10 M26 13 H29.2 M26 18 H29.2 M26 23 H29.2" stroke="hsl(44, 88%, 68%)" stroke-width="1.3" stroke-linecap="round"/>
+     <path d="M18 22.4 C17.6 22.4 13 19.2 13 15.8 A2.6 2.6 0 0 1 18 14.4 A2.6 2.6 0 0 1 23 15.8 C23 19.2 18.4 22.4 18 22.4 Z" fill="hsl(346, 94%, 58%)" stroke="hsl(192, 100%, 82%)" stroke-width="1"/>`
+  ),
+  runic_capacitor: wrapRelicSvg(
+    'runic_capacitor',
+    'hsl(198, 60%, 24%)',
+    'hsl(224, 58%, 10%)',
+    'hsl(188, 96%, 68%)',
+    `<circle cx="18" cy="18" r="10.4" fill="none" stroke="hsl(42, 86%, 66%)" stroke-width="2" stroke-dasharray="5 3"/>
+     <circle cx="18" cy="9.2" r="3" fill="hsl(194, 96%, 64%)" stroke="hsl(0, 0%, 100%)" stroke-width="1"/>
+     <circle cx="10.2" cy="22.4" r="3" fill="hsl(48, 100%, 64%)" stroke="hsl(0, 0%, 100%)" stroke-width="1"/>
+     <circle cx="25.8" cy="22.4" r="3" fill="hsl(284, 92%, 64%)" stroke="hsl(0, 0%, 100%)" stroke-width="1"/>
+     <polygon points="18,13.5 21.8,20.2 14.2,20.2" fill="hsla(190, 100%, 76%, 0.42)" stroke="hsl(188, 100%, 86%)" stroke-width="1.1"/>`
+  ),
+  frozen_core: wrapRelicSvg(
+    'frozen_core',
+    'hsl(194, 68%, 24%)',
+    'hsl(220, 62%, 10%)',
+    'hsl(188, 100%, 76%)',
+    `<circle cx="18" cy="18" r="10.2" fill="hsl(204, 72%, 44%)" stroke="hsl(188, 100%, 88%)" stroke-width="1.8"/>
+     <polygon points="18,8.8 24.4,18 18,27.2 11.6,18" fill="hsl(192, 100%, 84%)" stroke="hsl(214, 72%, 30%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M18 11 V25 M12.5 18 H23.5 M14.2 14.2 L21.8 21.8 M21.8 14.2 L14.2 21.8" stroke="hsl(210, 78%, 34%)" stroke-width="1.1" stroke-linecap="round"/>`
+  ),
+  inserter: wrapRelicSvg(
+    'inserter',
+    'hsl(212, 48%, 24%)',
+    'hsl(224, 52%, 10%)',
+    'hsl(44, 96%, 68%)',
+    `<path d="M9 26 L15.5 19 L22 14" fill="none" stroke="hsl(42, 86%, 60%)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+     <circle cx="15.5" cy="19" r="2.8" fill="hsl(214, 42%, 34%)" stroke="hsl(46, 98%, 74%)" stroke-width="1.2"/>
+     <path d="M20.5 11.5 L26.5 9.5 L25 15.5 M22 15.5 L27.5 17.5 L22.5 21" fill="none" stroke="hsl(194, 96%, 72%)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+     <circle cx="26" cy="13.5" r="2.4" fill="hsl(192, 100%, 78%)" opacity="0.9"/>`
+  ),
+  nuclear_battery: wrapRelicSvg(
+    'nuclear_battery',
+    'hsl(42, 68%, 24%)',
+    'hsl(206, 62%, 10%)',
+    'hsl(48, 100%, 68%)',
+    `<rect x="11" y="9" width="14" height="19" rx="2.8" fill="hsl(216, 46%, 22%)" stroke="hsl(46, 98%, 70%)" stroke-width="1.6"/>
+     <rect x="14.5" y="6.2" width="7" height="3" rx="1" fill="hsl(46, 94%, 64%)"/>
+     <circle cx="18" cy="18.5" r="4.6" fill="hsl(44, 100%, 64%)" stroke="hsl(188, 100%, 74%)" stroke-width="1.3"/>
+     <circle cx="18" cy="18.5" r="1.8" fill="hsl(54, 100%, 96%)"/>
+     <path d="M13 13.5 H23 M13 23.5 H23" stroke="hsl(190, 100%, 74%)" stroke-width="1.1" opacity="0.8"/>`
+  ),
 });
 
 const FALLBACK_RELIC_SVG = wrapRelicSvg(

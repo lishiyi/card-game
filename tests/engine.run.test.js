@@ -18,7 +18,7 @@ import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
 import { CARD_THEME_ART, getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
 import { getGlossaryEntries } from '../src/ui/glossary.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
-import { getCharacterSvg, getVitalIconSvg } from '../src/ui/icons.js';
+import { getCharacterSvg, getOrbSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
 import {
   getPotionIconSvg,
@@ -898,7 +898,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 16);
+  assert.equal(BOSS_RELIC_IDS.length, 19);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -2120,12 +2120,12 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients & all 233 cards resolve valid, richly de-duplicated vector art', () => {
+test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 307 cards resolve valid, richly de-duplicated vector art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
-  // Verify 3 playable hero portraits
-  for (const heroId of ['ironclad', 'silent', 'watcher']) {
+  // Verify 4 playable hero portraits
+  for (const heroId of ['ironclad', 'silent', 'watcher', 'defect']) {
     const svg = getCharacterSvg(heroId);
     assert.notEqual(svg, fallbackSvg, `Hero ${heroId} must not fall back to generic SVG`);
     assert.ok(svg.includes('class="unit-svg hero-svg"'), `Hero ${heroId} must use hero-tier SVG class`);
@@ -2142,6 +2142,15 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
     for (const m of tabSvg.matchAll(/url\(#([^)]+)\)/g)) {
       assert.ok(m[1].endsWith('-tab'), `Scoped hero SVG url() reference must end with -tab: ${m[1]}`);
     }
+  }
+
+  // Verify Defect orb SVGs (lightning, frost, dark, plasma, empty) with safe id scoping
+  for (const orbType of ['lightning', 'frost', 'dark', 'plasma', 'empty']) {
+    const orbSvg = getOrbSvg(orbType, `test_${orbType}`);
+    assert.ok(
+      orbSvg.startsWith('<svg') && orbSvg.endsWith('</svg>') && orbSvg.includes(`data-orb-svg="${orbType}"`),
+      `Orb SVG for ${orbType} must be valid and expose data-orb-svg`
+    );
   }
 
   const enemyEntries = Object.entries(ENEMY_TEMPLATES);
@@ -2168,11 +2177,11 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
   }
 
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 234);
+  assert.equal(cardEntries.length, 307);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.equal(sigKeys.length, 232, `Expected 100% bespoke signature art for all 232 non-shared cards, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 305, `Expected 100% bespoke signature art for all 305 non-shared cards, got ${sigKeys.length}`);
   const themeKeys = Object.keys(CARD_THEME_ART);
-  assert.equal(themeKeys.length, 29, `Expected 29 class/status/curse theme artworks, got ${themeKeys.length}`);
+  assert.equal(themeKeys.length, 33, `Expected 33 class/status/curse theme artworks, got ${themeKeys.length}`);
   const seenCardGradIds = new Set();
   for (const [artKey, svgMarkup] of [...Object.entries(SIGNATURE_CARD_ART), ...Object.entries(CARD_THEME_ART)]) {
     if (SIGNATURE_CARD_ART[artKey]) {
@@ -2215,9 +2224,11 @@ test('Art Integrity: all 3 heroes & 61 enemies have unique hero-tier gradients &
   assert.equal(getCardArtKey('strike', strikeStats, 'ironclad'), 'iron_slash');
   assert.equal(getCardArtKey('strike', strikeStats, 'silent'), 'silent_shiv');
   assert.equal(getCardArtKey('strike', strikeStats, 'watcher'), 'watcher_martial');
+  assert.equal(getCardArtKey('strike', strikeStats, 'defect'), 'defect_strike');
   assert.equal(getCardArtKey('defend', defendStats, 'ironclad'), 'iron_shield');
   assert.equal(getCardArtKey('defend', defendStats, 'silent'), 'silent_cloak');
   assert.equal(getCardArtKey('defend', defendStats, 'watcher'), 'watcher_calm');
+  assert.equal(getCardArtKey('defend', defendStats, 'defect'), 'defect_defend');
 
   const hpVitalSvg = getVitalIconSvg('hp');
   const goldVitalSvg = getVitalIconSvg('gold');
@@ -2527,11 +2538,11 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   );
 });
 
-test('Official Simplified Chinese card names (234 unique) & concise card keyword descriptions/extraction', () => {
+test('Official Simplified Chinese card names (307 unique) & concise card keyword descriptions/extraction', () => {
   const allCards = Object.values(CARD_LIBRARY);
-  assert.equal(allCards.length, 234);
+  assert.equal(allCards.length, 307);
 
-  // Zero duplicate Chinese names across all 234 cards
+  // Zero duplicate Chinese names across all 307 cards
   const seenNames = new Map();
   for (const c of allCards) {
     assert.equal(
@@ -2542,7 +2553,7 @@ test('Official Simplified Chinese card names (234 unique) & concise card keyword
     seenNames.set(c.name, c.id);
   }
 
-  // Spot-check official Simplified Chinese names across Ironclad, Silent, Watcher, Colorless & Tokens
+  // Spot-check official Simplified Chinese names across Ironclad, Silent, Watcher, Defect, Colorless & Tokens
   const expectedNames = {
     cleave: '顺劈斩',
     thunderclap: '闪电霹雳',
@@ -2620,6 +2631,21 @@ test('Official Simplified Chinese card names (234 unique) & concise card keyword
     reach_heaven: '立地升天',
     wave_of_the_hand: '摆手',
     master_reality: '操控现实',
+    zap: '电击',
+    dualcast: '双重释放',
+    ball_lightning: '球状闪电',
+    cold_snap: '寒流',
+    coolheaded: '冷静头脑',
+    claw: '爪击',
+    hologram: '全息影像',
+    rip_and_tear: '撕扯',
+    defragment: '碎片整理',
+    biased_cognition: '偏差认知',
+    echo_form: '回响形态',
+    electrodynamics: '电动力学',
+    seek: '搜寻',
+    meteor_strike: '陨石打击',
+    hyperbeam: '超能光束',
     flash_of_steel: '亮剑',
     finesse: '妙计',
     dramatic_entrance: '闪亮登场',
@@ -2679,14 +2705,23 @@ test('Official Simplified Chinese card names (234 unique) & concise card keyword
   assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
 });
 
-test('Official Simplified Chinese relic names (103 unique) & War Paint / Whetstone upgrade tracking', () => {
+test('Official Simplified Chinese relic names (112 unique) & War Paint / Whetstone upgrade tracking', () => {
   const allRelics = Object.values(RELIC_LIBRARY);
-  assert.equal(allRelics.length, 103);
+  assert.equal(allRelics.length, 112);
   const nameSet = new Set(allRelics.map((r) => r.name));
-  assert.equal(nameSet.size, 103, 'All 103 relics must have unique Simplified Chinese names');
+  assert.equal(nameSet.size, 112, 'All 112 relics must have unique Simplified Chinese names');
 
   const expectedOfficialRelicNames = {
     pure_water: '至纯之水',
+    cracked_core: '碎裂核心',
+    data_disk: '数据磁盘',
+    gold_plated_cables: '镀金电缆',
+    symbiotic_virus: '共生病毒',
+    emotion_chip: '情感芯片',
+    runic_capacitor: '符文电容器',
+    frozen_core: '冻结核心',
+    inserter: '插入器',
+    nuclear_battery: '核能电池',
     oddly_smooth_stone: '意外光滑的石头',
     lantern: '灯笼',
     blood_vial: '小血瓶',
@@ -2905,10 +2940,10 @@ test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and a
   }
 });
 
-test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
+test('Relic Art Integrity: all 112 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
   const libIds = Object.keys(RELIC_LIBRARY);
   const artIds = Object.keys(RELIC_SVG_ART);
-  assert.equal(libIds.length, 103, `Expected 103 relics in RELIC_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 112, `Expected 112 relics in RELIC_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'RELIC_SVG_ART must match RELIC_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();
@@ -2954,10 +2989,10 @@ test('Relic Art Integrity: all 103 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 102 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity variants & safe scoping', () => {
+test('Status Art Integrity: all 118 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 102, `Expected 102 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 118, `Expected 118 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();
@@ -2990,12 +3025,14 @@ test('Status Art Integrity: all 102 combat buffs/debuffs have bespoke inline SVG
     }
   }
 
-  // Negative Strength & Dexterity variants (crimson debuff beveled octagon)
-  assert.ok(STATUS_NEGATIVE_SVG_ART.strength && STATUS_NEGATIVE_SVG_ART.dexterity);
+  // Negative Strength, Dexterity & Focus variants (crimson debuff beveled octagon)
+  assert.ok(STATUS_NEGATIVE_SVG_ART.strength && STATUS_NEGATIVE_SVG_ART.dexterity && STATUS_NEGATIVE_SVG_ART.focus);
   const negStr = getStatusSvg('strength', { polarity: 'debuff', scope: 'player' });
   const negDex = getStatusSvg('dexterity', { polarity: 'debuff', scope: 'player' });
+  const negFocus = getStatusSvg('focus', { polarity: 'debuff', scope: 'player' });
   assert.ok(negStr.includes('data-status-svg="strength_down"') && negStr.includes('data-status-polarity="debuff"') && negStr.includes('-player'));
   assert.ok(negDex.includes('data-status-svg="dexterity_down"') && negDex.includes('data-status-polarity="debuff"') && negDex.includes('-player'));
+  assert.ok(negFocus.includes('data-status-svg="focus_down"') && negFocus.includes('data-status-polarity="debuff"') && negFocus.includes('-player'));
 
   // Fallbacks & sw.js precache
   assert.ok(getStatusSvg('unknown_status', { polarity: 'buff' }).includes('data-status-svg="fallback_buff"'));
@@ -3005,10 +3042,10 @@ test('Status Art Integrity: all 102 combat buffs/debuffs have bespoke inline SVG
   assert.ok(swText.includes("'./src/ui/status_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/status_art.js');
 });
 
-test('Potion Art Integrity: all 28 potions have distinct hand-crafted bottle SVGs, unique gradient IDs, safe scoping & sw.js precache', () => {
+test('Potion Art Integrity: all 32 potions have distinct hand-crafted bottle SVGs, unique gradient IDs, safe scoping & sw.js precache', () => {
   const libIds = Object.keys(POTION_LIBRARY);
   const artIds = Object.keys(POTION_SVG_ART);
-  assert.equal(libIds.length, 28, `Expected 28 potions in POTION_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 32, `Expected 32 potions in POTION_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'POTION_SVG_ART must match POTION_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();
@@ -3038,7 +3075,7 @@ test('Potion Art Integrity: all 28 potions have distinct hand-crafted bottle SVG
       assert.ok(scoped.includes(`id="${gid}-hud_1"`) && scoped.includes(`url(#${gid}-hud_1)`));
     }
   }
-  assert.equal(distinctShapes.size, libIds.length, 'Every single one of the 28 potions must have a unique, non-repeated SVG illustration');
+  assert.equal(distinctShapes.size, libIds.length, 'Every single one of the 32 potions must have a unique, non-repeated SVG illustration');
 
   assert.ok(getPotionIconSvg(null).includes('data-potion-icon="empty"'));
   assert.ok(getUndiscoveredPotionSvg().includes('data-potion-icon="undiscovered"'));
@@ -3216,4 +3253,93 @@ test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inli
   const fatalEntry = glossaryEntries.find((e) => e.id === 'kw_fatal');
   assert.ok(fatalEntry, 'Glossary must include kw_fatal entry');
   assert.ok(fatalEntry.name.includes('斩杀') && fatalEntry.description.includes('狂宴') && fatalEntry.description.includes('贪婪之手') && fatalEntry.description.includes('勤学奋进'));
+});
+
+test('The Defect run setup (75/70 HP, 10 cards, Cracked/Frozen Core), 4-hero pool isolation, Boss Swap, ?char=defect URL & Daily Challenge 2026-11-26 cutoff', () => {
+  const run = createNewRun({ seed: 44101, characterId: 'defect', ascension: 0, unlockAllOverride: true });
+  assert.equal(run.characterId, 'defect');
+  assert.equal(run.player.name, '故障机器人');
+  assert.equal(run.player.maxHp, 75);
+  assert.equal(run.player.hp, 75);
+  assert.deepEqual(run.player.relics, ['cracked_core']);
+  assert.equal(run.player.potions[0], 'focus_potion');
+  assert.equal(run.player.deck.length, 10);
+  const deckCounts = {};
+  for (const c of run.player.deck) {
+    deckCounts[c.cardId] = (deckCounts[c.cardId] || 0) + 1;
+  }
+  assert.deepEqual(deckCounts, { strike: 4, defend: 4, zap: 1, dualcast: 1 });
+
+  // Ascension 4 reduces Defect Max HP to 70
+  const runA4 = createNewRun({ seed: 44102, characterId: 'defect', ascension: 4, unlockAllOverride: true, skipNeow: true });
+  assert.equal(runA4.player.maxHp, 70);
+  assert.equal(runA4.player.hp, 70);
+
+  // Strict 4-class card/relic/potion isolation: Defect combat rewards never leak Ironclad/Silent/Watcher class cards
+  const rewardRun = createNewRun({ seed: 44103, characterId: 'defect', unlockAllOverride: true, skipNeow: true });
+  for (let i = 0; i < 30; i += 1) {
+    startCombat(rewardRun, ENCOUNTERS.floor1[0], 'normal');
+    rewardRun.combat.enemies.forEach((e) => {
+      e.hp = 0;
+    });
+    transitionCombatVictory(rewardRun);
+    for (const c of rewardRun.reward?.cardChoices || []) {
+      const char = getCardCharacter(CARD_LIBRARY[c.cardId]);
+      assert.equal(char, 'defect', `Defect reward leaked non-Defect card ${c.cardId} (${char})`);
+    }
+    if (rewardRun.reward?.relicId) {
+      const rChar = RELIC_LIBRARY[rewardRun.reward.relicId]?.character || 'shared';
+      assert.ok(rChar === 'shared' || rChar === 'defect', `Defect leaked relic ${rewardRun.reward.relicId} (${rChar})`);
+    }
+    if (rewardRun.reward?.potionId) {
+      const pChar = POTION_LIBRARY[rewardRun.reward.potionId]?.character || 'shared';
+      assert.ok(pChar === 'shared' || pChar === 'defect', `Defect leaked potion ${rewardRun.reward.potionId} (${pChar})`);
+    }
+  }
+
+  // Neow Boss Swap removes Cracked Core and never rolls Frozen Core (which requires Cracked Core)
+  for (let s = 1; s <= 25; s += 1) {
+    const swap = createNewRun({ seed: 44200 + s, characterId: 'defect', unlockAllOverride: true });
+    const res = chooseNeowOption(swap, 'boss_swap');
+    assert.equal(res.ok, true);
+    assert.equal(swap.player.relics.includes('cracked_core'), false);
+    assert.equal(swap.player.relics.includes('frozen_core'), false, 'Boss Swap must never roll frozen_core');
+  }
+
+  // Boss Relic upgrade: Frozen Core replaces Cracked Core cleanly
+  const upgradeRun = createNewRun({ seed: 44300, characterId: 'defect', unlockAllOverride: true, skipNeow: true });
+  upgradeRun.screen = 'boss_reward';
+  upgradeRun.bossReward = { relicChoices: ['frozen_core', 'inserter', 'nuclear_battery'], cardChoices: [], claimedRelic: false };
+  assert.equal(claimBossRelic(upgradeRun, 'frozen_core').ok, true);
+  assert.equal(upgradeRun.player.relics.includes('cracked_core'), false);
+  assert.equal(upgradeRun.player.relics.includes('frozen_core'), true);
+
+  // URL round-trip for ?char=defect
+  const parsed = parseChallengeInput('https://lishiyi.github.io/card-game/?seed=DEF-777&char=defect&asc=3');
+  assert.equal(parsed.characterId, 'defect');
+  assert.equal(parsed.ascension, 3);
+
+  // Daily Challenge backward-compatible 2026-11-26 rotation cutoff
+  const preCutoffChars = new Set();
+  for (let d = 1; d <= 25; d += 1) {
+    const dayStr = `2026-11-${String(d).padStart(2, '0')}`;
+    preCutoffChars.add(getDailyChallengeSpec(dayStr).characterId);
+  }
+  assert.equal(preCutoffChars.has('defect'), false, 'Dates before 2026-11-26 must preserve legacy 3-hero daily rotation');
+  assert.equal(preCutoffChars.size, 3);
+
+  const postCutoffChars = new Set();
+  for (let d = 26; d <= 30; d += 1) {
+    postCutoffChars.add(getDailyChallengeSpec(`2026-11-${String(d).padStart(2, '0')}`).characterId);
+  }
+  for (let d = 1; d <= 15; d += 1) {
+    postCutoffChars.add(getDailyChallengeSpec(`2026-12-${String(d).padStart(2, '0')}`).characterId);
+  }
+  assert.equal(postCutoffChars.has('defect'), true, 'Dates on/after 2026-11-26 must include Defect in daily rotation');
+  assert.equal(postCutoffChars.size, 4);
+
+  // Glossary includes Defect orb & focus/lock-on entries
+  const glossary = getGlossaryEntries();
+  assert.ok(glossary.some((e) => e.id === 'kw_defect_orbs'));
+  assert.ok(glossary.some((e) => e.id === 'kw_focus_lockon'));
 });

@@ -1771,3 +1771,348 @@ test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged s
     await session?.close();
   }
 });
+
+test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 1280px & Mobile 390px/375px zero-bloat/zero-overlap), Hologram/Seek modals, Orb FX/Audio & Compendium', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Desktop 1280px: 4-hero Character Select (1 horizontal row, zero overflow, azure Defect card & launch)
+    const selectAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
+      const cards = [...document.querySelectorAll('.character-card')];
+      const ids = cards.map((el) => el.dataset.characterId);
+      const tops = cards.map((el) => Math.round(el.getBoundingClientRect().top));
+      const overflowX = document.documentElement.scrollWidth - window.innerWidth;
+      document.getElementById('char-card-defect')?.click();
+      const defectSelected = document.getElementById('char-card-defect')?.classList.contains('selected');
+      const defectAzure = document.getElementById('char-card-defect')?.classList.contains('theme-azure');
+      const defectSvg = Boolean(document.querySelector('#char-card-defect .character-portrait-stage svg'));
+      const launchBtn = document.getElementById('btn-start-character-run');
+      const launchText = launchBtn?.textContent?.trim() || '';
+      const launchAzure = launchBtn?.classList.contains('theme-azure');
+      launchBtn?.click();
+      const st = window.__SPIRE_APP__.getState();
+      return {
+        ids,
+        allSameRow: Math.max(...tops) - Math.min(...tops) <= 4,
+        overflowX,
+        defectSelected,
+        defectAzure,
+        defectSvg,
+        launchText,
+        launchAzure,
+        charId: st.characterId,
+        maxHp: st.player.maxHp,
+        starterRelic: st.player.relics[0],
+        starterPotion: st.player.potions[0],
+      };
+    })()`);
+
+    assert.deepEqual(selectAudit.ids, ['ironclad', 'silent', 'watcher', 'defect']);
+    assert.equal(selectAudit.allSameRow, true, 'All 4 hero cards must sit cleanly on 1 horizontal row on 1280px desktop');
+    assert.ok(selectAudit.overflowX <= 1, `Desktop 4-hero select must not overflow horizontally: ${selectAudit.overflowX}`);
+    assert.equal(selectAudit.defectSelected, true);
+    assert.equal(selectAudit.defectAzure, true);
+    assert.equal(selectAudit.defectSvg, true);
+    assert.ok(selectAudit.launchText.includes('故障机器人'));
+    assert.equal(selectAudit.launchAzure, true);
+    assert.equal(selectAudit.charId, 'defect');
+    assert.equal(selectAudit.maxHp, 75);
+    assert.equal(selectAudit.starterRelic, 'cracked_core');
+    assert.equal(selectAudit.starterPotion, 'focus_potion');
+
+    // 2. Desktop 1280x820 Combat: verify Adaptive Side Rail geometry across 1, 2, 3 enemies × 3 & 10 orbs (ZERO overlap, 0px vertical bloat)
+    const desktopCombatAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.neowState = null;
+      st.screen = 'map';
+      app.render();
+      document.getElementById('map-node-f1_c0')?.click();
+
+      const s = app.getState();
+      const baseEnemy = JSON.parse(JSON.stringify(s.combat.enemies[0]));
+      baseEnemy.hp = 80;
+      baseEnemy.maxHp = 80;
+      baseEnemy.block = 0;
+      baseEnemy.statuses = {};
+      baseEnemy.intent = { id: 'idle', name: '蓄力', type: 'buff', summary: '蓄力' };
+
+      const makeEnemies = (n) => Array.from({ length: n }, (_, i) => ({
+        ...JSON.parse(JSON.stringify(baseEnemy)),
+        id: 'e_' + i,
+        name: '构装试炼体 ' + (i + 1),
+      }));
+      const makeOrbs = (n) => {
+        const types = ['lightning', 'frost', 'dark', 'plasma'];
+        return Array.from({ length: n }, (_, i) => ({
+          type: types[i % 4],
+          ...(types[i % 4] === 'dark' ? { darkStored: 12 } : {}),
+        }));
+      };
+
+      const matrix = [];
+      for (const enemyCount of [1, 2, 3]) {
+        s.combat.enemies = makeEnemies(enemyCount);
+        // Baseline without orb rail
+        s.player.maxOrbSlots = 0;
+        s.player.orbs = [];
+        app.render();
+        const baseArenaH = Math.round(document.getElementById('combat-arena').getBoundingClientRect().height);
+
+        for (const slotCount of [3, 10]) {
+          s.player.maxOrbSlots = slotCount;
+          s.player.orbs = makeOrbs(slotCount);
+          app.render();
+          const arenaRect = document.getElementById('combat-arena').getBoundingClientRect();
+          const desktopRail = document.getElementById('player-orb-rail-desktop');
+          const mobileRail = document.getElementById('player-orb-rail-mobile');
+          const enemySide = document.querySelector('.fighters-group.enemy-side');
+          const railRect = desktopRail.getBoundingClientRect();
+          const enemyRect = enemySide.getBoundingClientRect();
+          matrix.push({
+            enemyCount,
+            slotCount,
+            desktopVisible: railRect.width > 0 && railRect.height > 0,
+            mobileHidden: getComputedStyle(mobileRail).display === 'none',
+            slotDomCount: desktopRail.querySelectorAll('.orb-slot').length,
+            hasFrontRing: Boolean(desktopRail.querySelector('.orb-slot.orb-front')),
+            overlapEnemy: Math.round(railRect.right - enemyRect.left),
+            arenaHeightDelta: Math.round(arenaRect.height - baseArenaH),
+            overflowX: document.documentElement.scrollWidth - window.innerWidth,
+          });
+        }
+      }
+      return matrix;
+    })()`);
+
+    for (const row of desktopCombatAudit) {
+      assert.equal(row.desktopVisible, true, `Desktop orb rail must be visible (${row.enemyCount}e/${row.slotCount}o)`);
+      assert.equal(row.mobileHidden, true, `Mobile inline orb rail must be hidden on desktop (${row.enemyCount}e/${row.slotCount}o)`);
+      assert.equal(row.slotDomCount, row.slotCount);
+      assert.equal(row.hasFrontRing, true);
+      assert.ok(row.overlapEnemy <= 1, `Desktop orb rail overlapped enemy side by ${row.overlapEnemy}px (${row.enemyCount}e/${row.slotCount}o)`);
+      assert.ok(row.arenaHeightDelta <= 4, `Desktop orb rail bloated arena height by ${row.arenaHeightDelta}px (${row.enemyCount}e/${row.slotCount}o)`);
+      assert.ok(row.overflowX <= 1, `Desktop overflowX=${row.overflowX} (${row.enemyCount}e/${row.slotCount}o)`);
+    }
+
+    // 3. Interactive Defect Card Play: Zap + Dualcast (Orb audio/FX), Hologram modal, Seek modal, Negative Focus & Defect Strike/Defend SVGs
+    const interactionAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const s = app.getState();
+      s.combat.enemies = [s.combat.enemies[0]];
+      s.combat.enemies[0].hp = 100;
+      s.combat.enemies[0].maxHp = 100;
+      s.combat.enemies[0].statuses = { lockOn: 2 };
+      s.player.maxOrbSlots = 3;
+      s.player.orbs = [];
+      s.player.energy = 6;
+      s.player.statuses = { focus: -2 };
+      s.combat.discardPile = [{ instanceId: 'disc_claw', cardId: 'claw', upgraded: false }];
+      s.combat.drawPile = [{ instanceId: 'draw_turbo', cardId: 'turbo', upgraded: false }];
+      s.combat.hand = [
+        { instanceId: 'h_strike', cardId: 'strike', upgraded: false },
+        { instanceId: 'h_defend', cardId: 'defend', upgraded: false },
+        { instanceId: 'h_zap', cardId: 'zap', upgraded: false },
+        { instanceId: 'h_dual', cardId: 'dualcast', upgraded: false },
+        { instanceId: 'h_holo', cardId: 'hologram', upgraded: false },
+        { instanceId: 'h_seek', cardId: 'seek', upgraded: false },
+      ];
+      app.render();
+
+      const hasNegFocusSvg = Boolean(document.querySelector('[data-status-svg="focus_down"]'));
+      const hasLockOnSvg = Boolean(document.querySelector('[data-status-svg="lockOn"]'));
+      const hasDefectStrikeArt = Boolean(document.querySelector('#hand-card-h_strike [id^="ca-defect_strike"]'));
+      const hasDefectDefendArt = Boolean(document.querySelector('#hand-card-h_defend [id^="ca-defect_defend"]'));
+
+      // Play Zap -> channels Lightning
+      app.clearRecentAudioCues();
+      document.getElementById('hand-card-h_zap')?.click();
+      const orbsAfterZap = app.getState().player.orbs.map((o) => o.type);
+
+      // Play Dualcast -> evokes Lightning & triggers orb_evoke audio
+      app.clearRecentAudioCues();
+      document.getElementById('hand-card-h_dual')?.click();
+      const cuesAfterDualcast = app.getRecentAudioCues();
+      const orbsAfterDualcast = app.getState().player.orbs.length;
+
+      // Play Hologram -> opens discard modal -> click candidate -> returns claw to hand
+      document.getElementById('hand-card-h_holo')?.click();
+      const holoModalOpen = Boolean(document.getElementById('discard-choice-modal'));
+      document.querySelector('#discard-choice-modal [data-action="resolve-card-choice"]')?.click();
+      const clawInHand = app.getState().combat.hand.some((c) => c.instanceId === 'disc_claw');
+
+      // Play Seek -> opens draw-pile search modal -> click candidate -> adds turbo to hand
+      document.getElementById('hand-card-h_seek')?.click();
+      const seekModalOpen = Boolean(document.getElementById('discard-choice-modal'));
+      const seekTitle = document.querySelector('#discard-choice-modal #modal-title')?.textContent || '';
+      document.querySelector('#discard-choice-modal [data-action="resolve-card-choice"]')?.click();
+      const turboInHand = app.getState().combat.hand.some((c) => c.instanceId === 'draw_turbo');
+
+      return {
+        hasNegFocusSvg,
+        hasLockOnSvg,
+        hasDefectStrikeArt,
+        hasDefectDefendArt,
+        orbsAfterZap,
+        cuesAfterDualcast,
+        orbsAfterDualcast,
+        holoModalOpen,
+        clawInHand,
+        seekModalOpen,
+        seekTitle,
+        turboInHand,
+      };
+    })()`);
+
+    assert.equal(interactionAudit.hasNegFocusSvg, true, 'Negative Focus must render crimson focus_down SVG chip');
+    assert.equal(interactionAudit.hasLockOnSvg, true, 'Lock-On must render bespoke lockOn SVG chip');
+    assert.equal(interactionAudit.hasDefectStrikeArt, true, 'Defect Strike must render bespoke defect_strike SVG');
+    assert.equal(interactionAudit.hasDefectDefendArt, true, 'Defect Defend must render bespoke defect_defend SVG');
+    assert.deepEqual(interactionAudit.orbsAfterZap, ['lightning']);
+    assert.equal(interactionAudit.orbsAfterDualcast, 0);
+    assert.ok(interactionAudit.cuesAfterDualcast.includes('orb_evoke'), `Expected orb_evoke cue, got ${JSON.stringify(interactionAudit.cuesAfterDualcast)}`);
+    assert.equal(interactionAudit.holoModalOpen, true, 'Hologram must open discard retrieval modal');
+    assert.equal(interactionAudit.clawInHand, true, 'Selecting card in Hologram modal must move it into hand');
+    assert.equal(interactionAudit.seekModalOpen, true, 'Seek must open draw pile search modal');
+    assert.ok(interactionAudit.seekTitle.includes('抽牌堆'), `Seek modal title should reference draw pile: ${interactionAudit.seekTitle}`);
+    assert.equal(interactionAudit.turboInHand, true, 'Selecting card in Seek modal must add it into hand');
+
+    // 4. Compendium "故障机器人" class filter lists all 73 Defect cards
+    const compAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-open-compendium')?.click();
+      document.querySelector('[data-action="set-compendium-char"][data-char-filter="defect"]')?.click();
+      const total = document.querySelectorAll('#compendium-cards-grid .game-card, #compendium-cards-grid .compendium-silhouette-card').length;
+      document.getElementById('btn-close-modal')?.click();
+      return { total };
+    })()`);
+    assert.equal(compAudit.total, 73, 'Compendium Defect filter must display all 73 Defect cards');
+
+    // 5. Mobile 390x844 & 375x667: Adaptive Inline Orb Rail (zero-bloat, zero-overflow, tooltip tap) + 4-tab Character Select
+    for (const vp of [
+      { width: 390, height: 844 },
+      { width: 375, height: 667 },
+    ]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: vp.width,
+        height: vp.height,
+        deviceScaleFactor: 2,
+        mobile: true,
+      });
+      await new Promise((r) => setTimeout(r, 150));
+
+      const mobileCombatAudit = await cdp.evaluate(`(() => {
+        const app = window.__SPIRE_APP__;
+        const s = app.getState();
+        const baseEnemy = JSON.parse(JSON.stringify(s.combat.enemies[0]));
+        baseEnemy.hp = 60;
+        baseEnemy.maxHp = 60;
+        baseEnemy.statuses = {};
+        const makeEnemies = (n) => Array.from({ length: n }, (_, i) => ({
+          ...JSON.parse(JSON.stringify(baseEnemy)),
+          id: 'me_' + i,
+          name: '试炼体 ' + (i + 1),
+        }));
+        const makeOrbs = (n) => {
+          const types = ['lightning', 'frost', 'dark', 'plasma'];
+          return Array.from({ length: n }, (_, i) => ({
+            type: types[i % 4],
+            ...(types[i % 4] === 'dark' ? { darkStored: 18 } : {}),
+          }));
+        };
+
+        const cases = [];
+        for (const [enemyCount, slotCount] of [
+          [1, 3],
+          [1, 5],
+          [2, 3],
+          [3, 10],
+        ]) {
+          s.combat.enemies = makeEnemies(enemyCount);
+          s.player.maxOrbSlots = slotCount;
+          s.player.orbs = makeOrbs(slotCount);
+          app.render();
+          const mRail = document.getElementById('player-orb-rail-mobile');
+          const dRail = document.getElementById('player-orb-rail-desktop');
+          const turnBadge = document.querySelector('#player-unit .player-turn-badge');
+          const handBarText = document.getElementById('mobile-hand-bar')?.textContent || '';
+          const mRect = mRail.getBoundingClientRect();
+          cases.push({
+            enemyCount,
+            slotCount,
+            mobileVisible: mRect.width > 0 && mRect.height > 0,
+            desktopHidden: getComputedStyle(dRail).display === 'none',
+            turnBadgeHidden: getComputedStyle(turnBadge).display === 'none',
+            handBarHasTurn: /T\\d+/.test(handBarText),
+            overflowX: document.documentElement.scrollWidth - window.innerWidth,
+            scrollHeight: document.documentElement.scrollHeight,
+          });
+        }
+
+        // Tap mobile orb rail to open ordered tooltip
+        document.getElementById('player-orb-rail-mobile')?.click();
+        const tip = document.getElementById('spire-tooltip');
+        const tipVisible = Boolean(tip && !tip.hidden);
+        const tipDesc = tip?.textContent || '';
+        return { cases, tipVisible, tipDesc };
+      })()`);
+
+      for (const c of mobileCombatAudit.cases) {
+        assert.equal(c.mobileVisible, true, `Mobile ${vp.width}px inline orb rail must be visible (${c.enemyCount}e/${c.slotCount}o)`);
+        assert.equal(c.desktopHidden, true, `Mobile ${vp.width}px must hide desktop side rail`);
+        assert.equal(c.turnBadgeHidden, true, `Mobile ${vp.width}px must swap out .player-turn-badge for +0px bloat`);
+        assert.equal(c.handBarHasTurn, true, `Mobile ${vp.width}px hand bar must show compact turn tag (T1)`);
+        assert.ok(c.overflowX <= 1, `Mobile ${vp.width}px overflowX=${c.overflowX} (${c.enemyCount}e/${c.slotCount}o)`);
+        if (vp.width === 390 && c.enemyCount === 1 && c.slotCount <= 5) {
+          assert.ok(c.scrollHeight <= 844, `390x844 1-enemy ${c.slotCount}-orb combat must fit cleanly in 844px (got ${c.scrollHeight}px)`);
+        }
+      }
+      assert.equal(mobileCombatAudit.tipVisible, true, `Tapping mobile ${vp.width}px orb rail must open ordered tooltip`);
+      assert.ok(mobileCombatAudit.tipDesc.includes('#1 队首'), `Tooltip should list front orb first: ${mobileCombatAudit.tipDesc}`);
+    }
+
+    // 6. Verify 375px Mobile 4-tab Character Select stays single-line with zero horizontal overflow
+    await cdp.evaluate(`window.localStorage.clear();`);
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await new Promise((r) => setTimeout(r, 380));
+    const mobile375Tabs = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
+      const tabs = [...document.querySelectorAll('#mobile-char-tabs .mobile-char-tab')];
+      const defectNameEl = document.querySelector('#mobile-char-tab-defect .mobile-char-tab-name');
+      return {
+        tabCount: tabs.length,
+        overflowX: document.documentElement.scrollWidth - window.innerWidth,
+        defectNameHeight: defectNameEl ? Math.round(defectNameEl.getBoundingClientRect().height) : 0,
+      };
+    })()`);
+    assert.equal(mobile375Tabs.tabCount, 4);
+    assert.ok(mobile375Tabs.overflowX <= 1, `375px 4-tab Character Select must not overflow horizontally: ${mobile375Tabs.overflowX}`);
+    assert.ok(mobile375Tabs.defectNameHeight > 0 && mobile375Tabs.defectNameHeight <= 20, `故障机器人 tab name must stay single-line on 375px (height=${mobile375Tabs.defectNameHeight})`);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+  } finally {
+    await session?.close();
+  }
+});

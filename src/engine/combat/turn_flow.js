@@ -59,6 +59,12 @@ import {
   confirmScryChoice,
   exhaustCardsBatch,
 } from './resolution.js';
+import {
+  channelOrb,
+  gainOrbSlots,
+  triggerStartOfTurnOrbs,
+  triggerEndOfTurnOrbs,
+} from './orbs.js';
 
 export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
   const combat = state?.combat;
@@ -178,6 +184,64 @@ export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCal
     };
   }
 
+  if (pending.mode === 'retrieve_discard_to_hand') {
+    const pickedNames = [];
+    for (const id of uniqueValidIds) {
+      if (combat.hand.length >= MAX_HAND_SIZE) break;
+      const dIdx = combat.discardPile.findIndex((c) => c.instanceId === id);
+      if (dIdx === -1) continue;
+      const [card] = combat.discardPile.splice(dIdx, 1);
+      if (card) {
+        combat.hand.push(card);
+        pickedNames.push(getCardStats(card).name);
+      }
+    }
+    const sourceName = pending.sourceName;
+    setPendingCardChoice(combat, null);
+    if (pickedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】从弃牌堆取回：${pickedNames.map((n) => `【${n}】`).join('、')}。`,
+        'info'
+      );
+    }
+    return {
+      ok: true,
+      mode: 'retrieve_discard_to_hand',
+      retrievedCount: pickedNames.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
+  if (pending.mode === 'pick_from_draw') {
+    const pickedNames = [];
+    for (const id of uniqueValidIds) {
+      if (combat.hand.length >= MAX_HAND_SIZE) break;
+      const dIdx = combat.drawPile.findIndex((c) => c.instanceId === id);
+      if (dIdx === -1) continue;
+      const [card] = combat.drawPile.splice(dIdx, 1);
+      if (card) {
+        combat.hand.push(card);
+        pickedNames.push(getCardStats(card).name);
+      }
+    }
+    const sourceName = pending.sourceName;
+    setPendingCardChoice(combat, null);
+    if (pickedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】从抽牌堆检索：${pickedNames.map((n) => `【${n}】`).join('、')}。`,
+        'info'
+      );
+    }
+    return {
+      ok: true,
+      mode: 'pick_from_draw',
+      retrievedCount: pickedNames.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
   return { ok: false, reason: '当前选牌模式不支持统一确认' };
 }
 
@@ -204,6 +268,9 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   combat.kunaiCounter = 0;
   combat.ornamentalFanCounter = 0;
   combat.rushdownTriggersThisTurn = 0;
+  combat.echoFormUsedThisTurn = 0;
+  combat.lostHpLastTurn = Boolean(combat.lostHpThisTurn);
+  combat.lostHpThisTurn = false;
   combat.playedCardTypesThisTurn = { attack: false, skill: false, power: false };
   setPendingCardChoice(combat, null);
   delete state.player.statuses.flameBarrier;
@@ -212,6 +279,9 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   delete state.player.statuses.duplication;
   delete state.player.statuses.waveOfTheHand;
   delete state.player.statuses.doubleDamage;
+  delete state.player.statuses.amplify;
+  delete state.player.statuses.equilibrium;
+  delete state.player.statuses.rebound;
   for (const e of combat.enemies || []) {
     if (e.slowStacks) e.slowStacks = 0;
     if (e.statuses?.choke) delete e.statuses.choke;
@@ -431,6 +501,19 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, `【幽魂形态】副作用：失去 ${drop} 点敏捷。`, 'status');
   }
 
+  if ((state.player.statuses.biasedCognition ?? 0) > 0) {
+    const focusDrop = state.player.statuses.biasedCognition;
+    applyStatus(state.player, 'focus', -focusDrop, { bypassArtifact: true });
+    pushCombatLog(combat, `【偏差认知】衰减：失去 ${focusDrop} 点【集中】。`, 'status');
+  }
+
+  // Defect start-of-turn Orb passives (Inserter, Emotion Chip, Plasma +1E, Loop)
+  triggerStartOfTurnOrbs(state);
+  if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+    finalizeCombatVictory(state, onVictoryCallback);
+    return;
+  }
+
   if ((state.player.statuses.noxiousFumes ?? 0) > 0) {
     const fumes = state.player.statuses.noxiousFumes;
     const alive = getAliveEnemies(combat);
@@ -454,6 +537,32 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     addCardsToHand(state, 'smite', state.player.statuses.battleHymn, false);
   }
 
+  if ((state.player.statuses.helloWorld ?? 0) > 0) {
+    const commonDefectPool = Object.values(CARD_LIBRARY)
+      .filter((c) => getCardCharacter(c) === 'defect' && c.rarity === 'common')
+      .map((c) => c.id);
+    const hwCount = state.player.statuses.helloWorld;
+    for (let h = 0; h < hwCount; h += 1) {
+      const picked = pickRandom(state, commonDefectPool);
+      if (picked) {
+        addCardsToHand(state, picked, 1, false);
+      }
+    }
+  }
+
+  if ((state.player.statuses.creativeAi ?? 0) > 0) {
+    const defectPowerPool = Object.values(CARD_LIBRARY)
+      .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power')
+      .map((c) => c.id);
+    const aiCount = state.player.statuses.creativeAi;
+    for (let a = 0; a < aiCount; a += 1) {
+      const picked = pickRandom(state, defectPowerPool);
+      if (picked) {
+        addCardsToHand(state, picked, 1, false);
+      }
+    }
+  }
+
   // Watcher start-of-turn Mantra & Stance triggers (Damaru, Devotion, Simmering Fury)
   if (hasRelic(state, 'damaru')) {
     gainMantra(state, 1);
@@ -475,6 +584,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   const dailyT1Draw = combat.turn === 1 && hasDailyModifier(state, 'time_dilation') ? 1 : 0;
   const serpentDraw = hasRelic(state, 'ring_of_the_serpent') ? 1 : 0;
   const sneckoDraw = hasRelic(state, 'snecko_eye') ? 2 : 0;
+  const machineLearningDraw = state.player.statuses.machineLearning ?? 0;
   const pocketwatchDraw =
     combat.turn > 1 && hasRelic(state, 'pocketwatch') && (combat.cardsPlayedLastTurn ?? 0) <= 3
       ? 2
@@ -507,6 +617,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     dailyT1Draw +
     serpentDraw +
     sneckoDraw +
+    machineLearningDraw +
     pocketwatchDraw +
     toolsDraw +
     nextTurnDraw +
@@ -610,11 +721,14 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   state.player.statuses = {};
   state.player.skipStatusTick = {};
   state.player.stance = 'neutral';
+  state.player.orbs = [];
+  state.player.maxOrbSlots = state.characterId === 'defect' ? 3 : 0;
 
   const deckCopies = state.player.deck.map((c) => ({
     instanceId: c.instanceId,
     cardId: c.cardId,
     upgraded: Boolean(c.upgraded),
+    ...(typeof c.miscBonus === 'number' ? { miscBonus: c.miscBonus } : {}),
   }));
 
   const shuffledDeck = shuffled(state, deckCopies);
@@ -635,6 +749,13 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     status: 'ongoing',
     stance: 'neutral',
     mantraGainedThisCombat: 0,
+    orbsChanneledThisCombat: 0,
+    orbsChanneledByType: { lightning: 0, frost: 0, dark: 0, plasma: 0 },
+    orbFxEvents: [],
+    powersPlayedThisCombat: 0,
+    echoFormUsedThisTurn: 0,
+    lostHpLastTurn: false,
+    lostHpThisTurn: false,
     lastCardTypePlayed: null,
     rushdownTriggersThisTurn: 0,
     extraTurnQueued: false,
@@ -900,6 +1021,26 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     }
     pushCombatLog(combat, '每日词条【先发制人】生效：所有敌人开场获得 6 点初始格挡。', 'block');
   }
+  if (hasRelic(state, 'runic_capacitor')) {
+    gainOrbSlots(state, 3, { sourceName: RELIC_LIBRARY.runic_capacitor.name });
+  }
+  if (hasRelic(state, 'data_disk')) {
+    applyStatus(state.player, 'focus', 1);
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.data_disk.name}】生效：获得 1 点【集中】！`,
+      'status'
+    );
+  }
+  if (hasRelic(state, 'cracked_core')) {
+    channelOrb(state, 'lightning', { sourceName: RELIC_LIBRARY.cracked_core.name });
+  }
+  if (hasRelic(state, 'symbiotic_virus')) {
+    channelOrb(state, 'dark', { sourceName: RELIC_LIBRARY.symbiotic_virus.name });
+  }
+  if (hasRelic(state, 'nuclear_battery')) {
+    channelOrb(state, 'plasma', { sourceName: RELIC_LIBRARY.nuclear_battery.name });
+  }
   syncRedSkullStatus(state);
 
   startPlayerTurn(state, onVictoryCallback);
@@ -949,7 +1090,9 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
-  const wellLaidPlansQuota = keepHandByPyramid ? 0 : (state.player.statuses.wellLaidPlans ?? 0);
+  const keepHandByEquilibrium = (state.player.statuses.equilibrium ?? 0) > 0;
+  const wellLaidPlansQuota =
+    keepHandByPyramid || keepHandByEquilibrium ? 0 : (state.player.statuses.wellLaidPlans ?? 0);
   if (
     !options.skipWellLaidPlansPrompt &&
     wellLaidPlansQuota > 0 &&
@@ -963,6 +1106,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
   combat.phase = 'enemy';
   combat.fledEnemyIds = [];
+  combat.orbFxEvents = [];
   combat.playedAttackLastTurn = (combat.attacksPlayedThisTurn ?? 0) > 0;
   combat.cardsPlayedLastTurn = combat.cardsPlayedThisTurn ?? 0;
   delete state.player.statuses.noDraw;
@@ -971,6 +1115,9 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   delete state.player.statuses.doubleTap;
   delete state.player.statuses.duplication;
   delete state.player.statuses.waveOfTheHand;
+  delete state.player.statuses.amplify;
+  delete state.player.statuses.equilibrium;
+  delete state.player.statuses.rebound;
 
   for (const pileCard of [...combat.hand, ...combat.discardPile, ...combat.drawPile]) {
     if (pileCard.tempZeroCostTurn) {
@@ -1047,7 +1194,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     delete cardInstance.tempRetainTurn;
     if (stats.ethereal) {
       etherealToExhaust.push(cardInstance);
-    } else if (stats.retain || keepHandByPyramid || keepByTempRetain) {
+    } else if (stats.retain || keepHandByPyramid || keepHandByEquilibrium || keepByTempRetain) {
       retainedHand.push(cardInstance);
       if (stats.retainCostReduce) {
         cardInstance.retainedCostDiscount =
@@ -1087,7 +1234,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     }
   }
 
-  // 2. End of turn relics & powers (Cloak Clasp, Orichalcum, Metallicize, Plated Armor, Like Water, Combust, The Bomb, Omega)
+  // 2. End of turn relics & powers (Cloak Clasp, Orichalcum, Orbs/Frozen Core, Metallicize, Plated Armor, Like Water, Combust, The Bomb, Omega)
   if (hasRelic(state, 'cloak_clasp') && handCountBeforeDiscard > 0) {
     const claspBlock = Math.min(10, handCountBeforeDiscard * 2);
     addPlayerBlock(state, claspBlock);
@@ -1100,6 +1247,16 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   if (hasRelic(state, 'orichalcum') && state.player.block === 0) {
     addPlayerBlock(state, 6);
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.orichalcum.name}】生效：获得 6 点格挡。`, 'block');
+  }
+  // Defect end-of-turn orbs (after Orichalcum so Orichalcum + Frost synergy works just like original STS!)
+  triggerEndOfTurnOrbs(state);
+  if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+    finalizeCombatVictory(state, onVictoryCallback);
+    return {
+      ok: true,
+      outcome: state.combat?.status ?? combat.status,
+      orbFxEvents: [...(combat.orbFxEvents || [])],
+    };
   }
   if ((state.player.statuses.metallicize ?? 0) > 0) {
     const m = state.player.statuses.metallicize;
@@ -1335,6 +1492,26 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             if (state.player.hp <= 0 || enemy.hp <= 0 || combat.status !== 'ongoing') break;
             const dmg = calculateAttackDamage(intent.damage, enemy, state.player);
             const hpLost = dealDamageToPlayer(state, dmg, `【${enemy.name}】的${intent.name || '攻击'}`);
+            if (
+              hpLost > 0 &&
+              state.player.hp > 0 &&
+              combat.status === 'ongoing' &&
+              (state.player.statuses?.staticDischarge ?? 0) > 0
+            ) {
+              const sdCount = state.player.statuses.staticDischarge;
+              for (let sd = 0; sd < sdCount; sd += 1) {
+                if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+                channelOrb(state, 'lightning', { sourceName: '静电释放' });
+              }
+              if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+                finalizeCombatVictory(state, onVictoryCallback);
+                return {
+                  ok: true,
+                  outcome: state.combat?.status ?? combat.status,
+                  orbFxEvents: [...(combat.orbFxEvents || [])],
+                };
+              }
+            }
             if (hpLost > 0 && intent.lifesteal && enemy.hp > 0) {
               const prevHp = enemy.hp;
               enemy.hp = Math.min(enemy.maxHp, enemy.hp + hpLost);
@@ -1882,5 +2059,9 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   // 5. Start next Player turn
   combat._pendingTurnSummary = { ...endTurnSummaryBase, wasExtraTurn: false };
   startPlayerTurn(state, onVictoryCallback);
-  return { ok: true, outcome: state.combat?.status ?? combat.status };
+  return {
+    ok: true,
+    outcome: state.combat?.status ?? combat.status,
+    orbFxEvents: [...(combat.orbFxEvents || [])],
+  };
 }

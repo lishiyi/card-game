@@ -11,9 +11,13 @@ import {
   getCardStats,
   getEffectiveCardCost,
 } from '../data/cards.js';
-import { POTION_LIBRARY, STANCE_METADATA } from '../data/relics.js';
+import { ORB_METADATA, POTION_LIBRARY, STANCE_METADATA } from '../data/relics.js';
 import {
+  applyLockOnMultiplier,
+  countUniqueOrbs,
+  findLowestHpAliveEnemy,
   getAliveEnemies,
+  getOrbOutputValues,
   hasRelic,
   RUSHDOWN_MAX_TRIGGERS_PER_TURN,
   VELVET_CHOKER_CARD_LIMIT,
@@ -93,6 +97,73 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   };
 }
 
+function computeDeterministicOrbEvokeHits(state, stats, enemy) {
+  const combat = state?.combat;
+  const player = state?.player;
+  if (!combat || !player || !Array.isArray(player.orbs) || player.orbs.length === 0) return [];
+  const alive = getAliveEnemies(combat);
+  if (alive.length === 0) return [];
+  const isElectro = (player.statuses?.electro ?? 0) > 0;
+  const lowestEnemy = findLowestHpAliveEnemy(combat);
+  const orbHits = [];
+
+  const pushEvokeForOrb = (orb, times) => {
+    if (!orb || times <= 0) return;
+    const { evoke } = getOrbOutputValues(orb, player);
+    if (evoke <= 0) return;
+    if (orb.type === 'dark') {
+      if (lowestEnemy && lowestEnemy.id === enemy.id) {
+        const dmg = applyLockOnMultiplier(evoke, enemy);
+        for (let i = 0; i < times; i += 1) orbHits.push(dmg);
+      }
+    } else if (orb.type === 'lightning') {
+      // Only include Lightning in guaranteed damage/lethal preview when deterministic (1 enemy OR Electrodynamics)
+      if (alive.length === 1 || isElectro) {
+        const dmg = applyLockOnMultiplier(evoke, enemy);
+        for (let i = 0; i < times; i += 1) orbHits.push(dmg);
+      }
+    }
+  };
+
+  if (stats.fissionOrbs === 'evoke') {
+    for (const orb of player.orbs) {
+      pushEvokeForOrb(orb, 1);
+    }
+    return orbHits;
+  }
+
+  if (stats.evokeFront) {
+    pushEvokeForOrb(player.orbs[0], stats.evokeFront);
+  } else if (typeof stats.evokeFrontX === 'number') {
+    const xVal = Math.max(0, (player.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0) + stats.evokeFrontX);
+    pushEvokeForOrb(player.orbs[0], xVal);
+  } else if (stats.recursionFront) {
+    pushEvokeForOrb(player.orbs[0], 1);
+  }
+
+  // Overflow auto-evokes when channeling orbs past maxOrbSlots
+  const maxSlots = player.maxOrbSlots ?? 0;
+  if (maxSlots > 0) {
+    let incomingChannels = 0;
+    if (stats.channelOrb) incomingChannels += 1;
+    if (Array.isArray(stats.channelOrbs)) incomingChannels += stats.channelOrbs.length;
+    if (stats.channelRandomOrbs) incomingChannels += stats.channelRandomOrbs;
+    if (stats.channelFrostPerEnemy) incomingChannels += alive.length;
+    if (typeof stats.channelLightningX === 'number') {
+      incomingChannels += Math.max(
+        0,
+        (player.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0) + stats.channelLightningX
+      );
+    }
+    const overflowCount = Math.max(0, player.orbs.length + incomingChannels - maxSlots);
+    for (let idx = 0; idx < Math.min(overflowCount, player.orbs.length); idx += 1) {
+      pushEvokeForOrb(player.orbs[idx], 1);
+    }
+  }
+
+  return orbHits;
+}
+
 /**
  * Predicts damage, Shield Break, Direct Lethal, and Poison-Lethal outcome of playing `cardInstance` against `enemy`.
  * Returns `null` if the card deals neither damage nor deterministic poison to `enemy`.
@@ -101,10 +172,13 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   if (!state?.combat || !cardInstance || !enemy || enemy.hp <= 0) return null;
   const stats = getCardStats(cardInstance);
   if (stats.unplayable) return null;
-  if (stats.target !== 'enemy' && stats.target !== 'all_enemies') return null;
 
   const combat = state.combat;
-  if (stats.randomEnemyHits && getAliveEnemies(combat).length > 1) {
+  const orbEvokeHits = computeDeterministicOrbEvokeHits(state, stats, enemy);
+  const canTargetEnemy = stats.target === 'enemy' || stats.target === 'all_enemies';
+  if (!canTargetEnemy && orbEvokeHits.length === 0) return null;
+
+  if (canTargetEnemy && stats.randomEnemyHits && getAliveEnemies(combat).length > 1 && orbEvokeHits.length === 0) {
     return null;
   }
 
@@ -117,44 +191,52 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
   let hits = 1;
   let directHpLossOverride = null;
 
-  if (typeof stats.judgmentThreshold === 'number') {
-    if (enemy.hp <= stats.judgmentThreshold) {
-      directHpLossOverride = enemy.hp;
-    } else {
-      return null;
-    }
-  } else if (typeof stats.applyMarkAndTrigger === 'number') {
-    const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * burstPasses;
-    directHpLossOverride = Math.min(enemy.hp, projectedMark);
-  } else if (stats.useBlockAsDamage) {
-    basePerHit = Math.max(0, state.player?.block ?? 0);
-    hits = 1;
-  } else if (typeof stats.exhaustAllHandDamageEach === 'number') {
-    basePerHit = stats.exhaustAllHandDamageEach;
-    const otherHandCount = combat.hand.filter(
-      (c) => c.instanceId !== cardInstance.instanceId
-    ).length;
-    hits = Math.max(0, otherHandCount);
-  } else if (stats.hitsPerAttackPlayedThisTurn) {
-    basePerHit = stats.damage ?? 0;
-    hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
-  } else if (stats.hitsPerHandSkill) {
-    basePerHit = stats.damage ?? 0;
-    hits = combat.hand.filter((c) => getCardStats(c).type === 'skill').length;
-  } else if (stats.hitsPerAliveEnemy) {
-    basePerHit = stats.damage ?? 0;
-    hits = Math.max(1, getAliveEnemies(combat).length);
-  } else if (typeof stats.damage === 'number') {
-    const strikeBonus = stats.bonusDamagePerStrike
-      ? stats.bonusDamagePerStrike * countCombatStrikeCards(combat)
-      : 0;
-    basePerHit = stats.damage + strikeBonus;
-    if (stats.isXCost) {
-      hits = Math.max(0, (state.player?.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0));
-    } else {
-      hits = stats.hits ?? 1;
-      if (stats.bonusHitIfPoisoned && (enemy.statuses?.poison ?? 0) > 0) {
-        hits += 1;
+  if (canTargetEnemy && !(stats.randomEnemyHits && getAliveEnemies(combat).length > 1)) {
+    if (typeof stats.judgmentThreshold === 'number') {
+      if (enemy.hp <= stats.judgmentThreshold) {
+        directHpLossOverride = enemy.hp;
+      } else if (orbEvokeHits.length === 0) {
+        return null;
+      }
+    } else if (typeof stats.applyMarkAndTrigger === 'number') {
+      const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * burstPasses;
+      directHpLossOverride = Math.min(enemy.hp, projectedMark);
+    } else if (stats.useBlockAsDamage) {
+      basePerHit = Math.max(0, state.player?.block ?? 0);
+      hits = 1;
+    } else if (typeof stats.exhaustAllHandDamageEach === 'number') {
+      basePerHit = stats.exhaustAllHandDamageEach;
+      const otherHandCount = combat.hand.filter(
+        (c) => c.instanceId !== cardInstance.instanceId
+      ).length;
+      hits = Math.max(0, otherHandCount);
+    } else if (stats.hitsPerAttackPlayedThisTurn) {
+      basePerHit = stats.damage ?? 0;
+      hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
+    } else if (stats.hitsPerOrb) {
+      basePerHit = stats.damage ?? 0;
+      hits = state.player?.orbs?.length ?? 0;
+    } else if (stats.hitsPerLightningChanneled) {
+      basePerHit = stats.damage ?? 0;
+      hits = combat.orbsChanneledByType?.lightning ?? 0;
+    } else if (stats.hitsPerHandSkill) {
+      basePerHit = stats.damage ?? 0;
+      hits = combat.hand.filter((c) => getCardStats(c).type === 'skill').length;
+    } else if (stats.hitsPerAliveEnemy) {
+      basePerHit = stats.damage ?? 0;
+      hits = Math.max(1, getAliveEnemies(combat).length);
+    } else if (typeof stats.damage === 'number') {
+      const strikeBonus = stats.bonusDamagePerStrike
+        ? stats.bonusDamagePerStrike * countCombatStrikeCards(combat)
+        : 0;
+      basePerHit = stats.damage + strikeBonus;
+      if (stats.isXCost) {
+        hits = Math.max(0, (state.player?.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0));
+      } else {
+        hits = stats.hits ?? 1;
+        if (stats.bonusHitIfPoisoned && (enemy.statuses?.poison ?? 0) > 0) {
+          hits += 1;
+        }
       }
     }
   }
@@ -184,7 +266,53 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
       flatBonus,
       ignoreFlight: true,
     });
-    sim = simulateSequentialHits(enemy, perHitDamage, hits, { isAttack: true });
+    const simEnemy = stats.removeEnemyBlockBeforeDamage ? { ...enemy, block: 0 } : enemy;
+    sim = simulateSequentialHits(simEnemy, perHitDamage, hits, { isAttack: true });
+    if (stats.removeEnemyBlockBeforeDamage && (enemy.block ?? 0) > 0) {
+      sim.initialBlock = enemy.block;
+      sim.isShieldBreak = true;
+    }
+  }
+
+  // Fold deterministic orb evoke hits on top of any direct card damage
+  if (orbEvokeHits.length > 0) {
+    let remBlock = sim ? sim.remainingBlock : Math.max(0, enemy.block ?? 0);
+    let remHp = sim ? sim.remainingHp : Math.max(0, enemy.hp ?? 0);
+    const initialBlock = Math.max(0, enemy.block ?? 0);
+    let orbTotal = 0;
+    let orbHpLoss = 0;
+    for (const oDmg of orbEvokeHits) {
+      if (remHp <= 0) break;
+      let eff = Math.max(0, oDmg);
+      if ((enemy.statuses?.intangible ?? 0) > 0 && eff > 1) eff = 1;
+      const blocked = Math.min(remBlock, eff);
+      remBlock -= blocked;
+      const through = Math.min(remHp, eff - blocked);
+      remHp -= through;
+      orbTotal += eff;
+      orbHpLoss += through;
+    }
+    if (!sim) {
+      sim = {
+        hits: orbEvokeHits.length,
+        perHitDamage: orbEvokeHits[0] ?? 0,
+        totalDamage: orbTotal,
+        hpLoss: orbHpLoss,
+        unblockedHits: orbHpLoss > 0 ? orbEvokeHits.length : 0,
+        initialBlock,
+        remainingBlock: remBlock,
+        remainingHp: remHp,
+        isShieldBreak: initialBlock > 0 && remBlock === 0,
+        isLethal: enemy.hp > 0 && remHp <= 0,
+      };
+    } else {
+      sim.totalDamage += orbTotal;
+      sim.hpLoss += orbHpLoss;
+      sim.remainingBlock = remBlock;
+      sim.remainingHp = remHp;
+      sim.isShieldBreak = sim.isShieldBreak || (initialBlock > 0 && remBlock === 0);
+      sim.isLethal = enemy.hp > 0 && remHp <= 0;
+    }
   }
 
   // Deterministic poison projection (direct poison statuses, Catalyst, Burst, and Envenom)
@@ -1037,6 +1165,75 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
   }
 
   // 3. Affected other cards in hand (Second Wind / Fiend Fire / Armaments+)
+  // Defect synergies: Echo Form, Amplify, Heatsinks, Storm, Rebound, Full-slot overflow, Compile Driver, All for One
+  const pushCallout = (label, detail, tone = 'buff') => {
+    result.callouts.push({
+      tone: tone === 'warn' ? 'warn' : 'buff',
+      text: `✦ 【${label}】${detail}`,
+    });
+  };
+  const echoStacks = player.statuses?.echoForm ?? 0;
+  if (echoStacks > 0 && !stats.noBurst && (combat.echoFormUsedThisTurn ?? 0) < echoStacks) {
+    pushCallout('回响形态', `【${stats.name}】将触发回响再打出一次！`, 'buff');
+  }
+  if (stats.type === 'power' && !stats.noBurst && (player.statuses?.amplify ?? 0) > 0) {
+    pushCallout('增幅', `能力【${stats.name}】将额外再打出一次！`, 'buff');
+  }
+  if (stats.type === 'power' && (player.statuses?.heatsinks ?? 0) > 0) {
+    pushCallout('散热片', `打出能力牌额外抽 ${player.statuses.heatsinks} 张牌`, 'buff');
+  }
+  if (stats.type === 'power' && (player.statuses?.storm ?? 0) > 0) {
+    pushCallout('暴风雨', `打出能力牌充能 ${player.statuses.storm} 个闪电球`, 'buff');
+  }
+  if (stats.type !== 'power' && !stats.exhaust && (player.statuses?.rebound ?? 0) > 0) {
+    pushCallout('反弹', `打出后将置于抽牌堆顶`, 'buff');
+  }
+  if (stats.drawPerUniqueOrb) {
+    const uniq = countUniqueOrbs(player);
+    if (uniq > 0) {
+      pushCallout('编译驱动', `当前 ${uniq} 种不同充能球，额外抽 ${uniq * stats.drawPerUniqueOrb} 张牌`, 'buff');
+    }
+  }
+  if (stats.retrieveAllZeroCostFromDiscard) {
+    const zeroCount = (combat.discardPile || []).filter(
+      (c) => getEffectiveCardCost(getCardStats(c), player, combat) === 0
+    ).length;
+    if (zeroCount > 0) {
+      pushCallout('全力以赴', `将从弃牌堆取回 ${zeroCount} 张 0 费牌！`, 'buff');
+    }
+  }
+  const orbs = Array.isArray(player.orbs) ? player.orbs : [];
+  const maxSlots = player.maxOrbSlots ?? 0;
+  if (orbs.length > 0 && maxSlots > 0) {
+    let incomingChannels = 0;
+    if (stats.channelOrb) incomingChannels += 1;
+    if (Array.isArray(stats.channelOrbs)) incomingChannels += stats.channelOrbs.length;
+    if (stats.channelRandomOrbs) incomingChannels += stats.channelRandomOrbs;
+    if (stats.channelFrostPerEnemy) incomingChannels += aliveEnemies.length;
+    if (typeof stats.channelLightningX === 'number') {
+      incomingChannels += Math.max(0, (player.energy ?? 0) + stats.channelLightningX);
+    }
+    const willOverflow = orbs.length + incomingChannels > maxSlots;
+    const isDirectEvoke = Boolean(stats.evokeFront || typeof stats.evokeFrontX === 'number' || stats.recursionFront);
+    const front = orbs[0];
+    if (front && (willOverflow || isDirectEvoke)) {
+      const fMeta = ORB_METADATA[front.type];
+      const fVal = getOrbOutputValues(front, player);
+      if (front.type === 'lightning' && aliveEnemies.length > 1 && !(player.statuses?.electro ?? 0)) {
+        const times = stats.evokeFront ?? (typeof stats.evokeFrontX === 'number' ? Math.max(0, (player.energy ?? 0) + stats.evokeFrontX) : 1);
+        pushCallout('⚡ 随机闪电', `激发【闪电球】×${times}：对随机敌人造成 ${fVal.evoke} 点伤害`, 'info');
+      } else if (willOverflow && !isDirectEvoke) {
+        const valText =
+          front.type === 'plasma'
+            ? `+${fVal.evoke} 能量`
+            : front.type === 'frost'
+              ? `+${fVal.evoke} 格挡`
+              : `${fVal.evoke} 伤害`;
+        pushCallout('满槽自动激发', `将自动激发队首【${fMeta?.name || front.type}】（${valText}）`, 'buff');
+      }
+    }
+  }
+
   if (stats.exhaustNonAttacksBlockEach) {
     for (const c of combat.hand) {
       if (c.instanceId === cardInstance.instanceId) continue;
@@ -1097,14 +1294,17 @@ export function isCardBonusConditionMet(state, cardInstance) {
   if (stats.bonusHitIfPoisoned) {
     return aliveEnemies.some((e) => (e.statuses?.poison ?? 0) > 0);
   }
-  if (stats.spotWeaknessStrength || stats.ifTargetAttackingEnterStance) {
+  if (stats.spotWeaknessStrength || stats.ifTargetAttackingEnterStance || stats.weakIfEnemyAttacking) {
     return aliveEnemies.some((e) => isEnemyIntendingAttack(e));
   }
   if (typeof stats.judgmentThreshold === 'number') {
     return aliveEnemies.some((e) => e.hp <= stats.judgmentThreshold);
   }
+  if (stats.removeEnemyBlockBeforeDamage) {
+    return aliveEnemies.some((e) => (e.block ?? 0) > 0);
+  }
 
-  // Stance / turn-state / hand-composition combos
+  // Stance / turn-state / hand-composition / Defect combos
   const curStance = combat.stance ?? state?.player?.stance ?? 'neutral';
   if (stats.wrathBonusBlock) {
     return curStance === 'wrath';
@@ -1120,6 +1320,17 @@ export function isCardBonusConditionMet(state, cardInstance) {
   }
   if (stats.drawIfNoAttackInHand) {
     return !combat.hand.some((c) => getCardStats(c).type === 'attack');
+  }
+  if (stats.onlyBlockIfNoBlock) {
+    return (state.player?.block ?? 0) === 0;
+  }
+  if (stats.drawIfCardsPlayedUnder) {
+    return (combat.cardsPlayedThisTurn ?? 0) < stats.drawIfCardsPlayedUnder;
+  }
+  if (stats.retrieveAllZeroCostFromDiscard) {
+    return (combat.discardPile || []).some(
+      (c) => getEffectiveCardCost(getCardStats(c), state.player, combat) === 0
+    );
   }
 
   return false;

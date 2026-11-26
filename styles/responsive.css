@@ -63,6 +63,21 @@
     height: 72px;
   }
 
+  .fighters-group.player-side.has-defect-orbs .fighter-unit {
+    flex: 0 1 152px;
+    width: 152px;
+  }
+
+  .orb-rail-side .orb-slot {
+    width: 25px;
+    height: 25px;
+  }
+
+  .orb-rail-side.is-two-col .orb-slot {
+    width: 23px;
+    height: 23px;
+  }
+
   .dock-controls {
     flex-direction: column;
     align-items: stretch;
@@ -113,8 +128,8 @@
 
   .mobile-char-tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 5px;
     margin-bottom: 10px;
   }
 
@@ -123,8 +138,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    padding: 7px 6px 6px;
+    gap: 2px;
+    padding: 6px 3px 5px;
     border-radius: var(--radius-md);
     border: 1.5px solid var(--border-stone);
     background: var(--bg-cavern);
@@ -134,27 +149,27 @@
   }
 
   .mobile-char-tab-portrait {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
   .mobile-char-tab-portrait .unit-svg {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
   }
 
   .mobile-char-tab-name {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 700;
     line-height: 1.15;
     white-space: nowrap;
   }
 
   .mobile-char-tab-meta {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-family: var(--font-mono);
     color: var(--text-ash);
   }
@@ -178,6 +193,66 @@
     background: linear-gradient(180deg, hsla(278, 52%, 22%, 0.92), hsla(268, 48%, 13%, 0.96));
     color: var(--text-ivory);
     box-shadow: 0 0 12px hsla(284, 78%, 56%, 0.28);
+  }
+
+  .mobile-char-tab.active.theme-azure {
+    border-color: hsl(200, 86%, 58%);
+    background: linear-gradient(180deg, hsla(208, 56%, 22%, 0.94), hsla(218, 48%, 12%, 0.97));
+    color: var(--text-ivory);
+    box-shadow: 0 0 12px hsla(200, 88%, 54%, 0.3);
+  }
+
+  /* Adaptive Mobile Orb Rail: swap out turn badge inside .intent-stack for +0px vertical bloat */
+  .orb-rail-side {
+    display: none;
+  }
+
+  .fighters-group.player-side.has-defect-orbs .fighter-unit {
+    flex: 1 1 0;
+    width: 100%;
+  }
+
+  #player-unit.has-orb-rail .player-turn-badge {
+    display: none;
+  }
+
+  .orb-rail-inline {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    max-width: 100%;
+    padding: 1px 0;
+    border-radius: 8px;
+  }
+
+  .orb-rail-inline::after {
+    content: '';
+    position: absolute;
+    inset: -9px -4px;
+  }
+
+  .orb-rail-inline .orb-slot {
+    width: 22px;
+    height: 22px;
+  }
+
+  .orb-rail-inline.is-compact .orb-slot {
+    width: 19px;
+    height: 19px;
+  }
+
+  .orb-rail-inline .orb-val {
+    right: -2px;
+    bottom: -2px;
+    min-width: 12px;
+    height: 12px;
+    padding: 0 2px;
+    font-size: 0.54rem;
+    line-height: 11px;
   }
 
   .character-select-grid {
@@ -1383,6 +1458,26 @@
     min-height: 22px;
   }
 
+  .combat-arena[data-enemy-count='2'] .orb-rail-inline .orb-slot,
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline .orb-slot {
+    width: 19px;
+    height: 19px;
+  }
+
+  .combat-arena[data-enemy-count='2'] .orb-rail-inline,
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline {
+    gap: 2.5px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact .orb-slot {
+    width: 17px;
+    height: 17px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact {
+    gap: 2px;
+  }
+
   .intent-badge {
     min-height: 22px;
     padding: 2px 5px;
@@ -2005,6 +2100,18 @@
 }
 
 @media (max-width: 375px) {
+  .mobile-char-tabs {
+    gap: 4px;
+  }
+
+  .mobile-char-tab {
+    padding: 5px 2px 4px;
+  }
+
+  .mobile-char-tab-name {
+    font-size: 0.67rem;
+  }
+
   .top-hud.run-hud {
     gap: 4px 3px;
     padding: 6px 6px;

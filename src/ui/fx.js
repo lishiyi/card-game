@@ -123,9 +123,32 @@ const POSITIVE_BUFF_KEYS = new Set([
   'burst',
   'phantasmal',
   'omega',
+  'focus',
+  'electro',
+  'loop',
+  'heatsinks',
+  'storm',
+  'staticDischarge',
+  'creativeAi',
+  'echoForm',
+  'selfRepair',
+  'helloWorld',
+  'amplify',
+  'equilibrium',
+  'rebound',
+  'machineLearning',
 ]);
 
-const NEGATIVE_DEBUFF_KEYS = new Set(['vulnerable', 'weak', 'frail', 'mark', 'constricted', 'entangled']);
+const NEGATIVE_DEBUFF_KEYS = new Set([
+  'vulnerable',
+  'weak',
+  'frail',
+  'mark',
+  'constricted',
+  'entangled',
+  'lockOn',
+  'biasedCognition',
+]);
 
 export function createFxManager(rootEl, fxLayerEl, getSettings) {
   function getAnimScale() {
@@ -967,12 +990,94 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     spawnElementWithCleanup(stage, 2150);
   }
 
+  function getVisibleOrbOriginRect() {
+    const rails = rootEl.querySelectorAll('[data-orb-rail]');
+    for (const rail of rails) {
+      const r = rail.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return r;
+    }
+    const playerEl = rootEl.querySelector('#player-unit');
+    return playerEl ? playerEl.getBoundingClientRect() : null;
+  }
+
+  function spawnOrbFxEvents(orbFxEvents, soundEngine) {
+    if (!Array.isArray(orbFxEvents) || orbFxEvents.length === 0) return;
+
+    // Play audio even when animSpeed is instant (audio has its own mute/volume setting)
+    if (soundEngine) {
+      const hasEvoke = orbFxEvents.some((ev) => ev?.kind === 'evoke');
+      const primaryOrb =
+        orbFxEvents.find((ev) => ev?.kind === 'evoke')?.orbType ||
+        orbFxEvents.find((ev) => ev?.kind === 'passive')?.orbType ||
+        orbFxEvents[0]?.orbType ||
+        'lightning';
+      const orbCue = `orb_${primaryOrb}`;
+      if (hasEvoke) {
+        soundEngine.play(orbCue);
+        soundEngine.play('orb_evoke');
+      } else if (orbFxEvents.some((ev) => ev?.kind === 'passive')) {
+        soundEngine.play(orbCue);
+      } else {
+        soundEngine.play('orb_channel');
+      }
+    }
+
+    const scale = getAnimScale();
+    if (scale <= 0 || !fxLayerEl) return;
+
+    const originRect = getVisibleOrbOriginRect();
+    if (!originRect || (originRect.width === 0 && originRect.height === 0)) return;
+    const ox = Math.round(originRect.left + originRect.width / 2);
+    const oy = Math.round(originRect.top + originRect.height / 2);
+
+    // Cap concurrent animations per batch so 10-orb turns stay crisp and clutter-free
+    const batch = orbFxEvents.slice(0, 5);
+    batch.forEach((ev, idx) => {
+      if (!ev || !ev.orbType) return;
+      const orbType = ev.orbType;
+      const kind = ev.kind || 'channel';
+      const delayMs = Math.round(idx * 55 * scale);
+
+      scheduleFxTimer(() => {
+        const pulse = document.createElement('div');
+        pulse.className = `fx-orb-pulse fx-orb-${orbType} fx-orb-kind-${kind}`;
+        pulse.dataset.fxOrb = orbType;
+        pulse.style.left = `${ox}px`;
+        pulse.style.top = `${oy}px`;
+        spawnElementWithCleanup(pulse, kind === 'evoke' ? 520 : 400);
+
+        const targetIds = Array.isArray(ev.targetIds) ? ev.targetIds.slice(0, 3) : [];
+        for (const tid of targetIds) {
+          const enemyEl = rootEl.querySelector(`#enemy-unit-${CSS.escape(tid)}`);
+          if (!enemyEl) continue;
+          const eRect = enemyEl.getBoundingClientRect();
+          if (eRect.width === 0 && eRect.height === 0) continue;
+          const tx = Math.round(eRect.left + eRect.width / 2);
+          const ty = Math.round(eRect.top + eRect.height * 0.44);
+          const dx = tx - ox;
+          const dy = ty - oy;
+          const len = Math.max(24, Math.round(Math.hypot(dx, dy)));
+          const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+          const beam = document.createElement('div');
+          beam.className = `fx-orb-beam fx-orb-${orbType} fx-orb-kind-${kind}`;
+          beam.style.left = `${ox}px`;
+          beam.style.top = `${oy}px`;
+          beam.style.width = `${len}px`;
+          beam.style.transform = `translateY(-50%) rotate(${angle.toFixed(1)}deg)`;
+          spawnElementWithCleanup(beam, 360);
+        }
+      }, delayMs);
+    });
+  }
+
   return {
     applyAnimSpeedAttr,
     clearPendingFx,
     captureCombatSnapshot,
     spawnCardFlyFx,
     spawnCardRevealFx,
+    spawnOrbFxEvents,
     spawnTurnTransitionFx,
     spawnImpactSvg,
     reconcileCombatFx,

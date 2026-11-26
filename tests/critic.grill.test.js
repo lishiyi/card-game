@@ -81,6 +81,28 @@ function assertRunInvariants(state, contextMsg = '') {
       `Combat/player stance desync (${contextMsg})`
     );
     assert.ok(c.hand.length <= MAX_HAND_SIZE, `Hand exceeded MAX_HAND_SIZE: ${c.hand.length}`);
+    const maxSlots = state.player.maxOrbSlots ?? 0;
+    const orbs = Array.isArray(state.player.orbs) ? state.player.orbs : [];
+    assert.ok(
+      Number.isInteger(maxSlots) && maxSlots >= 0 && maxSlots <= 10,
+      `Invalid maxOrbSlots: ${maxSlots} (${contextMsg})`
+    );
+    assert.ok(
+      orbs.length <= maxSlots,
+      `Orbs (${orbs.length}) exceeded maxOrbSlots (${maxSlots}) (${contextMsg})`
+    );
+    for (const orb of orbs) {
+      assert.ok(
+        orb && ['lightning', 'frost', 'dark', 'plasma'].includes(orb.type),
+        `Invalid orb type ${orb?.type} (${contextMsg})`
+      );
+      if (orb.type === 'dark') {
+        assert.ok(
+          Number.isFinite(orb.darkStored) && orb.darkStored >= 0,
+          `Invalid darkStored ${orb.darkStored} (${contextMsg})`
+        );
+      }
+    }
 
     // No card instance should ever exist in two piles simultaneously!
     const allIds = [
@@ -131,6 +153,9 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   }, TypeError);
   assert.throws(() => {
     CHARACTER_LIBRARY.watcher.maxHp = 999;
+  }, TypeError);
+  assert.throws(() => {
+    CHARACTER_LIBRARY.defect.maxHp = 999;
   }, TypeError);
 });
 
@@ -237,14 +262,14 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad, Silent & Watcher, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
+test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad, Silent, Watcher & Defect, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
   let victories = 0;
   let defeats = 0;
   let act2Entries = 0;
 
-  for (let seed = 1000; seed < 1150; seed += 1) {
+  for (let seed = 1000; seed < 1160; seed += 1) {
     const ascension = seed % 2 === 0 ? 0 : (seed % 10) + 1;
-    const characterId = ['ironclad', 'silent', 'watcher'][seed % 3];
+    const characterId = ['ironclad', 'silent', 'watcher', 'defect'][seed % 4];
     const state = createNewRun({ seed, characterId, ascension, unlockAllOverride: true });
     assertRunInvariants(state, `init ${characterId} seed ${seed}`);
 
@@ -292,11 +317,18 @@ test('[Critic / grill-it] 150-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after confirmScry seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'discard_to_draw') {
+            if (choice.mode === 'discard_to_draw' || choice.mode === 'retrieve_discard_to_hand') {
               const cand = choice.candidates?.[0] || state.combat.discardPile[0];
-              assert.ok(cand, `Pending discard_to_draw with empty candidates on seed ${seed}`);
+              assert.ok(cand, `Pending ${choice.mode} with empty candidates on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
-              assertRunInvariants(state, `after discard_to_draw seed ${seed}`);
+              assertRunInvariants(state, `after ${choice.mode} seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'pick_from_draw') {
+              const cand = choice.candidates?.[0] || state.combat.drawPile[0];
+              assert.ok(cand, `Pending pick_from_draw with empty candidates on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
+              assertRunInvariants(state, `after pick_from_draw seed ${seed}`);
               continue;
             }
             if (choice.mode === 'retrieve_discard_retain') {

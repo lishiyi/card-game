@@ -13,9 +13,9 @@ export const BASE_DRAW_PER_TURN = 5;
 export const VELVET_CHOKER_CARD_LIMIT = 6;
 export const RUSHDOWN_MAX_TRIGGERS_PER_TURN = Infinity;
 export const VALID_STANCES = new Set(['neutral', 'calm', 'wrath', 'divinity']);
-export const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail'];
-export const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'intangible'];
-export const SIGNED_STATUSES = new Set(['strength', 'dexterity']);
+export const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail', 'lockOn'];
+export const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'lockOn', 'intangible'];
+export const SIGNED_STATUSES = new Set(['strength', 'dexterity', 'focus']);
 
 export function cloneCardForReveal(cardInstance) {
   if (!cardInstance || !cardInstance.cardId) return null;
@@ -27,6 +27,7 @@ export function cloneCardForReveal(cardInstance) {
     combatDamageMod: cardInstance.combatDamageMod ?? 0,
     combatBlockMod: cardInstance.combatBlockMod ?? 0,
     retainedCostDiscount: cardInstance.retainedCostDiscount ?? 0,
+    ...(typeof cardInstance.miscBonus === 'number' ? { miscBonus: cardInstance.miscBonus } : {}),
   };
 }
 
@@ -483,6 +484,10 @@ export function getPendingChoiceBlockReason(combat) {
       return '请先从弃牌堆选择要置顶的卡牌';
     case 'retrieve_discard_retain':
       return '请先从弃牌堆选择要取回并保留的卡牌';
+    case 'retrieve_discard_to_hand':
+      return '请先从弃牌堆选择要加入手牌的卡牌';
+    case 'pick_from_draw':
+      return '请先从抽牌堆选择要加入手牌的卡牌';
     case 'retain':
       return '请先选择本回合要保留的手牌并确认结束回合';
     default:
@@ -534,6 +539,25 @@ export function requestDiscardPileChoice(
     return true;
   }
 
+  if (mode === 'retrieve_discard_to_hand') {
+    const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
+    const maxPick = Math.min(count, handRoom, eligible.length);
+    if (maxPick <= 0) {
+      pushCombatLog(combat, `【${sourceName}】手牌已满，无法从弃牌堆取回卡牌。`, 'info');
+      return false;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'retrieve_discard_to_hand',
+      sourceName,
+      count: maxPick,
+      remaining: maxPick,
+      optional: false,
+      candidates: [...eligible],
+      selectedIds: [],
+    });
+    return true;
+  }
+
   if (mode === 'discard_to_draw') {
     const maxPick = Math.min(count, eligible.length);
     setPendingCardChoice(combat, {
@@ -549,6 +573,48 @@ export function requestDiscardPileChoice(
   }
 
   return false;
+}
+
+export function requestDrawPileChoice(state, count, sourceName = '搜寻') {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    count <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const eligible = [...(combat.drawPile || [])];
+  if (eligible.length === 0) {
+    pushCombatLog(combat, `【${sourceName}】抽牌堆为空，没有可选卡牌。`, 'info');
+    return false;
+  }
+  const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
+  const maxPick = Math.min(count, handRoom, eligible.length);
+  if (maxPick <= 0) {
+    pushCombatLog(combat, `【${sourceName}】手牌已满，无法从抽牌堆检索卡牌。`, 'info');
+    return false;
+  }
+  // Sort candidates by name/cost rather than draw order so Seek does not spoil upcoming draws
+  const sortedCandidates = [...eligible].sort((a, b) => {
+    const sa = getCardStats(a);
+    const sb = getCardStats(b);
+    const ca = typeof sa.cost === 'number' ? sa.cost : 99;
+    const cb = typeof sb.cost === 'number' ? sb.cost : 99;
+    return ca - cb || sa.name.localeCompare(sb.name, 'zh-CN');
+  });
+  setPendingCardChoice(combat, {
+    mode: 'pick_from_draw',
+    sourceName,
+    count: maxPick,
+    remaining: maxPick,
+    optional: false,
+    candidates: sortedCandidates,
+    selectedIds: [],
+  });
+  return true;
 }
 
 export function requestEndTurnRetainChoice(state, quota, sourceName = '计划妥当') {
@@ -704,6 +770,8 @@ export function handleCombatDefeat(state) {
   state.combat.phase = 'ended';
   state.player.block = 0;
   state.player.stance = 'neutral';
+  state.player.orbs = [];
+  state.player.maxOrbSlots = 0;
   state.combatSnapshot = null;
   if (state.stats) {
     state.stats.defeatedBy = `第 ${state.act ?? 1} 幕 F${Math.max(1, state.floor ?? 1)} · ${state.combat.encounterName || '未知强敌'}`;
@@ -738,10 +806,14 @@ export function finalizeCombatVictory(state, onVictoryCallback = null) {
   const combat = state.combat;
   if (!combat || combat.status === 'victory') return;
 
+  const selfRepairHeal = state.player.statuses?.selfRepair ?? 0;
+
   combat.status = 'victory';
   combat.phase = 'ended';
   state.player.block = 0;
   state.player.stance = 'neutral';
+  state.player.orbs = [];
+  state.player.maxOrbSlots = 0;
   state.player.statuses = {};
   state.player.skipStatusTick = {};
   state.combatSnapshot = null;
@@ -765,6 +837,13 @@ export function finalizeCombatVictory(state, onVictoryCallback = null) {
     const healed = healPlayerInCombat(state, 12);
     if (healed > 0) {
       pushCombatLog(combat, `遗物【带骨肉】回复了 ${healed} 点生命。`, 'victory');
+    }
+  }
+
+  if (state.player.hp > 0 && selfRepairHeal > 0) {
+    const healed = healPlayerInCombat(state, selfRepairHeal);
+    if (healed > 0) {
+      pushCombatLog(combat, `【自我修复】生效：战后回复了 ${healed} 点生命！`, 'victory');
     }
   }
 

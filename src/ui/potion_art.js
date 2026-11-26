@@ -33,6 +33,10 @@ export const POTION_ACCENT_COLORS = Object.freeze({
   phantom_draught: 'hsl(196, 76%, 64%)',
   stance_potion: 'hsl(280, 80%, 66%)',
   mantra_elixir: 'hsl(278, 86%, 68%)',
+  focus_potion: 'hsl(196, 96%, 64%)',
+  potion_of_capacity: 'hsl(208, 92%, 66%)',
+  essence_of_darkness: 'hsl(282, 86%, 60%)',
+  liquid_plasma: 'hsl(42, 98%, 64%)',
 });
 
 function wrapPotionSvg(id, defs, body) {
@@ -341,6 +345,52 @@ export const POTION_SVG_ART = Object.freeze({
      <path d="M9.6 12.6 H18.4 C19 16.4 17.6 21 14 23.2 C10.4 21 9 16.4 9.6 12.6 Z" fill="url(#pt-mantra_elixir-g)"/>
      <path d="M10.2 17.2 Q14 14.2 17.8 17.2 Q14 20.2 10.2 17.2 Z" fill="hsl(46, 100%, 76%)"/>
      <circle cx="14" cy="17.2" r="1.25" fill="hsl(274, 72%, 22%)"/>`
+  ),
+
+  // 29. Focus Potion — Spherical optical-lens azure flask with concentric focus crosshair
+  focus_potion: wrapPotionSvg(
+    'focus_potion',
+    `<radialGradient id="pt-focus_potion-g" cx="42%" cy="38%" r="64%"><stop offset="0%" stop-color="hsl(188, 100%, 88%)"/><stop offset="56%" stop-color="hsl(198, 96%, 56%)"/><stop offset="100%" stop-color="hsl(220, 88%, 34%)"/></radialGradient>`,
+    `<rect x="11.4" y="2" width="5.2" height="2.4" rx="1" fill="hsl(42, 72%, 52%)" stroke="hsl(48, 96%, 80%)" stroke-width="0.9"/>
+     <path d="M12 4.4 H16 V7.6 A8 8 0 1 1 12 7.6 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <circle cx="14" cy="15.8" r="6.3" fill="url(#pt-focus_potion-g)"/>
+     <circle cx="14" cy="15.8" r="3.4" fill="none" stroke="hsl(52, 100%, 86%)" stroke-width="1.2"/>
+     <circle cx="14" cy="15.8" r="1.2" fill="hsl(54, 100%, 96%)"/>
+     <path d="M14 10.6 V12.4 M14 19.2 V21 M8.8 15.8 H10.6 M17.4 15.8 H19.2" stroke="hsl(50, 100%, 86%)" stroke-width="1.1" stroke-linecap="round"/>`
+  ),
+
+  // 30. Potion of Capacity — Wide cylindrical cobalt canister ringed with triple orb sockets
+  potion_of_capacity: wrapPotionSvg(
+    'potion_of_capacity',
+    `<linearGradient id="pt-potion_of_capacity-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="hsl(196, 98%, 74%)"/><stop offset="100%" stop-color="hsl(222, 86%, 40%)"/></linearGradient>`,
+    `<rect x="10.8" y="2.2" width="6.4" height="2.5" rx="1" fill="hsl(210, 44%, 56%)" stroke="hsl(196, 92%, 82%)" stroke-width="0.9"/>
+     <path d="M11.6 4.7 H16.4 V7.4 H19.6 C20.8 7.4 21.6 8.4 21.6 9.6 V21.4 C21.6 23.2 20.2 24.4 18.4 24.4 H9.6 C7.8 24.4 6.4 23.2 6.4 21.4 V9.6 C6.4 8.4 7.2 7.4 8.4 7.4 H11.6 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <rect x="7.8" y="12.2" width="12.4" height="10.8" rx="2.4" fill="url(#pt-potion_of_capacity-g)"/>
+     <circle cx="10.6" cy="17.6" r="1.7" fill="none" stroke="hsl(52, 100%, 86%)" stroke-width="1.2"/>
+     <circle cx="14" cy="17.6" r="1.7" fill="none" stroke="hsl(52, 100%, 86%)" stroke-width="1.2"/>
+     <circle cx="17.4" cy="17.6" r="1.7" fill="none" stroke="hsl(52, 100%, 86%)" stroke-width="1.2"/>`
+  ),
+
+  // 31. Essence of Darkness — Teardrop obsidian-violet eclipse vial with dark vortex core
+  essence_of_darkness: wrapPotionSvg(
+    'essence_of_darkness',
+    `<radialGradient id="pt-essence_of_darkness-g" cx="46%" cy="44%" r="64%"><stop offset="0%" stop-color="hsl(290, 96%, 68%)"/><stop offset="52%" stop-color="hsl(272, 82%, 34%)"/><stop offset="100%" stop-color="hsl(258, 76%, 10%)"/></radialGradient>`,
+    `<polygon points="11.6,2 16.4,2 15.6,4.8 12.4,4.8" fill="hsl(278, 52%, 44%)" stroke="hsl(290, 88%, 76%)" stroke-width="0.9"/>
+     <path d="M12.2 4.8 H15.8 V7.6 C19.4 9.8 21.8 13.8 21.2 18.2 A7.2 7.2 0 0 1 6.8 18.2 C6.2 13.8 8.6 9.8 12.2 7.6 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <circle cx="14" cy="16.8" r="5.6" fill="url(#pt-essence_of_darkness-g)"/>
+     <circle cx="14" cy="16.8" r="2.7" fill="hsl(256, 76%, 8%)" stroke="hsl(292, 98%, 78%)" stroke-width="1.1"/>
+     <circle cx="17.8" cy="12.2" r="0.9" fill="hsl(292, 100%, 86%)"/>`
+  ),
+
+  // 32. Liquid Plasma — Twin-ringed golden-cyan fusion decanter radiating plasma arcs
+  liquid_plasma: wrapPotionSvg(
+    'liquid_plasma',
+    `<radialGradient id="pt-liquid_plasma-g" cx="44%" cy="40%" r="62%"><stop offset="0%" stop-color="hsl(54, 100%, 96%)"/><stop offset="48%" stop-color="hsl(40, 100%, 62%)"/><stop offset="100%" stop-color="hsl(192, 96%, 46%)"/></radialGradient>`,
+    `<rect x="11.2" y="2" width="5.6" height="2.4" rx="1" fill="hsl(44, 90%, 58%)" stroke="hsl(52, 100%, 88%)" stroke-width="0.9"/>
+     <path d="M11.8 4.4 H16.2 V7.6 L21.4 15.4 L18.2 24 H9.8 L6.6 15.4 L11.8 7.6 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <polygon points="8.4,15.4 14,10.2 19.6,15.4 17.2,22.4 10.8,22.4" fill="url(#pt-liquid_plasma-g)"/>
+     <ellipse cx="14" cy="16.6" rx="5.2" ry="2.1" transform="rotate(-24 14 16.6)" fill="none" stroke="hsl(54, 100%, 96%)" stroke-width="1.1"/>
+     <circle cx="14" cy="16.6" r="1.6" fill="hsl(54, 100%, 98%)"/>`
   ),
 });
 

@@ -25,6 +25,12 @@ export const AUDIO_CUES = Object.freeze([
   'stance_calm',
   'stance_wrath',
   'stance_divinity',
+  'orb_channel',
+  'orb_evoke',
+  'orb_lightning',
+  'orb_frost',
+  'orb_dark',
+  'orb_plasma',
   'heal',
   'potion',
   'gold',
@@ -1198,6 +1204,109 @@ export function createSoundEngine(getSettings) {
             start: 0.18,
             duration: 0.26,
             gain: baseGain * 0.74,
+            reverb: 0.36,
+          });
+          break;
+        }
+        case 'orb_channel': {
+          playFmTone(audioCtx, {
+            carrierFreq: 480,
+            modFreq: 720,
+            modDepth: 110,
+            duration: 0.14,
+            gain: baseGain * 0.65,
+            reverb: 0.28,
+          });
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 640,
+            endFreq: 960,
+            start: 0.03,
+            duration: 0.14,
+            gain: baseGain * 0.55,
+            reverb: 0.3,
+          });
+          break;
+        }
+        case 'orb_lightning': {
+          playTone(audioCtx, {
+            type: 'sawtooth',
+            freq: 920,
+            endFreq: 260,
+            duration: 0.13,
+            filterFreq: 2400,
+            gain: baseGain * 0.72,
+            reverb: 0.24,
+          });
+          playFmTone(audioCtx, {
+            carrierFreq: 1180,
+            modFreq: 310,
+            modDepth: 340,
+            start: 0.02,
+            duration: 0.11,
+            gain: baseGain * 0.55,
+            reverb: 0.22,
+          });
+          break;
+        }
+        case 'orb_frost': {
+          playFmTone(audioCtx, {
+            carrierFreq: 1046.5,
+            modFreq: 2093,
+            modDepth: 160,
+            duration: 0.2,
+            gain: baseGain * 0.6,
+            reverb: 0.38,
+          });
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 1318.5,
+            start: 0.05,
+            duration: 0.18,
+            gain: baseGain * 0.48,
+            reverb: 0.36,
+          });
+          break;
+        }
+        case 'orb_dark': {
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 220,
+            endFreq: 92,
+            duration: 0.26,
+            filterFreq: 680,
+            gain: baseGain * 0.74,
+            reverb: 0.42,
+          });
+          break;
+        }
+        case 'orb_plasma': {
+          playFmTone(audioCtx, {
+            carrierFreq: 587.3,
+            modFreq: 880,
+            modDepth: 190,
+            duration: 0.22,
+            gain: baseGain * 0.68,
+            reverb: 0.34,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 880,
+            endFreq: 1320,
+            start: 0.06,
+            duration: 0.2,
+            gain: baseGain * 0.52,
+            reverb: 0.34,
+          });
+          break;
+        }
+        case 'orb_evoke': {
+          playFmTone(audioCtx, {
+            carrierFreq: 740,
+            modFreq: 1480,
+            modDepth: 260,
+            duration: 0.22,
+            gain: baseGain * 0.72,
             reverb: 0.36,
           });
           break;

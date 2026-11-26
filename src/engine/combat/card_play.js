@@ -8,6 +8,7 @@ import {
   countCombatStrikeCards,
   createCardInstance,
   getCardAttackFlatBonus,
+  getCardCharacter,
   getCardStats,
   getEffectiveCardCost,
   isStrikeCard,
@@ -19,7 +20,7 @@ import {
   STATUS_METADATA,
 } from '../../data/relics.js';
 import { calculateAttackDamage, calculateCardBlock, isFatalEnemyKill } from '../math.js';
-import { pickRandom, randomInt } from '../rng.js';
+import { pickRandom, randomInt, shuffled } from '../rng.js';
 import {
   MAX_HAND_SIZE,
   VELVET_CHOKER_CARD_LIMIT,
@@ -38,6 +39,7 @@ import {
   hasPendingCardChoice,
   getPendingChoiceBlockReason,
   requestDiscardPileChoice,
+  requestDrawPileChoice,
   resolveEnemyTarget,
   finalizeCombatVictory,
 } from './state.js';
@@ -58,6 +60,17 @@ import {
   initiateScry,
   exhaustCardsBatch,
 } from './resolution.js';
+import {
+  ORB_TYPES,
+  countUniqueOrbs,
+  gainOrbSlots,
+  removeOrbSlots,
+  channelOrb,
+  evokeFrontOrb,
+  evokeAllOrbs,
+  removeAllOrbs,
+  triggerAllDarkPassives,
+} from './orbs.js';
 import { endPlayerTurn } from './turn_flow.js';
 
 export function canPlayCard(state, instanceId) {
@@ -121,6 +134,7 @@ export function playCard(
     ok: true,
     outcome: state.combat?.status ?? combat.status,
     cardReveals: Array.isArray(combat.pendingCardReveals) ? [...combat.pendingCardReveals] : [],
+    orbFxEvents: Array.isArray(combat.orbFxEvents) ? [...combat.orbFxEvents] : [],
     ...extra,
   });
   const handIndex = combat.hand.findIndex((c) => c.instanceId === instanceId);
@@ -139,13 +153,18 @@ export function playCard(
   if (!internalOpts.fromHavoc && !internalOpts.fromDup) {
     combat.fledEnemyIds = [];
     combat.pendingCardReveals = [];
+    combat.orbFxEvents = [];
   }
 
   const effectiveCost = internalOpts.forceFree ? 0 : getEffectiveCardCost(stats, state.player, combat);
   const flatBonus = getCardAttackFlatBonus(stats, state.player, combat);
+  const cardsPlayedBeforeThis = combat.cardsPlayedThisTurn ?? 0;
   const attacksBeforeThis = combat.attacksPlayedThisTurn ?? 0;
   const hadDiscardedBeforeThis = (combat.discardedThisTurn ?? 0) > 0;
   const prevCardType = combat.lastCardTypePlayed ?? null;
+  const reboundWasActive = (state.player.statuses?.rebound ?? 0) > 0;
+  const heatsinksBefore = state.player.statuses?.heatsinks ?? 0;
+  const stormBefore = state.player.statuses?.storm ?? 0;
   const chokedEnemiesBefore = new Map(
     getAliveEnemies(combat)
       .filter((e) => (e.statuses?.choke ?? 0) > 0)
@@ -183,7 +202,22 @@ export function playCard(
   const doubleTapActive = stats.type === 'attack' && doubleTapStacks > 0;
   const dupStacks = state.player.statuses?.duplication ?? 0;
   const dupActive = !stats.noBurst && dupStacks > 0;
-  const repeatTimes = 1 + (burstActive ? 1 : 0) + (doubleTapActive ? 1 : 0) + (dupActive ? 1 : 0);
+  const amplifyStacks = state.player.statuses?.amplify ?? 0;
+  const amplifyActive = stats.type === 'power' && !stats.noBurst && amplifyStacks > 0;
+  const echoStacks = state.player.statuses?.echoForm ?? 0;
+  const echoActive =
+    !internalOpts.fromHavoc &&
+    !internalOpts.fromDup &&
+    !stats.noBurst &&
+    echoStacks > 0 &&
+    (combat.echoFormUsedThisTurn ?? 0) < echoStacks;
+  const repeatTimes =
+    1 +
+    (burstActive ? 1 : 0) +
+    (doubleTapActive ? 1 : 0) +
+    (dupActive ? 1 : 0) +
+    (amplifyActive ? 1 : 0) +
+    (echoActive ? 1 : 0);
 
   // 1. Remove from hand before resolving effects (prevents self-draw and frees hand slot)
   combat.hand.splice(handIndex, 1);
@@ -196,6 +230,12 @@ export function playCard(
   }
   state.stats.cardsPlayed = (state.stats.cardsPlayed ?? 0) + 1;
   combat.cardsPlayedThisTurn = (combat.cardsPlayedThisTurn ?? 0) + 1;
+  if (stats.type === 'power') {
+    combat.powersPlayedThisCombat = (combat.powersPlayedThisCombat ?? 0) + 1;
+  }
+  if (echoActive) {
+    combat.echoFormUsedThisTurn = (combat.echoFormUsedThisTurn ?? 0) + 1;
+  }
 
   const xCostLogNote = stats.isXCost
     ? internalOpts.forceFree
@@ -251,14 +291,28 @@ export function playCard(
     }
     pushCombatLog(combat, `【复制】生效：卡牌【${stats.name}】将额外再发动 1 次！`, 'status');
   }
+  if (amplifyActive) {
+    if (amplifyStacks - 1 <= 0) {
+      delete state.player.statuses.amplify;
+    } else {
+      state.player.statuses.amplify = amplifyStacks - 1;
+    }
+    pushCombatLog(combat, `【增幅】生效：能力【${stats.name}】将额外再发动 1 次！`, 'status');
+  }
+  if (echoActive) {
+    pushCombatLog(combat, `【回响形态】生效：【${stats.name}】产生回响，额外再发动 1 次！`, 'status');
+  }
 
   let totalManualDiscard = 0;
   let totalManualExhaust = 0;
+  let totalExhaustForEnergy = 0;
   let totalManualUpgrade = 0;
   let totalScry = 0;
   let totalDrawAfterScry = 0;
   let totalDiscardToDraw = 0;
   let totalRetrieveDiscardRetain = 0;
+  let totalRetrieveDiscardToHand = 0;
+  let totalPickFromDraw = 0;
 
   for (let pass = 0; pass < repeatTimes; pass += 1) {
     if (pass > 0) {
@@ -297,6 +351,24 @@ export function playCard(
         'info'
       );
     }
+    if (stats.doubleEnergy && state.player.energy > 0) {
+      const gained = state.player.energy;
+      state.player.energy += gained;
+      pushCombatLog(combat, `【${stats.name}】使能量翻倍，额外获得 ${gained} 点能量！`, 'info');
+    }
+    if (stats.energyPerDrawCards) {
+      const gained = Math.floor((combat.drawPile?.length ?? 0) / stats.energyPerDrawCards);
+      if (gained > 0) {
+        state.player.energy += gained;
+        pushCombatLog(
+          combat,
+          `【${stats.name}】根据抽牌堆 ${combat.drawPile.length} 张牌，获得 ${gained} 点能量！`,
+          'info'
+        );
+      } else {
+        pushCombatLog(combat, `抽牌堆不足 ${stats.energyPerDrawCards} 张，【${stats.name}】未获得能量。`, 'info');
+      }
+    }
 
     // 3b. Conditional intent check (Spot Weakness)
     if (stats.spotWeaknessStrength) {
@@ -320,16 +392,60 @@ export function playCard(
     }
 
     // 4. Block gain, Halt Wrath bonus, Spirit Shield, Dodge and Roll next-turn block, & Entrench double block
-    if (typeof stats.block === 'number') {
-      const gainedBlock = calculateCardBlock(stats.block, state.player);
+    if (typeof stats.blockPerX === 'number') {
+      let totalXBlock = 0;
+      for (let bx = 0; bx < effectiveX; bx += 1) {
+        const gained = calculateCardBlock(stats.blockPerX, state.player);
+        addPlayerBlock(state, gained);
+        totalXBlock += gained;
+      }
+      if (totalXBlock > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】生效 ${effectiveX} 次，共获得 ${totalXBlock} 点格挡！`,
+          'block'
+        );
+      }
+    } else if (stats.blockFromDiscardSize) {
+      const rawStackBlock = (stats.block ?? 0) + (combat.discardPile?.length ?? 0);
+      const gainedBlock = calculateCardBlock(rawStackBlock, state.player);
       addPlayerBlock(state, gainedBlock);
       if (gainedBlock > 0) {
-        pushCombatLog(combat, `获得 ${gainedBlock} 点格挡。`, 'block');
+        pushCombatLog(
+          combat,
+          `【${stats.name}】依据弃牌堆 ${combat.discardPile.length} 张牌，获得 ${gainedBlock} 点格挡！`,
+          'block'
+        );
       }
-      if (stats.gainSameBlockNextTurn && gainedBlock > 0) {
-        applyStatus(state.player, 'nextTurnBlock', gainedBlock);
-        pushCombatLog(combat, `【${stats.name}】将在下回合开始时获得 ${gainedBlock} 点格挡。`, 'block');
+    } else if (typeof stats.block === 'number') {
+      if (stats.onlyBlockIfNoBlock && state.player.block > 0) {
+        pushCombatLog(combat, `你当前已有格挡，【${stats.name}】未生效。`, 'info');
+      } else {
+        const gainedBlock = calculateCardBlock(stats.block, state.player);
+        addPlayerBlock(state, gainedBlock);
+        if (gainedBlock > 0) {
+          pushCombatLog(combat, `获得 ${gainedBlock} 点格挡。`, 'block');
+        }
+        if (stats.gainSameBlockNextTurn && gainedBlock > 0) {
+          applyStatus(state.player, 'nextTurnBlock', gainedBlock);
+          pushCombatLog(combat, `【${stats.name}】将在下回合开始时获得 ${gainedBlock} 点格挡。`, 'block');
+        }
       }
+    }
+    if (stats.shrinkBlockOnPlay) {
+      cardInstance.combatBlockMod = (cardInstance.combatBlockMod ?? 0) - stats.shrinkBlockOnPlay;
+    }
+    if (stats.geneticBlockGrowth) {
+      cardInstance.miscBonus = (cardInstance.miscBonus ?? 0) + stats.geneticBlockGrowth;
+      const masterCard = (state.player.deck || []).find((c) => c.instanceId === cardInstance.instanceId);
+      if (masterCard) {
+        masterCard.miscBonus = (masterCard.miscBonus ?? 0) + stats.geneticBlockGrowth;
+      }
+      pushCombatLog(
+        combat,
+        `【${stats.name}】进化：基础格挡永久 +${stats.geneticBlockGrowth}（下次 ${1 + (cardInstance.miscBonus ?? 0)} 点）！`,
+        'block'
+      );
     }
     if (typeof stats.wrathBonusBlock === 'number' && combat.stance === 'wrath') {
       const wrathBlock = calculateCardBlock(stats.wrathBonusBlock, state.player);
@@ -543,9 +659,22 @@ export function playCard(
         }
       }
     } else {
+      if (stats.removeEnemyBlockBeforeDamage && targetEnemy && targetEnemy.hp > 0 && targetEnemy.block > 0) {
+        const stripped = targetEnemy.block;
+        targetEnemy.block = 0;
+        pushCombatLog(
+          combat,
+          `【${stats.name}】熔毁了【${targetEnemy.name}】的 ${stripped} 点格挡！`,
+          'attack'
+        );
+      }
       let hits;
       if (stats.hitsPerAttackPlayedThisTurn) {
         hits = attacksBeforeThis;
+      } else if (stats.hitsPerOrb) {
+        hits = state.player.orbs?.length ?? 0;
+      } else if (stats.hitsPerLightningChanneled) {
+        hits = combat.orbsChanneledByType?.lightning ?? 0;
       } else if (stats.hitsPerAliveEnemy) {
         hits = Math.max(1, getAliveEnemies(combat).length);
       } else if (stats.hitsPerHandSkill) {
@@ -620,6 +749,52 @@ export function playCard(
 
         if (state.player.hp <= 0 || combat.status !== 'ongoing') {
           return buildPlayResult();
+        }
+
+        if (stats.gainEnergyOnKill && targetAliveBefore && targetEnemy && targetEnemy.hp <= 0) {
+          state.player.energy += stats.gainEnergyOnKill;
+          pushCombatLog(
+            combat,
+            `【${stats.name}】击杀目标！返还 ${stats.gainEnergyOnKill} 点能量！`,
+            'info'
+          );
+        }
+
+        if (stats.clawScale) {
+          const allCards = [
+            cardInstance,
+            ...combat.hand,
+            ...combat.drawPile,
+            ...combat.discardPile,
+            ...combat.exhaustPile,
+          ];
+          const seen = new Set();
+          for (const c of allCards) {
+            if (c && c.cardId === 'claw' && !seen.has(c.instanceId)) {
+              seen.add(c.instanceId);
+              c.combatDamageMod = (c.combatDamageMod ?? 0) + stats.clawScale;
+            }
+          }
+          pushCombatLog(combat, `【爪击】协同强化：本场战斗所有爪击伤害 +${stats.clawScale}！`, 'attack');
+        }
+
+        if (stats.reduceSelfCostOnPlay) {
+          const curCost =
+            typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : (stats.cost ?? 0);
+          cardInstance.combatCost = Math.max(0, curCost - stats.reduceSelfCostOnPlay);
+        }
+
+        if (stats.weakIfEnemyAttacking && targetIntendsAttackBefore && targetEnemy && targetEnemy.hp > 0) {
+          if (applyStatus(targetEnemy, 'weak', stats.weakIfEnemyAttacking)) {
+            pushCombatLog(
+              combat,
+              `【${stats.name}】打断攻势：给予【${targetEnemy.name}】${stats.weakIfEnemyAttacking} 层【虚弱】！`,
+              'status'
+            );
+            triggerSadisticNature(state, targetEnemy);
+          } else {
+            pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【虚弱】！`, 'status');
+          }
         }
 
         if (stats.blockEqualUnblockedDamage && totalUnblocked > 0) {
@@ -774,6 +949,15 @@ export function playCard(
 
     if (stats.retrieveDiscardRetain) {
       totalRetrieveDiscardRetain += stats.retrieveDiscardRetain;
+    }
+    if (stats.retrieveDiscardToHand) {
+      totalRetrieveDiscardToHand += stats.retrieveDiscardToHand;
+    }
+    if (stats.pickFromDraw) {
+      totalPickFromDraw += stats.pickFromDraw;
+    }
+    if (stats.exhaustChooseHandForEnergy) {
+      totalExhaustForEnergy += stats.exhaustChooseHandForEnergy;
     }
 
     if (stats.copySelfToDiscard) {
@@ -1031,13 +1215,15 @@ export function playCard(
       }
     }
 
-    // 7. Self status application, Limit Break, Stances & Mantra
+    // 7. Self status application, Limit Break, Stances, Mantra & Orbs
     if (stats.applySelfStatuses) {
       for (const [statusKey, val] of Object.entries(stats.applySelfStatuses)) {
         const applied = applyStatus(state.player, statusKey, val);
         const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
         if (!applied) {
           pushCombatLog(combat, `【人工制品】抵消了【${statusName}】！`, 'status');
+        } else if (val < 0) {
+          pushCombatLog(combat, `玩家失去 ${Math.abs(val)} 点【${statusName}】。`, 'status');
         } else {
           pushCombatLog(combat, `玩家获得 ${val} 层【${statusName}】。`, 'status');
         }
@@ -1075,6 +1261,168 @@ export function playCard(
     }
     if (stats.gainMantra) {
       gainMantra(state, stats.gainMantra);
+    }
+
+    // 7b. Defect Orb slots, channeling, evoking, Recursion, Darkness+, and Fission
+    if (stats.gainOrbSlots) {
+      gainOrbSlots(state, stats.gainOrbSlots, { sourceName: stats.name });
+    }
+    if (stats.removeOrbSlots) {
+      removeOrbSlots(state, stats.removeOrbSlots, { sourceName: stats.name });
+    }
+    if (stats.channelOrb) {
+      channelOrb(state, stats.channelOrb, { sourceName: stats.name });
+    }
+    if (Array.isArray(stats.channelOrbs)) {
+      for (const orbType of stats.channelOrbs) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        channelOrb(state, orbType, { sourceName: stats.name });
+      }
+    }
+    if (stats.channelRandomOrbs) {
+      for (let r = 0; r < stats.channelRandomOrbs; r += 1) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        const randType = pickRandom(state, ORB_TYPES);
+        if (randType) {
+          channelOrb(state, randType, { sourceName: stats.name });
+        }
+      }
+    }
+    if (stats.channelFrostPerEnemy) {
+      const aliveCount = getAliveEnemies(combat).length;
+      for (let f = 0; f < aliveCount; f += 1) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        channelOrb(state, 'frost', { sourceName: stats.name });
+      }
+    }
+    if (typeof stats.channelLightningX === 'number') {
+      const totalLight = Math.max(0, effectiveX + stats.channelLightningX);
+      for (let l = 0; l < totalLight; l += 1) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        channelOrb(state, 'lightning', { sourceName: stats.name });
+      }
+    }
+    if (stats.triggerAllDarkPassives) {
+      triggerAllDarkPassives(state, { sourceName: stats.name });
+    }
+    if (stats.evokeFront) {
+      evokeFrontOrb(state, stats.evokeFront);
+    }
+    if (typeof stats.evokeFrontX === 'number') {
+      const totalEvokes = Math.max(0, effectiveX + stats.evokeFrontX);
+      if (totalEvokes > 0) {
+        evokeFrontOrb(state, totalEvokes);
+      }
+    }
+    if (stats.recursionFront) {
+      evokeFrontOrb(state, 1, { rechannel: true });
+    }
+    if (stats.fissionOrbs) {
+      const count =
+        stats.fissionOrbs === 'evoke' ? evokeAllOrbs(state) : removeAllOrbs(state);
+      if (count > 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+        state.player.energy += count;
+        pushCombatLog(
+          combat,
+          `【${stats.name}】${stats.fissionOrbs === 'evoke' ? '激发' : '移除'}了 ${count} 个充能球，获得 ${count} 点能量并抽 ${count} 张牌！`,
+          'info'
+        );
+        if (getAliveEnemies(combat).length > 0) {
+          drawCards(state, count);
+        }
+      }
+    }
+
+    if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+      return buildPlayResult();
+    }
+
+    // 7c. Defect card manipulation & conditional draws (Compile Driver, FTL, Scrape, All for One, White Noise, Reboot)
+    if (stats.drawPerUniqueOrb) {
+      const uniqueCount = countUniqueOrbs(state.player);
+      if (uniqueCount > 0) {
+        drawCards(state, uniqueCount * stats.drawPerUniqueOrb);
+      }
+    }
+    if (stats.drawIfCardsPlayedUnder && cardsPlayedBeforeThis + pass < stats.drawIfCardsPlayedUnder) {
+      drawCards(state, 1);
+    }
+    if (stats.drawAndDiscardNonZeroCost) {
+      const drawnNow = [];
+      drawCards(state, stats.drawAndDiscardNonZeroCost, { outDrawnCards: drawnNow });
+      const nonZero = [];
+      for (const dc of drawnNow) {
+        const dcStats = getCardStats(dc);
+        const dcCost = getEffectiveCardCost(dcStats, state.player, combat);
+        if (dcCost !== 0) {
+          const hIdx = combat.hand.findIndex((h) => h.instanceId === dc.instanceId);
+          if (hIdx !== -1) {
+            combat.hand.splice(hIdx, 1);
+            nonZero.push(dc);
+          }
+        }
+      }
+      if (nonZero.length > 0) {
+        discardCardsBatch(state, nonZero, { manual: true });
+        pushCombatLog(combat, `【${stats.name}】弃置了 ${nonZero.length} 张非 0 费牌。`, 'info');
+      }
+    }
+    if (stats.retrieveAllZeroCostFromDiscard) {
+      const picked = [];
+      const keptDiscard = [];
+      for (const dc of combat.discardPile) {
+        const dcStats = getCardStats(dc);
+        const dcCost = getEffectiveCardCost(dcStats, state.player, combat);
+        if (dcCost === 0 && combat.hand.length < MAX_HAND_SIZE) {
+          combat.hand.push(dc);
+          picked.push(dcStats.name);
+        } else {
+          keptDiscard.push(dc);
+        }
+      }
+      combat.discardPile = keptDiscard;
+      if (picked.length > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】从弃牌堆取回 ${picked.length} 张 0 费牌：${picked.map((n) => `【${n}】`).join('、')}！`,
+          'info'
+        );
+      }
+    }
+    if (stats.addRandomPowerZeroCost) {
+      const defectPowerPool = Object.values(CARD_LIBRARY)
+        .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power')
+        .map((c) => c.id);
+      const pickedId = pickRandom(state, defectPowerPool);
+      if (pickedId && combat.hand.length < MAX_HAND_SIZE) {
+        const created = createCardInstance(
+          state,
+          pickedId,
+          Boolean(masterUp && CARD_LIBRARY[pickedId]?.upgraded)
+        );
+        created.prevCombatCost = null;
+        created.combatCost = 0;
+        created.tempZeroCostTurn = true;
+        combat.hand.push(created);
+        pushCombatLog(
+          combat,
+          `【${stats.name}】生成了 0 费能力牌【${getCardStats(created).name}】加入手牌！`,
+          'info'
+        );
+      }
+    }
+    if (stats.rebootDraw) {
+      const recycled = [...combat.hand, ...combat.discardPile];
+      combat.hand = [];
+      combat.discardPile = [];
+      combat.drawPile = shuffled(state, [...combat.drawPile, ...recycled]);
+      combat.reshuffleCount = (combat.reshuffleCount ?? 0) + 1;
+      pushCombatLog(
+        combat,
+        `【${stats.name}】将手牌与弃牌堆全部洗回抽牌堆，重新抽 ${stats.rebootDraw} 张牌！`,
+        'info'
+      );
+      drawCards(state, stats.rebootDraw);
     }
 
     // 8. Draw cards (& Scrawl / Expertise / Impatience / Violence / Escape Plan / deferred Scry+Draw)
@@ -1418,12 +1766,32 @@ export function playCard(
     (stats.type === 'status' && stats.unplayable && hasRelic(state, 'medical_kit'))
   ) {
     exhaustCardsBatch(state, [cardInstance]);
+  } else if (reboundWasActive && (state.player.statuses?.rebound ?? 0) > 0) {
+    state.player.statuses.rebound -= 1;
+    if (state.player.statuses.rebound <= 0) {
+      delete state.player.statuses.rebound;
+    }
+    combat.drawPile.unshift(cardInstance);
+    pushCombatLog(combat, `【反弹】生效：【${stats.name}】已置于抽牌堆顶！`, 'info');
   } else if (stats.shuffleSelfToDraw) {
     const insertIdx = randomInt(state, 0, combat.drawPile.length);
     combat.drawPile.splice(insertIdx, 0, cardInstance);
     pushCombatLog(combat, `【${stats.name}】已洗回抽牌堆。`, 'info');
   } else {
     combat.discardPile.push(cardInstance);
+  }
+
+  if (stats.type === 'power' && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+    if (heatsinksBefore > 0) {
+      drawCards(state, heatsinksBefore);
+      pushCombatLog(combat, `【散热片】触发：打出能力牌，额外抽 ${heatsinksBefore} 张牌！`, 'info');
+    }
+    if (stormBefore > 0) {
+      for (let st = 0; st < stormBefore; st += 1) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        channelOrb(state, 'lightning', { sourceName: '暴风雨' });
+      }
+    }
   }
 
   if (stats.type === 'power' && hasRelic(state, 'mummified_hand') && getAliveEnemies(combat).length > 0) {
@@ -1544,10 +1912,14 @@ export function playCard(
     return { ...endPlayerTurn(state, onVictoryCallback), cardReveals };
   }
 
-  // 11b. Request interactive hand/draw/discard card choices (Discard / Exhaust / Upgrade / Scry / Discard-Pile)
+  // 11b. Request interactive hand/draw/discard card choices (Discard / Exhaust / Upgrade / Scry / Discard-Pile / Draw-Pile)
   if (getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
     if (totalManualDiscard > 0) {
       requestHandCardChoice(state, 'discard', totalManualDiscard, stats.name, onVictoryCallback);
+    } else if (totalExhaustForEnergy > 0) {
+      requestHandCardChoice(state, 'exhaust', totalExhaustForEnergy, stats.name, onVictoryCallback, {
+        grantEnergyFromCost: true,
+      });
     } else if (totalManualExhaust > 0) {
       requestHandCardChoice(state, 'exhaust', totalManualExhaust, stats.name, onVictoryCallback);
     } else if (totalManualUpgrade > 0) {
@@ -1558,6 +1930,18 @@ export function playCard(
       requestDiscardPileChoice(state, 'discard_to_draw', totalDiscardToDraw, stats.name, {
         excludeInstanceId: cardInstance.instanceId,
       });
+    } else if (totalRetrieveDiscardToHand > 0) {
+      requestDiscardPileChoice(
+        state,
+        'retrieve_discard_to_hand',
+        totalRetrieveDiscardToHand,
+        stats.name,
+        {
+          excludeInstanceId: cardInstance.instanceId,
+        }
+      );
+    } else if (totalPickFromDraw > 0) {
+      requestDrawPileChoice(state, totalPickFromDraw, stats.name);
     } else if (totalRetrieveDiscardRetain > 0) {
       requestDiscardPileChoice(
         state,
@@ -1621,6 +2005,7 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   }
   combat.fledEnemyIds = [];
   combat.pendingCardReveals = [];
+  combat.orbFxEvents = [];
 
   const mult = hasRelic(state, 'sacred_bark') ? 2 : 1;
 
@@ -1789,6 +2174,31 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
       }
     }
   }
+  if (potion.focus) {
+    const val = potion.focus * mult;
+    applyStatus(state.player, 'focus', val);
+    pushCombatLog(combat, `获得 ${val} 点【集中】！`, 'status');
+  }
+  if (potion.orbSlots) {
+    gainOrbSlots(state, potion.orbSlots * mult, { sourceName: potion.name });
+  }
+  if (potion.channelDarkPerSlot) {
+    const slots = state.player.maxOrbSlots ?? 0;
+    const totalDarks = slots * potion.channelDarkPerSlot * mult;
+    for (let d = 0; d < totalDarks; d += 1) {
+      if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+      channelOrb(state, 'dark', { sourceName: potion.name });
+    }
+  }
+  if (potion.channelOrb) {
+    for (let c = 0; c < mult; c += 1) {
+      if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+      channelOrb(state, potion.channelOrb, { sourceName: potion.name });
+    }
+  }
+  if (potion.evokeFront) {
+    evokeFrontOrb(state, potion.evokeFront * mult);
+  }
   if (potion.scry && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
     initiateScry(state, potion.scry * mult, potion.name);
   }
@@ -1801,5 +2211,6 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
     ok: true,
     outcome: state.combat?.status ?? combat.status,
     cardReveals: Array.isArray(combat.pendingCardReveals) ? [...combat.pendingCardReveals] : [],
+    orbFxEvents: Array.isArray(combat.orbFxEvents) ? [...combat.orbFxEvents] : [],
   };
 }

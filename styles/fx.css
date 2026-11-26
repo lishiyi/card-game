@@ -1299,6 +1299,8 @@
 @media (prefers-reduced-motion: reduce) {
   .fx-turn-banner,
   .fx-pile-card-ghost,
+  .fx-orb-pulse,
+  .fx-orb-beam,
   #hand-tray .game-card.fx-card-fresh-draw,
   #btn-discard-pile.fx-pile-pulse-discard,
   #btn-draw-pile.fx-pile-pulse-draw,
@@ -1307,4 +1309,95 @@
   #combat-banner.fx-banner-turn-flash {
     animation: none !important;
   }
+}
+
+/* === Defect Orb Channel / Passive / Evoke FX === */
+
+@keyframes fxOrbPulsePop {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  55% {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(1.22);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.72);
+  }
+}
+
+@keyframes fxOrbBeamFlash {
+  0% {
+    opacity: 0;
+    filter: brightness(1.4);
+  }
+  25% {
+    opacity: 0.96;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.fx-orb-pulse {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 94;
+  border: 2.5px solid hsl(200, 96%, 72%);
+  background: radial-gradient(circle, hsla(200, 96%, 76%, 0.42), transparent 68%);
+  animation: fxOrbPulsePop calc(400ms * var(--anim-scale, 1)) ease-out forwards;
+}
+
+.fx-orb-pulse.fx-orb-kind-evoke {
+  width: 58px;
+  height: 58px;
+  border-width: 3px;
+  animation-duration: calc(520ms * var(--anim-scale, 1));
+}
+
+.fx-orb-pulse.fx-orb-lightning {
+  border-color: hsl(48, 100%, 70%);
+  background: radial-gradient(circle, hsla(48, 100%, 74%, 0.52), hsla(202, 92%, 60%, 0.16) 58%, transparent 74%);
+}
+
+.fx-orb-pulse.fx-orb-frost {
+  border-color: hsl(192, 98%, 74%);
+  background: radial-gradient(circle, hsla(192, 100%, 84%, 0.5), hsla(206, 86%, 54%, 0.16) 60%, transparent 74%);
+}
+
+.fx-orb-pulse.fx-orb-dark {
+  border-color: hsl(282, 86%, 68%);
+  background: radial-gradient(circle, hsla(284, 92%, 62%, 0.54), hsla(262, 68%, 24%, 0.22) 60%, transparent 74%);
+}
+
+.fx-orb-pulse.fx-orb-plasma {
+  border-color: hsl(38, 100%, 68%);
+  background: radial-gradient(circle, hsla(46, 100%, 82%, 0.56), hsla(324, 92%, 58%, 0.22) 58%, transparent 74%);
+}
+
+.fx-orb-beam {
+  position: fixed;
+  height: 4px;
+  border-radius: 999px;
+  transform-origin: left center;
+  pointer-events: none;
+  z-index: 93;
+  background: linear-gradient(90deg, hsla(48, 100%, 84%, 0.96), hsla(198, 96%, 72%, 0.85), hsla(48, 100%, 92%, 0.96));
+  box-shadow: 0 0 12px hsla(48, 100%, 68%, 0.85);
+  animation: fxOrbBeamFlash calc(360ms * var(--anim-scale, 1)) ease-out forwards;
+}
+
+.fx-orb-beam.fx-orb-dark {
+  height: 5px;
+  background: linear-gradient(90deg, hsla(276, 88%, 54%, 0.95), hsla(296, 94%, 72%, 0.92), hsla(48, 100%, 84%, 0.92));
+  box-shadow: 0 0 14px hsla(282, 90%, 60%, 0.85);
+}
+
+.fx-orb-beam.fx-orb-kind-evoke {
+  height: 6px;
 }

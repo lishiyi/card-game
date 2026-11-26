@@ -1,6 +1,7 @@
 import { IRONCLAD_CARDS } from './ironclad.js';
 import { SILENT_CARDS } from './silent.js';
 import { WATCHER_CARDS } from './watcher.js';
+import { DEFECT_CARDS } from './defect.js';
 import { COLORLESS_NEUTRAL_CARDS } from './colorless_neutral.js';
 
 function deepFreeze(obj) {
@@ -17,6 +18,7 @@ export const CARD_LIBRARY = deepFreeze({
   ...IRONCLAD_CARDS,
   ...SILENT_CARDS,
   ...WATCHER_CARDS,
+  ...DEFECT_CARDS,
   ...COLORLESS_NEUTRAL_CARDS,
 });
 

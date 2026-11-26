@@ -108,6 +108,36 @@ export const CHARACTER_LIBRARY = deepFreeze({
       'vigilance',
     ],
   },
+  defect: {
+    id: 'defect',
+    name: '故障机器人',
+    englishName: 'The Defect',
+    title: '驾驭充能球、集中与机械协议的觉醒构装体',
+    accentTheme: 'azure',
+    artKey: 'defect',
+    maxHp: 75,
+    asc4MaxHp: 70,
+    startingGold: 99,
+    maxEnergy: 3,
+    starterRelic: 'cracked_core',
+    bossStarterUpgrade: 'frozen_core',
+    starterPotion: 'focus_potion',
+    archetypes: ['充能球流', '集中冰盾', '零费连击'],
+    summary:
+      '重获自我意识的尖塔战斗构装体。引导闪电、冰霜、黑暗与等离子四类充能球协同作战，叠加【集中】放大攻防收益，或以零费技能与能力引擎高速运转。',
+    starterDeck: [
+      'strike',
+      'strike',
+      'strike',
+      'strike',
+      'defend',
+      'defend',
+      'defend',
+      'defend',
+      'zap',
+      'dualcast',
+    ],
+  },
 });
 
 export const CHARACTER_IDS = deepFreeze(Object.keys(CHARACTER_LIBRARY));

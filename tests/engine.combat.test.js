@@ -23,12 +23,16 @@ import {
 import {
   applyStatus,
   canPlayCard,
+  channelOrb,
   confirmPendingCardChoice,
   confirmScryChoice,
   dealDamageToEnemy,
   discardHandCard,
   drawCards,
   endPlayerTurn,
+  evokeFrontOrb,
+  gainOrbSlots,
+  getOrbOutputValues,
   initiateScry,
   MAX_HAND_SIZE,
   playCard,
@@ -553,22 +557,22 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 103);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 3);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 25);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 24);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 22);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 9);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 112);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 4);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 26);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 26);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 23);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 10);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    16
+    19
   );
   for (const id of Object.keys(RELIC_LIBRARY)) {
     assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
   }
-  assert.equal(Object.keys(POTION_LIBRARY).length, 28);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 234);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 32);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 307);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     65
@@ -580,6 +584,10 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'watcher').length,
     72
+  );
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'defect').length,
+    73
   );
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
@@ -600,6 +608,15 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
       STATUS_METADATA.rushdown &&
       STATUS_METADATA.blasphemer
   );
+  assert.ok(
+    STATUS_METADATA.focus &&
+      STATUS_METADATA.lockOn &&
+      STATUS_METADATA.echoForm &&
+      STATUS_METADATA.electro &&
+      STATUS_METADATA.biasedCognition &&
+      STATUS_METADATA.staticDischarge &&
+      STATUS_METADATA.selfRepair
+  );
   assert.ok(STANCE_METADATA.calm && STANCE_METADATA.wrath && STANCE_METADATA.divinity);
   assert.equal(STANCE_METADATA.wrath.shortLabel, '愤怒 · 敌我攻击 ×2');
   assert.equal(STANCE_METADATA.wrath.shortLabel.includes('攻防'), false);
@@ -612,9 +629,12 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   for (const [key, meta] of Object.entries(STATUS_METADATA)) {
     const posText = meta.describe(2);
     assert.ok(meta.name && posText.length >= 6, `Missing positive description on status ${key}`);
-    if (key === 'strength' || key === 'dexterity') {
+    if (key === 'strength' || key === 'dexterity' || key === 'focus') {
       const negText = meta.describe(-2);
-      assert.ok(negText.includes('减少'), `Negative ${key} should describe reduction: ${negText}`);
+      assert.ok(
+        negText.includes('减少') || negText.includes('降低'),
+        `Negative ${key} should describe reduction: ${negText}`
+      );
     }
   }
 });
@@ -4339,4 +4359,517 @@ test('Turn Transition Telemetry: lastTurnSummary tracks Turn 1 opening draw, end
   assert.equal(vRun.combat.lastTurnSummary.wasExtraTurn, true);
   assert.equal(vRun.combat.lastTurnSummary.discardedCount, 1);
   assert.equal(vRun.combat.lastTurnSummary.drawnCount, 5);
+});
+
+test('Defect Core Orb Engine: 4 Orb types, FIFO overflow evoke, max-10 slot cap, Focus +/- (Plasma unaffected) & Lock-On ×1.5', () => {
+  const state = createNewRun({ seed: 91001, characterId: 'defect', skipNeow: true });
+  startCombat(state, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.maxHp = 200;
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+
+  // Cracked Core channels 1 Lightning at start of combat into 3 slots
+  assert.equal(state.player.maxOrbSlots, 3);
+  assert.equal(state.player.orbs.length, 1);
+  assert.equal(state.player.orbs[0].type, 'lightning');
+
+  // Channel Frost & Dark -> fills all 3 slots; channeling 4th (Plasma) overflows & evokes front Lightning (8 dmg)
+  channelOrb(state, 'frost');
+  channelOrb(state, 'dark');
+  assert.equal(state.player.orbs.length, 3);
+  const hpBeforeOverflow = enemy.hp;
+  channelOrb(state, 'plasma');
+  assert.equal(hpBeforeOverflow - enemy.hp, 8, 'Overflowing 3-slot rail must FIFO-evoke front Lightning for 8 dmg');
+  assert.deepEqual(
+    state.player.orbs.map((o) => o.type),
+    ['frost', 'dark', 'plasma']
+  );
+
+  // Focus +2 scales Lightning/Frost/Dark, but Plasma stays 1/2
+  state.player.statuses.focus = 2;
+  assert.deepEqual(getOrbOutputValues({ type: 'lightning' }, state.player), { passive: 5, evoke: 10, displayVal: 5 });
+  assert.deepEqual(getOrbOutputValues({ type: 'frost' }, state.player), { passive: 4, evoke: 7, displayVal: 4 });
+  assert.deepEqual(getOrbOutputValues({ type: 'dark', darkStored: 6 }, state.player), { passive: 8, evoke: 6, displayVal: 6 });
+  assert.deepEqual(getOrbOutputValues({ type: 'plasma' }, state.player), { passive: 1, evoke: 2, displayVal: 1 });
+
+  // Negative Focus clamps passive/evoke at 0 (never negative) and Plasma still grants +1/+2
+  state.player.statuses.focus = -10;
+  assert.equal(getOrbOutputValues({ type: 'lightning' }, state.player).passive, 0);
+  assert.equal(getOrbOutputValues({ type: 'frost' }, state.player).evoke, 0);
+  assert.equal(getOrbOutputValues({ type: 'plasma' }, state.player).passive, 1);
+  assert.equal(getOrbOutputValues({ type: 'plasma' }, state.player).evoke, 2);
+
+  // Max 10 orb slot cap
+  gainOrbSlots(state, 20);
+  assert.equal(state.player.maxOrbSlots, 10);
+
+  // Lock-On ×1.5 (floor) multiplies Lightning & Dark orb damage; Artifact blocks Lock-On
+  state.player.statuses.focus = 0;
+  state.player.orbs = [{ type: 'lightning' }];
+  enemy.statuses.lockOn = 2;
+  const hpBeforeLockOn = enemy.hp;
+  evokeFrontOrb(state, 1);
+  assert.equal(hpBeforeLockOn - enemy.hp, 12, 'Lightning Evoke (8) × 1.5 Lock-On = 12 dmg');
+
+  enemy.statuses.lockOn = 0;
+  enemy.statuses.artifact = 1;
+  const bullseye = createCardInstance(state, 'bullseye', false);
+  state.combat.hand = [bullseye];
+  state.player.energy = 3;
+  playCard(state, bullseye.instanceId, enemy.id);
+  assert.equal(enemy.statuses.lockOn ?? 0, 0, 'Enemy Artifact must block Bullseye Lock-On');
+  assert.equal(enemy.statuses.artifact ?? 0, 0);
+
+  // End-of-turn triggers Frost block + Dark charge, Start-of-turn triggers Plasma +1 Energy
+  state.player.orbs = [{ type: 'frost' }, { type: 'dark', darkStored: 6 }, { type: 'plasma' }];
+  state.combat.hand = [];
+  endPlayerTurn(state);
+  assert.equal(state.player.orbs[1].darkStored, 12, 'Dark orb accumulates +6 at end of turn');
+  assert.equal(state.player.energy, 4, 'Plasma orb grants +1 Energy at start of next turn (3 + 1 = 4)');
+});
+
+test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recursion darkStored preservation, Dualcast/Multi-Cast/Tempest/Fission+, Loop & Electrodynamics', () => {
+  const state = createNewRun({ seed: 91002, characterId: 'defect', skipNeow: true });
+  startCombat(state, ENCOUNTERS.normal.find((e) => e.enemies.length >= 2) || ENCOUNTERS.floor1[0], 'normal');
+  const [e1, e2] = state.combat.enemies;
+  e1.hp = 100;
+  e1.maxHp = 100;
+  e1.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  if (e2) {
+    e2.hp = 80;
+    e2.maxHp = 80;
+    e2.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  }
+
+  // 1. Core Surge Artifact negates Biased Cognition's per-turn Focus drain
+  const coreSurge = createCardInstance(state, 'core_surge', false);
+  const biased = createCardInstance(state, 'biased_cognition', false);
+  state.combat.hand = [coreSurge, biased];
+  state.player.energy = 5;
+  playCard(state, coreSurge.instanceId, e1.id);
+  assert.equal(state.player.statuses.artifact, 1);
+  playCard(state, biased.instanceId);
+  assert.equal(state.player.statuses.focus, 4);
+  assert.equal(state.player.statuses.biasedCognition ?? 0, 0, 'Artifact must block Biased Cognition debuff');
+
+  // 2. Darkness+ triggers all Dark passives & Recursion re-channels Dark preserving darkStored
+  state.player.orbs = [];
+  const darkPlus = createCardInstance(state, 'darkness', true);
+  const recursion = createCardInstance(state, 'recursion', false);
+  state.combat.hand = [darkPlus, recursion];
+  state.player.energy = 5;
+  playCard(state, darkPlus.instanceId);
+  assert.equal(state.player.orbs.length, 1);
+  assert.equal(state.player.orbs[0].darkStored, 16, 'Darkness+ channels Dark (6) then triggers passive (6 + 4 Focus = 10 -> 16)');
+
+  const lowestEnemy = e2 && e2.hp < e1.hp ? e2 : e1;
+  const lowestHpBefore = lowestEnemy.hp;
+  playCard(state, recursion.instanceId);
+  assert.equal(lowestHpBefore - lowestEnemy.hp, 16, 'Recursion evokes Dark (16 dmg to lowest-HP enemy)');
+  assert.equal(state.player.orbs.length, 1);
+  assert.equal(state.player.orbs[0].type, 'dark');
+  assert.equal(state.player.orbs[0].darkStored, 16, 'Recursion must preserve Dark darkStored value');
+
+  // 3. Multi-Cast X-cost + Chemical X evokes front orb X+2 times
+  state.player.relics.push('chemical_x');
+  state.player.orbs = [{ type: 'frost' }];
+  state.player.block = 0;
+  const multiCast = createCardInstance(state, 'multi_cast', false);
+  state.combat.hand = [multiCast];
+  state.player.energy = 2;
+  playCard(state, multiCast.instanceId);
+  // 4 Focus -> Frost Evoke = 5 + 4 = 9; (2 + 2 ChemX) = 4 evokes -> 36 block
+  assert.equal(state.player.block, 36);
+  assert.equal(state.player.orbs.length, 0);
+
+  // 4. Fission (base) removes without evoking vs Fission+ evokes all orbs
+  state.player.orbs = [{ type: 'frost' }, { type: 'plasma' }];
+  state.player.block = 0;
+  state.player.energy = 1;
+  state.combat.drawPile = [createCardInstance(state, 'strike'), createCardInstance(state, 'defend')];
+  const fissionBase = createCardInstance(state, 'fission', false);
+  state.combat.hand = [fissionBase];
+  playCard(state, fissionBase.instanceId);
+  assert.equal(state.player.orbs.length, 0);
+  assert.equal(state.player.block, 0, 'Base Fission removes orbs without evoking Frost');
+  assert.equal(state.player.energy, 3, 'Base Fission grants +1 Energy per orb removed (2 orbs -> +2)');
+  assert.equal(state.combat.hand.length, 2, 'Base Fission draws 1 card per orb removed');
+
+  state.player.orbs = [{ type: 'frost' }];
+  state.player.block = 0;
+  state.player.energy = 1;
+  const fissionPlus = createCardInstance(state, 'fission', true);
+  state.combat.hand = [fissionPlus];
+  playCard(state, fissionPlus.instanceId);
+  assert.equal(state.player.block, 9, 'Fission+ evokes Frost (5 + 4 Focus = 9) AND grants +1 Energy & +1 draw');
+
+  // 5. Electrodynamics makes Lightning hit ALL enemies & Loop triggers front orb passive extra times at start of turn
+  if (e2) {
+    state.player.statuses.focus = 0;
+    state.player.orbs = [];
+    e1.statuses = {};
+    e2.statuses = {};
+    e1.block = 0;
+    e2.block = 0;
+    const electro = createCardInstance(state, 'electrodynamics', false);
+    const loop = createCardInstance(state, 'loop', false);
+    state.combat.hand = [electro, loop];
+    state.player.energy = 5;
+    playCard(state, electro.instanceId);
+    playCard(state, loop.instanceId);
+    assert.equal(state.player.orbs.length, 2);
+    const e1Before = e1.hp;
+    const e2Before = e2.hp;
+    state.combat.hand = [];
+    endPlayerTurn(state);
+    // End of turn: 2 Lightning passives (3+3=6 AoE); Start of next turn: Loop triggers front Lightning (+3 AoE) -> 9 dmg to BOTH enemies
+    assert.equal(e1Before - e1.hp, 9, 'Electrodynamics + Loop must hit enemy 1 for 9 total');
+    assert.equal(e2Before - e2.hp, 9, 'Electrodynamics + Loop must hit enemy 2 for 9 total');
+  }
+});
+
+test('Defect Deck Control & Powers: Echo Form, Amplify, Rebound, Hologram, Seek+, Equilibrium, Reboot, Scrape, Heatsinks, Storm & Self Repair', () => {
+  const state = createNewRun({ seed: 91003, characterId: 'defect', skipNeow: true });
+  startCombat(state, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.maxHp = 200;
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+
+  // 1. Echo Form doubles first card next turn; Amplify doubles next Power; Heatsinks draws on Power; Storm channels Lightning on Power
+  const echo = createCardInstance(state, 'echo_form', false);
+  const amp = createCardInstance(state, 'amplify', false);
+  const defrag = createCardInstance(state, 'defragment', false);
+  const heatsinks = createCardInstance(state, 'heatsinks', false);
+  const storm = createCardInstance(state, 'storm', false);
+  state.player.orbs = [];
+  state.combat.drawPile = [createCardInstance(state, 'strike'), createCardInstance(state, 'defend'), createCardInstance(state, 'claw')];
+  state.combat.hand = [heatsinks, storm, amp, defrag];
+  state.player.energy = 6;
+  playCard(state, heatsinks.instanceId);
+  playCard(state, storm.instanceId);
+  assert.equal(state.combat.hand.length, 3, 'Heatsinks draws 1 card when Storm is played');
+  playCard(state, amp.instanceId);
+  playCard(state, defrag.instanceId);
+  assert.equal(state.player.statuses.focus, 2, 'Amplify doubles Defragment (+1 -> +2 Focus)');
+  assert.ok(state.player.orbs.length >= 1 && state.player.orbs[0].type === 'lightning', 'Storm channels Lightning on Power played');
+
+  // Echo Form next turn doubles first Strike
+  state.combat.hand = [echo];
+  state.player.energy = 3;
+  playCard(state, echo.instanceId);
+  endPlayerTurn(state);
+  const echoStrike = createCardInstance(state, 'strike', false);
+  state.combat.hand = [echoStrike];
+  state.player.energy = 3;
+  const hpBeforeEcho = enemy.hp;
+  playCard(state, echoStrike.instanceId, enemy.id);
+  assert.equal(hpBeforeEcho - enemy.hp, 12, 'Echo Form must play first card of the turn twice (6 × 2 = 12)');
+
+  // 2. Rebound puts next played card onto top of drawPile
+  const rebound = createCardInstance(state, 'rebound', false);
+  const defend = createCardInstance(state, 'defend', false);
+  state.combat.hand = [rebound, defend];
+  state.player.energy = 3;
+  playCard(state, rebound.instanceId, enemy.id);
+  playCard(state, defend.instanceId);
+  assert.equal(state.combat.drawPile[state.combat.drawPile.length - 1].instanceId, defend.instanceId, 'Rebound must place next played card on top of drawPile');
+
+  // 3. Hologram retrieves chosen card from discardPile into hand
+  const discardedZap = createCardInstance(state, 'zap', false);
+  state.combat.discardPile = [discardedZap];
+  const holo = createCardInstance(state, 'hologram', false);
+  state.combat.hand = [holo];
+  state.player.energy = 3;
+  playCard(state, holo.instanceId);
+  assert.equal(state.combat.pendingCardChoice?.mode, 'retrieve_discard_to_hand');
+  assert.equal(resolveCardChoice(state, discardedZap.instanceId).ok, true);
+  assert.ok(state.combat.hand.some((c) => c.instanceId === discardedZap.instanceId), 'Hologram must move chosen discard card into hand');
+
+  // 4. Seek+ fetches 2 cards from drawPile into hand
+  const targetA = createCardInstance(state, 'claw', false);
+  const targetB = createCardInstance(state, 'turbo', false);
+  const seekPlus = createCardInstance(state, 'seek', true);
+  state.combat.drawPile = [createCardInstance(state, 'strike'), targetA, targetB];
+  state.combat.hand = [seekPlus];
+  state.player.energy = 3;
+  playCard(state, seekPlus.instanceId);
+  assert.equal(state.combat.pendingCardChoice?.mode, 'pick_from_draw');
+  assert.equal(resolveCardChoice(state, targetA.instanceId).ok, true);
+  assert.equal(state.combat.pendingCardChoice?.mode, 'pick_from_draw', 'Seek+ should ask for 2nd card');
+  assert.equal(resolveCardChoice(state, targetB.instanceId).ok, true);
+  assert.ok(state.combat.hand.some((c) => c.instanceId === targetA.instanceId));
+  assert.ok(state.combat.hand.some((c) => c.instanceId === targetB.instanceId));
+
+  // 5. Equilibrium retains entire hand at end of turn
+  const eq = createCardInstance(state, 'equilibrium', false);
+  const keepStrike = createCardInstance(state, 'strike', false);
+  state.combat.hand = [eq, keepStrike];
+  state.player.energy = 3;
+  playCard(state, eq.instanceId);
+  endPlayerTurn(state);
+  assert.ok(state.combat.hand.some((c) => c.instanceId === keepStrike.instanceId), 'Equilibrium must retain non-retain cards in hand');
+
+  // 6. Scrape draws 4 and discards non-0-cost drawn cards
+  const zeroClaw = createCardInstance(state, 'claw', false);
+  const oneStrike = createCardInstance(state, 'strike', false);
+  const scrape = createCardInstance(state, 'scrape', false);
+  state.combat.drawPile = [oneStrike, zeroClaw];
+  state.combat.discardPile = [];
+  state.combat.hand = [scrape];
+  state.player.energy = 3;
+  playCard(state, scrape.instanceId, enemy.id);
+  assert.ok(state.combat.hand.some((c) => c.instanceId === zeroClaw.instanceId), 'Scrape keeps 0-cost cards');
+  assert.ok(state.combat.discardPile.some((c) => c.instanceId === oneStrike.instanceId), 'Scrape discards non-0-cost cards');
+
+  // 7. Self Repair heals player upon combat victory
+  state.player.hp = 50;
+  state.player.statuses.selfRepair = 7;
+  enemy.hp = 1;
+  const finish = createCardInstance(state, 'strike', false);
+  state.combat.hand = [finish];
+  state.player.energy = 3;
+  playCard(state, finish.instanceId, enemy.id);
+  assert.equal(state.combat.status, 'victory');
+  assert.equal(state.player.hp, 57, 'Self Repair must heal player on combat victory');
+});
+
+test('Defect Scaling & Utility Cards: Claw, All for One, Genetic Algorithm cross-combat persistence, Streamline, Force Field, Recycle, Sunder, Melter, Compile Driver, Blizzard, Thunder Strike & Static Discharge', () => {
+  const state = createNewRun({ seed: 91004, characterId: 'defect', skipNeow: true });
+  const geneticMaster = createCardInstance(state, 'genetic_algorithm', true);
+  state.player.deck.push(geneticMaster);
+  startCombat(state, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 300;
+  enemy.maxHp = 300;
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+
+  // Capture Genetic Algorithm combat copy BEFORE overwriting hand
+  const genCopy =
+    state.combat.drawPile.find((c) => c.instanceId === geneticMaster.instanceId) ||
+    state.combat.hand.find((c) => c.instanceId === geneticMaster.instanceId);
+  assert.ok(genCopy, 'Genetic Algorithm master copy should be in combat');
+  state.combat.drawPile = state.combat.drawPile.filter((c) => c.instanceId !== genCopy.instanceId);
+
+  // 1. Claw scales all Claw copies (+2 each play) & All for One pulls all 0-cost cards from discard
+  const claw1 = createCardInstance(state, 'claw', false);
+  const claw2 = createCardInstance(state, 'claw', false);
+  state.combat.hand = [claw1, claw2];
+  state.player.energy = 3;
+  const hp0 = enemy.hp;
+  playCard(state, claw1.instanceId, enemy.id); // 3 dmg
+  playCard(state, claw2.instanceId, enemy.id); // 5 dmg
+  assert.equal(hp0 - enemy.hp, 8, 'Claw 1 (3) + Claw 2 (5) = 8');
+
+  const afo = createCardInstance(state, 'all_for_one', false);
+  state.combat.hand = [afo];
+  state.player.energy = 2;
+  playCard(state, afo.instanceId, enemy.id);
+  assert.ok(state.combat.hand.some((c) => c.instanceId === claw1.instanceId));
+  assert.ok(state.combat.hand.some((c) => c.instanceId === claw2.instanceId));
+
+  // 2. Genetic Algorithm permanently grows master deck miscBonus (+3 when upgraded)
+  state.combat.hand = [genCopy];
+  state.player.block = 0;
+  state.player.energy = 3;
+  playCard(state, genCopy.instanceId);
+  assert.equal(state.player.block, 1, 'First play grants base 1 block');
+  assert.equal(geneticMaster.miscBonus, 3, 'Upgraded Genetic Algorithm permanently adds +3 miscBonus to master deck card');
+
+  // 3. Streamline reduces its own cost by 1 each play; Force Field costs 1 less per Power played
+  const streamline = createCardInstance(state, 'streamline', false);
+  state.combat.hand = [streamline];
+  state.player.energy = 3;
+  playCard(state, streamline.instanceId, enemy.id);
+  assert.equal(streamline.combatCost, 1, 'Streamline cost drops from 2 -> 1 after first play');
+
+  const ff = createCardInstance(state, 'force_field', false);
+  state.combat.powersPlayedThisCombat = 3;
+  assert.equal(getEffectiveCardCost(getCardStats(ff), state.player, state.combat), 1, 'Force Field 4 - 3 powers = 1 cost');
+
+  // 4. Melter strips enemy block BEFORE dealing damage
+  enemy.block = 50;
+  const hpPreMelter = enemy.hp;
+  const melter = createCardInstance(state, 'melter', false);
+  state.combat.hand = [melter];
+  state.player.energy = 3;
+  playCard(state, melter.instanceId, enemy.id);
+  assert.equal(enemy.block, 0);
+  assert.equal(hpPreMelter - enemy.hp, 10, 'Melter removes all enemy block before dealing 10 damage');
+
+  // 5. Recycle exhausts chosen card and grants its cost as Energy (with 2+ remaining cards -> interactive exhaust prompt)
+  const meteor = createCardInstance(state, 'meteor_strike', false);
+  const fillerStrike = createCardInstance(state, 'strike', false);
+  const recycle = createCardInstance(state, 'recycle', false);
+  state.combat.hand = [recycle, meteor, fillerStrike];
+  state.player.energy = 1;
+  playCard(state, recycle.instanceId);
+  assert.equal(state.combat.pendingCardChoice?.mode, 'exhaust');
+  assert.equal(resolveCardChoice(state, meteor.instanceId).ok, true);
+  assert.equal(state.player.energy, 5, 'Recycling 5-cost Meteor Strike grants +5 Energy');
+
+  // 6. Compile Driver draws 1 per unique orb type; Blizzard scales with frost channeled; Thunder Strike hits per lightning channeled
+  state.player.orbs = [{ type: 'lightning' }, { type: 'frost' }, { type: 'frost' }];
+  state.combat.drawPile = [createCardInstance(state, 'strike'), createCardInstance(state, 'defend'), createCardInstance(state, 'claw')];
+  const compile = createCardInstance(state, 'compile_driver', false);
+  state.combat.hand = [compile];
+  state.player.energy = 3;
+  playCard(state, compile.instanceId, enemy.id);
+  assert.equal(state.combat.hand.length, 2, 'Compile Driver draws 2 for 2 unique orb types (Lightning + Frost)');
+
+  state.combat.orbsChanneledByType = { lightning: 3, frost: 4, dark: 0, plasma: 0 };
+  const bliz = createCardInstance(state, 'blizzard', false);
+  const thunder = createCardInstance(state, 'thunder_strike', false);
+  state.combat.hand = [bliz, thunder];
+  state.player.energy = 5;
+  const hpPreBliz = enemy.hp;
+  playCard(state, bliz.instanceId);
+  assert.equal(hpPreBliz - enemy.hp, 8, 'Blizzard deals 2 × 4 frost = 8 damage');
+  const hpPreThunder = enemy.hp;
+  playCard(state, thunder.instanceId);
+  assert.equal(hpPreThunder - enemy.hp, 21, 'Thunder Strike deals 7 × 3 lightning = 21 damage');
+
+  // 7. Static Discharge channels Lightning when taking unblocked enemy attack damage
+  state.player.orbs = [];
+  state.player.block = 0;
+  state.player.statuses.staticDischarge = 2;
+  enemy.intent = { id: 'hit', name: '撞击', type: 'attack', damage: 5, hits: 1, summary: '攻击 5' };
+  state.combat.hand = [];
+  endPlayerTurn(state);
+  assert.equal(state.player.orbs.filter((o) => o.type === 'lightning').length, 2, 'Static Discharge channels 2 Lightning on unblocked enemy hit');
+
+  // 8. Sunder grants +3 Energy on kill
+  enemy.hp = 20;
+  const sunder = createCardInstance(state, 'sunder', false);
+  state.combat.hand = [sunder];
+  state.player.energy = 3;
+  playCard(state, sunder.instanceId, enemy.id);
+  assert.equal(state.player.energy, 3, 'Sunder (3 cost) killing enemy restores +3 Energy');
+});
+
+test('Defect Relics (all 9 + Orichalcum/Frozen Core synergy) & Potions (all 4 + Sacred Bark)', () => {
+  // 1. Start-of-combat relics: Runic Capacitor (+3 slots), Data Disk (+1 Focus), Symbiotic Virus (Dark), Nuclear Battery (Plasma)
+  const state = createNewRun({ seed: 91005, characterId: 'defect', skipNeow: true });
+  state.player.relics = ['cracked_core', 'runic_capacitor', 'data_disk', 'symbiotic_virus', 'nuclear_battery', 'gold_plated_cables', 'inserter', 'emotion_chip'];
+  startCombat(state, ENCOUNTERS.floor1[0], 'normal');
+  const enemy = state.combat.enemies[0];
+  enemy.hp = 200;
+  enemy.maxHp = 200;
+  enemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+
+  assert.equal(state.player.maxOrbSlots, 6, '3 base + 3 Runic Capacitor = 6 orb slots');
+  assert.equal(state.player.statuses.focus, 1, 'Data Disk grants +1 Focus at start of combat');
+  assert.deepEqual(
+    state.player.orbs.map((o) => o.type),
+    ['lightning', 'dark', 'plasma'],
+    'Cracked Core + Symbiotic Virus + Nuclear Battery channel in order'
+  );
+
+  // Gold-Plated Cables triggers front Lightning passive TWICE at end of turn (4 + 4 = 8 dmg with +1 Focus)
+  const hpPreCable = enemy.hp;
+  state.combat.hand = [];
+  endPlayerTurn(state);
+  assert.equal(hpPreCable - enemy.hp, 8, 'Gold-Plated Cables triggers front Lightning passive twice (4 × 2 = 8)');
+  assert.equal(state.player.maxOrbSlots, 7, 'Inserter grants +1 orb slot on Turn 2 (every 2 turns)');
+
+  // Emotion Chip triggers all orb passives at start of next turn after taking HP loss
+  enemy.intent = { id: 'poke', name: '轻击', type: 'attack', damage: 5, hits: 1, summary: '攻击 5' };
+  state.player.block = 0;
+  state.combat.hand = [];
+  const hpPreEmotion = enemy.hp;
+  endPlayerTurn(state);
+  // End of Turn 2: Lightning ×2 (8 dmg); enemy hits player for 5 -> Start of Turn 3: Emotion Chip triggers Lightning passive (+4 dmg) -> total 12
+  assert.equal(hpPreEmotion - enemy.hp, 12, 'Emotion Chip must trigger front Lightning passive on next turn after HP loss');
+
+  // 2. Frozen Core + Orichalcum synergy: Orichalcum triggers at 0 block BEFORE Frozen Core channels Frost
+  const fcState = createNewRun({ seed: 91006, characterId: 'defect', skipNeow: true });
+  fcState.player.relics = ['frozen_core', 'orichalcum'];
+  startCombat(fcState, ENCOUNTERS.floor1[0], 'normal');
+  fcState.combat.enemies[0].hp = 100;
+  fcState.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  fcState.player.orbs = [];
+  fcState.player.block = 0;
+  fcState.combat.hand = [];
+  endPlayerTurn(fcState);
+  assert.equal(fcState.player.orbs.length, 1);
+  assert.equal(fcState.player.orbs[0].type, 'frost', 'Frozen Core channels 1 Frost when empty orb slot exists');
+  const logs = fcState.combat.logs.map((l) => l.message).join('\n');
+  assert.ok(logs.includes('奥利哈钢'), 'Orichalcum triggers at 0 block before Frozen Core / Frost passive');
+
+  // 3. All 4 Defect Potions + Sacred Bark doubling
+  const potState = createNewRun({ seed: 91007, characterId: 'defect', skipNeow: true });
+  potState.player.relics.push('sacred_bark');
+  potState.player.potions = ['focus_potion', 'potion_of_capacity', 'essence_of_darkness', 'liquid_plasma'];
+  potState.player.maxPotions = 4;
+  startCombat(potState, ENCOUNTERS.floor1[0], 'normal');
+  potState.player.orbs = [];
+
+  assert.equal(usePotion(potState, 0).ok, true);
+  assert.equal(potState.player.statuses.focus, 4, 'Focus Potion (+2 × Sacred Bark = +4)');
+
+  assert.equal(usePotion(potState, 1).ok, true);
+  assert.equal(potState.player.maxOrbSlots, 7, 'Potion of Capacity (3 + 2×2 Sacred Bark = 7 slots)');
+
+  potState.player.orbs = [];
+  potState.player.energy = 3;
+  assert.equal(usePotion(potState, 3).ok, true);
+  assert.equal(potState.player.orbs.filter((o) => o.type === 'plasma').length, 1, 'Liquid Plasma (Sacred Bark) channels 2 Plasma then evokes front Plasma once (2× -> +4 Energy), leaving 1 Plasma');
+  assert.equal(potState.player.energy, 7, 'Liquid Plasma (Sacred Bark) evoke grants +4 Energy (3 + 4 = 7)');
+
+  potState.player.maxOrbSlots = 3;
+  potState.player.orbs = [];
+  assert.equal(usePotion(potState, 2).ok, true);
+  assert.equal(potState.player.orbs.filter((o) => o.type === 'dark').length, 3, 'Essence of Darkness channels Dark into every slot');
+});
+
+test('Defect Tactics Preview: deterministic Dark/Single-Enemy Lightning lethal vs safe non-lethal skip on multi-enemy random Lightning', () => {
+  // Single enemy: Dualcast evoking Lightning (8 × 2 = 16) predicts lethal cleanly
+  const soloState = createNewRun({ seed: 91008, characterId: 'defect', skipNeow: true });
+  startCombat(soloState, ENCOUNTERS.floor1[0], 'normal');
+  const soloEnemy = soloState.combat.enemies[0];
+  soloEnemy.hp = 15;
+  soloEnemy.block = 0;
+  const dualcast = createCardInstance(soloState, 'dualcast', false);
+  const soloPreview = previewCardDamageOnEnemy(soloState, dualcast, soloEnemy);
+  assert.equal(soloPreview.totalDamage, 16);
+  assert.equal(soloPreview.isLethal, true, 'Single-enemy Dualcast Lightning must show deterministic lethal');
+
+  // Multi-enemy WITHOUT Electrodynamics: Lightning is random-target, so preview must NOT falsely claim lethal!
+  const multiEnc = ENCOUNTERS.normal.find((e) => e.enemies.length >= 2);
+  const multiState = createNewRun({ seed: 91009, characterId: 'defect', skipNeow: true });
+  startCombat(multiState, multiEnc, 'normal');
+  const [m1, m2] = multiState.combat.enemies;
+  m1.hp = 15;
+  m1.block = 0;
+  m2.hp = 40;
+  m2.block = 0;
+  const multiPreviewNoElectro = previewCardDamageOnEnemy(multiState, dualcast, m1);
+  assert.equal(multiPreviewNoElectro, null, 'Random multi-enemy Lightning evoke must return null preview (never falsely claim lethal)');
+
+  // Multi-enemy WITH Electrodynamics: Lightning hits ALL enemies deterministically -> lethal!
+  multiState.player.statuses.electro = 1;
+  const multiPreviewWithElectro = previewCardDamageOnEnemy(multiState, dualcast, m1);
+  assert.equal(multiPreviewWithElectro.totalDamage, 16);
+  assert.equal(multiPreviewWithElectro.isLethal, true, 'With Electrodynamics, Lightning Dualcast IS deterministic lethal');
+
+  // Multi-enemy Dark orb: deterministically targets lowest-HP enemy (m1) -> lethal on m1, null on m2!
+  multiState.player.statuses.electro = 0;
+  multiState.player.orbs = [{ type: 'dark', darkStored: 16 }];
+  const darkPreviewM1 = previewCardDamageOnEnemy(multiState, dualcast, m1);
+  const darkPreviewM2 = previewCardDamageOnEnemy(multiState, dualcast, m2);
+  assert.equal(darkPreviewM1.isLethal, true, 'Dark orb evokes deterministically onto lowest-HP enemy m1');
+  assert.equal(darkPreviewM2, null, 'Higher-HP enemy m2 receives no damage preview from Dark orb evoke');
+
+  // Synergy callout & golden border condition checks
+  const goForEyes = createCardInstance(soloState, 'go_for_the_eyes', false);
+  soloEnemy.intent = { id: 'atk', name: '攻击', type: 'attack', damage: 8, hits: 1, summary: '攻击 8' };
+  assert.equal(isCardBonusConditionMet(soloState, goForEyes, soloEnemy), true, 'Go for the Eyes glows when enemy intends to attack');
+  multiState.player.orbs = [{ type: 'lightning' }];
+  const synMulti = computeCardSynergies(multiState, dualcast, m1.id);
+  assert.ok(synMulti.callouts.some((c) => c.text.includes('随机') && c.text.includes('激发')), 'Multi-enemy random Lightning Dualcast emits synergy callout');
+  soloState.player.orbs = [{ type: 'frost' }, { type: 'lightning' }, { type: 'plasma' }];
+  const zapCard = createCardInstance(soloState, 'zap', false);
+  const synOverflow = computeCardSynergies(soloState, zapCard, soloEnemy.id);
+  assert.ok(synOverflow.callouts.some((c) => c.text.includes('自动激发')), 'Full-rail Zap emits overflow auto-evoke callout');
 });

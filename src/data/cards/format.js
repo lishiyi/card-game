@@ -44,6 +44,9 @@ export function getCardStats(cardInstance) {
   if (typeof cardInstance.combatBlockMod === 'number' && typeof rawStats.block === 'number') {
     rawStats.block = Math.max(0, rawStats.block + cardInstance.combatBlockMod);
   }
+  if (rawStats.geneticBlockGrowth && typeof cardInstance.miscBonus === 'number' && typeof rawStats.block === 'number') {
+    rawStats.block = Math.max(0, rawStats.block + cardInstance.miscBonus);
+  }
   const costReduced = Boolean(
     isUpgraded &&
       typeof def.base.cost === 'number' &&
@@ -106,11 +109,14 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
   if (stats.reduceCostPerHpLossThisCombat && combat) {
     base = Math.max(0, base - (combat.hpLossCountThisCombat ?? 0));
   }
+  if (stats.reduceCostPerPowerPlayed && combat) {
+    base = Math.max(0, base - (combat.powersPlayedThisCombat ?? 0));
+  }
   return base;
 }
 
 /**
- * Single source of truth for flat per-hit attack bonuses (Accuracy on Shivs, Wrist Blade on 0-cost attacks, Strike Dummy, Vigor).
+ * Single source of truth for flat per-hit attack bonuses (Accuracy on Shivs, Wrist Blade on 0-cost attacks, Strike Dummy, Vigor, Blizzard frost scaling).
  */
 export function getCardAttackFlatBonus(stats, player = null, combat = null) {
   if (!stats || stats.type !== 'attack' || !player) return 0;
@@ -123,6 +129,12 @@ export function getCardAttackFlatBonus(stats, player = null, combat = null) {
   }
   if (stats.bonusDamagePerCombatMantra && combat && (combat.mantraGainedThisCombat ?? 0) > 0) {
     bonus += combat.mantraGainedThisCombat;
+  }
+  if (stats.damagePerFrostChanneled && combat) {
+    const frostCount = combat.orbsChanneledByType?.frost ?? 0;
+    if (frostCount > 0) {
+      bonus += stats.damagePerFrostChanneled * frostCount;
+    }
   }
   if (Array.isArray(player.relics) && player.relics.includes('strike_dummy') && isStrikeCard(stats.cardId)) {
     bonus += 3;
@@ -141,6 +153,13 @@ const STANCE_NAMES_ZH = {
   calm: '平静',
   wrath: '愤怒',
   divinity: '神格',
+};
+
+const ORB_NAMES_ZH = {
+  lightning: '闪电球',
+  frost: '冰霜球',
+  dark: '黑暗球',
+  plasma: '等离子球',
 };
 
 export function formatCardDescription(cardInstance, combatContext = null) {
@@ -178,7 +197,13 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
   }
 
-  const rawBlockBase = stats.block ?? stats.exhaustNonAttacksBlockEach ?? null;
+  const discardBonusBlock =
+    stats.blockFromDiscardSize && combat ? (combat.discardPile?.length ?? 0) : 0;
+  const rawBlockBase =
+    stats.blockPerX ??
+    (typeof stats.block === 'number' ? stats.block + discardBonusBlock : null) ??
+    stats.exhaustNonAttacksBlockEach ??
+    null;
   let displayBlock = rawBlockBase;
   let blockState = 'normal';
   if (typeof rawBlockBase === 'number' && player) {
@@ -276,12 +301,30 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.scry && stats.cardId === 'just_lucky') {
     parts.push(`预见 ${stats.scry}。`);
   }
-  if (typeof stats.block === 'number') {
-    if (stats.gainSameBlockNextTurn) {
+  if (typeof stats.blockPerX === 'number') {
+    parts.push(`获得 ${displayBlock} 点格挡 X 次。`);
+  } else if (stats.blockFromDiscardSize) {
+    const bonusNote = (stats.block ?? 0) > 0 ? ` + ${stats.block} ` : '';
+    const liveNote = combat ? `（当前 ${displayBlock} 点）` : '';
+    parts.push(`获得等同于弃牌堆牌数${bonusNote}的格挡${liveNote}。`);
+  } else if (typeof stats.block === 'number') {
+    if (stats.onlyBlockIfNoBlock) {
+      const metNote = player ? (player.block === 0 ? '（当前无盾！）' : '（当前有盾）') : '';
+      parts.push(`若当前没有任何格挡，获得 ${displayBlock} 点格挡${metNote}。`);
+    } else if (stats.gainSameBlockNextTurn) {
       parts.push(`获得 ${displayBlock} 点格挡，并在下回合开始时再获得 ${displayBlock} 点格挡。`);
     } else {
       parts.push(`获得 ${displayBlock} 点格挡。`);
     }
+  }
+  if (stats.shrinkBlockOnPlay) {
+    parts.push(`本场战斗每次打出后基础格挡 -${stats.shrinkBlockOnPlay}。`);
+  }
+  if (stats.geneticBlockGrowth) {
+    parts.push(`每次打出后，本牌的格挡永久 +${stats.geneticBlockGrowth}（跨战斗保留）。`);
+  }
+  if (stats.reduceCostPerPowerPlayed) {
+    parts.push('本场战斗每打出过 1 张能力牌，本牌费用 -1。');
   }
   if (typeof stats.wrathBonusBlock === 'number') {
     const activeTag = currentStance === 'wrath' ? '（当前已激活！）' : '';
@@ -320,13 +363,29 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.retrieveDiscardRetain) {
     parts.push(`从弃牌堆选择最多 ${stats.retrieveDiscardRetain} 张牌放入手牌并赋予本回合保留。`);
   }
+  if (stats.retrieveDiscardToHand) {
+    parts.push(`从弃牌堆选择 ${stats.retrieveDiscardToHand} 张牌加入手牌。`);
+  }
+  if (stats.pickFromDraw) {
+    parts.push(`从抽牌堆选择 ${stats.pickFromDraw} 张牌加入手牌。`);
+  }
   if (stats.doubleBlock) {
     parts.push('将你当前的格挡值翻倍。');
+  }
+  if (stats.doubleEnergy) {
+    parts.push('使你当前的能量翻倍。');
+  }
+  if (stats.energyPerDrawCards) {
+    const curGain = combat ? Math.floor((combat.drawPile?.length ?? 0) / stats.energyPerDrawCards) : null;
+    const note = curGain !== null ? `（当前 +${curGain} 能）` : '';
+    parts.push(`抽牌堆每有 ${stats.energyPerDrawCards} 张牌，获得 1 点能量${note}。`);
   }
   if (stats.doubleStrength) {
     parts.push('将你当前的【力量】翻倍。');
   }
-  if (stats.exhaustHandChoice) {
+  if (stats.exhaustChooseHandForEnergy) {
+    parts.push(`选择消耗 ${stats.exhaustChooseHandForEnergy} 张手牌，获得等同于其费用的能量。`);
+  } else if (stats.exhaustHandChoice) {
     parts.push(`从手牌中自选消耗 ${stats.exhaustHandChoice} 张牌。`);
   } else if (stats.exhaustHandRandom) {
     parts.push(
@@ -350,11 +409,26 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.scry && stats.cardId !== 'just_lucky' && stats.type !== 'attack') {
     parts.push(`预见 ${stats.scry}。`);
   }
+  if (stats.removeEnemyBlockBeforeDamage) {
+    parts.push('移除目标的所有格挡。');
+  }
   if (stats.exhaustAllHandDamageEach) {
     parts.push(`消耗所有手牌，每张对目标造成 ${displayDamage} 点伤害。`);
   } else if (stats.useBlockAsDamage) {
     const suffix = player ? `（当前 ${displayDamage} 点）` : '';
     parts.push(`造成等同于你当前格挡值的伤害${suffix}。`);
+  } else if (stats.damagePerFrostChanneled) {
+    const frostCnt = combat?.orbsChanneledByType?.frost ?? 0;
+    const note = combat ? `（已充能 ${frostCnt} 冰，当前 ${displayDamage} 点）` : '';
+    parts.push(`对所有敌人造成本场战斗已充能【冰霜球】数 × ${stats.damagePerFrostChanneled} 点伤害${note}。`);
+  } else if (stats.hitsPerOrb && typeof stats.damage === 'number') {
+    const orbCnt = player?.orbs?.length ?? 0;
+    const note = player ? `（当前 ${orbCnt} 次）` : '';
+    parts.push(`每有 1 个已充能的充能球，造成 ${displayDamage} 点伤害${note}。`);
+  } else if (stats.hitsPerLightningChanneled && typeof stats.damage === 'number') {
+    const lightCnt = combat?.orbsChanneledByType?.lightning ?? 0;
+    const note = combat ? `（当前 ${lightCnt} 次）` : '';
+    parts.push(`本场战斗每充能过 1 个【闪电球】，对随机敌人造成 ${displayDamage} 点伤害 1 次${note}。`);
   } else if (stats.hitsPerAttackPlayedThisTurn) {
     const playedNote = combat ? `（本回合已打 ${combat.attacksPlayedThisTurn ?? 0} 张）` : '';
     parts.push(`本回合每打出 1 张攻击牌，造成 ${displayDamage} 点伤害${playedNote}。`);
@@ -381,6 +455,87 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     } else {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
+  }
+  if (stats.clawScale) {
+    parts.push(`本场战斗中所有【爪击】伤害 +${stats.clawScale}。`);
+  }
+  if (stats.reduceSelfCostOnPlay) {
+    parts.push(`本场战斗中此牌费用减少 ${stats.reduceSelfCostOnPlay}。`);
+  }
+  if (stats.drawPerUniqueOrb) {
+    const uniq = player?.orbs ? new Set(player.orbs.map((o) => o.type)).size : null;
+    const note = uniq !== null ? `（当前 ${uniq} 种）` : '';
+    parts.push(`当前每有一种不同类型的充能球，抽 ${stats.drawPerUniqueOrb} 张牌${note}。`);
+  }
+  if (stats.drawIfCardsPlayedUnder) {
+    const played = combat?.cardsPlayedThisTurn ?? 0;
+    const metNote = combat ? (played < stats.drawIfCardsPlayedUnder ? '（已满足！）' : '（已超限）') : '';
+    parts.push(`若本回合打出牌数少于 ${stats.drawIfCardsPlayedUnder} 张，抽 1 张牌${metNote}。`);
+  }
+  if (stats.weakIfEnemyAttacking) {
+    parts.push(`若目标意图为攻击，给予 ${stats.weakIfEnemyAttacking} 层【虚弱】。`);
+  }
+  if (stats.drawAndDiscardNonZeroCost) {
+    parts.push(`抽 ${stats.drawAndDiscardNonZeroCost} 张牌，将其中费用不为 0 的牌全部弃置。`);
+  }
+  if (stats.gainEnergyOnKill) {
+    parts.push(`若击杀目标，获得 ${stats.gainEnergyOnKill} 点能量。`);
+  }
+  if (stats.retrieveAllZeroCostFromDiscard) {
+    parts.push('将弃牌堆中所有费用为 0 的牌取回手牌。');
+  }
+  if (stats.addRandomPowerZeroCost) {
+    parts.push('随机将 1 张故障机器人能力牌加入手牌，本回合其费用变为 0。');
+  }
+  if (stats.rebootDraw) {
+    parts.push(`将所有手牌与弃牌堆洗入抽牌堆，然后抽 ${stats.rebootDraw} 张牌。`);
+  }
+  if (stats.gainOrbSlots) {
+    parts.push(`获得 ${stats.gainOrbSlots} 个充能球槽位。`);
+  }
+  if (stats.removeOrbSlots) {
+    parts.push(`失去 ${stats.removeOrbSlots} 个充能球槽位。`);
+  }
+  if (stats.channelOrb) {
+    parts.push(`充能 1 个【${ORB_NAMES_ZH[stats.channelOrb] || stats.channelOrb}】。`);
+  }
+  if (Array.isArray(stats.channelOrbs) && stats.channelOrbs.length > 0) {
+    const allSame = stats.channelOrbs.every((t) => t === stats.channelOrbs[0]);
+    if (allSame) {
+      parts.push(`充能 ${stats.channelOrbs.length} 个【${ORB_NAMES_ZH[stats.channelOrbs[0]] || stats.channelOrbs[0]}】。`);
+    } else {
+      parts.push(`依次充能 ${stats.channelOrbs.map((t) => `【${ORB_NAMES_ZH[t] || t}】`).join('、')}。`);
+    }
+  }
+  if (stats.channelRandomOrbs) {
+    parts.push(`充能 ${stats.channelRandomOrbs} 个随机充能球。`);
+  }
+  if (stats.channelFrostPerEnemy) {
+    const aliveCnt = combat ? combat.enemies.filter((e) => e.hp > 0).length : null;
+    const note = aliveCnt !== null ? `（当前 ${aliveCnt} 个）` : '';
+    parts.push(`场上每有 1 名存活敌人，充能 1 个【冰霜球】${note}。`);
+  }
+  if (typeof stats.channelLightningX === 'number') {
+    const xLabel = stats.channelLightningX > 0 ? `X+${stats.channelLightningX}` : 'X';
+    parts.push(`充能 ${xLabel} 个【闪电球】。`);
+  }
+  if (stats.triggerAllDarkPassives) {
+    parts.push('立即触发所有【黑暗球】的被动蓄能 1 次。');
+  }
+  if (stats.evokeFront) {
+    parts.push(`激发队首的充能球 ${stats.evokeFront} 次。`);
+  }
+  if (typeof stats.evokeFrontX === 'number') {
+    const xLabel = stats.evokeFrontX > 0 ? `X+${stats.evokeFrontX}` : 'X';
+    parts.push(`激发队首的充能球 ${xLabel} 次。`);
+  }
+  if (stats.recursionFront) {
+    parts.push('激发队首的充能球，并保留其数值重新充能至队尾。');
+  }
+  if (stats.fissionOrbs === 'remove') {
+    parts.push('移除所有充能球，每个球为你提供 1 点能量并抽 1 张牌。');
+  } else if (stats.fissionOrbs === 'evoke') {
+    parts.push('激发所有充能球，每个球为你提供 1 点能量并抽 1 张牌！');
   }
   if (stats.scry && stats.cardId !== 'just_lucky' && stats.type === 'attack') {
     parts.push(`预见 ${stats.scry}。`);
@@ -538,6 +693,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (stats.applyEnemyStatuses.vulnerable) {
       parts.push(`给予${targetLabel} ${stats.applyEnemyStatuses.vulnerable} 层易伤。`);
+    }
+    if (stats.applyEnemyStatuses.lockOn) {
+      parts.push(`给予${targetLabel} ${stats.applyEnemyStatuses.lockOn} 层【锁定】（充能球伤害 +50%）。`);
     }
     if (stats.applyEnemyStatuses.talkToTheHand) {
       parts.push(
@@ -770,6 +928,58 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (stats.applySelfStatuses.panache) {
       parts.push(`每回合每累计打出 5 张牌，对所有敌人造成 ${stats.applySelfStatuses.panache} 点伤害。`);
+    }
+    if (stats.applySelfStatuses.buffer) {
+      parts.push(`获得 ${stats.applySelfStatuses.buffer} 层【缓冲】（抵消接下来 ${stats.applySelfStatuses.buffer} 次生命值损失）。`);
+    }
+    if (typeof stats.applySelfStatuses.focus === 'number' && stats.applySelfStatuses.focus !== 0) {
+      if (stats.applySelfStatuses.focus > 0) {
+        parts.push(`获得 ${stats.applySelfStatuses.focus} 点【集中】。`);
+      } else {
+        parts.push(`失去 ${Math.abs(stats.applySelfStatuses.focus)} 点【集中】。`);
+      }
+    }
+    if (stats.applySelfStatuses.biasedCognition) {
+      parts.push(`每回合开始时，失去 ${stats.applySelfStatuses.biasedCognition} 点【集中】。`);
+    }
+    if (stats.applySelfStatuses.electro) {
+      parts.push('你的【闪电球】改为攻击所有敌人。');
+    }
+    if (stats.applySelfStatuses.loop) {
+      parts.push(`每回合开始时，额外触发队首充能球的被动效果 ${stats.applySelfStatuses.loop} 次。`);
+    }
+    if (stats.applySelfStatuses.heatsinks) {
+      parts.push(`每当你打出 1 张能力牌，抽 ${stats.applySelfStatuses.heatsinks} 张牌。`);
+    }
+    if (stats.applySelfStatuses.storm) {
+      parts.push(`每当你打出 1 张能力牌，充能 ${stats.applySelfStatuses.storm} 个【闪电球】。`);
+    }
+    if (stats.applySelfStatuses.staticDischarge) {
+      parts.push(`每次受到未格挡的攻击伤害时，充能 ${stats.applySelfStatuses.staticDischarge} 个【闪电球】。`);
+    }
+    if (stats.applySelfStatuses.creativeAi) {
+      parts.push(`每回合开始时，随机将 ${stats.applySelfStatuses.creativeAi} 张故障机器人能力牌加入手牌。`);
+    }
+    if (stats.applySelfStatuses.echoForm) {
+      parts.push(`每回合打出的第 1 张牌会额外再打出一次。`);
+    }
+    if (stats.applySelfStatuses.selfRepair) {
+      parts.push(`战斗胜利后，回复 ${stats.applySelfStatuses.selfRepair} 点生命。`);
+    }
+    if (stats.applySelfStatuses.helloWorld) {
+      parts.push(`每回合开始时，将 ${stats.applySelfStatuses.helloWorld} 张随机普通故障机器人牌加入手牌。`);
+    }
+    if (stats.applySelfStatuses.amplify) {
+      parts.push(`本回合打出的下 ${stats.applySelfStatuses.amplify} 张能力牌额外再打出一次。`);
+    }
+    if (stats.applySelfStatuses.equilibrium) {
+      parts.push('本回合结束时保留所有手牌。');
+    }
+    if (stats.applySelfStatuses.rebound) {
+      parts.push(`本回合打出的下 ${stats.applySelfStatuses.rebound} 张牌改为置于抽牌堆顶。`);
+    }
+    if (stats.applySelfStatuses.machineLearning) {
+      parts.push(`每回合开始时，额外抽 ${stats.applySelfStatuses.machineLearning} 张牌。`);
     }
   }
   if (stats.applySelfStatusesAfter?.noDraw) {

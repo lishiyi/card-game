@@ -53,3 +53,23 @@ export {
   playCard,
   usePotion,
 } from './combat/card_play.js';
+
+export {
+  MAX_ORB_SLOTS,
+  ORB_TYPES,
+  ensureOrbState,
+  getOrbOutputValues,
+  countUniqueOrbs,
+  applyLockOnMultiplier,
+  findLowestHpAliveEnemy,
+  gainOrbSlots,
+  removeOrbSlots,
+  channelOrb,
+  triggerOrbPassive,
+  evokeFrontOrb,
+  evokeAllOrbs,
+  removeAllOrbs,
+  triggerAllDarkPassives,
+  triggerStartOfTurnOrbs,
+  triggerEndOfTurnOrbs,
+} from './combat/orbs.js';

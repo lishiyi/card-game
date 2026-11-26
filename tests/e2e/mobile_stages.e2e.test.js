@@ -664,7 +664,7 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
       };
     })()`);
 
-    assert.deepEqual(selectAudit.cards, ['ironclad', 'silent', 'watcher']);
+    assert.deepEqual(selectAudit.cards, ['ironclad', 'silent', 'watcher', 'defect']);
     assert.equal(selectAudit.watcherSelected, true);
     assert.equal(selectAudit.hasWatcherSvg, true);
     assert.ok(selectAudit.launchText.includes('观者'));
@@ -995,7 +995,7 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
         visibleCardsAfter,
       };
     })()`);
-    assert.equal(mobileCharTabAudit.tabCount, 3, 'Mobile Character Select must render 3 hero tabs');
+    assert.equal(mobileCharTabAudit.tabCount, 4, 'Mobile Character Select must render 4 hero tabs');
     assert.equal(mobileCharTabAudit.visibleCardsBefore, 1, 'Mobile Character Select must show only 1 active hero card');
     assert.equal(mobileCharTabAudit.watcherSelected, true, 'Clicking mobile Watcher tab must select Watcher');
     assert.equal(mobileCharTabAudit.visibleCardsAfter, 1);
@@ -1096,9 +1096,9 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       };
     })()`);
     assert.equal(compInitial.open, true);
-    assert.ok(compInitial.cardTabText.includes('/234') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
-    assert.equal(compInitial.totalRelicCards, 103, 'Relics tab lists all 103 relics');
-    assert.equal(compInitial.totalPotionCards, 28, 'Potions tab lists all 28 potions');
+    assert.ok(compInitial.cardTabText.includes('/307') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
+    assert.equal(compInitial.totalRelicCards, 112, 'Relics tab lists all 112 relics');
+    assert.equal(compInitial.totalPotionCards, 32, 'Potions tab lists all 32 potions');
     assert.equal(compInitial.totalEnemyCards, 64, 'Enemies tab lists all 64 enemies');
     assert.ok(compInitial.undiscoveredCount > 0 && compInitial.silhouettes > 0, 'Unseen entries render as silhouettes');
     await cdp.evaluate(`document.getElementById('btn-close-modal').click()`);

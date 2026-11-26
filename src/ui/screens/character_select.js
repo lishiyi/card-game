@@ -164,7 +164,7 @@ function renderMainMenuScreen({ state, meta, ui, hasActiveRun }) {
               <span class="menu-card-title">开始攀登</span>
               <span class="menu-card-tag">标准模式</span>
             </span>
-            <span class="menu-card-desc">三职业自由选择 · 进阶 A0–A10 · 鲸鱼赐福开局</span>
+            <span class="menu-card-desc">四职业自由选择 · 进阶 A0–A10 · 鲸鱼赐福开局</span>
           </span>
           <span class="menu-card-arrow" aria-hidden="true">→</span>
         </button>

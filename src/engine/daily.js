@@ -141,9 +141,14 @@ export function getDailyChallengeSpec(dateKey = getLocalDateKey()) {
   const localRng = { rngState: seed };
 
   // Deterministic character rotation + 3 non-conflicting modifiers (1 build + 1 twist + 1 challenge)
+  // Preserve historical 3-hero rotation prior to Defect's introduction so past daily records & links remain exact.
+  const DAILY_LEGACY_CHARACTER_IDS = ['ironclad', 'silent', 'watcher'];
+  const DAILY_DEFECT_ROTATION_START_DATE = '2026-11-26';
+  const rotationPool =
+    normalizedDate < DAILY_DEFECT_ROTATION_START_DATE ? DAILY_LEGACY_CHARACTER_IDS : CHARACTER_IDS;
   const [y, m, d] = normalizedDate.split('-').map(Number);
   const dayOrdinal = Math.floor(Date.UTC(y, m - 1, d) / 86400000);
-  const characterId = CHARACTER_IDS[((dayOrdinal % CHARACTER_IDS.length) + CHARACTER_IDS.length) % CHARACTER_IDS.length];
+  const characterId = rotationPool[((dayOrdinal % rotationPool.length) + rotationPool.length) % rotationPool.length];
   const charDef = getCharacterDef(characterId);
 
   const modBuild = pickRandom(localRng, BUILD_MOD_IDS);

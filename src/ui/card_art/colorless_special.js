@@ -1220,4 +1220,74 @@ export const CARD_THEME_ART = Object.freeze({
     'hsla(292, 86%, 48%, 0.28)',
     `<linearGradient id="ca-curse_abyss-skull" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="hsl(282, 34%, 44%)"/><stop offset="55%" stop-color="hsl(274, 42%, 24%)"/><stop offset="100%" stop-color="hsl(264, 52%, 11%)"/></linearGradient><radialGradient id="ca-curse_abyss-void" cx="50%" cy="46%" r="54%"><stop offset="0%" stop-color="hsla(332, 92%, 44%, 0.34)"/><stop offset="55%" stop-color="hsla(282, 84%, 30%, 0.22)"/><stop offset="100%" stop-color="hsla(264, 72%, 8%, 0)"/></radialGradient>`
   ),
+  defect_strike: wrapArtSvg(
+    'defect_strike',
+    'hsl(206, 62%, 18%)',
+    'hsl(226, 58%, 7%)',
+    `<path d="M8 18 H32 L40 26 M120 54 H96 L88 46" fill="none" stroke="hsla(202, 82%, 62%, 0.34)" stroke-width="1.2"/>
+     <path d="M10 60 Q48 44 114 14 L104 34 Q54 54 16 66 Z" fill="url(#ca-defect_strike-arc)" opacity="0.72"/>
+     <path d="M18 56 L96 14 L112 10 L101 25 L26 62 Z" fill="url(#ca-defect_strike-beam)" stroke="hsl(192, 100%, 82%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <path d="M22 57 L105 14" stroke="hsl(52, 100%, 96%)" stroke-width="2.2" stroke-linecap="round"/>
+     <path d="M36 22 L46 28 L42 36 M82 48 L94 42 L90 54" fill="none" stroke="hsl(48, 100%, 72%)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+     <polygon points="14,50 28,46 24,58" fill="hsl(204, 92%, 64%)" opacity="0.82"/>
+     <line x1="28" y1="62" x2="72" y2="44" stroke="hsla(192, 100%, 84%, 0.55)" stroke-width="1.3"/>
+     <circle cx="102" cy="18" r="10" fill="url(#ca-defect_strike-flash)"/>
+     <polygon points="102,6 105,15 114,18 105,21 102,30 99,21 90,18 99,15" fill="hsl(52, 100%, 94%)" opacity="0.9"/>
+     <circle cx="52" cy="18" r="1.8" fill="hsl(192, 100%, 84%)"/><circle cx="88" cy="54" r="2" fill="hsl(48, 100%, 78%)"/>
+     <circle cx="24" cy="24" r="1.6" fill="hsl(196, 100%, 78%)"/><circle cx="110" cy="44" r="1.6" fill="hsl(196, 100%, 78%)"/>`,
+    'hsla(194, 98%, 58%, 0.32)',
+    `<linearGradient id="ca-defect_strike-arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="hsl(214, 90%, 44%)" stop-opacity="0.18"/><stop offset="70%" stop-color="hsl(192, 100%, 62%)" stop-opacity="0.88"/><stop offset="100%" stop-color="hsl(50, 100%, 88%)" stop-opacity="0.96"/></linearGradient><linearGradient id="ca-defect_strike-beam" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="hsl(204, 94%, 58%)"/><stop offset="56%" stop-color="hsl(188, 100%, 76%)"/><stop offset="100%" stop-color="hsl(52, 100%, 96%)"/></linearGradient><radialGradient id="ca-defect_strike-flash" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="hsl(54, 100%, 98%)"/><stop offset="52%" stop-color="hsl(192, 100%, 70%)" stop-opacity="0.72"/><stop offset="100%" stop-color="hsl(212, 92%, 44%)" stop-opacity="0"/></radialGradient>`
+  ),
+  defect_defend: wrapArtSvg(
+    'defect_defend',
+    'hsl(204, 58%, 18%)',
+    'hsl(224, 56%, 7%)',
+    `<ellipse cx="64" cy="36" rx="50" ry="26" fill="url(#ca-defect_defend-glow)"/>
+     <path d="M12 24 H28 M12 48 H28 M100 24 H116 M100 48 H116" stroke="hsla(196, 92%, 68%, 0.42)" stroke-width="1.3" stroke-linecap="round"/>
+     <polygon points="64,8 96,22 96,50 64,64 32,50 32,22" fill="hsla(202, 86%, 48%, 0.24)" stroke="url(#ca-defect_defend-rim)" stroke-width="2.2" stroke-linejoin="round"/>
+     <polygon points="64,15 88,26 88,46 64,57 40,46 40,26" fill="hsla(194, 96%, 62%, 0.18)" stroke="hsl(190, 100%, 82%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <path d="M64 15 V57 M40 26 L88 46 M88 26 L40 46" stroke="hsla(192, 100%, 88%, 0.34)" stroke-width="1"/>
+     <circle cx="64" cy="36" r="14" fill="none" stroke="hsla(192, 100%, 80%, 0.55)" stroke-width="1.2" stroke-dasharray="4 3"/>
+     <circle cx="64" cy="36" r="8" fill="url(#ca-defect_defend-core)" stroke="hsl(48, 100%, 84%)" stroke-width="1.4"/>
+     <circle cx="64" cy="36" r="3" fill="hsl(54, 100%, 96%)"/>
+     <circle cx="32" cy="22" r="2.2" fill="hsl(192, 100%, 84%)"/><circle cx="96" cy="22" r="2.2" fill="hsl(192, 100%, 84%)"/>
+     <circle cx="32" cy="50" r="2.2" fill="hsl(48, 100%, 78%)"/><circle cx="96" cy="50" r="2.2" fill="hsl(48, 100%, 78%)"/>`,
+    'hsla(196, 94%, 60%, 0.28)',
+    `<radialGradient id="ca-defect_defend-glow" cx="50%" cy="50%" r="55%"><stop offset="0%" stop-color="hsla(194, 100%, 70%, 0.36)"/><stop offset="100%" stop-color="hsla(220, 72%, 14%, 0)"/></radialGradient><linearGradient id="ca-defect_defend-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(188, 100%, 82%)"/><stop offset="55%" stop-color="hsl(204, 92%, 58%)"/><stop offset="100%" stop-color="hsl(46, 98%, 70%)"/></linearGradient><radialGradient id="ca-defect_defend-core" cx="44%" cy="40%" r="60%"><stop offset="0%" stop-color="hsl(52, 100%, 96%)"/><stop offset="55%" stop-color="hsl(192, 100%, 66%)"/><stop offset="100%" stop-color="hsl(216, 86%, 36%)"/></radialGradient>`
+  ),
+  defect_orb: wrapArtSvg(
+    'defect_orb',
+    'hsl(208, 60%, 18%)',
+    'hsl(228, 56%, 7%)',
+    `<ellipse cx="64" cy="36" rx="52" ry="26" fill="url(#ca-defect_orb-halo)"/>
+     <ellipse cx="64" cy="36" rx="46" ry="18" fill="none" stroke="hsl(194, 96%, 68%)" stroke-width="1.5" opacity="0.68" transform="rotate(-14 64 36)"/>
+     <ellipse cx="64" cy="36" rx="46" ry="18" fill="none" stroke="hsl(48, 96%, 72%)" stroke-width="1.2" opacity="0.52" stroke-dasharray="6 4" transform="rotate(14 64 36)"/>
+     <circle cx="64" cy="36" r="18" fill="url(#ca-defect_orb-core)" stroke="hsl(48, 100%, 84%)" stroke-width="1.8"/>
+     <circle cx="64" cy="36" r="12" fill="none" stroke="hsla(192, 100%, 88%, 0.52)" stroke-width="1.1"/>
+     <circle cx="64" cy="36" r="7" fill="hsl(54, 100%, 96%)" opacity="0.78"/>
+     <path d="M58 26 L67 34 L62 37 L70 46" fill="none" stroke="hsl(48, 100%, 86%)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+     <circle cx="24" cy="30" r="3.6" fill="hsl(48, 100%, 74%)" stroke="hsl(54, 100%, 94%)" stroke-width="1"/>
+     <circle cx="104" cy="42" r="3.6" fill="hsl(192, 100%, 74%)" stroke="hsl(190, 100%, 94%)" stroke-width="1"/>
+     <circle cx="102" cy="22" r="3" fill="hsl(282, 86%, 68%)" stroke="hsl(286, 100%, 88%)" stroke-width="0.9"/>
+     <circle cx="26" cy="50" r="3" fill="hsl(36, 100%, 68%)" stroke="hsl(48, 100%, 90%)" stroke-width="0.9"/>`,
+    'hsla(194, 98%, 62%, 0.30)',
+    `<radialGradient id="ca-defect_orb-core" cx="40%" cy="35%" r="62%"><stop offset="0%" stop-color="hsl(54, 100%, 96%)"/><stop offset="50%" stop-color="hsl(194, 98%, 62%)"/><stop offset="100%" stop-color="hsl(224, 82%, 28%)"/></radialGradient><radialGradient id="ca-defect_orb-halo" cx="50%" cy="50%" r="54%"><stop offset="0%" stop-color="hsla(196, 100%, 68%, 0.34)"/><stop offset="100%" stop-color="hsla(224, 72%, 14%, 0)"/></radialGradient>`
+  ),
+  defect_power: wrapArtSvg(
+    'defect_power',
+    'hsl(212, 62%, 18%)',
+    'hsl(240, 56%, 7%)',
+    `<ellipse cx="64" cy="36" rx="52" ry="26" fill="url(#ca-defect_power-glow)"/>
+     <path d="M12 36 H36 M92 36 H116 M64 4 V14 M64 58 V68" stroke="hsla(194, 92%, 72%, 0.48)" stroke-width="1.4" stroke-linecap="round"/>
+     <circle cx="64" cy="36" r="24" fill="none" stroke="hsl(46, 98%, 70%)" stroke-width="1.6" stroke-dasharray="5 3"/>
+     <circle cx="64" cy="36" r="18" fill="none" stroke="hsla(194, 96%, 72%, 0.56)" stroke-width="1.1"/>
+     <polygon points="64,12 84,36 64,60 44,36" fill="url(#ca-defect_power-core)" stroke="hsl(190, 100%, 84%)" stroke-width="1.6"/>
+     <polygon points="64,19 76,36 64,53 52,36" fill="hsla(48, 100%, 82%, 0.24)" stroke="hsl(48, 100%, 82%)" stroke-width="1.1"/>
+     <circle cx="64" cy="36" r="6.5" fill="hsl(48, 100%, 78%)" stroke="hsl(54, 100%, 96%)" stroke-width="1.2"/>
+     <circle cx="64" cy="36" r="2.6" fill="hsl(54, 100%, 98%)"/>
+     <circle cx="26" cy="20" r="2.2" fill="hsl(192, 100%, 82%)"/><circle cx="102" cy="20" r="2.2" fill="hsl(192, 100%, 82%)"/>
+     <circle cx="26" cy="52" r="2.2" fill="hsl(48, 100%, 78%)"/><circle cx="102" cy="52" r="2.2" fill="hsl(48, 100%, 78%)"/>`,
+    'hsla(46, 98%, 64%, 0.28)',
+    `<radialGradient id="ca-defect_power-glow" cx="50%" cy="50%" r="54%"><stop offset="0%" stop-color="hsla(48, 100%, 72%, 0.3)"/><stop offset="100%" stop-color="hsla(224, 70%, 14%, 0)"/></radialGradient><linearGradient id="ca-defect_power-core" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsla(192, 100%, 72%, 0.62)"/><stop offset="100%" stop-color="hsla(222, 82%, 34%, 0.56)"/></linearGradient>`
+  ),
 });

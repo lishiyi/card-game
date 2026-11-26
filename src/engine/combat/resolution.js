@@ -3,7 +3,7 @@
  * stances, mantra, scry, and interactive hand-card choice resolution.
  */
 
-import { canUpgradeCard, getCardStats, getRewardCardPools } from '../../data/cards.js';
+import { canUpgradeCard, getCardStats, getEffectiveCardCost, getRewardCardPools } from '../../data/cards.js';
 import { getGuardianDefensiveIntent, rollEnemyIntent } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
 import { pickRandom, randomInt } from '../rng.js';
@@ -592,6 +592,7 @@ export function handlePlayerHpLostTriggers(state, { isAttack = false } = {}) {
   const combat = state?.combat;
   if (!combat || combat.status !== 'ongoing') return;
   combat.hpLossCountThisCombat = (combat.hpLossCountThisCombat ?? 0) + 1;
+  combat.lostHpThisTurn = true;
 
   if (isAttack && (state.player.statuses?.platedArmor ?? 0) > 0) {
     state.player.statuses.platedArmor -= 1;
@@ -840,12 +841,23 @@ export function discardCardsBatch(state, cardInstances, { manual = true } = {}) 
   return count;
 }
 
+function computeRecycleEnergy(state, cardInstance) {
+  if (!state || !cardInstance) return 0;
+  const stats = getCardStats(cardInstance);
+  if (stats.isXCost) {
+    return Math.max(0, state.player.energy ?? 0);
+  }
+  const effCost = getEffectiveCardCost(stats, state.player, state.combat);
+  return typeof effCost === 'number' && effCost > 0 ? effCost : 0;
+}
+
 export function requestHandCardChoice(
   state,
   mode,
   count,
   sourceName = '选牌',
-  onVictoryCallback = null
+  onVictoryCallback = null,
+  options = {}
 ) {
   const combat = state?.combat;
   if (
@@ -887,6 +899,19 @@ export function requestHandCardChoice(
     if (combat.hand.length <= count) {
       const allHand = [...combat.hand];
       combat.hand = [];
+      if (options.grantEnergyFromCost) {
+        for (const c of allHand) {
+          const gained = computeRecycleEnergy(state, c);
+          if (gained > 0) {
+            state.player.energy += gained;
+            pushCombatLog(
+              combat,
+              `【${sourceName}】回收【${getCardStats(c).name}】，获得 ${gained} 点能量！`,
+              'info'
+            );
+          }
+        }
+      }
       exhaustCardsBatch(state, allHand);
       if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
         setPendingCardChoice(combat, null);
@@ -902,6 +927,7 @@ export function requestHandCardChoice(
       optional: false,
       candidates: null,
       selectedIds: [],
+      grantEnergyFromCost: Boolean(options.grantEnergyFromCost),
     });
     return;
   }
@@ -1209,6 +1235,70 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
     };
   }
 
+  if (pending.mode === 'retrieve_discard_to_hand') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const dIdx = combat.discardPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || dIdx === -1) {
+      return { ok: false, reason: '未在弃牌堆中找到该卡牌' };
+    }
+    const [card] = combat.discardPile.splice(dIdx, 1);
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(card);
+    }
+    pending.candidates = (pending.candidates || []).filter((c) => c.instanceId !== instanceId);
+    pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
+    pushCombatLog(
+      combat,
+      `【${pending.sourceName}】从弃牌堆取回【${getCardStats(card).name}】加入手牌！`,
+      'info'
+    );
+    if (
+      pending.remaining <= 0 ||
+      pending.candidates.length === 0 ||
+      combat.hand.length >= MAX_HAND_SIZE
+    ) {
+      setPendingCardChoice(combat, null);
+    }
+    return {
+      ok: true,
+      mode: 'retrieve_discard_to_hand',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+    };
+  }
+
+  if (pending.mode === 'pick_from_draw') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const dIdx = combat.drawPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || dIdx === -1) {
+      return { ok: false, reason: '未在抽牌堆中找到该卡牌' };
+    }
+    const [card] = combat.drawPile.splice(dIdx, 1);
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(card);
+    }
+    pending.candidates = (pending.candidates || []).filter((c) => c.instanceId !== instanceId);
+    pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
+    pushCombatLog(
+      combat,
+      `【${pending.sourceName}】从抽牌堆检索【${getCardStats(card).name}】加入手牌！`,
+      'info'
+    );
+    if (
+      pending.remaining <= 0 ||
+      pending.candidates.length === 0 ||
+      combat.hand.length >= MAX_HAND_SIZE
+    ) {
+      setPendingCardChoice(combat, null);
+    }
+    return {
+      ok: true,
+      mode: 'pick_from_draw',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+    };
+  }
+
   const idx = combat.hand.findIndex((c) => c.instanceId === instanceId);
   if (idx === -1) {
     return { ok: false, reason: '未在手牌中找到该卡牌' };
@@ -1244,10 +1334,24 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
 
   if (pending.mode === 'exhaust') {
     combat.pendingCardReveals = [];
+    const grantEnergy = Boolean(pending.grantEnergyFromCost);
+    const sourceName = pending.sourceName || '消耗';
     const [card] = combat.hand.splice(idx, 1);
     pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
     if (pending.remaining <= 0) {
       setPendingCardChoice(combat, null);
+    }
+
+    if (grantEnergy) {
+      const gained = computeRecycleEnergy(state, card);
+      if (gained > 0) {
+        state.player.energy += gained;
+        pushCombatLog(
+          combat,
+          `【${sourceName}】回收【${getCardStats(card).name}】，获得 ${gained} 点能量！`,
+          'info'
+        );
+      }
     }
 
     exhaustCardsBatch(state, [card]);
@@ -1273,6 +1377,19 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       const rest = [...combat.hand];
       combat.hand = [];
       setPendingCardChoice(combat, null);
+      if (grantEnergy) {
+        for (const c of rest) {
+          const gained = computeRecycleEnergy(state, c);
+          if (gained > 0) {
+            state.player.energy += gained;
+            pushCombatLog(
+              combat,
+              `【${sourceName}】回收【${getCardStats(c).name}】，获得 ${gained} 点能量！`,
+              'info'
+            );
+          }
+        }
+      }
       exhaustCardsBatch(state, rest);
       if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
         finalizeCombatVictory(state, onVictoryCallback);

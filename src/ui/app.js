@@ -891,6 +891,9 @@ export function mountSpireApp(rootEl) {
         cardStats: stats,
         targetEnemyId,
       });
+      if (Array.isArray(res.orbFxEvents) && res.orbFxEvents.length > 0) {
+        fxManager.spawnOrbFxEvents(res.orbFxEvents, soundEngine);
+      }
       triggerCardRevealFx(res);
     } else {
       soundEngine.play('error');
@@ -1036,6 +1039,9 @@ export function mountSpireApp(rootEl) {
     if (res.ok) {
       soundEngine.play('potion');
       fxManager.reconcileCombatFx(prevSnap, state, 'potion', soundEngine);
+      if (Array.isArray(res.orbFxEvents) && res.orbFxEvents.length > 0) {
+        fxManager.spawnOrbFxEvents(res.orbFxEvents, soundEngine);
+      }
       triggerCardRevealFx(res);
     } else {
       soundEngine.play('error');
@@ -1052,6 +1058,9 @@ export function mountSpireApp(rootEl) {
       soundEngine.play('end_turn');
       if (!res.awaitingRetainChoice) {
         fxManager.reconcileCombatFx(prevSnap, state, 'endTurn', soundEngine);
+        if (Array.isArray(res.orbFxEvents) && res.orbFxEvents.length > 0) {
+          fxManager.spawnOrbFxEvents(res.orbFxEvents, soundEngine);
+        }
       }
     }
   }
@@ -1063,7 +1072,9 @@ export function mountSpireApp(rootEl) {
       if (
         pending?.mode === 'scry' ||
         pending?.mode === 'discard_to_draw' ||
-        pending?.mode === 'retrieve_discard_retain'
+        pending?.mode === 'retrieve_discard_retain' ||
+        pending?.mode === 'retrieve_discard_to_hand' ||
+        pending?.mode === 'pick_from_draw'
       ) {
         return;
       }
@@ -1915,7 +1926,11 @@ export function mountSpireApp(rootEl) {
         return;
       }
 
-      if (activeChoice?.mode === 'discard_to_draw') {
+      if (
+        activeChoice?.mode === 'discard_to_draw' ||
+        activeChoice?.mode === 'retrieve_discard_to_hand' ||
+        activeChoice?.mode === 'pick_from_draw'
+      ) {
         const pickNum = Number(event.key);
         if (pickNum >= 1 && pickNum <= 9) {
           const cand = activeChoice.candidates?.[pickNum - 1];
