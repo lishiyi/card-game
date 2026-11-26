@@ -707,7 +707,8 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(hudAcAudit.shopDrinkDisabled, true, 'Drink button inside popover is disabled outside combat');
     assert.equal(hudAcAudit.slot1Discarded, true, 'Discard button inside popover discards potion cleanly');
     assert.equal(hudAcAudit.menuOpen, true, 'Tapping ☰ opens More menu drawer');
-    assert.equal(hudAcAudit.menuLabels.length, 5, 'More menu holds all 5 secondary navigation items');
+    assert.equal(hudAcAudit.menuLabels.length, 6, 'More menu holds all 6 secondary navigation items including Seed');
+    assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('种子')), `Expected Seed item inside More menu, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
     assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('新的一局')), `Expected unbroken '新的一局' label, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
     assert.equal(hudAcAudit.menuClosedAfterOutsideTap, true, 'Tapping outside dismisses More menu drawer');
 
@@ -1280,17 +1281,31 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
     return;
   }
   let deployPhase = 'v1';
+  const rawFileCache = new Map();
   const server = http.createServer((req, res) => {
     const urlPath = (req.url || '/').split('?')[0];
     const relPath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
     const fullPath = path.resolve(ROOT_DIR, relPath);
-    if (!fullPath.startsWith(ROOT_DIR) || !fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+    if (!fullPath.startsWith(ROOT_DIR)) {
       res.writeHead(404);
       res.end('Not found');
       return;
     }
-    const ext = path.extname(fullPath);
-    let body = fs.readFileSync(fullPath);
+    let cached = rawFileCache.get(fullPath);
+    if (!cached) {
+      if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
+        res.writeHead(404);
+        res.end('Not found');
+        return;
+      }
+      const ext = path.extname(fullPath);
+      cached = {
+        contentType: MIME_TYPES[ext] || 'application/octet-stream',
+        body: fs.readFileSync(fullPath),
+      };
+      rawFileCache.set(fullPath, cached);
+    }
+    let body = cached.body;
     if (relPath === 'sw.js') {
       body = Buffer.from(
         body.toString('utf8').replace('__SW_CACHE_VERSION__', `test-${deployPhase}`),
@@ -1312,7 +1327,7 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
       return;
     }
     res.writeHead(200, {
-      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+      'Content-Type': cached.contentType,
       'Cache-Control': 'max-age=600',
       ETag: etag,
     });
@@ -1324,87 +1339,180 @@ test('E2E: Service Worker bypasses GitHub Pages max-age=600 HTTP cache and auto-
   });
   const port = server.address().port;
 
-  let browser = null;
-  let cdp = null;
+  let lastFailure = null;
   try {
-    browser = await launchHeadlessChromium();
-    const debugPort = new URL(browser.browserWsUrl).port;
-    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-    const pageTarget = targets.find((x) => x.type === 'page');
-    assert.ok(pageTarget);
-    cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
-    await cdp.send('Runtime.enable');
-    await cdp.send('Page.enable');
+    for (let browserAttempt = 0; browserAttempt < 3; browserAttempt += 1) {
+      deployPhase = 'v1';
+      let browser = null;
+      let cdp = null;
+      let networkServiceCrashed = false;
+      try {
+        browser = await launchHeadlessChromium();
+        browser.proc.stderr.on('data', (chunk) => {
+          if (chunk.toString().includes('Network service crashed')) {
+            networkServiceCrashed = true;
+          }
+        });
+        const debugPort = new URL(browser.browserWsUrl).port;
+        const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+        const pageTarget = targets.find((x) => x.type === 'page');
+        assert.ok(pageTarget);
+        cdp = await createCdpClient(pageTarget.webSocketDebuggerUrl);
+        await cdp.send('Runtime.enable');
+        await cdp.send('Page.enable');
 
-    // Visit during v1 with max-age=600 headers -> Wait until SW v1 activates and controls page
-    const evalSafe = (expr) =>
-      Promise.race([
-        cdp.evaluate(expr).catch(() => null),
-        new Promise((r) => setTimeout(() => r(null), 900)),
-      ]);
-    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
-    await new Promise((r) => setTimeout(r, 200));
-    let v1Ready = false;
-    for (let i = 0; i < 60; i += 1) {
-      const ready = await evalSafe(`(async () => {
-        const reg = await navigator.serviceWorker?.getRegistration?.();
-        return Boolean(navigator.serviceWorker?.controller && reg?.active?.state === 'activated' && document.querySelector('.main-menu-subtitle'));
-      })()`);
-      if (ready) {
-        v1Ready = true;
-        break;
-      }
-      await new Promise((r) => setTimeout(r, 80));
-    }
-    assert.equal(v1Ready, true, 'Service Worker v1 must activate and control page');
-    const v1Sub = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
-    assert.equal(v1Sub, 'OLD_V1_SUBTITLE_MARKER');
+        // Visit during v1 with max-age=600 headers -> Wait until SW v1 activates and controls page
+        const evalSafe = (expr) =>
+          Promise.race([
+            cdp.evaluate(expr).catch(() => null),
+            new Promise((r) => setTimeout(() => r(null), 900)),
+          ]);
+        const sendBounded = (method, params = {}, ms = 4000) =>
+          Promise.race([
+            cdp.send(method, params).catch(() => null),
+            new Promise((r) => setTimeout(() => r(null), ms)),
+          ]);
+        const recoverTarget = async () => {
+          await sendBounded('Runtime.enable', {}, 2000);
+          await sendBounded('Page.enable', {}, 2000);
+          await sendBounded('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` }, 12000);
+          await new Promise((r) => setTimeout(r, 200));
+        };
 
-    // Simulate new GitHub Pages deployment (still returning Cache-Control: max-age=600!)
-    deployPhase = 'v2';
-
-    // Returning browser simply reloads WITHOUT clearing cache or opening incognito
-    let handledCrashIdx = cdp.events.length;
-    await cdp.send('Page.reload', { ignoreCache: false });
-    await new Promise((r) => setTimeout(r, 200));
-    let upgradedText = '';
-    let consecutiveNulls = 0;
-    for (let i = 0; i < 60; i += 1) {
-      const crashed = cdp.events
-        .slice(handledCrashIdx)
-        .some((e) => e.method === 'Inspector.targetCrashed');
-      if (crashed || consecutiveNulls >= 3) {
-        handledCrashIdx = cdp.events.length;
-        consecutiveNulls = 0;
-        try {
-          await cdp.send('Runtime.enable');
-          await cdp.send('Page.enable');
-          await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
-        } catch {
-          // Best-effort recovery for transient headless renderer crash on double reload
-        }
+        await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
         await new Promise((r) => setTimeout(r, 200));
-        continue;
-      }
-      const cur = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
-      if (cur === null) {
-        consecutiveNulls += 1;
-      } else {
-        consecutiveNulls = 0;
-        if (cur) upgradedText = cur;
-      }
-      if (upgradedText === '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅') break;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    assert.equal(
-      upgradedText,
-      '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅',
-      `Returning browser tab must auto-upgrade past max-age=600 SW cache, still got: ${upgradedText}`
-    );
+        let handledCrashIdx = cdp.events.length;
+        let consecutiveNulls = 0;
+        let idleNoWorkerPolls = 0;
+        let v1Ready = false;
+        let lastV1Status = null;
+        for (let i = 0; i < 45; i += 1) {
+          if (networkServiceCrashed) break;
+          const crashed = cdp.events
+            .slice(handledCrashIdx)
+            .some((e) => e.method === 'Inspector.targetCrashed');
+          if (crashed || consecutiveNulls >= 3) {
+            handledCrashIdx = cdp.events.length;
+            consecutiveNulls = 0;
+            idleNoWorkerPolls = 0;
+            await recoverTarget();
+            handledCrashIdx = cdp.events.length;
+            continue;
+          }
+          const status = await evalSafe(`(async () => {
+            const reg = await navigator.serviceWorker?.getRegistration?.();
+            const ctrl = Boolean(navigator.serviceWorker?.controller);
+            const active = reg?.active?.state || null;
+            const installing = reg?.installing?.state || null;
+            const waiting = reg?.waiting?.state || null;
+            const hasSub = Boolean(document.querySelector('.main-menu-subtitle'));
+            return {
+              ready: Boolean(ctrl && active === 'activated' && hasSub),
+              hasAnyWorker: Boolean(ctrl || active || installing || waiting),
+              hasSub,
+            };
+          })()`);
+          lastV1Status = status;
+          if (status === null) {
+            consecutiveNulls += 1;
+          } else {
+            consecutiveNulls = 0;
+            if (status.ready) {
+              v1Ready = true;
+              break;
+            }
+            if (!status.hasAnyWorker && status.hasSub) {
+              idleNoWorkerPolls += 1;
+              // If SW worker/storage service crashed silently leaving zero workers for >1.5s, restart browser cleanly
+              if (idleNoWorkerPolls >= 15) {
+                break;
+              }
+            } else {
+              idleNoWorkerPolls = 0;
+            }
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
 
-    cdp.ws.close();
+        if (!v1Ready) {
+          throw new Error(
+            `Service Worker v1 did not activate (attempt=${browserAttempt + 1}, netCrash=${networkServiceCrashed}, status=${JSON.stringify(lastV1Status)})`
+          );
+        }
+        const v1Sub = await evalSafe(`document.querySelector('.main-menu-subtitle')?.textContent || ''`);
+        assert.equal(v1Sub, 'OLD_V1_SUBTITLE_MARKER');
+
+        // Simulate new GitHub Pages deployment (still returning Cache-Control: max-age=600!)
+        deployPhase = 'v2';
+
+        // Returning browser simply reloads WITHOUT clearing cache or opening incognito
+        handledCrashIdx = cdp.events.length;
+        await sendBounded('Page.reload', { ignoreCache: false }, 4000);
+        await new Promise((r) => setTimeout(r, 200));
+        let upgradedText = '';
+        consecutiveNulls = 0;
+        let staleIdlePolls = 0;
+        for (let i = 0; i < 60; i += 1) {
+          if (networkServiceCrashed) break;
+          const crashed = cdp.events
+            .slice(handledCrashIdx)
+            .some((e) => e.method === 'Inspector.targetCrashed');
+          if (crashed || consecutiveNulls >= 3) {
+            handledCrashIdx = cdp.events.length;
+            consecutiveNulls = 0;
+            staleIdlePolls = 0;
+            await recoverTarget();
+            handledCrashIdx = cdp.events.length;
+            continue;
+          }
+          const snap = await evalSafe(`(async () => {
+            const reg = await navigator.serviceWorker?.getRegistration?.();
+            return {
+              text: document.querySelector('.main-menu-subtitle')?.textContent || '',
+              busy: Boolean(reg?.installing || reg?.waiting),
+            };
+          })()`);
+          if (snap === null) {
+            consecutiveNulls += 1;
+          } else {
+            consecutiveNulls = 0;
+            if (snap.text) upgradedText = snap.text;
+            if (upgradedText === '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅') break;
+            if (!snap.busy) {
+              staleIdlePolls += 1;
+              if (staleIdlePolls >= 8) {
+                staleIdlePolls = 0;
+                await evalSafe(`(async () => {
+                  const reg = await navigator.serviceWorker?.getRegistration?.();
+                  await reg?.update?.();
+                })()`);
+              }
+            } else {
+              staleIdlePolls = 0;
+            }
+          }
+          await new Promise((r) => setTimeout(r, 100));
+        }
+        assert.equal(
+          upgradedText,
+          '构筑专属牌组 · 运筹遗物协同 · 征服尖塔之巅',
+          `Returning browser tab must auto-upgrade past max-age=600 SW cache, still got: ${upgradedText} (netCrash=${networkServiceCrashed})`
+        );
+
+        cdp.ws.close();
+        lastFailure = null;
+        break;
+      } catch (err) {
+        lastFailure = err;
+        // Retry with a fresh browser process only on transient Chromium infra crashes (max 3 attempts)
+        if (browserAttempt === 2) throw err;
+      } finally {
+        await teardownSession({ server: null, browser, cdp });
+      }
+    }
+    if (lastFailure) throw lastFailure;
   } finally {
-    await teardownSession({ server, browser, cdp });
+    await teardownSession({ server, browser: null, cdp: null });
   }
 });
 

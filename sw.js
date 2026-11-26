@@ -98,15 +98,20 @@ const PRECACHE_URLS = [
 
 async function precacheFreshAssets() {
   const cache = await caches.open(CACHE_NAME);
-  await Promise.all(
-    PRECACHE_URLS.map(async (url) => {
+  let nextIdx = 0;
+  const workerCount = Math.min(8, PRECACHE_URLS.length);
+  const runWorker = async () => {
+    while (nextIdx < PRECACHE_URLS.length) {
+      const url = PRECACHE_URLS[nextIdx];
+      nextIdx += 1;
       const freshReq = new Request(url, { cache: 'reload', credentials: 'same-origin' });
       const res = await fetch(freshReq);
       if (res && res.ok) {
         await cache.put(url, res);
       }
-    })
-  );
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 }
 
 self.addEventListener('install', (event) => {

@@ -66,7 +66,7 @@ test('Real Chromium browser E2E flow: map -> modal -> combat -> play card -> pot
       };
     })()`);
 
-    assert.equal(initialAudit.h1Count, 1, 'Should have exactly 1 h1');
+    assert.equal(initialAudit.h1Count, 0, 'In-run top HUD should omit top-left game-title h1 to save space');
     assert.ok(initialAudit.title.includes('杀戮尖塔'));
     assert.equal(initialAudit.floorIndicator, '第 1 / 16 层');
     assert.equal(initialAudit.potionSlotCount, 3, 'HUD must render 3 starter potion belt slots');

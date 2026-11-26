@@ -819,6 +819,7 @@ body.spire-dragging {
   grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   padding: 5px 5px;
+  direction: rtl;
 }
 
 .orb-slot {
@@ -830,6 +831,7 @@ body.spire-dragging {
   height: 30px;
   border-radius: 50%;
   flex-shrink: 0;
+  direction: ltr;
 }
 
 .orb-rail-side.is-two-col .orb-slot {

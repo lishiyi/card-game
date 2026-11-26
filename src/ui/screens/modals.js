@@ -597,7 +597,7 @@ function renderHistoryDetailModal({ meta, ui }) {
   `;
 }
 
-function renderSettingsModal({ settings, ui }) {
+function renderSettingsModal({ settings, ui, state }) {
   const speedButtonsHtml = ANIM_SPEED_OPTIONS.map((opt) => {
     const active = settings.animSpeed === opt.id;
     return `
@@ -617,19 +617,53 @@ function renderSettingsModal({ settings, ui }) {
   const backupTone = ui?.backupFeedbackTone === 'warn' ? 'warn' : 'ok';
   const backupText = ui?.backupJsonDraft || '';
 
+  let activeRunSeedRowHtml = '';
+  if (state && !ui?.showCharacterSelect) {
+    const seedCode = formatSeedCode(state.seed);
+    const asc = state.ascension ?? 0;
+    const charId = state.characterId || 'ironclad';
+    const charName = state.player?.name || getCharacterDef(charId).name;
+    const daily = state.dailyChallenge || null;
+    activeRunSeedRowHtml = `
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">🌱 当前本局种子：<span id="settings-run-seed-code" style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(seedCode)}</span></div>
+                <div class="settings-desc">${
+                  daily
+                    ? `今日每日挑战（${escapeHtml(daily.dateKey)} · ${escapeHtml(charName)} · 进阶 ${escapeHtml(asc)}），一键复制直连挑战链接。`
+                    : `角色【${escapeHtml(charName)}】· 进阶 ${escapeHtml(asc)}，一键复制完整好友同图挑战链接。`
+                }</div>
+              </div>
+              <button
+                type="button"
+                id="btn-settings-copy-seed"
+                class="btn-stone"
+                data-action="copy-seed"
+                data-seed-code="${escapeHtml(seedCode)}"
+                data-ascension="${escapeHtml(asc)}"
+                data-character-id="${escapeHtml(charId)}"
+                data-daily-date="${escapeHtml(daily?.dateKey || '')}"
+              >
+                📋 复制挑战链接
+              </button>
+            </div>
+    `;
+  }
+
   return `
     <div class="modal-backdrop" id="modal-backdrop" data-action="close-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-sheet modal-medium-sheet" id="settings-modal">
         <div class="modal-header">
           <div>
             <h2 id="modal-title" class="stage-heading">⚙️ 游戏设置</h2>
-            <p class="stage-subtitle">自定义音效、动画速度、防误触体验，并支持本地存档 JSON 一键备份导出与跨设备导入迁移。</p>
+            <p class="stage-subtitle">自定义音效、动画速度、防误触体验，并支持本局种子分享与本地存档 JSON 备份迁移。</p>
           </div>
           <button type="button" id="btn-close-modal" class="btn-stone" data-action="close-modal">关闭 (Esc)</button>
         </div>
 
         <div class="modal-body">
           <div class="settings-list">
+            ${activeRunSeedRowHtml}
             <div class="settings-row">
               <div>
                 <div class="settings-label">战斗与界面音效</div>
@@ -1392,7 +1426,7 @@ export function renderModal({ state, meta, settings, ui }) {
   }
 
   if (ui.modal === 'settings') {
-    return renderSettingsModal({ settings, ui });
+    return renderSettingsModal({ settings, ui, state });
   }
 
   if (ui.modal === 'help') {

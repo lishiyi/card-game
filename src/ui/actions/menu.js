@@ -163,6 +163,7 @@ export const MENU_ACTIONS = {
   },
 
   'copy-seed'(ctx, target) {
+    ctx.ui.hudMenuOpen = false;
     ctx.copySeedToClipboard(
       target.dataset.seedCode,
       target.dataset.ascension,

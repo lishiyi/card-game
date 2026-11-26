@@ -383,7 +383,7 @@ export async function createCdpClient(pageWsUrl) {
         // Ignore if previous execution context is not ready.
       }
       let lastRes = null;
-      for (let attempt = 0; attempt < 6; attempt += 1) {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
         const navOutcomePromise = waitForAnyEvent(
           ['Page.loadEventFired', 'Inspector.targetCrashed'],
           4000

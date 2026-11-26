@@ -15,8 +15,8 @@
 
 .brand-cluster {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
 }
 
 .game-title {
@@ -309,7 +309,8 @@
 }
 
 .hud-more-btn,
-.hud-menu-divider {
+.hud-menu-divider,
+.hud-menu-seed-btn {
   display: none;
 }
 

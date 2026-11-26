@@ -380,11 +380,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     const isElectro = (state.player.statuses?.electro ?? 0) > 0;
     const focusNote = focusVal !== 0 ? ` · 集中 ${focusVal > 0 ? `+${focusVal}` : focusVal}` : '';
     orbRailTooltipTitle = `充能球槽位 (${playerOrbs.length}/${maxOrbSlots})`;
-    orbRailTooltipTag = `先进先出${focusNote}`;
+    orbRailTooltipTag = `最右先激发${focusNote}`;
     const lines = [];
     for (let i = 0; i < maxOrbSlots; i += 1) {
       const orb = playerOrbs[i];
-      const prefix = i === 0 ? `#1 队首（下次激发）` : `#${i + 1}`;
+      const prefix = i === 0 ? `#1 队首·最右（下次激发）` : `#${i + 1}`;
       if (!orb) {
         lines.push(`${prefix}：空槽位`);
         continue;

@@ -247,7 +247,6 @@ export function renderTopHud({ state, ui }) {
   return `
     <header class="top-hud run-hud">
       <div class="brand-cluster">
-        <h1 class="game-title">杀戮尖塔<span class="title-subtitle"> · 简明版</span></h1>
         <span class="character-hud-pill char-${escapeHtml(charId)}" id="hud-character-pill">${escapeHtml(charName)}</span>
         <span class="floor-indicator">${escapeHtml(actPrefix)}第 ${escapeHtml(Math.max(1, state.floor || 1))} / ${escapeHtml(actTotalFloors)} 层</span>
         <span
@@ -278,25 +277,6 @@ export function renderTopHud({ state, ui }) {
             ? `<span class="challenge-pill" id="hud-challenge-pill" tabindex="0" data-tooltip-title="好友种子挑战模式" data-tooltip-tag="全图鉴临时对齐" data-tooltip-desc="本局通过挑战链接开启，已临时对齐全图鉴卡池与目标进阶难度，确保与好友 100% 同图同掉落；不会覆盖你的本地生涯解锁进度。" data-tooltip-tone="buff">挑战</span>`
             : ''
         }
-        <button
-          type="button"
-          id="btn-copy-seed"
-          class="seed-pill"
-          data-action="copy-seed"
-          data-seed-code="${escapeHtml(seedCode)}"
-          data-ascension="${escapeHtml(asc)}"
-          data-character-id="${escapeHtml(charId)}"
-          data-daily-date="${escapeHtml(daily?.dateKey || '')}"
-          data-tooltip-title="${daily ? `分享每日挑战：${escapeHtml(daily.dateKey)}` : `分享挑战链接：${escapeHtml(seedCode)}`}"
-          data-tooltip-tag="点击一键复制链接"
-          data-tooltip-desc="${
-            daily
-              ? `点击直接复制今日每日挑战直连链接（?daily=${escapeHtml(daily.dateKey)}）。好友点开即可体验完全相同的角色、词条、地图与掉落！`
-              : `点击直接复制完整挑战链接（含角色【${escapeHtml(charName)}】、本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！`
-          }"
-        >
-          种子 ${escapeHtml(seedCode)}
-        </button>
       </div>
 
       <div class="vitals-cluster">
@@ -383,6 +363,25 @@ export function renderTopHud({ state, ui }) {
             </button>
             <button type="button" id="btn-open-settings" class="btn-stone" data-action="open-modal" data-modal="settings">
               <span class="nav-btn-emoji" aria-hidden="true">⚙️</span><span class="nav-btn-text"> 设置</span>
+            </button>
+            <button
+              type="button"
+              id="btn-copy-seed"
+              class="btn-stone hud-menu-seed-btn"
+              data-action="copy-seed"
+              data-seed-code="${escapeHtml(seedCode)}"
+              data-ascension="${escapeHtml(asc)}"
+              data-character-id="${escapeHtml(charId)}"
+              data-daily-date="${escapeHtml(daily?.dateKey || '')}"
+              data-tooltip-title="${daily ? `分享每日挑战：${escapeHtml(daily.dateKey)}` : `分享挑战链接：${escapeHtml(seedCode)}`}"
+              data-tooltip-tag="点击一键复制链接"
+              data-tooltip-desc="${
+                daily
+                  ? `点击直接复制今日每日挑战直连链接（?daily=${escapeHtml(daily.dateKey)}）。好友点开即可体验完全相同的角色、词条、地图与掉落！`
+                  : `点击直接复制完整挑战链接（含角色【${escapeHtml(charName)}】、本局种子与进阶 ${escapeHtml(asc)}）。好友点开链接即可体验 100% 相同的地图、鲸鱼赐福与掉落！`
+              }"
+            >
+              <span class="nav-btn-emoji" aria-hidden="true">🌱</span><span class="nav-btn-text"> 种子 ${escapeHtml(seedCode)}</span>
             </button>
             <span class="hud-menu-divider" aria-hidden="true"></span>
             <button type="button" id="btn-new-run" class="btn-stone" data-action="new-run">

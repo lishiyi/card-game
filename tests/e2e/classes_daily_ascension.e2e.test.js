@@ -1793,9 +1793,11 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
     await new Promise((r) => setTimeout(r, 420));
 
-    // 1. Desktop 1280px: 4-hero Character Select (1 horizontal row, zero overflow, azure Defect card & launch)
+    // 1. Desktop 1280px: Main Menu retains 杀戮尖塔 title; 4-hero Character Select (1 horizontal row, zero overflow, azure Defect card & launch)
     const selectAudit = await cdp.evaluate(`(() => {
+      const mainMenuHasTitle = Boolean(document.querySelector('.menu-home-hud .game-title'));
       document.getElementById('btn-menu-standard')?.click();
+      const stdSubmenuHasTitle = Boolean(document.querySelector('.top-hud .game-title'));
       const cards = [...document.querySelectorAll('.character-card')];
       const ids = cards.map((el) => el.dataset.characterId);
       const tops = cards.map((el) => Math.round(el.getBoundingClientRect().top));
@@ -1809,7 +1811,21 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
       const launchAzure = launchBtn?.classList.contains('theme-azure');
       launchBtn?.click();
       const st = window.__SPIRE_APP__.getState();
+      const inRunHasTitle = Boolean(document.querySelector('.top-hud.run-hud .game-title'));
+      const seedInTopBrand = Boolean(document.querySelector('.top-hud.run-hud .brand-cluster #btn-copy-seed'));
+      const seedInMoreMenu = Boolean(document.querySelector('#hud-more-menu #btn-copy-seed'));
+      const seedHiddenOnDesktopTopBar = getComputedStyle(document.getElementById('btn-copy-seed')).display === 'none';
+      document.getElementById('btn-open-settings')?.click();
+      const settingsHasSeedBtn = Boolean(document.getElementById('btn-settings-copy-seed'));
+      document.getElementById('btn-close-modal')?.click();
       return {
+        mainMenuHasTitle,
+        stdSubmenuHasTitle,
+        inRunHasTitle,
+        seedInTopBrand,
+        seedInMoreMenu,
+        seedHiddenOnDesktopTopBar,
+        settingsHasSeedBtn,
         ids,
         allSameRow: Math.max(...tops) - Math.min(...tops) <= 4,
         overflowX,
@@ -1825,6 +1841,13 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
       };
     })()`);
 
+    assert.equal(selectAudit.mainMenuHasTitle, true, 'Main Menu must retain top-left 杀戮尖塔 title');
+    assert.equal(selectAudit.stdSubmenuHasTitle, false, 'Submenu must omit top-left 杀戮尖塔 title');
+    assert.equal(selectAudit.inRunHasTitle, false, 'In-run HUD must omit top-left 杀戮尖塔 title');
+    assert.equal(selectAudit.seedInTopBrand, false, 'Seed button must no longer occupy top brand bar');
+    assert.equal(selectAudit.seedInMoreMenu, true, 'Seed button must live inside More menu');
+    assert.equal(selectAudit.seedHiddenOnDesktopTopBar, true, 'Seed button must not clutter desktop top action bar');
+    assert.equal(selectAudit.settingsHasSeedBtn, true, 'Settings modal must expose active run Seed & Copy Link button');
     assert.deepEqual(selectAudit.ids, ['ironclad', 'silent', 'watcher', 'defect']);
     assert.equal(selectAudit.allSameRow, true, 'All 4 hero cards must sit cleanly on 1 horizontal row on 1280px desktop');
     assert.ok(selectAudit.overflowX <= 1, `Desktop 4-hero select must not overflow horizontally: ${selectAudit.overflowX}`);
@@ -1838,7 +1861,7 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
     assert.equal(selectAudit.starterRelic, 'cracked_core');
     assert.equal(selectAudit.starterPotion, 'focus_potion');
 
-    // 2. Desktop 1280x820 Combat: verify Adaptive Side Rail geometry across 1, 2, 3 enemies × 3 & 10 orbs (ZERO overlap, 0px vertical bloat)
+    // 2. Desktop 1280x820 Combat: verify Adaptive Side Rail geometry across 1, 2, 3 enemies × 3 & 10 orbs (ZERO overlap, 0px vertical bloat, rightmost front orb in 2-col)
     const desktopCombatAudit = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
       const st = app.getState();
@@ -1887,6 +1910,8 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
           const enemySide = document.querySelector('.fighters-group.enemy-side');
           const railRect = desktopRail.getBoundingClientRect();
           const enemyRect = enemySide.getBoundingClientRect();
+          const slot0Rect = desktopRail.querySelector('[data-orb-index="0"]').getBoundingClientRect();
+          const slot1Rect = desktopRail.querySelector('[data-orb-index="1"]').getBoundingClientRect();
           matrix.push({
             enemyCount,
             slotCount,
@@ -1894,6 +1919,7 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
             mobileHidden: getComputedStyle(mobileRail).display === 'none',
             slotDomCount: desktopRail.querySelectorAll('.orb-slot').length,
             hasFrontRing: Boolean(desktopRail.querySelector('.orb-slot.orb-front')),
+            frontRightOfSecondInTwoCol: slotCount > 5 ? slot0Rect.left > slot1Rect.left : true,
             overlapEnemy: Math.round(railRect.right - enemyRect.left),
             arenaHeightDelta: Math.round(arenaRect.height - baseArenaH),
             overflowX: document.documentElement.scrollWidth - window.innerWidth,
@@ -1908,6 +1934,7 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
       assert.equal(row.mobileHidden, true, `Mobile inline orb rail must be hidden on desktop (${row.enemyCount}e/${row.slotCount}o)`);
       assert.equal(row.slotDomCount, row.slotCount);
       assert.equal(row.hasFrontRing, true);
+      assert.equal(row.frontRightOfSecondInTwoCol, true, `Desktop 2-col orb rail must place front orb #1 in rightmost column (${row.enemyCount}e/${row.slotCount}o)`);
       assert.ok(row.overlapEnemy <= 1, `Desktop orb rail overlapped enemy side by ${row.overlapEnemy}px (${row.enemyCount}e/${row.slotCount}o)`);
       assert.ok(row.arenaHeightDelta <= 4, `Desktop orb rail bloated arena height by ${row.arenaHeightDelta}px (${row.enemyCount}e/${row.slotCount}o)`);
       assert.ok(row.overflowX <= 1, `Desktop overflowX=${row.overflowX} (${row.enemyCount}e/${row.slotCount}o)`);
@@ -2005,7 +2032,7 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
     })()`);
     assert.equal(compAudit.total, 73, 'Compendium Defect filter must display all 73 Defect cards');
 
-    // 5. Mobile 390x844 & 375x667: Adaptive Inline Orb Rail (zero-bloat, zero-overflow, tooltip tap) + 4-tab Character Select
+    // 5. Mobile 390x844 & 375x667: Adaptive Inline Orb Rail (zero-bloat, zero-overflow, rightmost front orb, tooltip tap, Seed in ☰ menu)
     for (const vp of [
       { width: 390, height: 844 },
       { width: 375, height: 667 },
@@ -2054,6 +2081,14 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
           const turnBadge = document.querySelector('#player-unit .player-turn-badge');
           const handBarText = document.getElementById('mobile-hand-bar')?.textContent || '';
           const mRect = mRail.getBoundingClientRect();
+          const frontSlotRect = mRail.querySelector('[data-orb-index="0"]').getBoundingClientRect();
+          const secondSlotRect = mRail.querySelector('[data-orb-index="1"]').getBoundingClientRect();
+          const sameRowMaxRight = Math.max(
+            ...[...mRail.querySelectorAll('.orb-slot')]
+              .map((el) => el.getBoundingClientRect())
+              .filter((r) => Math.abs(r.top - frontSlotRect.top) <= 4)
+              .map((r) => Math.round(r.right))
+          );
           cases.push({
             enemyCount,
             slotCount,
@@ -2061,17 +2096,25 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
             desktopHidden: getComputedStyle(dRail).display === 'none',
             turnBadgeHidden: getComputedStyle(turnBadge).display === 'none',
             handBarHasTurn: /T\\d+/.test(handBarText),
+            frontIsRightmost: Math.round(frontSlotRect.right) >= sameRowMaxRight - 1 && frontSlotRect.left > secondSlotRect.left,
             overflowX: document.documentElement.scrollWidth - window.innerWidth,
             scrollHeight: document.documentElement.scrollHeight,
           });
         }
+
+        // Open mobile ☰ menu -> verify Seed button visible inside drawer -> clicking closes drawer
+        document.getElementById('btn-hud-more')?.click();
+        const seedRectInDrawer = document.getElementById('btn-copy-seed')?.getBoundingClientRect();
+        const mobileSeedVisibleInMenu = Boolean(seedRectInDrawer && seedRectInDrawer.width > 0 && seedRectInDrawer.height > 0);
+        document.getElementById('btn-copy-seed')?.click();
+        const menuClosedAfterSeedCopy = !document.getElementById('hud-more-menu')?.classList.contains('open');
 
         // Tap mobile orb rail to open ordered tooltip
         document.getElementById('player-orb-rail-mobile')?.click();
         const tip = document.getElementById('spire-tooltip');
         const tipVisible = Boolean(tip && !tip.hidden);
         const tipDesc = tip?.textContent || '';
-        return { cases, tipVisible, tipDesc };
+        return { cases, mobileSeedVisibleInMenu, menuClosedAfterSeedCopy, tipVisible, tipDesc };
       })()`);
 
       for (const c of mobileCombatAudit.cases) {
@@ -2079,13 +2122,16 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
         assert.equal(c.desktopHidden, true, `Mobile ${vp.width}px must hide desktop side rail`);
         assert.equal(c.turnBadgeHidden, true, `Mobile ${vp.width}px must swap out .player-turn-badge for +0px bloat`);
         assert.equal(c.handBarHasTurn, true, `Mobile ${vp.width}px hand bar must show compact turn tag (T1)`);
+        assert.equal(c.frontIsRightmost, true, `Mobile ${vp.width}px front next-to-evoke orb #1 must sit on the FAR RIGHT (${c.enemyCount}e/${c.slotCount}o)`);
         assert.ok(c.overflowX <= 1, `Mobile ${vp.width}px overflowX=${c.overflowX} (${c.enemyCount}e/${c.slotCount}o)`);
         if (vp.width === 390 && c.enemyCount === 1 && c.slotCount <= 5) {
           assert.ok(c.scrollHeight <= 844, `390x844 1-enemy ${c.slotCount}-orb combat must fit cleanly in 844px (got ${c.scrollHeight}px)`);
         }
       }
+      assert.equal(mobileCombatAudit.mobileSeedVisibleInMenu, true, `Mobile ${vp.width}px ☰ menu must show Seed copy button`);
+      assert.equal(mobileCombatAudit.menuClosedAfterSeedCopy, true, `Mobile ${vp.width}px ☰ menu must close after tapping Seed`);
       assert.equal(mobileCombatAudit.tipVisible, true, `Tapping mobile ${vp.width}px orb rail must open ordered tooltip`);
-      assert.ok(mobileCombatAudit.tipDesc.includes('#1 队首'), `Tooltip should list front orb first: ${mobileCombatAudit.tipDesc}`);
+      assert.ok(mobileCombatAudit.tipDesc.includes('#1 队首·最右'), `Tooltip should note rightmost front orb first: ${mobileCombatAudit.tipDesc}`);
     }
 
     // 6. Verify 375px Mobile 4-tab Character Select stays single-line with zero horizontal overflow
