@@ -458,18 +458,24 @@ export function getCardTypeIconSvg(cardType) {
 
 export function getIntentIconSvg(intentType) {
   if (intentType && intentType.startsWith('attack')) {
-    return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 3l3 3-9 9H5v-3l9-9z"/><path d="M3 17l3-3"/></svg>`;
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="attack" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 3l3 3-9 9H5v-3l9-9z"/><path d="M3 17l3-3"/></svg>`;
   }
   if (intentType === 'defend' || intentType === 'defend_buff') {
-    return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 2l6 2.5v5c0 4.2-2.6 6.9-6 8.5-3.4-1.6-6-4.3-6-8.5v-5L10 2z"/></svg>`;
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="defend" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 2l6 2.5v5c0 4.2-2.6 6.9-6 8.5-3.4-1.6-6-4.3-6-8.5v-5L10 2z"/></svg>`;
   }
   if (intentType === 'buff') {
-    return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg>`;
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="buff" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg>`;
+  }
+  if (intentType === 'stun') {
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="stun" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="10" cy="10.5" rx="7" ry="3.2" transform="rotate(-18 10 10.5)" stroke-opacity="0.72"/><path d="M10 3l.8 2.1L13 6l-2.2.8L10 9l-.8-2.2L7 6l2.2-.9z" fill="currentColor" fill-opacity="0.85" stroke="none"/><circle cx="15.8" cy="12.2" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.5" cy="13.2" r="1.1" fill="currentColor" stroke="none"/></svg>`;
   }
   if (intentType === 'sleep') {
-    return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.8 13.4A5.8 5.8 0 0 1 6.6 6.2a5.8 5.8 0 1 0 7.2 7.2z" fill="currentColor" fill-opacity="0.22"/><path d="M12.2 4.2h3.4l-3.4 3.4h3.4"/></svg>`;
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="sleep" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.8 13.4A5.8 5.8 0 0 1 6.6 6.2a5.8 5.8 0 1 0 7.2 7.2z" fill="currentColor" fill-opacity="0.22"/><path d="M12.2 4.2h3.4l-3.4 3.4h3.4"/></svg>`;
   }
-  return `<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 7l6 6M13 7l-6 6"/></svg>`;
+  if (intentType === 'unknown') {
+    return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="unknown" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.4 7.4a2.8 2.8 0 1 1 4.4 2.3c-.9.6-1.8 1.2-1.8 2.4"/><circle cx="10" cy="15.4" r="1" fill="currentColor" stroke="none"/></svg>`;
+  }
+  return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="debuff" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M7 7l6 6M13 7l-6 6"/></svg>`;
 }
 
 export function getLootIconSvg(kind) {

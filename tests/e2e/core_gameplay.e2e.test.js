@@ -1141,6 +1141,90 @@ test('P2 Real Chromium E2E: Mobile 390x844 responsive layout, non-overlapping 4-
       `Unified .intent-badge tooltip must include next-turn forecast, got: ${mobileCombatAudit.tipDesc}`
     );
 
+    // Verify all enemy intent types render concise icons + numbers with ZERO redundant Chinese words (强化/格挡/干扰/减益/盾/沉睡/眩晕/冷却) while keeping full tooltips
+    const intentIconAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const origEnemies = structuredClone(st.combat.enemies);
+      const base = origEnemies[0];
+      const testCases = [
+        { key: 'attack', intent: { id: 't_atk', name: '重击', type: 'attack', damage: 11, hits: 2 } },
+        { key: 'attack_block', intent: { id: 't_ab', name: '撞击防御', type: 'attack_block', damage: 9, hits: 1, block: 8 } },
+        { key: 'attack_defend', intent: { id: 't_ad', name: '硬甲反击', type: 'attack_defend', damage: 12, hits: 1, block: 12 } },
+        { key: 'attack_buff', intent: { id: 't_abuff', name: '狂暴猛击', type: 'attack_buff', damage: 10, hits: 1 } },
+        { key: 'attack_debuff', intent: { id: 't_adeb', name: '腐蚀爪击', type: 'attack_debuff', damage: 7, hits: 1 } },
+        { key: 'defend', intent: { id: 't_def', name: '举盾', type: 'defend', block: 14 } },
+        { key: 'defend_buff', intent: { id: 't_db', name: '咆哮防御', type: 'defend_buff', block: 6 } },
+        { key: 'buff', intent: { id: 't_buff', name: '仪式', type: 'buff', summary: '意图：获得 3 点仪式' } },
+        { key: 'debuff', intent: { id: 't_deb', name: '虚弱射线', type: 'debuff', summary: '意图：施加 2 层虚弱' } },
+        { key: 'sleep', intent: { id: 'asleep_idle', name: '甲壳沉睡', type: 'sleep', summary: '意图：沉睡中' } },
+        { key: 'stun', intent: { id: 'stunned', name: '惊醒眩晕', type: 'sleep', summary: '意图：眩晕无法行动' } },
+      ];
+      const results = [];
+      for (const tc of testCases) {
+        st.combat.enemies = [{ ...structuredClone(base), id: 'e_intent_probe', hp: 40, maxHp: 40, intent: tc.intent }];
+        app.render();
+        const badge = document.querySelector('#enemy-unit-e_intent_probe .intent-badge');
+        const icons = [...badge.querySelectorAll('svg[data-intent-icon]')].map((s) => s.dataset.intentIcon);
+        results.push({
+          key: tc.key,
+          text: badge.textContent.replace(/\\s+/g, ' ').trim(),
+          icons,
+          iconOnly: badge.classList.contains('icon-only'),
+          classes: [...badge.classList],
+          ariaLabel: badge.getAttribute('aria-label') || '',
+          tooltipTitle: badge.dataset.tooltipTitle || '',
+          tooltipDesc: badge.dataset.tooltipDesc || '',
+          rectW: Math.round(badge.getBoundingClientRect().width),
+          rectH: Math.round(badge.getBoundingClientRect().height),
+        });
+      }
+      st.combat.enemies = origEnemies;
+      app.render();
+      return results;
+    })()`);
+
+    const redundantWordsRe = /强化|格挡|干扰|减益|盾|沉睡|眩晕|冷却/;
+    const byKey = Object.fromEntries(intentIconAudit.map((r) => [r.key, r]));
+    for (const row of intentIconAudit) {
+      assert.equal(
+        redundantWordsRe.test(row.text),
+        false,
+        `Enemy intent "${row.key}" badge must not repeat redundant Chinese words alongside icons, got text="${row.text}"`
+      );
+      assert.ok(row.icons.length >= 1, `Intent "${row.key}" must render at least one intent SVG icon`);
+      assert.ok(row.tooltipTitle.includes('行动意图') && row.tooltipDesc.length > 0, `Intent "${row.key}" must preserve full tooltip details`);
+      assert.ok(row.ariaLabel.length > 0, `Intent "${row.key}" must expose accessible aria-label`);
+      assert.ok(row.rectW >= 24 && row.rectH >= 20, `Intent "${row.key}" tap target must remain >= 24x20 (got ${row.rectW}x${row.rectH})`);
+    }
+    assert.deepEqual(byKey.attack.icons, ['attack']);
+    assert.equal(byKey.attack.text, '11×2');
+    assert.deepEqual(byKey.attack_block.icons, ['attack', 'defend']);
+    assert.equal(byKey.attack_block.text, '98');
+    assert.deepEqual(byKey.attack_defend.icons, ['attack', 'defend']);
+    assert.equal(byKey.attack_defend.text, '1212');
+    assert.deepEqual(byKey.attack_buff.icons, ['attack', 'buff']);
+    assert.equal(byKey.attack_buff.text, '10');
+    assert.deepEqual(byKey.attack_debuff.icons, ['attack', 'debuff']);
+    assert.equal(byKey.attack_debuff.text, '7');
+    assert.deepEqual(byKey.defend.icons, ['defend']);
+    assert.equal(byKey.defend.text, '14');
+    assert.deepEqual(byKey.defend_buff.icons, ['defend', 'buff']);
+    assert.equal(byKey.defend_buff.text, '6');
+    assert.deepEqual(byKey.buff.icons, ['buff']);
+    assert.equal(byKey.buff.text, '');
+    assert.equal(byKey.buff.iconOnly, true);
+    assert.deepEqual(byKey.debuff.icons, ['debuff']);
+    assert.equal(byKey.debuff.text, '');
+    assert.equal(byKey.debuff.iconOnly, true);
+    assert.ok(byKey.debuff.classes.includes('debuff'), 'Debuff intent badge must use distinct .debuff color class');
+    assert.deepEqual(byKey.sleep.icons, ['sleep']);
+    assert.equal(byKey.sleep.text, '');
+    assert.equal(byKey.sleep.iconOnly, true);
+    assert.deepEqual(byKey.stun.icons, ['stun']);
+    assert.equal(byKey.stun.text, '');
+    assert.equal(byKey.stun.iconOnly, true);
+
     const auditSideBySideCombat = async (enemyCount) => {
       return cdp.evaluate(`(() => {
         const app = window.__SPIRE_APP__;

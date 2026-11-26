@@ -506,6 +506,16 @@
     gap: 4px;
   }
 
+  .intent-badge.icon-only {
+    min-width: 28px;
+    padding: 2px 7px;
+  }
+
+  .intent-sub-icon svg {
+    width: 13px;
+    height: 13px;
+  }
+
   .unit-name-row {
     min-height: 21px;
     font-size: 0.8rem;
@@ -532,6 +542,11 @@
   .combat-arena[data-enemy-count='3'] .intent-badge {
     padding: 2px 5px;
     font-size: 0.7rem;
+  }
+
+  .combat-arena[data-enemy-count='3'] .intent-badge.icon-only {
+    min-width: 26px;
+    padding: 2px 6px;
   }
 
   .combat-arena[data-enemy-count='3'] .next-intent-hint {
@@ -1484,6 +1499,16 @@
     padding: 2px 5px;
     font-size: 0.68rem;
     gap: 3px;
+  }
+
+  .intent-badge.icon-only {
+    min-width: 26px;
+    padding: 2px 5px;
+  }
+
+  .intent-sub-icon svg {
+    width: 12px;
+    height: 12px;
   }
 
   .stance-pill {

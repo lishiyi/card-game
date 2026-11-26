@@ -3542,6 +3542,13 @@ test('Section A3 — Act 2 Boss Summons: Bronze Automaton + Bronze Orbs (Stasis 
   endPlayerTurn(baCycle);
   assert.equal(bossC.intent.id, 'automaton_stunned', 'Automaton must enter overload cooldown after Hyper Beam at A0');
   assert.equal(getEnemyIntentPreview(bossC, baCycle.player).label, '冷却');
+  const attackDefendPreview = getEnemyIntentPreview(
+    { ...bossC, intent: { id: 'wm_guard', name: '硬甲反击', type: 'attack_defend', damage: 12, hits: 1, block: 12 } },
+    baCycle.player
+  );
+  assert.equal(attackDefendPreview.hitText, '12');
+  assert.equal(attackDefendPreview.block, 12);
+  assert.ok(attackDefendPreview.detail.includes('12 点格挡'));
 
   // 2. The Collector: Turn 0 spawns 2 Torch Head minions -> Turn 3 You Are Mine -> killing Collector makes Torch Heads flee
   const colRun = createNewRun({ seed: 99503, characterId: 'ironclad', skipNeow: true });

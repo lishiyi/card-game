@@ -143,6 +143,11 @@
   text-overflow: ellipsis;
 }
 
+.intent-badge.icon-only {
+  min-width: 32px;
+  padding: 3px 8px;
+}
+
 .intent-badge.attack {
   color: hsl(12, 85%, 70%);
 }
@@ -153,6 +158,41 @@
 
 .intent-badge.buff {
   color: var(--accent-brass);
+}
+
+.intent-badge.debuff {
+  color: hsl(284, 80%, 76%);
+}
+
+.intent-badge.sleep {
+  color: hsl(222, 54%, 78%);
+}
+
+.intent-sub-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.intent-sub-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.intent-sub-icon.defend,
+.intent-sub-num.defend {
+  color: hsl(198, 76%, 72%);
+}
+
+.intent-sub-icon.buff {
+  color: var(--accent-brass);
+}
+
+.intent-sub-icon.debuff {
+  color: hsl(284, 80%, 76%);
 }
 
 .unit-figure {

@@ -50,13 +50,21 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           ? predictNextTurnIntents(enemy, state.player, state.ascension ?? 0, combat)
           : { summaryText: '', tooltipLines: [] };
 
+      const intentType = intentPreview.type || 'unknown';
+      const isStunIntent =
+        intentType === 'sleep' &&
+        (enemy.intent?.id === 'stunned' || enemy.intent?.id === 'automaton_stunned');
       const intentClass = isRegrowing
         ? 'buff'
         : intentPreview.isAttack
           ? 'attack'
-          : intentPreview.type.startsWith('defend')
+          : intentType.startsWith('defend')
             ? 'defend'
-            : 'buff';
+            : intentType === 'debuff'
+              ? 'debuff'
+              : intentType === 'sleep'
+                ? 'sleep'
+                : 'buff';
       const targetable = enemy.hp > 0 && isTargetingEnemy;
 
       const combinedTooltipDesc =
@@ -68,12 +76,50 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             ? enemy.intent.summary
             : '';
 
-      const intentLabelText =
+      const intentAriaLabel =
         enemy.hp > 0
-          ? intentPreview.label
+          ? `${enemy.intent?.name ? `${enemy.intent.name}：` : ''}${intentPreview.label}`
           : isRegrowing
             ? enemy.intent?.name || `复苏中 (${enemy.darklingRegrowTurns}回合)`
             : '已击败';
+
+      let intentBadgeInnerHtml = '';
+      let isIconOnlyIntent = false;
+      if (isRegrowing) {
+        intentBadgeInnerHtml = `${getIntentIconSvg('buff')}<span class="intent-num">${escapeHtml(enemy.darklingRegrowTurns)}</span>`;
+      } else if (enemy.hp > 0) {
+        const hitText = intentPreview.hitText || (intentPreview.isAttack ? String(intentPreview.perHitDamage) : '');
+        const blockVal = intentPreview.block > 0 ? String(intentPreview.block) : '';
+        if (intentType === 'attack') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('attack')}<span class="intent-num">${escapeHtml(hitText)}</span>`;
+        } else if (intentType === 'attack_block' || intentType === 'attack_defend') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('attack')}<span class="intent-num">${escapeHtml(hitText)}</span><span class="intent-sub-icon defend">${getIntentIconSvg('defend')}</span>${blockVal ? `<span class="intent-sub-num defend">${escapeHtml(blockVal)}</span>` : ''}`;
+        } else if (intentType === 'attack_buff') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('attack')}<span class="intent-num">${escapeHtml(hitText)}</span><span class="intent-sub-icon buff">${getIntentIconSvg('buff')}</span>`;
+        } else if (intentType === 'attack_debuff') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('attack')}<span class="intent-num">${escapeHtml(hitText)}</span><span class="intent-sub-icon debuff">${getIntentIconSvg('debuff')}</span>`;
+        } else if (intentType === 'defend') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('defend')}${blockVal ? `<span class="intent-num">${escapeHtml(blockVal)}</span>` : ''}`;
+          isIconOnlyIntent = !blockVal;
+        } else if (intentType === 'defend_buff') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('defend')}${blockVal ? `<span class="intent-num">${escapeHtml(blockVal)}</span>` : ''}<span class="intent-sub-icon buff">${getIntentIconSvg('buff')}</span>`;
+          isIconOnlyIntent = !blockVal;
+        } else if (intentType === 'buff') {
+          intentBadgeInnerHtml = getIntentIconSvg('buff');
+          isIconOnlyIntent = true;
+        } else if (intentType === 'debuff') {
+          intentBadgeInnerHtml = getIntentIconSvg('debuff');
+          isIconOnlyIntent = true;
+        } else if (intentType === 'sleep') {
+          intentBadgeInnerHtml = getIntentIconSvg(isStunIntent ? 'stun' : 'sleep');
+          isIconOnlyIntent = true;
+        } else if (intentPreview.isAttack) {
+          intentBadgeInnerHtml = `${getIntentIconSvg('attack')}<span class="intent-num">${escapeHtml(hitText)}</span>`;
+        } else {
+          intentBadgeInnerHtml = getIntentIconSvg('unknown');
+          isIconOnlyIntent = true;
+        }
+      }
 
       const enemyAuraClasses = [
         enemy.hp > 0 && enemy.block > 0 ? 'has-block' : '',
@@ -98,16 +144,17 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           <div class="intent-stack">
             <div class="intent-primary-row">
               <div
-                class="intent-badge ${intentClass}"
+                class="intent-badge ${intentClass}${isIconOnlyIntent ? ' icon-only' : ''}"
+                data-intent-type="${escapeHtml(isRegrowing ? 'regrow' : intentType)}"
                 tabindex="0"
+                aria-label="${escapeHtml(intentAriaLabel)}"
                 ${
                   combinedTooltipDesc
                     ? `data-tooltip-title="${escapeHtml(enemy.intent?.name ? `行动意图：${enemy.intent.name}` : '敌方行动意图')}" data-tooltip-tag="${escapeHtml(enemy.name)}" data-tooltip-desc="${escapeHtml(combinedTooltipDesc)}"`
                     : ''
                 }
               >
-                ${enemy.hp > 0 || isRegrowing ? getIntentIconSvg(isRegrowing ? 'buff' : intentPreview.type) : ''}
-                <span>${escapeHtml(intentLabelText)}</span>
+                ${intentBadgeInnerHtml}
               </div>
             </div>
             ${
