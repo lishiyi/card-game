@@ -79,6 +79,8 @@ export {
   buyShopExclusiveRelic,
   buyShopPotion,
   buyShopPurge,
+  hasShopChanges,
+  resetShop,
   leaveShop,
 } from './run/outpost.js';
 

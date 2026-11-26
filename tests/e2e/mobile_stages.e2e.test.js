@@ -842,19 +842,31 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
       const bannerText = document.getElementById('combat-banner')?.innerText?.trim() || '';
       const enemyGrad = Boolean(document.querySelector('.enemy-side .unit-svg linearGradient, .enemy-side .unit-svg radialGradient'));
 
-      // Switch to Shop to verify #btn-leave-shop-bottom works cleanly
+      // Switch to Shop to verify #btn-reset-shop-bottom & #btn-leave-shop-bottom work cleanly on 390px mobile
       const app = window.__SPIRE_APP__;
       const st = app.getState();
       st.screen = 'map';
+      st.player.gold = 400;
       const shopNode = st.map.flat().find((n) => n.type === 'shop');
       const prevNode = st.map[shopNode.row - 1][0];
       st.currentNodeId = prevNode.id;
       prevNode.nextIds = [shopNode.id];
       app.render();
       document.getElementById('map-node-' + shopNode.id).click();
+      const shopOverflowX = document.documentElement.scrollWidth - window.innerWidth;
+      const hasBottomReset = Boolean(document.getElementById('btn-reset-shop-bottom'));
+      const bottomResetInitiallyDisabled = Boolean(document.getElementById('btn-reset-shop-bottom')?.disabled);
+      const deckLenBeforeShopBuy = st.player.deck.length;
+      document.querySelector('#shop-class-cards .game-card')?.click();
+      const goldAfterCardBuy = st.player.gold;
+      const bottomResetEnabledAfterBuy = document.getElementById('btn-reset-shop-bottom')?.disabled === false;
+      document.getElementById('btn-reset-shop-bottom')?.click();
+      const goldAfterMobileReset = st.player.gold;
+      const deckLenAfterMobileReset = st.player.deck.length;
       const hasBottomLeave = Boolean(document.getElementById('btn-leave-shop-bottom'));
       document.getElementById('btn-leave-shop-bottom').click();
       const leftShopScreen = st.screen;
+      const snapshotClearedOnLeave = st.shopSnapshot === null;
 
       return {
         handCount: handCards.length,
@@ -863,8 +875,16 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
         endTurnText,
         bannerHasKeyboardHint: bannerText.includes('数字键'),
         enemyGrad,
+        shopOverflowX,
+        hasBottomReset,
+        bottomResetInitiallyDisabled,
+        goldDecreasedOnBuy: goldAfterCardBuy < 400,
+        bottomResetEnabledAfterBuy,
+        goldRestoredOnMobileReset: goldAfterMobileReset === 400,
+        deckRestoredOnMobileReset: deckLenAfterMobileReset === deckLenBeforeShopBuy,
         hasBottomLeave,
         leftShopScreen,
+        snapshotClearedOnLeave,
       };
     })()`);
     assert.equal(mobileCombatPolish.artSvgs, mobileCombatPolish.handCount, 'Every hand card must render an inline card-art SVG');
@@ -872,7 +892,15 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
     assert.equal(mobileCombatPolish.endTurnText, '结束回合', 'Mobile End Turn button should hide desktop (E) shortcut');
     assert.equal(mobileCombatPolish.bannerHasKeyboardHint, false, 'Mobile combat banner should hide desktop keyboard hints');
     assert.equal(mobileCombatPolish.enemyGrad, true, 'Enemy SVG should render hero-tier gradient shading');
+    assert.ok(mobileCombatPolish.shopOverflowX <= 1, `Mobile shop with Reset button must have zero horizontal overflow (got ${mobileCombatPolish.shopOverflowX}px)`);
+    assert.equal(mobileCombatPolish.hasBottomReset, true, 'Shop must include bottom Reset Shop button');
+    assert.equal(mobileCombatPolish.bottomResetInitiallyDisabled, true);
+    assert.equal(mobileCombatPolish.goldDecreasedOnBuy, true);
+    assert.equal(mobileCombatPolish.bottomResetEnabledAfterBuy, true);
+    assert.equal(mobileCombatPolish.goldRestoredOnMobileReset, true, 'Mobile Reset Shop must restore gold to entry amount');
+    assert.equal(mobileCombatPolish.deckRestoredOnMobileReset, true, 'Mobile Reset Shop must restore deck to entry state');
     assert.equal(mobileCombatPolish.hasBottomLeave, true, 'Shop must include bottom Leave Shop button');
+    assert.equal(mobileCombatPolish.snapshotClearedOnLeave, true, 'Leaving shop must clear shopSnapshot');
     assert.equal(mobileCombatPolish.leftShopScreen, 'map', 'Clicking bottom Leave Shop button must return to map');
 
     // 6. Verify mobile 3-hero tab switcher, real-touch persistent tooltips (relic/potion, daily pills, modal pills, unlocked A1/A2 & locked A3), & Daily Challenge auto-scroll to Floor 1

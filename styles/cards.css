@@ -379,9 +379,20 @@
   display: none;
 }
 
+.shop-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .shop-bottom-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--border-muted);

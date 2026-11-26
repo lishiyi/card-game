@@ -1420,33 +1420,58 @@ test('Real Chromium E2E: New-Run Confirmation, Tiered Chests, Dual Shop Relics +
       document.getElementById('map-node-' + shopNode.id).click();
 
       st.shop.shopRelicOffer = { relicId: 'membership_card', basePrice: 150, price: 150, sold: false };
+      if (st.shopSnapshot?.shop) {
+        st.shopSnapshot.shop.shopRelicOffer = structuredClone(st.shop.shopRelicOffer);
+      }
       app.render();
       const hasGeneralRelicBtn = Boolean(document.getElementById('btn-buy-relic'));
       const hasShopRelicBtn = Boolean(document.getElementById('btn-buy-shop-relic'));
+      const resetDisabledInitially = Boolean(document.getElementById('btn-reset-shop')?.disabled);
       const shopRelicText = document.getElementById('btn-buy-shop-relic')?.textContent || '';
+      const goldBefore = st.player.gold;
       const genPriceBefore = st.shop.relicOffer.price;
       const purgePriceBefore = st.shop.purgeCost;
       document.getElementById('btn-buy-shop-relic').click();
       const hasMemberBadge = Boolean(document.querySelector('.shop-member-badge'));
+      const resetEnabledAfterBuy = document.getElementById('btn-reset-shop')?.disabled === false;
       const genPriceAfter = st.shop.relicOffer.price;
       const purgePriceAfter = st.shop.purgeCost;
+
+      // Click #btn-reset-shop -> restores gold, removes Membership Card & badge, restores original shelf prices & disables button again
+      document.getElementById('btn-reset-shop').click();
+      const goldAfterReset = st.player.gold;
+      const hasMemberBadgeAfterReset = Boolean(document.querySelector('.shop-member-badge'));
+      const genPriceAfterReset = st.shop.relicOffer.price;
+      const resetDisabledAfterReset = Boolean(document.getElementById('btn-reset-shop')?.disabled);
       return {
         chestBadgeText,
         hasGeneralRelicBtn,
         hasShopRelicBtn,
+        resetDisabledInitially,
+        resetEnabledAfterBuy,
         shopRelicHasLabel: shopRelicText.includes('[商店专属]'),
         hasMemberBadge,
         genPriceHalved: genPriceAfter <= Math.ceil(genPriceBefore * 0.5) + 1,
         purgePriceHalved: purgePriceAfter <= Math.ceil(purgePriceBefore * 0.5) + 1,
+        goldRestored: goldAfterReset === goldBefore,
+        hasMemberBadgeAfterReset,
+        genPriceRestored: genPriceAfterReset === genPriceBefore,
+        resetDisabledAfterReset,
       };
     })()`);
     assert.ok(['小宝箱', '中宝箱', '大宝箱'].includes(shopTreasureAudit.chestBadgeText));
     assert.equal(shopTreasureAudit.hasGeneralRelicBtn, true);
     assert.equal(shopTreasureAudit.hasShopRelicBtn, true);
+    assert.equal(shopTreasureAudit.resetDisabledInitially, true, 'Reset Shop button must start disabled before any purchase');
+    assert.equal(shopTreasureAudit.resetEnabledAfterBuy, true, 'Reset Shop button must enable after buying in shop');
     assert.equal(shopTreasureAudit.shopRelicHasLabel, true);
     assert.equal(shopTreasureAudit.hasMemberBadge, true);
     assert.equal(shopTreasureAudit.genPriceHalved, true);
     assert.equal(shopTreasureAudit.purgePriceHalved, true);
+    assert.equal(shopTreasureAudit.goldRestored, true, 'Clicking Reset Shop must restore original gold');
+    assert.equal(shopTreasureAudit.hasMemberBadgeAfterReset, false, 'Clicking Reset Shop must roll back purchased Membership Card');
+    assert.equal(shopTreasureAudit.genPriceRestored, true, 'Clicking Reset Shop must restore original pre-discount shelf prices');
+    assert.equal(shopTreasureAudit.resetDisabledAfterReset, true, 'Reset Shop button returns to disabled after rollback');
 
     // 2. Act 2 Boss Altar -> proceed to Act 3 -> Act 3 Map, Medical Kit playable Wound, Time Eater SVG, Happy Flower counter HUD, Game Over skips confirmation
     const act3UiAudit = await cdp.evaluate(`(() => {

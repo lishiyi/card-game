@@ -41,6 +41,7 @@ import {
   rollUnownedRelicId,
   rollRewardCards,
   buildShopState,
+  captureShopSnapshot,
   rollDistinctRareCards,
 } from './state_helpers.js';
 
@@ -347,6 +348,7 @@ export function selectMapNode(state, nodeId) {
       }
       state.shop = buildShopState(state);
       state.shop.mealTicketHealed = mealTicketHealed;
+      state.shopSnapshot = captureShopSnapshot(state);
       state.screen = 'shop';
       return { ok: true, screen: state.screen };
     }

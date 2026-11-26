@@ -550,6 +550,21 @@ export function buildShopState(state) {
   };
 }
 
+export function captureShopSnapshot(state) {
+  return structuredClone({
+    rngState: state.rngState,
+    nextUid: state.nextUid,
+    purgeCount: state.purgeCount ?? 0,
+    player: state.player,
+    shop: state.shop,
+    stats: state.stats || {},
+    relicCounters: state.relicCounters || {},
+    relicFlags: state.relicFlags || {},
+    _relicPickupSeq: state._relicPickupSeq || 0,
+    lastRelicPickup: state.lastRelicPickup || null,
+  });
+}
+
 export function discardPotion(state, slotIndex) {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= state.player.potions.length) {
     return { ok: false, reason: '药水栏位无效' };

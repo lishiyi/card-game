@@ -91,6 +91,7 @@ import {
   grantRelicToPlayer,
   hasAllAct4Keys,
   hasPendingNeowBlessing,
+  hasShopChanges,
   leaveShop,
   leaveTreasureRoom,
   liftAtCampfire,
@@ -100,6 +101,7 @@ import {
   proceedFromReward,
   proceedToNextAct,
   recallRubyKey,
+  resetShop,
   restHeal,
   restUpgradeCard,
   revealTreasureChest,
@@ -3342,4 +3344,102 @@ test('The Defect run setup (75/70 HP, 10 cards, Cracked/Frozen Core), 4-hero poo
   const glossary = getGlossaryEntries();
   assert.ok(glossary.some((e) => e.id === 'kw_defect_orbs'));
   assert.ok(glossary.some((e) => e.id === 'kw_focus_lockon'));
+});
+
+test('Shop reset (重新购买): restores exact shop entry shelf, prices, gold, deck, relics, potions, HP/MaxHP, purgeCount & deterministic RNG while keeping Meal Ticket entry heal', () => {
+  const state = createNewRun({ seed: 77441, characterId: 'ironclad', skipNeow: true });
+  state.player.hp = 50;
+  state.player.gold = 900;
+  grantRelicToPlayer(state, 'meal_ticket');
+  // Add a Parasite curse to verify Max HP loss from purging Parasite also rolls back cleanly
+  const parasite = { instanceId: 'c_parasite_shop_reset', cardId: 'parasite', upgraded: false };
+  addCardToMasterDeck(state, parasite);
+
+  const shopNode = state.map.flat().find((n) => n.type === 'shop');
+  assert.ok(shopNode, 'Map must contain a shop node');
+  const prevNode = state.map[shopNode.row - 1][0];
+  state.currentNodeId = prevNode.id;
+  prevNode.nextIds = [shopNode.id];
+
+  assert.equal(selectMapNode(state, shopNode.id).ok, true);
+  assert.equal(state.screen, 'shop');
+  assert.equal(state.player.hp, 65, 'Meal Ticket must heal +15 HP upon entering shop');
+  assert.ok(state.shopSnapshot, 'Entering shop must capture shopSnapshot');
+  assert.equal(hasShopChanges(state), false, 'Freshly entered shop has no changes yet');
+  assert.equal(resetShop(state).ok, false, 'resetShop rejects no-op reset before any purchase/change');
+
+  // Inject Membership Card + Whetstone on the snapshot & live shelf so we verify discount & deterministic upgrade rollback
+  state.shop.shopRelicOffer = { relicId: 'membership_card', basePrice: 150, price: 150, sold: false };
+  state.shop.relicOffer = { relicId: 'whetstone', basePrice: 180, price: 180, sold: false };
+  state.shopSnapshot.shop = structuredClone(state.shop);
+
+  const entryGold = state.player.gold;
+  const entryHp = state.player.hp;
+  const entryMaxHp = state.player.maxHp;
+  const entryDeckSnapshot = structuredClone(state.player.deck);
+  const entryRelics = [...state.player.relics];
+  const entryPotions = [...state.player.potions];
+  const entryCard0Price = state.shop.cards[0].price;
+  const entryPurgeCost = state.shop.purgeCost;
+  const entryPurgeCount = state.purgeCount;
+
+  // Perform every type of shop mutation: discard potion, buy Membership Card (50% discount), buy Whetstone (upgrades 2 attacks), buy class card, buy colorless card, buy potion, purge Parasite (-3 Max HP)
+  assert.equal(discardPotion(state, 0).ok, true);
+  assert.equal(hasShopChanges(state), true, 'Discarding a potion inside shop counts as a shop change');
+
+  assert.equal(buyShopExclusiveRelic(state).ok, true);
+  assert.ok(state.player.relics.includes('membership_card'));
+  assert.ok(state.shop.cards[0].price < entryCard0Price, 'Membership Card must discount remaining shelf');
+
+  const wh1 = buyShopRelic(state);
+  assert.equal(wh1.ok, true);
+  const upgradedIdsFirstBuy = wh1.upgradedCards.map((c) => c.instanceId);
+  assert.equal(upgradedIdsFirstBuy.length, 2, 'Whetstone upgrades 2 attack cards');
+
+  assert.equal(buyShopCard(state, 0).ok, true);
+  assert.equal(buyShopColorlessCard(state, 0).ok, true);
+  assert.equal(buyShopPotion(state).ok, true);
+  const purgeRes = buyShopPurge(state, parasite.instanceId);
+  assert.equal(purgeRes.ok, true);
+  assert.equal(purgeRes.lostMaxHp, 3, 'Purging Parasite reduces Max HP by 3');
+  assert.equal(state.player.maxHp, entryMaxHp - 3);
+  assert.equal(state.purgeCount, entryPurgeCount + 1);
+  assert.equal(state.stats.colorlessBought, 1);
+
+  // Trigger Reset Shop -> everything restores cleanly to exact shop entry state!
+  const resetRes = resetShop(state);
+  assert.equal(resetRes.ok, true);
+  assert.equal(state.screen, 'shop');
+  assert.equal(state.player.gold, entryGold, 'Gold restored to exact entry gold');
+  assert.equal(state.player.hp, entryHp, 'Meal Ticket entry heal preserved after shop reset');
+  assert.equal(state.player.maxHp, entryMaxHp, 'Parasite -3 Max HP loss rolled back');
+  assert.deepEqual(state.player.relics, entryRelics, 'Purchased relics rolled back');
+  assert.deepEqual(state.player.potions, entryPotions, 'Discarded & bought potions restored');
+  assert.deepEqual(state.player.deck, entryDeckSnapshot, 'Bought/purged/Whetstone-upgraded cards completely rolled back');
+  assert.equal(state.shop.cards[0].sold, false);
+  assert.equal(state.shop.cards[0].price, entryCard0Price, 'Membership Card discount rolled back');
+  assert.equal(state.shop.colorlessCards[0].sold, false);
+  assert.equal(state.shop.relicOffer.sold, false);
+  assert.equal(state.shop.shopRelicOffer.sold, false);
+  assert.equal(state.shop.potionOffer.sold, false);
+  assert.equal(state.shop.purgeUsed, false);
+  assert.equal(state.shop.purgeCost, entryPurgeCost);
+  assert.equal(state.purgeCount, entryPurgeCount);
+  assert.equal(state.stats.colorlessBought, 0);
+  assert.equal(hasShopChanges(state), false);
+
+  // Anti-RNG-scum check: re-buying Whetstone after reset upgrades the exact same 2 cards
+  const wh2 = buyShopRelic(state);
+  assert.equal(wh2.ok, true);
+  assert.deepEqual(
+    wh2.upgradedCards.map((c) => c.instanceId),
+    upgradedIdsFirstBuy,
+    'Shop reset restores rngState so Whetstone upgrades remain deterministic'
+  );
+
+  // Can reset a second time cleanly, and leaving shop clears shopSnapshot
+  assert.equal(resetShop(state).ok, true);
+  assert.equal(leaveShop(state).ok, true);
+  assert.equal(state.shop, null);
+  assert.equal(state.shopSnapshot, null);
 });

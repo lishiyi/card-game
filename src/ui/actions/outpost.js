@@ -41,6 +41,7 @@ import {
   proceedFromReward,
   proceedToNextAct,
   recallRubyKey,
+  resetShop,
   restHeal,
   restUpgradeCard,
   revealTreasureChest,
@@ -582,6 +583,21 @@ export const OUTPOST_ACTIONS = {
           ? `已永久移除 1 张卡牌（触发寄生虫诅咒：最大生命 -${res.lostMaxHp}）。`
           : '已永久移除 1 张卡牌！'
       );
+    } else {
+      soundEngine.play('error');
+      ctx.setNotice(res.reason, 'warn');
+    }
+    ctx.render();
+  },
+
+  'reset-shop'(ctx) {
+    const { ui, state, soundEngine } = ctx;
+    const res = resetShop(state);
+    if (res.ok) {
+      ui.modal = null;
+      ui.activePotionPopoverSlot = null;
+      soundEngine.play('ui_click');
+      ctx.setNotice('已恢复至刚进入商店时的商品、牌组与金币状态，可重新选购！');
     } else {
       soundEngine.play('error');
       ctx.setNotice(res.reason, 'warn');

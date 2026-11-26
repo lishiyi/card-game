@@ -720,6 +720,7 @@ export function createNewRun(options = {}) {
     treasureState: null,
     restState: null,
     shop: null,
+    shopSnapshot: null,
     eventState: null,
     stats: {
       floorsCleared: 0,

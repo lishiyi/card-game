@@ -761,11 +761,55 @@ export function buyShopPurge(state, instanceId) {
   return { ok: true, removed, lostMaxHp: side.lostMaxHp };
 }
 
+export function hasShopChanges(state) {
+  if (!state || state.screen !== 'shop' || !state.shop || !state.shopSnapshot) {
+    return false;
+  }
+  const shop = state.shop;
+  const snap = state.shopSnapshot;
+  if (shop.purgeUsed) return true;
+  if (Array.isArray(shop.cards) && shop.cards.some((o) => o.sold)) return true;
+  if (Array.isArray(shop.colorlessCards) && shop.colorlessCards.some((o) => o.sold)) return true;
+  if (shop.relicOffer?.sold || shop.shopRelicOffer?.sold || shop.potionOffer?.sold) return true;
+  if (state.player?.gold !== snap.player?.gold) return true;
+  if ((state.player?.deck?.length ?? 0) !== (snap.player?.deck?.length ?? 0)) return true;
+  const curPotions = state.player?.potions || [];
+  const snapPotions = snap.player?.potions || [];
+  if (curPotions.length !== snapPotions.length) return true;
+  for (let i = 0; i < curPotions.length; i += 1) {
+    if (curPotions[i] !== snapPotions[i]) return true;
+  }
+  return false;
+}
+
+export function resetShop(state) {
+  if (!state || state.screen !== 'shop' || !state.shop || !state.shopSnapshot) {
+    return { ok: false, reason: '当前没有可恢复的商店状态' };
+  }
+  if (!hasShopChanges(state)) {
+    return { ok: false, reason: '尚未进行任何购买或改动，无需重新购买' };
+  }
+  const snap = structuredClone(state.shopSnapshot);
+  state.rngState = snap.rngState;
+  state.nextUid = snap.nextUid;
+  state.purgeCount = snap.purgeCount ?? 0;
+  state.player = snap.player;
+  state.shop = snap.shop;
+  state.stats = snap.stats || {};
+  if (snap.relicCounters) state.relicCounters = snap.relicCounters;
+  if (snap.relicFlags) state.relicFlags = snap.relicFlags;
+  state._relicPickupSeq = snap._relicPickupSeq || 0;
+  state.lastRelicPickup = snap.lastRelicPickup || null;
+  state.screen = 'shop';
+  return { ok: true, gold: state.player.gold };
+}
+
 export function leaveShop(state) {
   if (state.screen !== 'shop') {
     return { ok: false, reason: '当前不在商店界面' };
   }
   state.shop = null;
+  state.shopSnapshot = null;
   state.screen = 'map';
   return { ok: true };
 }

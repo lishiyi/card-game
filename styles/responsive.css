@@ -565,7 +565,8 @@
     line-height: 1.26;
   }
 
-  .stage-header > button {
+  .stage-header > button,
+  .stage-header > .shop-header-actions {
     margin-left: auto;
   }
 

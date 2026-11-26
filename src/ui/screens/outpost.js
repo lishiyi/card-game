@@ -10,6 +10,7 @@ import {
   getCurrentBossName,
   getCurrentPurgeCost,
   getUpgradableDeckCards,
+  hasShopChanges,
 } from '../../engine/game.js';
 import { buildRunReportFromState } from '../../engine/meta.js';
 import { formatSeedCode } from '../../engine/rng.js';
@@ -862,6 +863,7 @@ export function renderShopScreen({ state, ui }) {
     ...state,
     purgeCount: (state.purgeCount ?? 0) + 1,
   });
+  const canResetShop = hasShopChanges(state);
 
   return `
     <section class="panel-stage" aria-labelledby="shop-heading">
@@ -870,9 +872,23 @@ export function renderShopScreen({ state, ui }) {
           <h2 id="shop-heading" class="stage-heading">神秘商人${hasMembership ? ' <span class="shop-member-badge">会员卡全场半价 (-50%)</span>' : ''}</h2>
           <p class="stage-subtitle">“欢迎来到我的地毯小铺，尖塔行者！看中什么尽管挑，商店专属无色秘牌与商店专属遗物也在货架上。”</p>
         </div>
-        <button type="button" id="btn-leave-shop" class="btn-brass" data-action="leave-shop">
-          离开商店 →
-        </button>
+        <div class="shop-header-actions">
+          <button
+            type="button"
+            id="btn-reset-shop"
+            class="btn-stone"
+            data-action="reset-shop"
+            ${canResetShop ? '' : 'disabled'}
+            data-tooltip-title="重新购买（还原商店）"
+            data-tooltip-tag="防误触回滚"
+            data-tooltip-desc="撤销本次进店后的所有购买、移牌与弃药水操作，将商品货架、价格、金币、牌组与遗物完整恢复到刚进入商店时的状态。"
+          >
+            🔄 重新购买
+          </button>
+          <button type="button" id="btn-leave-shop" class="btn-brass" data-action="leave-shop">
+            离开商店 →
+          </button>
+        </div>
       </div>
 
       ${
@@ -945,6 +961,15 @@ export function renderShopScreen({ state, ui }) {
       </div>
 
       <div class="shop-bottom-actions">
+        <button
+          type="button"
+          id="btn-reset-shop-bottom"
+          class="btn-stone"
+          data-action="reset-shop"
+          ${canResetShop ? '' : 'disabled'}
+        >
+          🔄 重新购买
+        </button>
         <button type="button" id="btn-leave-shop-bottom" class="btn-brass" data-action="leave-shop">
           离开商店 →
         </button>
