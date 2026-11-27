@@ -39,6 +39,7 @@ import {
   getRunRecordKey,
   loadSavedMeta,
   MAX_ASCENSION,
+  migrateLegacyRunCards,
   recordCompletedRun,
   saveMeta,
   syncCompendiumFromRunState,
@@ -100,6 +101,7 @@ function loadSavedRun() {
       const charDef = getCharacterDef(charId);
       parsed.characterId = charId;
       ensureRunKeys(parsed);
+      migrateLegacyRunCards(parsed);
       if (!parsed.player.artKey) {
         parsed.player.artKey = charDef.artKey;
       }

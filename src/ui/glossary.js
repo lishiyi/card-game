@@ -108,7 +108,7 @@ const CORE_MECHANIC_ENTRIES = [
     name: '固有 (Innate)',
     category: 'mechanics',
     tag: '卡牌词条',
-    description: '每场战斗第 1 回合必定优先抽到起手手牌中（如【先制猛袭】、【无限刀刃+】、【余像+】、【战歌+】）。',
+    description: '每场战斗第 1 回合必定优先抽到起手手牌中（如【背刺】、【启动流程】、【无限刀刃+】、【余像+】、【战歌+】）。',
   },
   {
     id: 'kw_retain',

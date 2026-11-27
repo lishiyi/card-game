@@ -1154,6 +1154,25 @@ body.spire-dragging {
   font-weight: 800;
 }
 
+#hand-tray.draw-top-selecting .game-card.draw-top-selectable {
+  cursor: pointer;
+  box-shadow:
+    var(--shadow-card),
+    0 0 0 2px hsla(212, 82%, 62%, 0.72);
+}
+
+#hand-tray.draw-top-selecting .game-card.draw-top-selectable:hover {
+  transform: translateY(-12px) scale(1.03);
+  box-shadow:
+    0 14px 26px hsla(0, 0%, 0%, 0.8),
+    0 0 0 2px hsl(204, 92%, 70%);
+}
+
+#hand-tray.draw-top-selecting .game-card.draw-top-selectable .card-footer {
+  color: hsl(204, 92%, 78%);
+  font-weight: 800;
+}
+
 .game-card.scry-selectable {
   cursor: pointer;
   box-shadow:

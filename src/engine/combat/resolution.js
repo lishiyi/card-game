@@ -932,6 +932,29 @@ export function requestHandCardChoice(
     return;
   }
 
+  if (mode === 'hand_to_draw') {
+    if (combat.hand.length === 0) return;
+    if (combat.hand.length <= count) {
+      const allHand = [...combat.hand];
+      combat.hand = [];
+      for (const c of allHand) {
+        combat.drawPile.unshift(c);
+        pushCombatLog(combat, `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆顶！`, 'info');
+      }
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'hand_to_draw',
+      sourceName,
+      count,
+      remaining: count,
+      optional: false,
+      candidates: null,
+      selectedIds: [],
+    });
+    return;
+  }
+
   if (mode === 'upgrade') {
     const upgradable = combat.hand.filter((hc) => canUpgradeCard(hc));
     if (upgradable.length === 0) {
@@ -1402,6 +1425,31 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       outcome: state.combat?.status ?? combat.status,
       remaining: combat.pendingCardChoice?.remaining ?? 0,
       cardReveals: [...(combat.pendingCardReveals || [])],
+    };
+  }
+
+  if (pending.mode === 'hand_to_draw') {
+    const sourceName = pending.sourceName || '战吼';
+    const [card] = combat.hand.splice(idx, 1);
+    combat.drawPile.unshift(card);
+    pushCombatLog(combat, `【${sourceName}】将【${getCardStats(card).name}】置于抽牌堆顶！`, 'info');
+    pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
+    if (pending.remaining <= 0 || combat.hand.length === 0) {
+      setPendingCardChoice(combat, null);
+    } else if (combat.hand.length <= pending.remaining) {
+      const rest = [...combat.hand];
+      combat.hand = [];
+      setPendingCardChoice(combat, null);
+      for (const c of rest) {
+        combat.drawPile.unshift(c);
+        pushCombatLog(combat, `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆顶！`, 'info');
+      }
+    }
+    return {
+      ok: true,
+      mode: 'hand_to_draw',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
     };
   }
 

@@ -1224,23 +1224,23 @@ export const IRONCLAD_CARD_ART = {
     'hsla(292, 92%, 58%, 0.28)',
     `<linearGradient id="ca-havoc-slab" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(288, 56%, 40%)"/><stop offset="60%" stop-color="hsl(282, 54%, 22%)"/><stop offset="100%" stop-color="hsl(14, 82%, 34%)"/></linearGradient><radialGradient id="ca-havoc-vortex" cx="50%" cy="50%" r="52%"><stop offset="0%" stop-color="hsla(30, 100%, 66%, 0.55)"/><stop offset="55%" stop-color="hsla(290, 92%, 54%, 0.24)"/><stop offset="100%" stop-color="hsla(284, 84%, 24%, 0)"/></radialGradient>`
   ),
-  steadfast_guard: wrapArtSvg(
-    'steadfast_guard',
-    'hsl(212, 46%, 18%)',
-    'hsl(26, 36%, 9%)',
-    `<path d="M18 68 L38 46 H90 L110 68 Z" fill="url(#ca-steadfast_guard-stone)" stroke="hsl(36, 34%, 48%)" stroke-width="1.3"/>
-     <path d="M28 66 L44 50 H84 L100 66" fill="none" stroke="hsl(34, 26%, 22%)" stroke-width="1.5"/>
-     <path d="M10 36 Q64 4 118 36" fill="none" stroke="hsla(202, 94%, 72%, 0.34)" stroke-width="2.4" stroke-dasharray="10 5"/>
-     <path d="M40 12 H88 V37 C88 49 77 57 64 62 C51 57 40 49 40 37 Z" fill="rgba(0,0,0,0.45)" transform="translate(2 2)"/>
-     <path d="M40 11 H88 V36 C88 48 77 56 64 61 C51 56 40 48 40 36 Z" fill="url(#ca-steadfast_guard-shield)" stroke="hsl(44, 88%, 70%)" stroke-width="2"/>
-     <path d="M46 17 H82 V35 C82 44 74 50 64 54 C54 50 46 44 46 35 Z" fill="hsl(216, 36%, 20%)" stroke="hsl(200, 86%, 72%)" stroke-width="1.2"/>
-     <path d="M64 17 V53 M47 32 H81" stroke="hsl(200, 92%, 78%)" stroke-width="2.2" stroke-linecap="round"/>
-     <polygon points="64,23 72,32 64,41 56,32" fill="hsl(46, 98%, 72%)" stroke="hsl(24, 48%, 22%)" stroke-width="1.3"/>
-     <circle cx="48" cy="19" r="1.6" fill="hsl(46, 96%, 78%)"/><circle cx="80" cy="19" r="1.6" fill="hsl(46, 96%, 78%)"/>
-     <path d="M18 36 H34 M94 36 H110 M24 26 L34 29 M104 26 L94 29" stroke="hsl(44, 96%, 72%)" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
-     <circle cx="24" cy="54" r="2" fill="hsl(44, 92%, 72%)"/><circle cx="104" cy="54" r="2" fill="hsl(44, 92%, 72%)"/>`,
-    'hsla(204, 90%, 58%, 0.26)',
-    `<linearGradient id="ca-steadfast_guard-stone" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="hsl(30, 18%, 38%)"/><stop offset="100%" stop-color="hsl(24, 24%, 14%)"/></linearGradient><linearGradient id="ca-steadfast_guard-shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(210, 38%, 48%)"/><stop offset="55%" stop-color="hsl(216, 40%, 26%)"/><stop offset="100%" stop-color="hsl(222, 42%, 15%)"/></linearGradient>`
+  warcry: wrapArtSvg(
+    'warcry',
+    'hsl(12, 68%, 18%)',
+    'hsl(352, 56%, 8%)',
+    `<circle cx="44" cy="40" r="34" fill="url(#ca-warcry-aura)"/>
+     <path d="M58 18 Q84 36 58 54" fill="none" stroke="hsl(42, 100%, 72%)" stroke-width="2.6" stroke-linecap="round" opacity="0.9"/>
+     <path d="M72 11 Q104 36 72 61" fill="none" stroke="hsl(28, 100%, 62%)" stroke-width="2.4" stroke-linecap="round" opacity="0.82"/>
+     <path d="M88 6 Q122 36 88 66" fill="none" stroke="hsl(10, 96%, 56%)" stroke-width="2" stroke-linecap="round" opacity="0.68"/>
+     <path d="M16 44 C18 28 32 22 46 25 L62 15 L60 56 L44 48 C30 50 18 52 16 44 Z" fill="rgba(0,0,0,0.44)" transform="translate(2 2)"/>
+     <path d="M16 43 C18 27 32 21 46 24 L62 14 L60 55 L44 47 C30 49 18 51 16 43 Z" fill="url(#ca-warcry-horn)" stroke="hsl(44, 96%, 72%)" stroke-width="1.8" stroke-linejoin="round"/>
+     <ellipse cx="60" cy="34.5" rx="5.5" ry="19.5" fill="hsl(8, 72%, 14%)" stroke="hsl(44, 98%, 76%)" stroke-width="1.6"/>
+     <ellipse cx="60" cy="34.5" rx="2.6" ry="11" fill="hsl(36, 100%, 64%)" opacity="0.85"/>
+     <path d="M27 28 C30 34 30 42 27 47 M39 25 C42 33 42 41 39 47" fill="none" stroke="hsl(42, 92%, 68%)" stroke-width="1.6" stroke-linecap="round"/>
+     <path d="M68 35 L98 27 M69 35 L108 35 M68 35 L98 44" stroke="hsl(52, 100%, 90%)" stroke-width="1.8" stroke-linecap="round" opacity="0.88"/>
+     <circle cx="98" cy="18" r="2.3" fill="hsl(48, 100%, 84%)"/><circle cx="112" cy="35" r="2.6" fill="hsl(38, 100%, 74%)"/><circle cx="102" cy="54" r="2" fill="hsl(18, 100%, 66%)"/>`,
+    'hsla(26, 98%, 56%, 0.30)',
+    `<linearGradient id="ca-warcry-horn" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(38, 84%, 64%)"/><stop offset="52%" stop-color="hsl(18, 78%, 40%)"/><stop offset="100%" stop-color="hsl(356, 62%, 22%)"/></linearGradient><radialGradient id="ca-warcry-aura" cx="42%" cy="52%" r="54%"><stop offset="0%" stop-color="hsla(44, 100%, 70%, 0.52)"/><stop offset="55%" stop-color="hsla(14, 96%, 52%, 0.24)"/><stop offset="100%" stop-color="hsla(352, 86%, 24%, 0)"/></radialGradient>`
   ),
   wild_strike: wrapArtSvg(
     'wild_strike',
@@ -1260,23 +1260,26 @@ export const IRONCLAD_CARD_ART = {
     'hsla(10, 98%, 54%, 0.30)',
     `<linearGradient id="ca-wild_strike-blade" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="hsl(26, 26%, 56%)"/><stop offset="55%" stop-color="hsl(38, 34%, 86%)"/><stop offset="100%" stop-color="hsl(48, 100%, 94%)"/></linearGradient><linearGradient id="ca-wild_strike-arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="hsla(4, 96%, 52%, 0.2)"/><stop offset="50%" stop-color="hsl(18, 100%, 60%)"/><stop offset="100%" stop-color="hsl(48, 100%, 82%)"/></linearGradient>`
   ),
-  ambush_slash: wrapArtSvg(
-    'ambush_slash',
-    'hsl(356, 60%, 17%)',
-    'hsl(232, 48%, 8%)',
-    `<path d="M0 64 L48 44 L76 54 L128 38 V72 H0 Z" fill="hsl(236, 46%, 8%)" opacity="0.82"/>
-     <circle cx="102" cy="18" r="30" fill="url(#ca-ambush_slash-flash)"/>
-     <path d="M8 58 Q50 42 114 14" fill="none" stroke="url(#ca-ambush_slash-beam)" stroke-width="6.5" stroke-linecap="round"/>
-     <path d="M16 64 Q60 48 120 26" fill="none" stroke="hsl(8, 96%, 58%)" stroke-width="2.6" stroke-linecap="round" opacity="0.84"/>
-     <path d="M12 57 Q52 42 112 15" fill="none" stroke="hsl(54, 100%, 96%)" stroke-width="2" stroke-linecap="round"/>
-     <polygon points="90,10 119,14 96,34 101,20" fill="hsl(48, 100%, 88%)" stroke="hsl(28, 96%, 56%)" stroke-width="1.3"/>
-     <path d="M28 12 L33 24 L45 27 L33 30 L28 42 L23 30 L11 27 L23 24 Z" fill="hsl(46, 100%, 78%)" stroke="hsl(32, 92%, 52%)" stroke-width="1"/>
-     <circle cx="28" cy="27" r="3.2" fill="hsl(54, 100%, 96%)"/>
-     <path d="M56 14 L59 20 L65 22 L59 24 L56 30 L53 24 L47 22 L53 20 Z" fill="hsl(44, 100%, 82%)" opacity="0.85"/>
-     <path d="M74 44 L98 38 M66 56 L92 50" stroke="hsl(42, 100%, 76%)" stroke-width="1.6" stroke-linecap="round" opacity="0.72"/>
-     <circle cx="84" cy="14" r="2" fill="hsl(50, 100%, 90%)"/><circle cx="114" cy="40" r="1.8" fill="hsl(14, 100%, 66%)"/>`,
-    'hsla(38, 98%, 60%, 0.28)',
-    `<linearGradient id="ca-ambush_slash-beam" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="hsla(356, 94%, 54%, 0.1)"/><stop offset="45%" stop-color="hsl(38, 100%, 70%)"/><stop offset="100%" stop-color="hsl(52, 100%, 94%)"/></linearGradient><radialGradient id="ca-ambush_slash-flash" cx="82%" cy="22%" r="36%"><stop offset="0%" stop-color="hsla(48, 100%, 88%, 0.65)"/><stop offset="55%" stop-color="hsla(24, 98%, 58%, 0.22)"/><stop offset="100%" stop-color="hsla(24, 98%, 58%, 0)"/></radialGradient>`
+  pummel: wrapArtSvg(
+    'pummel',
+    'hsl(4, 70%, 18%)',
+    'hsl(350, 62%, 8%)',
+    `<circle cx="96" cy="36" r="28" fill="url(#ca-pummel-impact)"/>
+     <path d="M6 22 H54 M2 36 H62 M8 50 H56" stroke="url(#ca-pummel-trail)" stroke-width="3.4" stroke-linecap="round" opacity="0.78"/>
+     <g opacity="0.45" transform="translate(-20 -10) scale(0.84)">
+       <rect x="44" y="22" width="32" height="24" rx="7" fill="hsl(14, 76%, 36%)" stroke="hsl(36, 92%, 62%)" stroke-width="1.3"/>
+     </g>
+     <g opacity="0.52" transform="translate(-14 13) scale(0.86)">
+       <rect x="44" y="22" width="32" height="24" rx="7" fill="hsl(6, 78%, 34%)" stroke="hsl(32, 92%, 58%)" stroke-width="1.3"/>
+     </g>
+     <path d="M36 27 H76 C83 27 88 31 88 38 C88 45 83 50 75 50 H36 C31 50 28 45 28 38 C28 32 31 27 36 27 Z" fill="rgba(0,0,0,0.46)" transform="translate(2 2)"/>
+     <path d="M36 25 H76 C83 25 88 30 88 37 C88 44 83 49 75 49 H36 C31 49 28 44 28 37 C28 30 31 25 36 25 Z" fill="url(#ca-pummel-gauntlet)" stroke="hsl(42, 96%, 72%)" stroke-width="1.9" stroke-linejoin="round"/>
+     <path d="M58 26 V48 M68 26 V48 M77 27 V47 M36 33 H54 M36 41 H54" stroke="hsl(354, 48%, 18%)" stroke-width="1.7" stroke-linecap="round"/>
+     <path d="M88 37 L116 18 M90 37 L122 37 M88 37 L116 56 M86 24 L106 11 M86 50 L106 63" stroke="hsl(48, 100%, 84%)" stroke-width="2.1" stroke-linecap="round"/>
+     <polygon points="88,28 100,37 88,46 93,37" fill="hsl(54, 100%, 94%)"/>
+     <circle cx="114" cy="24" r="2.2" fill="hsl(44, 100%, 78%)"/><circle cx="118" cy="48" r="2.3" fill="hsl(20, 100%, 66%)"/>`,
+    'hsla(14, 98%, 56%, 0.32)',
+    `<linearGradient id="ca-pummel-gauntlet" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="hsl(38, 34%, 76%)"/><stop offset="48%" stop-color="hsl(14, 62%, 44%)"/><stop offset="100%" stop-color="hsl(352, 62%, 20%)"/></linearGradient><linearGradient id="ca-pummel-trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="hsla(4, 96%, 52%, 0)"/><stop offset="65%" stop-color="hsl(24, 100%, 62%)"/><stop offset="100%" stop-color="hsl(50, 100%, 88%)"/></linearGradient><radialGradient id="ca-pummel-impact" cx="50%" cy="50%" r="52%"><stop offset="0%" stop-color="hsla(52, 100%, 92%, 0.72)"/><stop offset="52%" stop-color="hsla(18, 98%, 56%, 0.34)"/><stop offset="100%" stop-color="hsla(356, 86%, 30%, 0)"/></radialGradient>`
   ),
   power_through: wrapArtSvg(
     'power_through',

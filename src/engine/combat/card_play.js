@@ -307,6 +307,7 @@ export function playCard(
   let totalManualExhaust = 0;
   let totalExhaustForEnergy = 0;
   let totalManualUpgrade = 0;
+  let totalHandToDrawTop = 0;
   let totalScry = 0;
   let totalDrawAfterScry = 0;
   let totalDiscardToDraw = 0;
@@ -1747,6 +1748,9 @@ export function playCard(
     if (stats.upgradeHandChoice) {
       totalManualUpgrade += stats.upgradeHandChoice;
     }
+    if (stats.putHandToDrawTopChoice) {
+      totalHandToDrawTop += stats.putHandToDrawTopChoice;
+    }
     if (stats.scry) {
       totalScry += stats.scry;
     }
@@ -1924,6 +1928,8 @@ export function playCard(
       requestHandCardChoice(state, 'exhaust', totalManualExhaust, stats.name, onVictoryCallback);
     } else if (totalManualUpgrade > 0) {
       requestHandCardChoice(state, 'upgrade', totalManualUpgrade, stats.name, onVictoryCallback);
+    } else if (totalHandToDrawTop > 0) {
+      requestHandCardChoice(state, 'hand_to_draw', totalHandToDrawTop, stats.name, onVictoryCallback);
     } else if (totalScry > 0) {
       initiateScry(state, totalScry, stats.name, { drawAfterScry: totalDrawAfterScry });
     } else if (totalDiscardToDraw > 0) {

@@ -365,6 +365,13 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after exhaust choice seed ${seed}`);
               continue;
             }
+            if (choice.mode === 'hand_to_draw') {
+              const target = state.combat.hand[0];
+              assert.ok(target, `Pending hand_to_draw with empty hand on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
+              assertRunInvariants(state, `after hand_to_draw choice seed ${seed}`);
+              continue;
+            }
             const preferred =
               state.combat.hand.find((c) => {
                 const st = getCardStats(c);

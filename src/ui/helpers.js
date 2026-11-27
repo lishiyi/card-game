@@ -167,6 +167,7 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.discardSynergy ? 'discard-synergy-card' : '',
     options.exhaustSelectable ? 'exhaust-selectable' : '',
     options.upgradeSelectable ? 'upgrade-selectable' : '',
+    options.drawTopSelectable ? 'draw-top-selectable' : '',
     options.scrySelectable ? 'scry-selectable' : '',
     options.scryMarkedDiscard ? 'scry-marked-discard' : '',
     options.retainSelectable ? 'retain-selectable' : '',
@@ -258,7 +259,9 @@ export function renderCardHtml(cardInstance, options = {}) {
           ? '点击消耗'
           : options.upgradeSelectable
             ? '点击升级'
-            : options.discardSelectable
+            : options.drawTopSelectable
+              ? '置于牌堆顶'
+              : options.discardSelectable
               ? options.discardSynergy
                 ? '✦ 弃置触发'
                 : '点击弃置'

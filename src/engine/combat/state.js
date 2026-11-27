@@ -488,6 +488,8 @@ export function getPendingChoiceBlockReason(combat) {
       return '请先从弃牌堆选择要加入手牌的卡牌';
     case 'pick_from_draw':
       return '请先从抽牌堆选择要加入手牌的卡牌';
+    case 'hand_to_draw':
+      return '请先选择要置于抽牌堆顶的手牌';
     case 'retain':
       return '请先选择本回合要保留的手牌并确认结束回合';
     default:

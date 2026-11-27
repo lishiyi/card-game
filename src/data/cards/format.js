@@ -764,6 +764,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.discardHand) {
     parts.push(`选择并弃掉 ${stats.discardHand} 张手牌。`);
   }
+  if (stats.putHandToDrawTopChoice) {
+    parts.push(`选择并将 ${stats.putHandToDrawTopChoice} 张手牌置于抽牌堆顶。`);
+  }
   if (stats.applySelfStatuses) {
     if (stats.applySelfStatuses.strength) {
       parts.push(`获得 ${stats.applySelfStatuses.strength} 点力量。`);

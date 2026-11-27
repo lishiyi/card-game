@@ -94,13 +94,60 @@ export const ASCENSION_DEFS = deepFreeze([
   },
 ]);
 
+export const LEGACY_CARD_ID_MIGRATION = deepFreeze({
+  steadfast_guard: 'warcry',
+  ambush_slash: 'pummel',
+});
+
+export function migrateLegacyCardId(cardId) {
+  if (typeof cardId !== 'string') return cardId;
+  return LEGACY_CARD_ID_MIGRATION[cardId] || cardId;
+}
+
+function migrateCardList(list) {
+  if (!Array.isArray(list)) return;
+  for (const item of list) {
+    if (item && typeof item === 'object' && typeof item.cardId === 'string') {
+      item.cardId = migrateLegacyCardId(item.cardId);
+    }
+  }
+}
+
+export function migrateLegacyRunCards(run) {
+  if (!run || typeof run !== 'object') return run;
+  migrateCardList(run.player?.deck);
+  if (run.combat && typeof run.combat === 'object') {
+    migrateCardList(run.combat.hand);
+    migrateCardList(run.combat.drawPile);
+    migrateCardList(run.combat.discardPile);
+    migrateCardList(run.combat.exhaustPile);
+    migrateCardList(run.combat.pendingCardChoice?.candidates);
+  }
+  if (run.pendingReward && typeof run.pendingReward === 'object') {
+    migrateCardList(run.pendingReward.cards);
+  }
+  if (run.shop && typeof run.shop === 'object') {
+    migrateCardList(run.shop.cards);
+    migrateCardList(run.shop.colorlessCards);
+  }
+  if (run.shopSnapshot && typeof run.shopSnapshot === 'object') {
+    migrateCardList(run.shopSnapshot.deck);
+    migrateCardList(run.shopSnapshot.shop?.cards);
+    migrateCardList(run.shopSnapshot.shop?.colorlessCards);
+  }
+  if (run.combatStartSnapshot && typeof run.combatStartSnapshot === 'object') {
+    migrateCardList(run.combatStartSnapshot.player?.deck);
+  }
+  return run;
+}
+
 export const UNLOCK_TIERS = deepFreeze([
   {
     tier: 1,
     xpRequired: 100,
     title: '一阶觉醒 · 鲜血、剧毒与渎神',
-    summary: '解锁【死亡收割】、【磐石守备】、【涂毒】、【渎神】与稀有遗物【钨合金棍】。',
-    cardIds: ['reaper', 'steadfast_guard', 'envenom', 'blasphemy'],
+    summary: '解锁【死亡收割】、【连续拳】、【涂毒】、【渎神】与稀有遗物【钨合金棍】。',
+    cardIds: ['reaper', 'pummel', 'envenom', 'blasphemy'],
     relicIds: ['tungsten_rod'],
   },
   {
@@ -192,7 +239,9 @@ export function ensureCompendium(meta) {
     meta.compendium = createDefaultCompendium();
   }
   const c = meta.compendium;
-  c.cards = Array.isArray(c.cards) ? [...new Set(c.cards.filter((id) => Boolean(CARD_LIBRARY[id])))] : [];
+  c.cards = Array.isArray(c.cards)
+    ? [...new Set(c.cards.map((id) => migrateLegacyCardId(id)).filter((id) => Boolean(CARD_LIBRARY[id])))]
+    : [];
   c.relics = Array.isArray(c.relics) ? [...new Set(c.relics.filter((id) => Boolean(RELIC_LIBRARY[id])))] : [];
   c.potions = Array.isArray(c.potions) ? [...new Set(c.potions.filter((id) => Boolean(POTION_LIBRARY[id])))] : [];
   c.enemies = Array.isArray(c.enemies) ? [...new Set(c.enemies.filter((id) => Boolean(ENEMY_TEMPLATES[id])))] : [];
@@ -896,6 +945,8 @@ export function normalizeMetaData(parsed) {
   };
   ensureCompendium(loaded);
   for (const rec of runHistory) {
+    migrateCardList(rec?.deckSnapshot);
+    migrateCardList(rec?.deckSummary);
     recordCompendiumDiscovery(loaded, {
       cards: (rec?.deckSnapshot || []).map((c) => c?.cardId).filter(Boolean),
       relics: Array.isArray(rec?.relicIds) ? rec.relicIds : [],
@@ -1016,7 +1067,7 @@ export function validateSaveBackup(rawInput, expectedFloors = 16) {
     ) {
       return { ok: false, reason: '存档中的进行中对局数据（activeRun）结构损坏或不兼容。' };
     }
-    validatedRun = structuredClone(r);
+    validatedRun = migrateLegacyRunCards(structuredClone(r));
   }
 
   let validatedSettings = null;

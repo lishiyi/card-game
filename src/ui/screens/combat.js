@@ -211,6 +211,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     pendingMode === 'discard' ||
     pendingMode === 'exhaust' ||
     pendingMode === 'upgrade' ||
+    pendingMode === 'hand_to_draw' ||
     pendingMode === 'retain';
   const retainSelectedSet =
     pendingMode === 'retain' ? new Set(pendingChoice.selectedIds || []) : null;
@@ -269,6 +270,22 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             selected: false,
             dimmed: false,
             exhaustSelectable: true,
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'hand_to_draw') {
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: 'resolve-card-choice',
+            playable: true,
+            selected: false,
+            dimmed: false,
+            drawTopSelectable: true,
             hotkey: idx < 9 ? idx + 1 : undefined,
             combatContext: {
               player: state.player,
@@ -356,6 +373,10 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌本场战斗升级`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'upgrade-prompt';
+  } else if (pendingMode === 'hand_to_draw') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌置于抽牌堆顶`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'scry-prompt';
   } else if (pendingMode === 'scry') {
     bannerText = `【${pendingChoice.sourceName}】正在预见抽牌堆顶 ${pendingChoice.count} 张卡牌……`;
     bannerClass = 'scry-prompt';
@@ -493,17 +514,19 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           ? '点击下方手牌消耗'
           : pendingMode === 'upgrade'
             ? '点击下方手牌升级'
-            : pendingMode === 'scry'
-              ? '请在弹窗完成预见'
-              : pendingMode === 'discard_to_draw' ||
-                  pendingMode === 'retrieve_discard_retain' ||
-                  pendingMode === 'retrieve_discard_to_hand'
-                ? '请在弹窗从弃牌堆选牌'
-                : pendingMode === 'pick_from_draw'
-                  ? '请在弹窗从抽牌堆检索'
-                  : settings?.mobileTapConfirm
-                    ? '点选预览 · 再点/上滑出牌'
-                    : '左右滑选牌 · 上滑拖出牌';
+            : pendingMode === 'hand_to_draw'
+              ? '点击下方手牌置于抽牌堆顶'
+              : pendingMode === 'scry'
+                ? '请在弹窗完成预见'
+                : pendingMode === 'discard_to_draw' ||
+                    pendingMode === 'retrieve_discard_retain' ||
+                    pendingMode === 'retrieve_discard_to_hand'
+                  ? '请在弹窗从弃牌堆选牌'
+                  : pendingMode === 'pick_from_draw'
+                    ? '请在弹窗从抽牌堆检索'
+                    : settings?.mobileTapConfirm
+                      ? '点选预览 · 再点/上滑出牌'
+                      : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
     pendingMode === 'retain'
@@ -514,7 +537,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           ? 'exhaust-selecting'
           : pendingMode === 'upgrade'
             ? 'upgrade-selecting'
-            : '';
+            : pendingMode === 'hand_to_draw'
+              ? 'draw-top-selecting'
+              : '';
 
   const restartsSoFar = state.stats?.combatRestarts ?? 0;
 

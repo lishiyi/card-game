@@ -2568,6 +2568,8 @@ test('Official Simplified Chinese card names (307 unique) & concise card keyword
     blood_for_blood: '以血还血',
     sentinel: '哨卫',
     juggernaut: '势不可当',
+    warcry: '战吼',
+    pummel: '连续拳',
     survivor: '生存者',
     poisoned_stab: '带毒刺击',
     dagger_throw: '投掷匕首',
@@ -2690,6 +2692,29 @@ test('Official Simplified Chinese card names (307 unique) & concise card keyword
   for (const [id, name] of Object.entries(expectedNames)) {
     assert.equal(CARD_LIBRARY[id]?.name, name, `Expected ${id} to be named "${name}", got "${CARD_LIBRARY[id]?.name}"`);
   }
+  assert.equal(CARD_LIBRARY.steadfast_guard, undefined, 'Custom Ironclad card steadfast_guard must be removed');
+  assert.equal(CARD_LIBRARY.ambush_slash, undefined, 'Custom Ironclad card ambush_slash must be removed');
+
+  // Legacy saved runs / backups with removed custom Ironclad card IDs migrate seamlessly to warcry/pummel
+  const legacyRun = createNewRun({ seed: 25431, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  legacyRun.player.deck.push(
+    { instanceId: 'leg_1', cardId: 'steadfast_guard', upgraded: false },
+    { instanceId: 'leg_2', cardId: 'ambush_slash', upgraded: true }
+  );
+  const legacyMeta = createDefaultMeta();
+  legacyMeta.compendium.cards = ['steadfast_guard', 'ambush_slash'];
+  const legacyPayload = JSON.stringify({
+    app: SAVE_BACKUP_APP_ID,
+    schemaVersion: 1,
+    meta: legacyMeta,
+    activeRun: legacyRun,
+  });
+  const migratedCheck = validateSaveBackup(legacyPayload, TOTAL_FLOORS);
+  assert.equal(migratedCheck.ok, true);
+  assert.equal(migratedCheck.backup.activeRun.player.deck.some((c) => c.cardId === 'warcry'), true);
+  assert.equal(migratedCheck.backup.activeRun.player.deck.some((c) => c.cardId === 'pummel' && c.upgraded), true);
+  assert.equal(migratedCheck.backup.meta.compendium.cards.includes('warcry'), true);
+  assert.equal(migratedCheck.backup.meta.compendium.cards.includes('pummel'), true);
 
   // Concise keyword descriptions (no inline parenthetical explanations for Ethereal/Scry/Mantra/Intangible/Artifact/Wound)
   const checkDesc = (cardId) => {
@@ -2698,6 +2723,11 @@ test('Official Simplified Chinese card names (307 unique) & concise card keyword
     const desc = formatCardDescription(inst, null);
     return { stats, text: desc.text, kws: extractCardKeywords(stats, desc.text) };
   };
+
+  const wcDesc = checkDesc('warcry');
+  assert.ok(wcDesc.text.includes('抽 1 张牌') && wcDesc.text.includes('置于抽牌堆顶') && wcDesc.text.includes('消耗'));
+  const pmDesc = checkDesc('pummel');
+  assert.ok(pmDesc.text.includes('造成 2 点伤害 4 次') && pmDesc.text.includes('消耗'));
 
   const ghost = checkDesc('ghostly_armor');
   assert.ok(ghost.text.startsWith('虚无。'));

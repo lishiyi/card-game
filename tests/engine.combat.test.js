@@ -724,23 +724,23 @@ test('Exhaust archetype: Feel No Pain, Dark Embrace, Charons Ashes, Corruption, 
   assert.equal(state.combat.hand.length, 0);
 });
 
-test('Block archetype & Keywords: Barricade, Entrench, Flame Barrier, Retain (Steadfast Guard), Ethereal (Ghostly Armor), Innate (Ambush Slash), Reaper, Armaments+, Anger, and Flex', () => {
-  // 1. Innate Ambush Slash is guaranteed in Turn 1 hand even in a 20-card deck
-  const deckSpecs = Array.from({ length: 19 }, () => 'strike').concat(['ambush_slash']);
+test('Block archetype & Keywords: Barricade, Entrench, Flame Barrier, Retain (Protect), Ethereal (Ghostly Armor), Innate (Backstab), Warcry, Pummel, Reaper, Armaments+, Anger, and Flex', () => {
+  // 1. Innate Backstab is guaranteed in Turn 1 hand even in a 20-card deck
+  const deckSpecs = Array.from({ length: 19 }, () => 'strike').concat(['backstab']);
   const state = setupCustomCombat(1601, ENCOUNTERS.floor1[0], deckSpecs);
-  assert.equal(state.combat.hand.some((c) => c.cardId === 'ambush_slash'), true);
+  assert.equal(state.combat.hand.some((c) => c.cardId === 'backstab'), true);
 
   const enemy = state.combat.enemies[0];
   enemy.hp = 100;
   enemy.maxHp = 100;
   enemy.intent = { id: 'multi_poke', name: '二连刺', type: 'attack', damage: 4, hits: 2 };
 
-  // 2. Barricade + Flame Barrier + Entrench + Steadfast Guard (Retain) + Ghostly Armor (Ethereal)
+  // 2. Barricade + Flame Barrier + Entrench + Protect (Retain) + Ghostly Armor (Ethereal)
   state.player.energy = 10;
   const barricade = createCardInstance(state, 'barricade', false);
   const fb = createCardInstance(state, 'flame_barrier', false); // 12 block, 4 thorns per hit
   const entrench = createCardInstance(state, 'entrench', false); // doubles block -> 24
-  const retainCard = createCardInstance(state, 'steadfast_guard', false);
+  const retainCard = createCardInstance(state, 'protect', false);
   const ghostly = createCardInstance(state, 'ghostly_armor', false);
   state.combat.hand = [barricade, fb, entrench, retainCard, ghostly];
 
@@ -749,13 +749,55 @@ test('Block archetype & Keywords: Barricade, Entrench, Flame Barrier, Retain (St
   playCard(state, entrench.instanceId);
   assert.equal(state.player.block, 24);
 
-  // End Turn: Ghostly Armor exhausts (Ethereal), Steadfast Guard stays in hand (Retain), Enemy hits 4x2 (8 blocked -> 16 block left, takes 4x2=8 Flame Barrier damage), Barricade preserves remaining 16 block on Turn 2!
+  // End Turn: Ghostly Armor exhausts (Ethereal), Protect stays in hand (Retain), Enemy hits 4x2 (8 blocked -> 16 block left, takes 4x2=8 Flame Barrier damage), Barricade preserves remaining 16 block on Turn 2!
   endPlayerTurn(state);
   assert.equal(state.combat.exhaustPile.some((c) => c.instanceId === ghostly.instanceId), true);
   assert.equal(state.combat.hand.some((c) => c.instanceId === retainCard.instanceId), true);
   assert.equal(enemy.hp, 92);
   assert.equal(state.player.block, 16);
   assert.equal(state.player.statuses.flameBarrier, undefined);
+
+  // 2b. Warcry (战吼 / 战吼+): 0-cost draw 1 (or 2), choose 1 hand card to place on top of draw pile, Exhaust
+  const wcState = setupCustomCombat(1602, ENCOUNTERS.floor1[0], ['strike', 'defend', 'bash']);
+  wcState.player.energy = 3;
+  const warcryUpg = createCardInstance(wcState, 'warcry', true);
+  const keepStrike = createCardInstance(wcState, 'strike', false);
+  const drawA = createCardInstance(wcState, 'defend', false);
+  const drawB = createCardInstance(wcState, 'bash', false);
+  wcState.combat.hand = [warcryUpg, keepStrike];
+  wcState.combat.drawPile = [drawA, drawB];
+  wcState.combat.discardPile = [];
+  wcState.combat.exhaustPile = [];
+  const wcPlay = playCard(wcState, warcryUpg.instanceId);
+  assert.equal(wcPlay.ok, true);
+  assert.equal(wcState.player.energy, 3, 'Warcry+ costs 0 energy');
+  assert.equal(wcState.combat.exhaustPile.some((c) => c.instanceId === warcryUpg.instanceId), true, 'Warcry+ exhausts');
+  assert.equal(wcState.combat.hand.length, 3, 'Warcry+ draws 2 cards before hand_to_draw choice');
+  assert.equal(wcState.combat.pendingCardChoice?.mode, 'hand_to_draw');
+  const wcPick = resolveCardChoice(wcState, drawB.instanceId);
+  assert.equal(wcPick.ok, true);
+  assert.equal(wcState.combat.pendingCardChoice, null);
+  assert.equal(wcState.combat.drawPile[0]?.instanceId, drawB.instanceId, 'Chosen card placed on top of draw pile');
+  assert.equal(wcState.combat.hand.length, 2);
+
+  // 2c. Pummel (连续拳 / 连续拳+): 1-cost multi-hit attack scaling with Strength and Exhausting
+  const pmEnemy = wcState.combat.enemies[0];
+  pmEnemy.hp = 80;
+  pmEnemy.maxHp = 80;
+  pmEnemy.block = 0;
+  wcState.player.statuses.strength = 3;
+  const pummelBase = createCardInstance(wcState, 'pummel', false);
+  const pummelUpg = createCardInstance(wcState, 'pummel', true);
+  wcState.combat.hand = [pummelBase, pummelUpg];
+  wcState.player.energy = 3;
+  assert.equal(playCard(wcState, pummelBase.instanceId, pmEnemy.id).ok, true);
+  // (2 + 3) * 4 = 20 damage
+  assert.equal(pmEnemy.hp, 60);
+  assert.equal(wcState.combat.exhaustPile.some((c) => c.instanceId === pummelBase.instanceId), true);
+  assert.equal(playCard(wcState, pummelUpg.instanceId, pmEnemy.id).ok, true);
+  // (2 + 3) * 5 = 25 damage -> 35 HP left
+  assert.equal(pmEnemy.hp, 35);
+  assert.equal(wcState.combat.exhaustPile.some((c) => c.instanceId === pummelUpg.instanceId), true);
 
   // 3. Flex temporary +2 Strength decays at end of turn; Armaments+ upgrades entire hand; Anger copies self to discard; Reaper heals unblocked AoE damage
   const flex = createCardInstance(state, 'flex', false);
@@ -4276,8 +4318,13 @@ test('Comprehensive Balance Pass (P0/P1/P2): customHp A9 scaling, Slime Split ex
   assert.equal(CARD_LIBRARY.worship.base.cost, 2);
   assert.equal(CARD_LIBRARY.worship.upgraded.cost, 2);
   assert.equal(CARD_LIBRARY.worship.upgraded.retain, true);
-  assert.equal(CARD_LIBRARY.steadfast_guard.base.block, 7);
-  assert.equal(CARD_LIBRARY.steadfast_guard.upgraded.block, 10);
+  assert.equal(CARD_LIBRARY.warcry.base.cost, 0);
+  assert.equal(CARD_LIBRARY.warcry.base.draw, 1);
+  assert.equal(CARD_LIBRARY.warcry.upgraded.draw, 2);
+  assert.equal(CARD_LIBRARY.warcry.base.putHandToDrawTopChoice, 1);
+  assert.equal(CARD_LIBRARY.pummel.base.damage, 2);
+  assert.equal(CARD_LIBRARY.pummel.base.hits, 4);
+  assert.equal(CARD_LIBRARY.pummel.upgraded.hits, 5);
   assert.equal(CARD_LIBRARY.rupture.upgraded.cost, 0);
   assert.equal(CARD_LIBRARY.riddle_with_holes.base.damage, 4);
   assert.equal(CARD_LIBRARY.riddle_with_holes.upgraded.damage, 5);
