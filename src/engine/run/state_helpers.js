@@ -10,6 +10,7 @@ import {
   getCardStats,
   getColorlessCardPools,
   getRewardCardPools,
+  upgradeCardInstance,
 } from '../../data/cards.js';
 import { normalizeCharacterId } from '../../data/characters.js';
 import { ENCOUNTERS, ENEMY_TEMPLATES } from '../../data/enemies.js';
@@ -176,7 +177,7 @@ export function grantRelicToPlayer(state, relicId) {
     );
     const chosen = pickDistinct(state, matching, def.upgradeOnPickup.count ?? 2);
     for (const c of chosen) {
-      c.upgraded = true;
+      upgradeCardInstance(c);
       upgradedCards.push({
         instanceId: c.instanceId,
         cardId: c.cardId,

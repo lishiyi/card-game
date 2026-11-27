@@ -207,25 +207,32 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const pendingChoice = getActivePendingCardChoice(combat);
   const isAnyPendingChoice = hasPendingCardChoice(combat);
   const pendingMode = pendingChoice?.mode || null;
+  const isHandMultiSelectMode =
+    pendingMode === 'retain' ||
+    pendingMode === 'exhaust_multi' ||
+    pendingMode === 'hand_to_draw_bottom_multi';
   const isHandChoiceMode =
     pendingMode === 'discard' ||
     pendingMode === 'exhaust' ||
+    pendingMode === 'exhaust_multi' ||
     pendingMode === 'upgrade' ||
     pendingMode === 'hand_to_draw' ||
+    pendingMode === 'hand_to_draw_bottom' ||
+    pendingMode === 'hand_to_draw_bottom_multi' ||
+    pendingMode === 'dual_wield' ||
+    pendingMode === 'nightmare' ||
     pendingMode === 'retain';
-  const retainSelectedSet =
-    pendingMode === 'retain' ? new Set(pendingChoice.selectedIds || []) : null;
-  const retainEligibleSet =
-    pendingMode === 'retain'
-      ? new Set((pendingChoice.candidates || []).map((c) => c.instanceId))
-      : null;
+  const multiSelectedSet = isHandMultiSelectMode ? new Set(pendingChoice.selectedIds || []) : null;
+  const multiEligibleSet = isHandMultiSelectMode
+    ? new Set((pendingChoice.candidates || []).map((c) => c.instanceId))
+    : null;
   const previewTarget = getPreviewTargetEnemy();
   const handHtml = combat.hand
     .map((card, idx) => {
       if (isHandChoiceMode) {
-        if (pendingMode === 'retain') {
-          const eligible = retainEligibleSet.has(card.instanceId);
-          const isPicked = retainSelectedSet.has(card.instanceId);
+        if (isHandMultiSelectMode) {
+          const eligible = multiEligibleSet.has(card.instanceId);
+          const isPicked = multiSelectedSet.has(card.instanceId);
           return renderCardHtml(card, {
             idPrefix: 'hand-card',
             action: eligible ? 'toggle-retain-card' : 'noop',
@@ -233,8 +240,12 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             selected: isPicked,
             dimmed: !eligible,
             disabled: !eligible,
-            retainSelectable: eligible,
-            retainSelected: isPicked,
+            retainSelectable: pendingMode === 'retain' && eligible,
+            retainSelected: pendingMode === 'retain' && isPicked,
+            exhaustMultiSelectable: pendingMode === 'exhaust_multi' && eligible,
+            exhaustMultiSelected: pendingMode === 'exhaust_multi' && isPicked,
+            drawBottomMultiSelectable: pendingMode === 'hand_to_draw_bottom_multi' && eligible,
+            drawBottomMultiSelected: pendingMode === 'hand_to_draw_bottom_multi' && isPicked,
             hotkey: eligible && idx < 9 ? idx + 1 : undefined,
             combatContext: {
               player: state.player,
@@ -278,14 +289,50 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             },
           });
         }
-        if (pendingMode === 'hand_to_draw') {
+        if (pendingMode === 'hand_to_draw' || pendingMode === 'hand_to_draw_bottom') {
           return renderCardHtml(card, {
             idPrefix: 'hand-card',
             action: 'resolve-card-choice',
             playable: true,
             selected: false,
             dimmed: false,
-            drawTopSelectable: true,
+            drawTopSelectable: pendingMode === 'hand_to_draw',
+            drawBottomSelectable: pendingMode === 'hand_to_draw_bottom',
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'dual_wield') {
+          const cType = getCardStats(card).type;
+          const eligible = cType === 'attack' || cType === 'power';
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: eligible ? 'resolve-card-choice' : 'noop',
+            playable: eligible,
+            selected: false,
+            dimmed: !eligible,
+            disabled: !eligible,
+            dualWieldSelectable: eligible,
+            hotkey: eligible && idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'nightmare') {
+          return renderCardHtml(card, {
+            idPrefix: 'hand-card',
+            action: 'resolve-card-choice',
+            playable: true,
+            selected: false,
+            dimmed: false,
+            nightmareSelectable: true,
             hotkey: idx < 9 ? idx + 1 : undefined,
             combatContext: {
               player: state.player,
@@ -320,7 +367,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         ? ''
         : check.reason.includes('能量')
           ? 'energy'
-          : check.reason.includes('天鹅绒颈圈')
+          : check.reason.includes('天鹅绒颈圈') || check.reason.includes('凡庸')
             ? 'choker'
             : 'unplayable';
       const conditionMet = check.playable && isCardBonusConditionMet(state, card);
@@ -361,6 +408,16 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌保留至下回合（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认保留」`;
     bannerDesktopHint = '（数字键 1–9 选择，Enter 确认并结束回合）';
     bannerClass = 'retain-prompt';
+  } else if (pendingMode === 'exhaust_multi') {
+    const pickedLen = (pendingChoice.selectedIds || []).length;
+    bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌消耗（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认消耗」`;
+    bannerDesktopHint = '（数字键 1–9 选择，Enter 确认）';
+    bannerClass = 'exhaust-prompt';
+  } else if (pendingMode === 'hand_to_draw_bottom_multi') {
+    const pickedLen = (pendingChoice.selectedIds || []).length;
+    bannerText = `【${pendingChoice.sourceName}】请选择任意张手牌置于抽牌堆底（已选 ${pickedLen} 张），完成后点击「确认置底」`;
+    bannerDesktopHint = '（数字键 1–9 选择，Enter 确认）';
+    bannerClass = 'scry-prompt';
   } else if (pendingMode === 'discard') {
     bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌弃置`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
@@ -374,7 +431,19 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'upgrade-prompt';
   } else if (pendingMode === 'hand_to_draw') {
-    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌置于抽牌堆顶`;
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌置于抽牌堆顶${pendingChoice.zeroCostUntilPlayed ? '（打出前 0 费）' : ''}`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'hand_to_draw_bottom') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌置于抽牌堆底${pendingChoice.zeroCostUntilPlayed ? '（打出前 0 费）' : ''}`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'dual_wield') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 1 张攻击牌或能力牌复制 ${pendingChoice.copies || 1} 张加入手牌`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'upgrade-prompt';
+  } else if (pendingMode === 'nightmare') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 1 张手牌，下回合开始获得 ${pendingChoice.copies || 3} 张复制品`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'scry-prompt';
   } else if (pendingMode === 'scry') {
@@ -389,8 +458,20 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   } else if (pendingMode === 'retrieve_discard_to_hand') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
     bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'retrieve_exhaust_to_hand') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从消耗堆发掘 ${pendingChoice.remaining} 张牌加入手牌……`;
+    bannerClass = 'scry-prompt';
   } else if (pendingMode === 'pick_from_draw') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'omniscience') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆选择 1 张牌免费连续打出 2 次……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'discover_card') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从 3 张候选卡牌选择 1 张加入手牌……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'wish') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中选择一项愿望……`;
     bannerClass = 'scry-prompt';
   } else if (isTargetingEnemy) {
     const itemName = selectedCardStats
@@ -508,36 +589,55 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const mobileChoiceHint =
     pendingMode === 'retain'
       ? `点选保留牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
-      : pendingMode === 'discard'
-        ? '点击下方手牌弃置'
-        : pendingMode === 'exhaust'
-          ? '点击下方手牌消耗'
-          : pendingMode === 'upgrade'
-            ? '点击下方手牌升级'
-            : pendingMode === 'hand_to_draw'
-              ? '点击下方手牌置于抽牌堆顶'
-              : pendingMode === 'scry'
-                ? '请在弹窗完成预见'
-                : pendingMode === 'discard_to_draw' ||
-                    pendingMode === 'retrieve_discard_retain' ||
-                    pendingMode === 'retrieve_discard_to_hand'
-                  ? '请在弹窗从弃牌堆选牌'
-                  : pendingMode === 'pick_from_draw'
-                    ? '请在弹窗从抽牌堆检索'
-                    : settings?.mobileTapConfirm
-                      ? '点选预览 · 再点/上滑出牌'
-                      : '左右滑选牌 · 上滑拖出牌';
+      : pendingMode === 'exhaust_multi'
+        ? `点选消耗牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
+        : pendingMode === 'hand_to_draw_bottom_multi'
+          ? `点选置底牌 (${(pendingChoice.selectedIds || []).length}) 后确认`
+          : pendingMode === 'discard'
+            ? '点击下方手牌弃置'
+            : pendingMode === 'exhaust'
+              ? '点击下方手牌消耗'
+              : pendingMode === 'upgrade'
+                ? '点击下方手牌升级'
+                : pendingMode === 'hand_to_draw'
+                  ? '点击下方手牌置于抽牌堆顶'
+                  : pendingMode === 'hand_to_draw_bottom'
+                    ? '点击下方手牌置于抽牌堆底'
+                    : pendingMode === 'dual_wield'
+                      ? '点击下方攻击/能力牌复制'
+                      : pendingMode === 'nightmare'
+                        ? '点击下方手牌下回合复制×3'
+                        : pendingMode === 'scry'
+                          ? '请在弹窗完成预见'
+                          : pendingMode === 'discard_to_draw' ||
+                              pendingMode === 'retrieve_discard_retain' ||
+                              pendingMode === 'retrieve_discard_to_hand'
+                            ? '请在弹窗从弃牌堆选牌'
+                            : pendingMode === 'retrieve_exhaust_to_hand'
+                              ? '请在弹窗从消耗堆发掘'
+                              : pendingMode === 'pick_from_draw' || pendingMode === 'omniscience'
+                                ? '请在弹窗从抽牌堆选牌'
+                                : pendingMode === 'discover_card'
+                                  ? '请在弹窗 3 选 1 入手'
+                                  : pendingMode === 'wish'
+                                    ? '请在弹窗选择愿望'
+                                    : settings?.mobileTapConfirm
+                                      ? '点选预览 · 再点/上滑出牌'
+                                      : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
     pendingMode === 'retain'
       ? 'retain-selecting'
       : pendingMode === 'discard'
         ? 'discard-selecting'
-        : pendingMode === 'exhaust'
+        : pendingMode === 'exhaust' || pendingMode === 'exhaust_multi'
           ? 'exhaust-selecting'
-          : pendingMode === 'upgrade'
+          : pendingMode === 'upgrade' || pendingMode === 'dual_wield'
             ? 'upgrade-selecting'
-            : pendingMode === 'hand_to_draw'
+            : pendingMode === 'hand_to_draw' ||
+                pendingMode === 'hand_to_draw_bottom' ||
+                pendingMode === 'hand_to_draw_bottom_multi' ||
+                pendingMode === 'nightmare'
               ? 'draw-top-selecting'
               : '';
 
@@ -650,14 +750,20 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
           }</div>
           ${
-            pendingMode === 'retain'
+            isHandMultiSelectMode
               ? `<button
                   type="button"
                   id="btn-confirm-retain"
                   class="btn-brass retain-confirm-btn"
                   data-action="confirm-retain-choice"
                 >
-                  确认保留 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)}) 并结束回合
+                  ${
+                    pendingMode === 'retain'
+                      ? `确认保留 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)}) 并结束回合`
+                      : pendingMode === 'exhaust_multi'
+                        ? `确认消耗 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)})`
+                        : `确认置底 (${escapeHtml((pendingChoice.selectedIds || []).length)})`
+                  }
                 </button>`
               : `<button
                   type="button"

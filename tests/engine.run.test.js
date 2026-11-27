@@ -5,10 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  canRemoveCard,
   canUpgradeCard,
   CARD_LIBRARY,
   COLORLESS_CARD_POOLS,
   createCardInstance,
+  CURSE_CARD_IDS,
   formatCardDescription,
   getCardCharacter,
   getCardStats,
@@ -1118,8 +1120,8 @@ test('The Silent run setup: 70 HP (65 Asc 4), 12-card deck, Ring of the Snake (+
 });
 
 test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Uncommon + 1 Rare shelf, purchase & stats tracking', () => {
-  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 12);
-  assert.equal(COLORLESS_CARD_POOLS.rare.length, 8);
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 20);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 15);
 
   // 1. 40+ normal/elite/boss reward rolls across both Ironclad and Silent must NEVER drop colorless cards
   for (const characterId of ['ironclad', 'silent']) {
@@ -1734,7 +1736,7 @@ test('Ascension 6-10 rules: damaged start & 2 potion slots (A6), gold & upgrade 
 
 test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent neutral copy, and independent per-character Ascension & legacy meta migration', () => {
   // 1. Act-scoped event pool integrity (35 total events, proper minAct/maxAct filtering)
-  assert.equal(EVENT_IDS.length, 35, 'Expected 35 total events including P1 expansion');
+  assert.equal(EVENT_IDS.length, 36, 'Expected 36 total events including the_nest');
   const act1Events = getEventIdsForAct(1);
   const act2Events = getEventIdsForAct(2);
   const act3Events = getEventIdsForAct(3);
@@ -2122,7 +2124,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 307 cards resolve valid, richly de-duplicated vector art', () => {
+test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 361 cards resolve valid, richly de-duplicated vector art', () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
@@ -2179,9 +2181,9 @@ test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradi
   }
 
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 307);
+  assert.equal(cardEntries.length, 361);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.equal(sigKeys.length, 305, `Expected 100% bespoke signature art for all 305 non-shared cards, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 359, `Expected 100% bespoke signature art for all 359 non-shared cards, got ${sigKeys.length}`);
   const themeKeys = Object.keys(CARD_THEME_ART);
   assert.equal(themeKeys.length, 33, `Expected 33 class/status/curse theme artworks, got ${themeKeys.length}`);
   const seenCardGradIds = new Set();
@@ -2540,11 +2542,11 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   );
 });
 
-test('Official Simplified Chinese card names (307 unique) & concise card keyword descriptions/extraction', () => {
+test('Official Simplified Chinese card names (361 unique) & concise card keyword descriptions/extraction', () => {
   const allCards = Object.values(CARD_LIBRARY);
-  assert.equal(allCards.length, 307);
+  assert.equal(allCards.length, 361);
 
-  // Zero duplicate Chinese names across all 307 cards
+  // Zero duplicate Chinese names across all 361 cards
   const seenNames = new Map();
   for (const c of allCards) {
     assert.equal(
@@ -3049,10 +3051,10 @@ test('Relic Art Integrity: all 112 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 118 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
+test('Status Art Integrity: all 125 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 118, `Expected 118 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 125, `Expected 125 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();
@@ -3277,12 +3279,15 @@ test('Act 4 & Three Keys Full Lifecycle: Ruby Recall, Burning Elite Emerald Key,
 });
 
 test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inline highlights, trait chips & glossary', () => {
-  const expectedFatalIds = new Set(['feed', 'hand_of_greed', 'lesson_learned']);
+  const expectedFatalIds = new Set(['feed', 'hand_of_greed', 'lesson_learned', 'ritual_dagger']);
 
   for (const card of Object.values(CARD_LIBRARY)) {
     const hasFatalFlag = Boolean(card.base?.fatal || card.upgraded?.fatal);
     const hasFatalProp = Boolean(
-      card.base?.maxHpOnKill || card.base?.goldOnKill || card.base?.fatalPermanentUpgrade
+      card.base?.maxHpOnKill ||
+        card.base?.goldOnKill ||
+        card.base?.fatalPermanentUpgrade ||
+        card.base?.ritualDamageGrowth
     );
     assert.equal(
       hasFatalFlag,
@@ -3312,7 +3317,13 @@ test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inli
   const glossaryEntries = getGlossaryEntries();
   const fatalEntry = glossaryEntries.find((e) => e.id === 'kw_fatal');
   assert.ok(fatalEntry, 'Glossary must include kw_fatal entry');
-  assert.ok(fatalEntry.name.includes('斩杀') && fatalEntry.description.includes('狂宴') && fatalEntry.description.includes('贪婪之手') && fatalEntry.description.includes('勤学精进'));
+  assert.ok(
+    fatalEntry.name.includes('斩杀') &&
+      fatalEntry.description.includes('狂宴') &&
+      fatalEntry.description.includes('贪婪之手') &&
+      fatalEntry.description.includes('勤学精进') &&
+      fatalEntry.description.includes('仪式匕首')
+  );
 });
 
 test('The Defect run setup (75/70 HP, 10 cards, Cracked/Frozen Core), 4-hero pool isolation, Boss Swap, ?char=defect URL & Daily Challenge 2026-11-26 cutoff', () => {
@@ -3500,4 +3511,93 @@ test('Shop reset (重新购买): restores exact shop entry shelf, prices, gold, 
   assert.equal(leaveShop(state).ok, true);
   assert.equal(state.shop, null);
   assert.equal(state.shopSnapshot, null);
+});
+
+test('Full Roster 361 Run Integration: the_nest, vampires embrace_bites, augmenter take_jax, cursed_tome necronomicurse, mausoleum bell, infinite Searing Blow campfire smithing & unremovable curse guards', () => {
+  const openEvt = (run, eventId) => {
+    run.screen = 'event';
+    run.eventState = {
+      eventId,
+      resolved: false,
+      pendingPurge: false,
+      pendingCardAction: null,
+      libraryChoices: null,
+      outcomeText: '',
+      upgradedCardIds: [],
+      addedCardIds: [],
+    };
+  };
+
+  // 1. the_nest: join_ritual -> Ritual Dagger (-6 HP), smash_and_grab -> +99 Gold (A8: +50 Gold, -8 HP)
+  const nestRun = createNewRun({ seed: 8801, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  openEvt(nestRun, 'the_nest');
+  const hpBeforeNest = nestRun.player.hp;
+  assert.equal(chooseEventOption(nestRun, 'join_ritual').ok, true);
+  assert.equal(nestRun.player.hp, hpBeforeNest - 6);
+  assert.equal(nestRun.player.deck.some((c) => c.cardId === 'ritual_dagger'), true);
+
+  const nestA8 = createNewRun({ seed: 8802, characterId: 'ironclad', ascension: 8, skipNeow: true, unlockAllOverride: true });
+  openEvt(nestA8, 'the_nest');
+  const goldBeforeNest = nestA8.player.gold;
+  assert.equal(chooseEventOption(nestA8, 'smash_and_grab').ok, true);
+  assert.equal(nestA8.player.gold, goldBeforeNest + 50, 'A8 the_nest smash_and_grab yields 50 gold');
+
+  // 2. vampires_den embrace_bites removes all Strikes and grants 5 Bites
+  const vampRun = createNewRun({ seed: 8803, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  openEvt(vampRun, 'vampires_den');
+  assert.equal(chooseEventOption(vampRun, 'embrace_bites').ok, true);
+  assert.equal(vampRun.player.deck.filter((c) => c.cardId === 'strike').length, 0);
+  assert.equal(vampRun.player.deck.filter((c) => c.cardId === 'bite').length, 5);
+
+  // 3. augmenter take_jax grants J.A.X.
+  const augRun = createNewRun({ seed: 8804, characterId: 'silent', skipNeow: true, unlockAllOverride: true });
+  openEvt(augRun, 'augmenter');
+  assert.equal(chooseEventOption(augRun, 'take_jax').ok, true);
+  assert.equal(augRun.player.deck.some((c) => c.cardId === 'jax'), true);
+
+  // 4. cursed_tome embrace_necronomicurse & the_mausoleum ring_cursed_bell grant unremovable curses
+  const tomeRun = createNewRun({ seed: 8805, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  openEvt(tomeRun, 'cursed_tome');
+  assert.equal(chooseEventOption(tomeRun, 'embrace_necronomicurse').ok, true);
+  const necro = tomeRun.player.deck.find((c) => c.cardId === 'necronomicurse');
+  assert.ok(necro, 'cursed_tome embrace_necronomicurse must add Necronomicurse');
+  assert.equal(canRemoveCard(necro), false);
+
+  openEvt(tomeRun, 'the_mausoleum');
+  assert.equal(chooseEventOption(tomeRun, 'ring_cursed_bell').ok, true);
+  const bell = tomeRun.player.deck.find((c) => c.cardId === 'curse_of_the_bell');
+  assert.ok(bell, 'the_mausoleum ring_cursed_bell must add Curse of the Bell');
+  assert.equal(canRemoveCard(bell), false);
+
+  // 5. Unremovable curses cannot be purged in shop, Peace Pipe campfire, or events, nor transformed
+  tomeRun.player.gold = 500;
+  tomeRun.screen = 'shop';
+  tomeRun.shop = { cards: [], colorlessCards: [], relicOffer: null, shopRelicOffer: null, potionOffer: null, purgeCost: 75, purgeUsed: false };
+  assert.equal(buyShopPurge(tomeRun, necro.instanceId).ok, false, 'Shop purge must reject unremovable Necronomicurse');
+  assert.equal(buyShopPurge(tomeRun, bell.instanceId).ok, false, 'Shop purge must reject unremovable Curse of the Bell');
+
+  tomeRun.player.relics.push('peace_pipe');
+  tomeRun.screen = 'rest';
+  tomeRun.restState = { completed: false, lastAction: '' };
+  assert.equal(tokeAtCampfire(tomeRun, necro.instanceId).ok, false, 'Peace Pipe must reject unremovable curse');
+
+  openEvt(tomeRun, 'ancient_shrine');
+  tomeRun.eventState.pendingPurge = true;
+  assert.equal(completeEventPurge(tomeRun, necro.instanceId).ok, false, 'Event purge must reject unremovable curse');
+  tomeRun.eventState.pendingPurge = false;
+  tomeRun.eventState.pendingCardAction = 'transform';
+  assert.equal(completeEventCardAction(tomeRun, bell.instanceId).ok, false, 'Event transform must reject unremovable curse');
+
+  // 6. Infinite Campfire Smithing on Searing Blow (+1 -> +2 -> +3)
+  const sbCard = createCardInstance(tomeRun, 'searing_blow', false);
+  tomeRun.player.deck.push(sbCard);
+  for (let lvl = 1; lvl <= 3; lvl += 1) {
+    tomeRun.screen = 'rest';
+    tomeRun.restState = { completed: false, lastAction: '' };
+    assert.equal(canUpgradeCard(sbCard), true);
+    assert.equal(restUpgradeCard(tomeRun, sbCard.instanceId).ok, true);
+    assert.equal(sbCard.upgradeLevel, lvl);
+  }
+  assert.equal(getCardStats(sbCard).damage, 27, 'Searing Blow+3 deals 27 base damage');
+  assert.equal(getCardStats(sbCard).name, '灼热攻击+3');
 });

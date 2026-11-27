@@ -2,7 +2,7 @@
  * Unknown Event screen renderer (narrative choices, card upgrade/transform/purge sub-flows, and Library draft).
  */
 
-import { getCardStats } from '../../data/cards.js';
+import { canRemoveCard, getCardStats } from '../../data/cards.js';
 import {
   EVENT_LIBRARY,
   getEventChoicesForAscension,
@@ -19,6 +19,7 @@ export function renderEventScreen({ state, ui }) {
   let bodyHtml = '';
   if (evState.pendingPurge) {
     const deckHtml = state.player.deck
+      .filter((c) => canRemoveCard(c))
       .map((c) =>
         renderCardHtml(c, {
           idPrefix: 'event-purge-card',
@@ -44,7 +45,9 @@ export function renderEventScreen({ state, ui }) {
   } else if (evState.pendingCardAction) {
     const isUpgrade = evState.pendingCardAction === 'upgrade';
     const isRareTransform = evState.pendingCardAction === 'transform_rare';
-    const candidateCards = isUpgrade ? getUpgradableDeckCards(state) : state.player.deck;
+    const candidateCards = isUpgrade
+      ? getUpgradableDeckCards(state)
+      : state.player.deck.filter((c) => canRemoveCard(c));
     const cardsHtml = candidateCards
       .map((c) =>
         renderCardHtml(c, {
@@ -183,7 +186,8 @@ export function renderEventScreen({ state, ui }) {
           (evDef.id === 'colosseum_trial' && ch.id === 'accept_trial' && state.player.hp <= evTune.colosseumHpLoss) ||
           (evDef.id === 'mysterious_sphere' && ch.id === 'smash_sphere' && state.player.hp <= evTune.sphereHpLoss) ||
           (evDef.id === 'secret_portal' && ch.id === 'siphon_portal' && state.player.hp <= evTune.portalSiphonHpLoss) ||
-          (evDef.id === 'spire_forge_altar' && ch.id === 'altar_transmute_rare' && state.player.hp <= evTune.forgeAltarHpLoss)
+          (evDef.id === 'spire_forge_altar' && ch.id === 'altar_transmute_rare' && state.player.hp <= evTune.forgeAltarHpLoss) ||
+          (evDef.id === 'the_nest' && ch.id === 'join_ritual' && state.player.hp <= evTune.nestHpLoss)
         ) {
           blockedReason = '（生命不足）';
         } else if (

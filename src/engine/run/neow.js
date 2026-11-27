@@ -3,11 +3,13 @@
  */
 
 import {
+  canRemoveCard,
   canUpgradeCard,
   createCardInstance,
   CURSE_CARD_IDS,
   getCardStats,
   getColorlessCardPools,
+  upgradeCardInstance,
 } from '../../data/cards.js';
 import { getCharacterDef, normalizeCharacterId } from '../../data/characters.js';
 import { ENCOUNTERS } from '../../data/enemies.js';
@@ -494,7 +496,7 @@ export function completeNeowAction(state, instanceId) {
     if (!canUpgradeCard(card)) {
       return { ok: false, reason: '该卡牌无法升级' };
     }
-    card.upgraded = true;
+    upgradeCardInstance(card);
     const upgradedName = getCardStats(card).name;
     neow.resolved = true;
     neow.chosenId = action.optionId;
@@ -505,6 +507,9 @@ export function completeNeowAction(state, instanceId) {
 
   if (action.type === 'transform') {
     const oldCard = state.player.deck[idx];
+    if (!canRemoveCard(oldCard)) {
+      return { ok: false, reason: '该诅咒无法变化' };
+    }
     const oldName = getCardStats(oldCard).name;
     const { cards } = getUnlockedPools(state);
     const pool = [...cards.common, ...cards.uncommon, ...cards.rare].filter(
@@ -524,6 +529,9 @@ export function completeNeowAction(state, instanceId) {
   if (action.type === 'remove') {
     if (state.player.deck.length <= 1) {
       return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+    }
+    if (!canRemoveCard(state.player.deck[idx])) {
+      return { ok: false, reason: '该诅咒无法从牌组中移除' };
     }
     if (action.payAllGold && !action.goldPaid) {
       action.lostGold = state.player.gold;
@@ -615,7 +623,7 @@ export function applyDailyStartModifiers(state) {
     const upgradable = getUpgradableDeckCards(state);
     const chosen = pickDistinct(state, upgradable, 4);
     for (const c of chosen) {
-      c.upgraded = true;
+      upgradeCardInstance(c);
     }
   }
   if (hasDailyModifier(state, 'cursed_run')) {

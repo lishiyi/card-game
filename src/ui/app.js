@@ -1076,11 +1076,19 @@ export function mountSpireApp(rootEl) {
         pending?.mode === 'discard_to_draw' ||
         pending?.mode === 'retrieve_discard_retain' ||
         pending?.mode === 'retrieve_discard_to_hand' ||
-        pending?.mode === 'pick_from_draw'
+        pending?.mode === 'retrieve_exhaust_to_hand' ||
+        pending?.mode === 'pick_from_draw' ||
+        pending?.mode === 'omniscience' ||
+        pending?.mode === 'discover_card' ||
+        pending?.mode === 'wish'
       ) {
         return;
       }
-      if (pending?.mode === 'retain') {
+      if (
+        pending?.mode === 'retain' ||
+        pending?.mode === 'exhaust_multi' ||
+        pending?.mode === 'hand_to_draw_bottom_multi'
+      ) {
         executeTogglePendingChoiceWithFx(instanceId);
         return;
       }
@@ -1931,7 +1939,11 @@ export function mountSpireApp(rootEl) {
       if (
         activeChoice?.mode === 'discard_to_draw' ||
         activeChoice?.mode === 'retrieve_discard_to_hand' ||
-        activeChoice?.mode === 'pick_from_draw'
+        activeChoice?.mode === 'retrieve_exhaust_to_hand' ||
+        activeChoice?.mode === 'pick_from_draw' ||
+        activeChoice?.mode === 'omniscience' ||
+        activeChoice?.mode === 'discover_card' ||
+        activeChoice?.mode === 'wish'
       ) {
         const pickNum = Number(event.key);
         if (pickNum >= 1 && pickNum <= 9) {
@@ -1959,7 +1971,11 @@ export function mountSpireApp(rootEl) {
         return;
       }
 
-      if (activeChoice?.mode === 'retain') {
+      if (
+        activeChoice?.mode === 'retain' ||
+        activeChoice?.mode === 'exhaust_multi' ||
+        activeChoice?.mode === 'hand_to_draw_bottom_multi'
+      ) {
         if (event.key === 'Enter') {
           event.preventDefault();
           executeConfirmPendingChoiceWithFx();

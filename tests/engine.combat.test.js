@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  canRemoveCard,
   CARD_LIBRARY,
   COLORLESS_CARD_POOLS,
   createCardInstance,
+  CURSE_CARD_IDS,
   formatCardDescription,
   formatUpgradePreview,
   getCardCharacter,
   getCardStats,
   getEffectiveCardCost,
+  upgradeCardInstance,
 } from '../src/data/cards.js';
 import { ENCOUNTERS, GREMLIN_POOL } from '../src/data/enemies.js';
 import {
@@ -572,18 +575,18 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
     assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
   }
   assert.equal(Object.keys(POTION_LIBRARY).length, 32);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 307);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 361);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
-    65
+    73
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'silent').length,
-    65
+    74
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'watcher').length,
-    72
+    80
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'defect').length,
@@ -1354,10 +1357,10 @@ test('The Silent Discard archetype: pendingDiscard selection, Tactician, Reflex,
   assert.equal(state.combat.pendingDiscard?.sourceName, '必备工具', 'Tools of the Trade must prompt 1 discard at turn start');
 });
 
-test('Shop-exclusive Colorless Cards (20): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
-  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 12);
-  assert.equal(COLORLESS_CARD_POOLS.rare.length, 8);
-  assert.equal(COLORLESS_CARD_POOLS.all.length, 20);
+test('Shop-exclusive Colorless Cards (35): Flash of Steel, Finesse, Dramatic Entrance, Blind+/Trip+ AoE, Bandage Up, Apotheosis, Hand of Greed, Master of Strategy, Sadistic Nature & battle stats', () => {
+  assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 20);
+  assert.equal(COLORLESS_CARD_POOLS.rare.length, 15);
+  assert.equal(COLORLESS_CARD_POOLS.all.length, 35);
   for (const cid of COLORLESS_CARD_POOLS.all) {
     assert.equal(CARD_LIBRARY[cid].character, 'colorless');
     assert.equal(CARD_LIBRARY[cid].shopOnly, true);
@@ -4926,4 +4929,542 @@ test('Defect Tactics Preview: deterministic Dark/Single-Enemy Lightning lethal v
   const zapCard = createCardInstance(soloState, 'zap', false);
   const synOverflow = computeCardSynergies(soloState, zapCard, soloEnemy.id);
   assert.ok(synOverflow.callouts.some((c) => c.text.includes('自动激发')), 'Full-rail Zap emits overflow auto-evoke callout');
+});
+
+test('Full Roster 361 — Ironclad (+8) & Silent (+9): Searing Blow infinite upgrades, Rampage, Sever Soul, Dual Wield, Infernal Blade, Burning Pact, Exhume, Brutality, Endless Agony, Masterful Stab, Distraction, Setup, Grand Finale, Unload, Doppelganger, Nightmare & Bullet Time', () => {
+  // 1. Ironclad (+8)
+  const ic = setupCustomCombat(7701, ENCOUNTERS.floor1[0], ['strike', 'strike', 'defend', 'defend']);
+  const enemy = ic.combat.enemies[0];
+  enemy.hp = 300;
+  enemy.maxHp = 300;
+  ic.player.energy = 20;
+
+  // Searing Blow infinite upgrades: 12 -> 16 -> 21 -> 27 -> 34
+  const sb = createCardInstance(ic, 'searing_blow', false);
+  assert.equal(getCardStats(sb).damage, 12);
+  upgradeCardInstance(sb);
+  assert.equal(getCardStats(sb).damage, 16);
+  assert.equal(getCardStats(sb).name, '灼热攻击+');
+  upgradeCardInstance(sb);
+  assert.equal(getCardStats(sb).damage, 21);
+  assert.equal(getCardStats(sb).name, '灼热攻击+2');
+  upgradeCardInstance(sb);
+  assert.equal(getCardStats(sb).damage, 27);
+  upgradeCardInstance(sb);
+  assert.equal(getCardStats(sb).damage, 34);
+  const sbPreview = formatUpgradePreview(sb);
+  assert.ok(sbPreview.text.includes('42'), 'Searing Blow +4 preview must show +5 damage (42)');
+
+  // Rampage scales +5 per play
+  const ramp = createCardInstance(ic, 'rampage', false);
+  ic.combat.hand = [ramp];
+  const hpBeforeRamp = enemy.hp;
+  assert.equal(playCard(ic, ramp.instanceId, enemy.id).ok, true);
+  assert.equal(hpBeforeRamp - enemy.hp, 8);
+  ic.combat.discardPile = ic.combat.discardPile.filter((c) => c.instanceId !== ramp.instanceId);
+  ic.combat.hand.push(ramp);
+  assert.equal(playCard(ic, ramp.instanceId, enemy.id).ok, true);
+  assert.equal(hpBeforeRamp - enemy.hp, 8 + 13);
+
+  // Sever Soul exhausts non-attacks in hand and deals 16
+  const ss = createCardInstance(ic, 'sever_soul', false);
+  const sKeepAtk = createCardInstance(ic, 'strike', false);
+  const sExhSkill = createCardInstance(ic, 'defend', false);
+  ic.combat.hand = [ss, sKeepAtk, sExhSkill];
+  const hpBeforeSS = enemy.hp;
+  assert.equal(playCard(ic, ss.instanceId, enemy.id).ok, true);
+  assert.equal(hpBeforeSS - enemy.hp, 16);
+  assert.equal(ic.combat.hand.some((c) => c.instanceId === sKeepAtk.instanceId), true);
+  assert.equal(ic.combat.exhaustPile.some((c) => c.instanceId === sExhSkill.instanceId), true);
+
+  // Dual Wield+ copies chosen Attack/Power twice (skips Skill)
+  const dw = createCardInstance(ic, 'dual_wield', true);
+  const dwAtk = createCardInstance(ic, 'strike', false);
+  const dwPwr = createCardInstance(ic, 'inflame', false);
+  const dwSkl = createCardInstance(ic, 'defend', false);
+  ic.combat.hand = [dw, dwAtk, dwPwr, dwSkl];
+  assert.equal(playCard(ic, dw.instanceId).ok, true);
+  assert.equal(ic.combat.pendingCardChoice?.mode, 'dual_wield');
+  assert.equal(resolveCardChoice(ic, dwSkl.instanceId).ok, false, 'Dual Wield must reject Skill cards');
+  assert.equal(resolveCardChoice(ic, dwPwr.instanceId).ok, true);
+  assert.equal(ic.combat.hand.filter((c) => c.cardId === 'inflame').length, 3);
+
+  // Infernal Blade adds 0-cost Ironclad attack and exhausts
+  const ib = createCardInstance(ic, 'infernal_blade', false);
+  ic.combat.hand = [ib];
+  assert.equal(playCard(ic, ib.instanceId).ok, true);
+  assert.equal(ic.combat.hand.length, 1);
+  const genAtk = ic.combat.hand[0];
+  assert.equal(getCardStats(genAtk).type, 'attack');
+  assert.equal(getCardCharacter(CARD_LIBRARY[genAtk.cardId]), 'ironclad');
+  if (!getCardStats(genAtk).isXCost) {
+    assert.equal(getEffectiveCardCost(getCardStats(genAtk), ic.player, ic.combat), 0);
+  }
+  assert.equal(ic.combat.exhaustPile.some((c) => c.instanceId === ib.instanceId), true);
+
+  // Burning Pact exhausts chosen card and then draws 2
+  const bp = createCardInstance(ic, 'burning_pact', false);
+  const bpSac1 = createCardInstance(ic, 'defend', false);
+  const bpSac2 = createCardInstance(ic, 'strike', false);
+  ic.combat.hand = [bp, bpSac1, bpSac2];
+  ic.combat.drawPile = [createCardInstance(ic, 'strike', false), createCardInstance(ic, 'defend', false)];
+  assert.equal(playCard(ic, bp.instanceId).ok, true);
+  assert.equal(ic.combat.pendingCardChoice?.mode, 'exhaust');
+  assert.equal(resolveCardChoice(ic, bpSac1.instanceId).ok, true);
+  assert.equal(ic.combat.exhaustPile.some((c) => c.instanceId === bpSac1.instanceId), true);
+  assert.equal(ic.combat.hand.length, 3, '1 remaining card + 2 drawn by Burning Pact');
+
+  // Exhume retrieves an exhausted card (excluding Exhume itself)
+  const exh = createCardInstance(ic, 'exhume', false);
+  const exh2 = createCardInstance(ic, 'exhume', false);
+  ic.combat.exhaustPile = [exh2, bpSac1];
+  ic.combat.hand = [exh];
+  assert.equal(playCard(ic, exh.instanceId).ok, true);
+  assert.equal(ic.combat.pendingCardChoice?.mode, 'retrieve_exhaust_to_hand');
+  assert.equal(
+    ic.combat.pendingCardChoice.candidates.some((c) => c.cardId === 'exhume'),
+    false,
+    'Exhume cannot retrieve another Exhume'
+  );
+  assert.equal(resolveCardChoice(ic, bpSac1.instanceId).ok, true);
+  assert.equal(ic.combat.hand.some((c) => c.instanceId === bpSac1.instanceId), true);
+
+  // Brutality loses 1 HP & draws +1 card at start of next turn
+  const brut = createCardInstance(ic, 'brutality', false);
+  ic.combat.hand = [brut];
+  ic.combat.drawPile = Array.from({ length: 8 }, () => createCardInstance(ic, 'strike', false));
+  ic.player.hp = 60;
+  enemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  assert.equal(playCard(ic, brut.instanceId).ok, true);
+  assert.equal(ic.player.statuses.brutality, 1);
+  assert.equal(endPlayerTurn(ic).ok, true);
+  assert.equal(ic.player.hp, 59, 'Brutality loses 1 HP at start of turn');
+  assert.equal(ic.combat.hand.length, 6, 'Brutality draws 5 + 1 = 6 cards');
+
+  // 2. Silent (+9)
+  const si = createNewRun({ seed: 7702, characterId: 'silent', skipNeow: true, unlockAllOverride: true });
+  startCombat(si, ENCOUNTERS.floor1[0], 'normal');
+  const sEnemy = si.combat.enemies[0];
+  sEnemy.hp = 350;
+  sEnemy.maxHp = 350;
+  sEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  si.player.energy = 20;
+
+  // Endless Agony duplicates itself when drawn
+  si.combat.hand = [];
+  si.combat.drawPile = [createCardInstance(si, 'endless_agony', false)];
+  drawCards(si, 1);
+  assert.equal(si.combat.hand.filter((c) => c.cardId === 'endless_agony').length, 2, 'Endless Agony copies on draw');
+
+  // Masterful Stab cost increases by 1 per HP loss this combat
+  const mStab = createCardInstance(si, 'masterful_stab', false);
+  si.combat.hpLossCountThisCombat = 0;
+  assert.equal(getEffectiveCardCost(getCardStats(mStab), si.player, si.combat), 0);
+  si.combat.hpLossCountThisCombat = 2;
+  assert.equal(getEffectiveCardCost(getCardStats(mStab), si.player, si.combat), 2);
+
+  // Distraction generates 0-cost Silent skill
+  const dist = createCardInstance(si, 'distraction', false);
+  si.combat.hand = [dist];
+  assert.equal(playCard(si, dist.instanceId).ok, true);
+  assert.equal(si.combat.hand.length, 1);
+  assert.equal(getCardStats(si.combat.hand[0]).type, 'skill');
+  assert.equal(getCardCharacter(CARD_LIBRARY[si.combat.hand[0].cardId]), 'silent');
+
+  // Setup puts card on top of draw pile with zeroCostUntilPlayed (cleared once played)
+  const setupCard = createCardInstance(si, 'setup', false);
+  const expensiveCard = createCardInstance(si, 'dash', false);
+  const otherCard = createCardInstance(si, 'strike', false);
+  si.combat.hand = [setupCard, expensiveCard, otherCard];
+  si.combat.drawPile = [];
+  assert.equal(playCard(si, setupCard.instanceId).ok, true);
+  assert.equal(si.combat.pendingCardChoice?.mode, 'hand_to_draw');
+  assert.equal(resolveCardChoice(si, expensiveCard.instanceId).ok, true);
+  assert.equal(si.combat.drawPile[0].instanceId, expensiveCard.instanceId);
+  assert.equal(expensiveCard.zeroCostUntilPlayed, true);
+  drawCards(si, 1);
+  assert.equal(getEffectiveCardCost(getCardStats(expensiveCard), si.player, si.combat), 0);
+  assert.equal(playCard(si, expensiveCard.instanceId, sEnemy.id).ok, true);
+  assert.equal(Boolean(expensiveCard.zeroCostUntilPlayed), false, 'zeroCostUntilPlayed clears after being played');
+
+  // Grand Finale requires empty drawPile
+  const gf = createCardInstance(si, 'grand_finale', false);
+  si.combat.hand = [gf];
+  si.combat.drawPile = [createCardInstance(si, 'strike', false)];
+  assert.equal(canPlayCard(si, gf.instanceId).playable, false);
+  si.combat.drawPile = [];
+  assert.equal(canPlayCard(si, gf.instanceId).playable, true);
+  const hpBeforeGf = sEnemy.hp;
+  assert.equal(playCard(si, gf.instanceId).ok, true);
+  assert.equal(hpBeforeGf - sEnemy.hp, 50);
+
+  // Unload deals 14 and discards non-attacks in hand
+  const unl = createCardInstance(si, 'unload', false);
+  const uAtk = createCardInstance(si, 'strike', false);
+  const uSkl = createCardInstance(si, 'defend', false);
+  si.combat.hand = [unl, uAtk, uSkl];
+  const hpBeforeUnl = sEnemy.hp;
+  assert.equal(playCard(si, unl.instanceId, sEnemy.id).ok, true);
+  assert.equal(hpBeforeUnl - sEnemy.hp, 14);
+  assert.equal(si.combat.hand.some((c) => c.instanceId === uAtk.instanceId), true);
+  assert.equal(si.combat.discardPile.some((c) => c.instanceId === uSkl.instanceId), true);
+
+  // Doppelganger+ & Nightmare & Bullet Time
+  const bt = createCardInstance(si, 'bullet_time', true);
+  const btCard = createCardInstance(si, 'predator', false);
+  si.combat.hand = [bt, btCard];
+  si.player.energy = 5;
+  assert.equal(playCard(si, bt.instanceId).ok, true);
+  assert.equal(getEffectiveCardCost(getCardStats(btCard), si.player, si.combat), 0, 'Bullet Time sets hand cost to 0');
+  assert.equal(si.player.statuses.noDraw, 1, 'Bullet Time prevents drawing further cards this turn');
+
+  const nm = createCardInstance(si, 'nightmare', true);
+  const nmTarget = createCardInstance(si, 'catalyst', true);
+  const nmOther = createCardInstance(si, 'strike', false);
+  const dopp = createCardInstance(si, 'doppelganger', true);
+  si.combat.hand = [nm, nmTarget, nmOther, dopp];
+  si.player.energy = 4;
+  assert.equal(playCard(si, nm.instanceId).ok, true);
+  assert.equal(si.combat.pendingCardChoice?.mode, 'nightmare');
+  assert.equal(resolveCardChoice(si, nmTarget.instanceId).ok, true);
+  assert.equal(si.player.statuses.nightmare, 3);
+  assert.equal(playCard(si, dopp.instanceId).ok, true); // spends remaining 2 energy -> X=2, +1 upgraded = 3
+  assert.equal(si.player.statuses.energized, 3);
+  assert.equal(si.player.statuses.drawCardNextTurn, 3);
+  si.combat.drawPile = Array.from({ length: 10 }, () => createCardInstance(si, 'strike', false));
+  assert.equal(endPlayerTurn(si).ok, true);
+  assert.equal(si.player.energy, si.player.maxEnergy + 3, 'Doppelganger+ granted +3 energy next turn');
+  assert.equal(
+    si.combat.hand.filter((c) => c.cardId === 'catalyst' && c.upgraded).length,
+    3,
+    'Nightmare delivered 3 upgraded copies at start of next turn'
+  );
+});
+
+test('Full Roster 361 — Watcher (+8), Shop Colorless (+15), Special (+4) & Curses (+10): Signature Move, Foreign Influence, Wreath of Flame, Collect, Study, Omniscience, Wish, Conjure Blade/Expunger, Mind Blast, Discovery, Enlightenment, Forethought, Madness, Panic Button, Purity, Chrysalis, Metamorphosis, Secret Tech/Weapon, Transmutation, Magnetism, Mayhem, Ritual Dagger, Bite, JAX & all 10 Curses', () => {
+  // 1. Watcher (+8) + Expunger
+  const wt = createNewRun({ seed: 7703, characterId: 'watcher', skipNeow: true, unlockAllOverride: true });
+  startCombat(wt, ENCOUNTERS.floor1[0], 'normal');
+  const wEnemy = wt.combat.enemies[0];
+  wEnemy.hp = 400;
+  wEnemy.maxHp = 400;
+  wEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  wt.player.energy = 20;
+
+  // Signature Move: blocked if another Attack is in hand
+  const sig = createCardInstance(wt, 'signature_move', false);
+  const extraAtk = createCardInstance(wt, 'strike', false);
+  wt.combat.hand = [sig, extraAtk];
+  assert.equal(canPlayCard(wt, sig.instanceId).playable, false);
+  wt.combat.hand = [sig, createCardInstance(wt, 'defend', false)];
+  assert.equal(canPlayCard(wt, sig.instanceId).playable, true);
+  const hpBeforeSig = wEnemy.hp;
+  assert.equal(playCard(wt, sig.instanceId, wEnemy.id).ok, true);
+  assert.equal(hpBeforeSig - wEnemy.hp, 30);
+
+  // Foreign Influence opens 3-attack discover modal
+  const fi = createCardInstance(wt, 'foreign_influence', true);
+  wt.combat.hand = [fi];
+  assert.equal(playCard(wt, fi.instanceId).ok, true);
+  assert.equal(wt.combat.pendingCardChoice?.mode, 'discover_card');
+  assert.equal(wt.combat.pendingCardChoice.candidates.length, 3);
+  for (const cand of wt.combat.pendingCardChoice.candidates) {
+    assert.equal(getCardStats(cand).type, 'attack');
+  }
+  assert.equal(resolveCardChoice(wt, wt.combat.pendingCardChoice.candidates[0].instanceId).ok, true);
+  assert.equal(wt.combat.hand.length, 1);
+
+  // Wreath of Flame grants Vigor consumed by next attack
+  const wof = createCardInstance(wt, 'wreath_of_flame', false);
+  const wAtk = createCardInstance(wt, 'strike', false);
+  wt.combat.hand = [wof, wAtk];
+  const hpBeforeWof = wEnemy.hp;
+  assert.equal(playCard(wt, wof.instanceId).ok, true);
+  assert.equal(wt.player.statuses.vigor, 5);
+  assert.equal(playCard(wt, wAtk.instanceId, wEnemy.id).ok, true);
+  assert.equal(hpBeforeWof - wEnemy.hp, 6 + 5);
+  assert.equal(wt.player.statuses.vigor ?? 0, 0);
+
+  // Omniscience plays chosen draw-pile card 2x for free and exhausts it
+  const omni = createCardInstance(wt, 'omniscience', false);
+  const omniTarget = createCardInstance(wt, 'wreath_of_flame', false);
+  wt.combat.hand = [omni];
+  wt.combat.drawPile = [omniTarget];
+  assert.equal(playCard(wt, omni.instanceId).ok, true);
+  assert.equal(wt.combat.pendingCardChoice?.mode, 'omniscience');
+  assert.equal(resolveCardChoice(wt, omniTarget.instanceId).ok, true);
+  assert.equal(wt.player.statuses.vigor, 10, 'Omniscience played Wreath of Flame twice -> 10 Vigor');
+  assert.equal(wt.combat.exhaustPile.some((c) => c.instanceId === omniTarget.instanceId), true);
+  delete wt.player.statuses.vigor;
+
+  // Wish opens 3-way modal (platedArmor / strength / gold)
+  const wish = createCardInstance(wt, 'wish', false);
+  wt.combat.hand = [wish];
+  const goldBeforeWish = wt.player.gold;
+  assert.equal(playCard(wt, wish.instanceId).ok, true);
+  assert.equal(wt.combat.pendingCardChoice?.mode, 'wish');
+  assert.equal(wt.combat.pendingCardChoice.candidates.length, 3);
+  assert.equal(resolveCardChoice(wt, 'wish_gold').ok, true);
+  assert.equal(wt.player.gold, goldBeforeWish + 25);
+
+  // Conjure Blade+ at X=2 creates Expunger with 3 hits
+  const cb = createCardInstance(wt, 'conjure_blade', true);
+  wt.combat.hand = [cb];
+  wt.combat.drawPile = [];
+  wt.player.energy = 2;
+  assert.equal(playCard(wt, cb.instanceId).ok, true);
+  const expunger = wt.combat.drawPile.find((c) => c.cardId === 'expunger');
+  assert.ok(expunger && expunger.expungerHits === 3, 'Conjure Blade+ at X=2 must create 3-hit Expunger');
+  wt.combat.hand = [expunger];
+  wt.combat.drawPile = [];
+  wt.player.energy = 3;
+  const hpBeforeExp = wEnemy.hp;
+  assert.equal(playCard(wt, expunger.instanceId, wEnemy.id).ok, true);
+  assert.equal(hpBeforeExp - wEnemy.hp, 27, 'Expunger 9 x 3 = 27 damage');
+
+  // Collect & Study across turn boundary
+  const col = createCardInstance(wt, 'collect', false);
+  const stu = createCardInstance(wt, 'study', true);
+  wt.combat.hand = [stu, col];
+  wt.combat.drawPile = Array.from({ length: 6 }, () => createCardInstance(wt, 'strike', false));
+  wt.player.energy = 3; // 1 for Study+, 2 for Collect (X=2)
+  assert.equal(playCard(wt, stu.instanceId).ok, true);
+  assert.equal(playCard(wt, col.instanceId).ok, true);
+  assert.equal(wt.player.statuses.study, 1);
+  assert.equal(wt.player.statuses.collect, 2);
+  assert.equal(endPlayerTurn(wt).ok, true);
+  assert.equal(
+    wt.combat.hand.some((c) => c.cardId === 'miracle' && c.upgraded),
+    true,
+    'Collect added Miracle+ at turn start'
+  );
+  assert.equal(wt.player.statuses.collect, 1);
+  const allPilesHaveInsight = [...wt.combat.hand, ...wt.combat.drawPile].some((c) => c.cardId === 'insight');
+  assert.equal(allPilesHaveInsight, true, 'Study shuffled Insight into drawPile at end of turn');
+
+  // 2. Colorless Shop (+15) & Special (+4)
+  const cl = setupCustomCombat(7704, ENCOUNTERS.floor1[0], ['strike', 'defend', 'bash']);
+  const cEnemy = cl.combat.enemies[0];
+  cEnemy.hp = 400;
+  cEnemy.maxHp = 400;
+  cEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  cl.player.energy = 20;
+
+  // Mind Blast deals damage equal to drawPile size
+  const mb = createCardInstance(cl, 'mind_blast', false);
+  cl.combat.hand = [mb];
+  cl.combat.drawPile = Array.from({ length: 12 }, () => createCardInstance(cl, 'strike', false));
+  const hpBeforeMb = cEnemy.hp;
+  assert.equal(playCard(cl, mb.instanceId, cEnemy.id).ok, true);
+  assert.equal(hpBeforeMb - cEnemy.hp, 12);
+
+  // Discovery opens 3-card class modal with 0-cost this turn
+  const disc = createCardInstance(cl, 'discovery', false);
+  cl.combat.hand = [disc];
+  assert.equal(playCard(cl, disc.instanceId).ok, true);
+  assert.equal(cl.combat.pendingCardChoice?.mode, 'discover_card');
+  const dPicked = cl.combat.pendingCardChoice.candidates[0];
+  assert.equal(resolveCardChoice(cl, dPicked.instanceId).ok, true);
+  assert.equal(cl.combat.hand.some((c) => c.instanceId === dPicked.instanceId), true);
+
+  // Enlightenment (base caps to 1 for turn; upgraded caps to 1 for combat)
+  const enlBase = createCardInstance(cl, 'enlightenment', false);
+  const heavy1 = createCardInstance(cl, 'bludgeon', false); // cost 3
+  cl.combat.hand = [enlBase, heavy1];
+  assert.equal(playCard(cl, enlBase.instanceId).ok, true);
+  assert.equal(getEffectiveCardCost(getCardStats(heavy1), cl.player, cl.combat), 1);
+  assert.equal(heavy1.tempZeroCostTurn, true);
+
+  const enlUp = createCardInstance(cl, 'enlightenment', true);
+  const heavy2 = createCardInstance(cl, 'bludgeon', false);
+  cl.combat.hand = [enlUp, heavy2];
+  assert.equal(playCard(cl, enlUp.instanceId).ok, true);
+  assert.equal(heavy2.combatCost, 1);
+  assert.equal(Boolean(heavy2.tempZeroCostTurn), false, 'Enlightenment+ persists for combat');
+
+  // Forethought (base single to bottom, upgraded multi-select to bottom)
+  const ft = createCardInstance(cl, 'forethought', true);
+  const ftA = createCardInstance(cl, 'bludgeon', false);
+  const ftB = createCardInstance(cl, 'defend', false);
+  cl.combat.hand = [ft, ftA, ftB];
+  cl.combat.drawPile = [createCardInstance(cl, 'strike', false)];
+  assert.equal(playCard(cl, ft.instanceId).ok, true);
+  assert.equal(cl.combat.pendingCardChoice?.mode, 'hand_to_draw_bottom_multi');
+  assert.equal(confirmPendingCardChoice(cl, [ftA.instanceId]).ok, true);
+  assert.equal(cl.combat.drawPile[cl.combat.drawPile.length - 1].instanceId, ftA.instanceId);
+  assert.equal(ftA.zeroCostUntilPlayed, true);
+
+  // Jack of All Trades & Madness & Purity
+  const joat = createCardInstance(cl, 'jack_of_all_trades', true);
+  cl.combat.hand = [joat];
+  assert.equal(playCard(cl, joat.instanceId).ok, true);
+  assert.equal(cl.combat.hand.length, 2);
+
+  const mad = createCardInstance(cl, 'madness', false);
+  const madTarget = createCardInstance(cl, 'bludgeon', false);
+  cl.combat.hand = [mad, madTarget];
+  assert.equal(playCard(cl, mad.instanceId).ok, true);
+  assert.equal(madTarget.combatCost, 0);
+
+  const pur = createCardInstance(cl, 'purity', false);
+  const pur1 = createCardInstance(cl, 'strike', false);
+  const pur2 = createCardInstance(cl, 'defend', false);
+  const pur3 = createCardInstance(cl, 'strike', false);
+  cl.combat.hand = [pur, pur1, pur2, pur3];
+  assert.equal(playCard(cl, pur.instanceId).ok, true);
+  assert.equal(cl.combat.pendingCardChoice?.mode, 'exhaust_multi');
+  assert.equal(confirmPendingCardChoice(cl, [pur1.instanceId, pur2.instanceId]).ok, true);
+  assert.equal(cl.combat.hand.length, 1);
+
+  // Panic Button grants 30 block + noBlock: 2 (blocks subsequent Defend, NOT Orichalcum)
+  const pb = createCardInstance(cl, 'panic_button', false);
+  const defCard = createCardInstance(cl, 'defend', false);
+  cl.player.block = 0;
+  cl.combat.hand = [pb, defCard];
+  assert.equal(playCard(cl, pb.instanceId).ok, true);
+  assert.equal(cl.player.block, 30);
+  assert.equal(cl.player.statuses.noBlock, 2);
+  assert.equal(playCard(cl, defCard.instanceId).ok, true);
+  assert.equal(cl.player.block, 30, 'noBlock prevents subsequent cards from granting block');
+  delete cl.player.statuses.noBlock;
+
+  // Chrysalis, Metamorphosis, Secret Technique, Secret Weapon, Transmutation
+  const chrys = createCardInstance(cl, 'chrysalis', false);
+  const meta = createCardInstance(cl, 'metamorphosis', false);
+  cl.combat.drawPile = [];
+  cl.combat.hand = [chrys, meta];
+  assert.equal(playCard(cl, chrys.instanceId).ok, true);
+  assert.equal(cl.combat.drawPile.length, 3);
+  assert.ok(cl.combat.drawPile.every((c) => getCardStats(c).type === 'skill' && (c.combatCost === 0 || getCardStats(c).isXCost)));
+  assert.equal(playCard(cl, meta.instanceId).ok, true);
+  assert.equal(cl.combat.drawPile.length, 6);
+
+  const secTech = createCardInstance(cl, 'secret_technique', false);
+  cl.combat.hand = [secTech];
+  assert.equal(playCard(cl, secTech.instanceId).ok, true);
+  assert.equal(cl.combat.pendingCardChoice?.mode, 'pick_from_draw');
+  assert.ok(cl.combat.pendingCardChoice.candidates.every((c) => getCardStats(c).type === 'skill'));
+  assert.equal(resolveCardChoice(cl, cl.combat.pendingCardChoice.candidates[0].instanceId).ok, true);
+
+  const secWep = createCardInstance(cl, 'secret_weapon', false);
+  cl.combat.hand = [secWep];
+  assert.equal(playCard(cl, secWep.instanceId).ok, true);
+  assert.ok(cl.combat.pendingCardChoice.candidates.every((c) => getCardStats(c).type === 'attack'));
+  assert.equal(resolveCardChoice(cl, cl.combat.pendingCardChoice.candidates[0].instanceId).ok, true);
+
+  const transm = createCardInstance(cl, 'transmutation', true);
+  cl.combat.hand = [transm];
+  cl.player.energy = 2;
+  assert.equal(playCard(cl, transm.instanceId).ok, true);
+  assert.equal(cl.combat.hand.length, 2);
+  assert.ok(cl.combat.hand.every((c) => c.upgraded && getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless'));
+
+  // Magnetism & Mayhem start-of-turn triggers
+  cl.player.energy = 10;
+  const mag = createCardInstance(cl, 'magnetism', true);
+  const may = createCardInstance(cl, 'mayhem', true);
+  cl.combat.hand = [mag, may];
+  assert.equal(playCard(cl, mag.instanceId).ok, true);
+  assert.equal(playCard(cl, may.instanceId).ok, true);
+  const topAutoStrike = createCardInstance(cl, 'strike', false);
+  cl.combat.drawPile = [
+    createCardInstance(cl, 'defend', false),
+    createCardInstance(cl, 'defend', false),
+    createCardInstance(cl, 'defend', false),
+    createCardInstance(cl, 'defend', false),
+    createCardInstance(cl, 'defend', false),
+    topAutoStrike, // 6th card -> top of drawPile after 5-card draw!
+  ];
+  const hpBeforeMayhem = cEnemy.hp;
+  assert.equal(endPlayerTurn(cl).ok, true);
+  assert.equal(hpBeforeMayhem - cEnemy.hp, 6, 'Mayhem auto-played top Strike for free');
+  assert.equal(
+    cl.combat.hand.some((c) => getCardCharacter(CARD_LIBRARY[c.cardId]) === 'colorless'),
+    true,
+    'Magnetism added a random colorless card to hand'
+  );
+
+  // Bite, J.A.X., Ritual Dagger Fatal permanent scaling
+  const bite = createCardInstance(cl, 'bite', false);
+  const jax = createCardInstance(cl, 'jax', false);
+  cl.player.hp = 50;
+  cl.player.maxHp = 80;
+  cl.player.energy = 10;
+  cl.combat.hand = [bite, jax];
+  assert.equal(playCard(cl, bite.instanceId, cEnemy.id).ok, true);
+  assert.equal(cl.player.hp, 52);
+  assert.equal(playCard(cl, jax.instanceId).ok, true);
+  assert.equal(cl.player.hp, 49);
+  assert.equal(cl.player.statuses.strength, 2);
+
+  const rdMaster = createCardInstance(cl, 'ritual_dagger', false);
+  cl.player.deck.push(rdMaster);
+  const rdCombat = { ...rdMaster };
+  cEnemy.hp = 10;
+  cl.combat.hand = [rdCombat];
+  assert.equal(playCard(cl, rdCombat.instanceId, cEnemy.id).ok, true);
+  assert.equal(rdMaster.ritualBonus, 3, 'Ritual Dagger Fatal kill permanently increases master deck ritualBonus by +3');
+  assert.equal(getCardStats(rdMaster).damage, 18);
+
+  // 3. All 10 New Curses
+  assert.equal(CURSE_CARD_IDS.length, 10, 'Random CURSE_CARD_IDS must contain 10 standard curses (excluding 4 special curses)');
+  for (const specialId of ['ascenders_bane', 'necronomicurse', 'curse_of_the_bell', 'pride']) {
+    assert.equal(CURSE_CARD_IDS.includes(specialId), false, `${specialId} must be excluded from random CURSE_CARD_IDS`);
+  }
+  assert.equal(canRemoveCard({ cardId: 'ascenders_bane' }), false);
+  assert.equal(canRemoveCard({ cardId: 'necronomicurse' }), false);
+  assert.equal(canRemoveCard({ cardId: 'curse_of_the_bell' }), false);
+  assert.equal(canRemoveCard({ cardId: 'pride' }), true);
+
+  const cu = setupCustomCombat(7705, ENCOUNTERS.floor1[0], ['strike', 'defend']);
+  const cuEnemy = cu.combat.enemies[0];
+  cuEnemy.hp = 200;
+  cuEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  cu.player.energy = 10;
+  cu.player.hp = 60;
+
+  // Normality caps plays at 3 per turn; Pain deals 1 HP loss per card played
+  const norm = createCardInstance(cu, 'normality', false);
+  const pain = createCardInstance(cu, 'pain', false);
+  const s1 = createCardInstance(cu, 'defend', false);
+  const s2 = createCardInstance(cu, 'defend', false);
+  const s3 = createCardInstance(cu, 'defend', false);
+  const s4 = createCardInstance(cu, 'defend', false);
+  cu.combat.hand = [norm, pain, s1, s2, s3, s4];
+  assert.equal(playCard(cu, s1.instanceId).ok, true);
+  assert.equal(playCard(cu, s2.instanceId).ok, true);
+  assert.equal(playCard(cu, s3.instanceId).ok, true);
+  assert.equal(cu.player.hp, 57, 'Pain caused 1 HP loss for each of the 3 cards played');
+  assert.equal(canPlayCard(cu, s4.instanceId).playable, false, 'Normality blocks playing a 4th card');
+
+  // Necronomicurse returns a copy to hand when exhausted!
+  const necro = createCardInstance(cu, 'necronomicurse', false);
+  const tg = createCardInstance(cu, 'true_grit', true);
+  cu.combat.cardsPlayedThisTurn = 0;
+  cu.combat.hand = [tg, necro];
+  assert.equal(playCard(cu, tg.instanceId).ok, true);
+  assert.equal(
+    cu.combat.hand.some((c) => c.cardId === 'necronomicurse'),
+    true,
+    'Necronomicurse must return a new copy to hand when exhausted'
+  );
+
+  // Shame (Frail), Decay (2 dmg), Pride (copy to top of drawPile), Ascender's Bane (Ethereal) at end of turn
+  const shame = createCardInstance(cu, 'shame', false);
+  const decay = createCardInstance(cu, 'decay', false);
+  const pride = createCardInstance(cu, 'pride', false);
+  const bane = createCardInstance(cu, 'ascenders_bane', false);
+  cu.player.block = 0;
+  cu.player.hp = 50;
+  cu.combat.hand = [shame, decay, pride, bane];
+  cu.combat.drawPile = [];
+  assert.equal(endPlayerTurn(cu).ok, true);
+  assert.equal(cu.player.hp, 48, 'Decay dealt 2 damage at end of turn');
+  assert.equal(cu.player.statuses.frail, 1, 'Shame applied 1 Frail surviving into next turn');
+  assert.equal(cu.combat.exhaustPile.some((c) => c.cardId === 'ascenders_bane'), true, 'Ascenders Bane exhausted via Ethereal');
+  assert.equal(
+    cu.combat.hand.some((c) => c.cardId === 'pride'),
+    true,
+    'Pride copied itself onto top of draw pile and was drawn next turn'
+  );
 });

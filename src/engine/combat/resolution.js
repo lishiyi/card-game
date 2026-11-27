@@ -3,7 +3,14 @@
  * stances, mantra, scry, and interactive hand-card choice resolution.
  */
 
-import { canUpgradeCard, getCardStats, getEffectiveCardCost, getRewardCardPools } from '../../data/cards.js';
+import {
+  canUpgradeCard,
+  createCardInstance,
+  getCardStats,
+  getEffectiveCardCost,
+  getRewardCardPools,
+  upgradeCardInstance,
+} from '../../data/cards.js';
 import { getGuardianDefensiveIntent, rollEnemyIntent } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
 import { pickRandom, randomInt } from '../rng.js';
@@ -26,6 +33,7 @@ import {
   setPendingCardChoice,
   hasPendingCardChoice,
   getActivePendingCardChoice,
+  invokePlayCard,
   returnDiscardCardsByFlag,
   togglePendingCardChoice,
   handleCombatDefeat,
@@ -317,6 +325,13 @@ export function drawCards(state, count, options = {}) {
       exhaustCardsBatch(state, [nextCard]);
       addCardsToHand(state, 'miracle', drawnStats.autoExhaustOnDrawMiracles, false);
       continue;
+    }
+
+    // Endless Agony: whenever drawn, add a copy to hand (respecting hand limit)
+    if (drawnStats.copyOnDraw && combat.hand.length < MAX_HAND_SIZE) {
+      const copy = createCardInstance(state, nextCard.cardId, nextCard.upgraded);
+      combat.hand.push(copy);
+      pushCombatLog(combat, `【${drawnStats.name}】复制增殖：额外将 1 张【${drawnStats.name}】加入手牌！`, 'info');
     }
 
     if (drawnStats.type === 'status' || drawnStats.type === 'curse') {
@@ -895,7 +910,11 @@ export function requestHandCardChoice(
   }
 
   if (mode === 'exhaust') {
-    if (combat.hand.length === 0) return;
+    const drawAfter = Math.max(0, options.drawAfterExhaust ?? 0);
+    if (combat.hand.length === 0) {
+      if (drawAfter > 0) drawCards(state, drawAfter);
+      return;
+    }
     if (combat.hand.length <= count) {
       const allHand = [...combat.hand];
       combat.hand = [];
@@ -913,6 +932,9 @@ export function requestHandCardChoice(
         }
       }
       exhaustCardsBatch(state, allHand);
+      if (drawAfter > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+        drawCards(state, drawAfter);
+      }
       if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
         setPendingCardChoice(combat, null);
         finalizeCombatVictory(state, onVictoryCallback);
@@ -928,26 +950,152 @@ export function requestHandCardChoice(
       candidates: null,
       selectedIds: [],
       grantEnergyFromCost: Boolean(options.grantEnergyFromCost),
+      drawAfterExhaust: drawAfter,
     });
     return;
   }
 
-  if (mode === 'hand_to_draw') {
+  if (mode === 'exhaust_multi') {
     if (combat.hand.length === 0) return;
+    const maxPick = Math.min(count, combat.hand.length);
+    setPendingCardChoice(combat, {
+      mode: 'exhaust_multi',
+      sourceName,
+      count: maxPick,
+      remaining: maxPick,
+      optional: true,
+      candidates: [...combat.hand],
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'hand_to_draw' || mode === 'hand_to_draw_bottom') {
+    if (combat.hand.length === 0) return;
+    const isBottom = mode === 'hand_to_draw_bottom';
+    const zeroCostUntilPlayed = Boolean(options.zeroCostUntilPlayed);
     if (combat.hand.length <= count) {
       const allHand = [...combat.hand];
       combat.hand = [];
       for (const c of allHand) {
-        combat.drawPile.unshift(c);
-        pushCombatLog(combat, `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆顶！`, 'info');
+        if (zeroCostUntilPlayed && !getCardStats(c).isXCost && !getCardStats(c).unplayable) {
+          c.zeroCostUntilPlayed = true;
+        }
+        if (isBottom) combat.drawPile.push(c);
+        else combat.drawPile.unshift(c);
+        pushCombatLog(
+          combat,
+          `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆${isBottom ? '底' : '顶'}${zeroCostUntilPlayed ? '（打出前 0 费）' : ''}！`,
+          'info'
+        );
       }
       return;
     }
     setPendingCardChoice(combat, {
-      mode: 'hand_to_draw',
+      mode,
       sourceName,
       count,
       remaining: count,
+      optional: false,
+      zeroCostUntilPlayed,
+      candidates: null,
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'hand_to_draw_bottom_multi') {
+    if (combat.hand.length === 0) return;
+    setPendingCardChoice(combat, {
+      mode: 'hand_to_draw_bottom_multi',
+      sourceName,
+      count: combat.hand.length,
+      remaining: combat.hand.length,
+      optional: true,
+      zeroCostUntilPlayed: Boolean(options.zeroCostUntilPlayed),
+      candidates: [...combat.hand],
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'dual_wield') {
+    const eligible = combat.hand.filter((hc) => {
+      const t = getCardStats(hc).type;
+      return t === 'attack' || t === 'power';
+    });
+    if (eligible.length === 0) {
+      pushCombatLog(combat, `【${sourceName}】生效，但当前手牌中没有攻击牌或能力牌可复制。`, 'info');
+      return;
+    }
+    const copies = Math.max(1, options.copies ?? count ?? 1);
+    if (eligible.length === 1) {
+      const target = eligible[0];
+      let addedCount = 0;
+      for (let i = 0; i < copies; i += 1) {
+        if (combat.hand.length >= MAX_HAND_SIZE) break;
+        const copy = createCardInstance(state, target.cardId, target.upgraded);
+        if (Number.isInteger(target.upgradeLevel)) copy.upgradeLevel = target.upgradeLevel;
+        if (typeof target.combatCost === 'number') copy.combatCost = target.combatCost;
+        if (typeof target.combatDamageMod === 'number') copy.combatDamageMod = target.combatDamageMod;
+        if (typeof target.combatBlockMod === 'number') copy.combatBlockMod = target.combatBlockMod;
+        if (typeof target.ritualBonus === 'number') copy.ritualBonus = target.ritualBonus;
+        if (typeof target.expungerHits === 'number') copy.expungerHits = target.expungerHits;
+        if (target.zeroCostUntilPlayed) copy.zeroCostUntilPlayed = true;
+        combat.hand.push(copy);
+        addedCount += 1;
+      }
+      pushCombatLog(
+        combat,
+        `【${sourceName}】复制了【${getCardStats(target).name}】，将 ${addedCount} 张复制品加入手牌！`,
+        'info'
+      );
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'dual_wield',
+      sourceName,
+      count: 1,
+      remaining: 1,
+      copies,
+      optional: false,
+      candidates: [...eligible],
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'nightmare') {
+    if (combat.hand.length === 0) {
+      pushCombatLog(combat, `【${sourceName}】生效，但手牌为空，没有可复制的卡牌。`, 'info');
+      return;
+    }
+    const copies = Math.max(1, options.copies ?? count ?? 3);
+    if (combat.hand.length === 1) {
+      const target = combat.hand[0];
+      if (!Array.isArray(combat.nightmareQueue)) combat.nightmareQueue = [];
+      combat.nightmareQueue.push({
+        cardId: target.cardId,
+        upgraded: Boolean(target.upgraded),
+        upgradeLevel: Number.isInteger(target.upgradeLevel) ? target.upgradeLevel : undefined,
+        expungerHits: typeof target.expungerHits === 'number' ? target.expungerHits : undefined,
+        ritualBonus: typeof target.ritualBonus === 'number' ? target.ritualBonus : undefined,
+        count: copies,
+      });
+      applyStatus(state.player, 'nightmare', copies);
+      pushCombatLog(
+        combat,
+        `【${sourceName}】锁定【${getCardStats(target).name}】：下回合开始时将获得 ${copies} 张复制品！`,
+        'status'
+      );
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'nightmare',
+      sourceName,
+      count: 1,
+      remaining: 1,
+      copies,
       optional: false,
       candidates: null,
       selectedIds: [],
@@ -963,7 +1111,7 @@ export function requestHandCardChoice(
     }
     if (upgradable.length <= count) {
       for (const hc of upgradable) {
-        hc.upgraded = true;
+        upgradeCardInstance(hc);
         pushCombatLog(combat, `【${sourceName}】临时升级了【${getCardStats(hc).name}】！`, 'info');
       }
       return;
@@ -1227,9 +1375,144 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
   if (
     pending.mode === 'scry' ||
     pending.mode === 'retrieve_discard_retain' ||
-    pending.mode === 'retain'
+    pending.mode === 'retain' ||
+    pending.mode === 'exhaust_multi' ||
+    pending.mode === 'hand_to_draw_bottom_multi'
   ) {
     return togglePendingCardChoice(state, instanceId);
+  }
+
+  if (pending.mode === 'wish') {
+    const picked = (pending.candidates || []).find((c) => c.instanceId === instanceId);
+    if (!picked) {
+      return { ok: false, reason: '无效的愿望选项' };
+    }
+    const sourceName = pending.sourceName || '许愿';
+    setPendingCardChoice(combat, null);
+    if (picked.wishKey === 'platedArmor') {
+      applyStatus(state.player, 'platedArmor', picked.value);
+      pushCombatLog(combat, `【${sourceName}】选择「活命」：获得 ${picked.value} 层【多层护甲】！`, 'block');
+    } else if (picked.wishKey === 'strength') {
+      applyStatus(state.player, 'strength', picked.value);
+      pushCombatLog(combat, `【${sourceName}】选择「成名」：获得 ${picked.value} 点【力量】！`, 'status');
+    } else if (picked.wishKey === 'gold') {
+      state.player.gold = (state.player.gold ?? 0) + picked.value;
+      if (state.stats) state.stats.goldEarned = (state.stats.goldEarned ?? 0) + picked.value;
+      pushCombatLog(combat, `【${sourceName}】选择「暴富」：立即获得 ${picked.value} 金币！`, 'victory');
+    }
+    return {
+      ok: true,
+      mode: 'wish',
+      wishKey: picked.wishKey,
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
+  }
+
+  if (pending.mode === 'discover_card') {
+    const picked = (pending.candidates || []).find((c) => c.instanceId === instanceId);
+    if (!picked) {
+      return { ok: false, reason: '未在候选卡牌中找到该卡牌' };
+    }
+    const sourceName = pending.sourceName || '发现';
+    setPendingCardChoice(combat, null);
+    const pName = getCardStats(picked).name;
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(picked);
+      pushCombatLog(
+        combat,
+        `【${sourceName}】选择了【${pName}】加入手牌${pending.tempZeroCostTurn ? '（本回合 0 费）' : ''}！`,
+        'info'
+      );
+    } else {
+      combat.discardPile.push(picked);
+      pushCombatLog(combat, `【${sourceName}】选择了【${pName}】（手牌已满，放入弃牌堆）。`, 'info');
+    }
+    return {
+      ok: true,
+      mode: 'discover_card',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
+  }
+
+  if (pending.mode === 'retrieve_exhaust_to_hand') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const eIdx = combat.exhaustPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || eIdx === -1) {
+      return { ok: false, reason: '未在消耗堆中找到该卡牌' };
+    }
+    const [card] = combat.exhaustPile.splice(eIdx, 1);
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(card);
+    }
+    pending.candidates = (pending.candidates || []).filter((c) => c.instanceId !== instanceId);
+    pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
+    pushCombatLog(
+      combat,
+      `【${pending.sourceName}】从消耗堆发掘【${getCardStats(card).name}】加入手牌！`,
+      'info'
+    );
+    if (
+      pending.remaining <= 0 ||
+      pending.candidates.length === 0 ||
+      combat.hand.length >= MAX_HAND_SIZE
+    ) {
+      setPendingCardChoice(combat, null);
+    }
+    return {
+      ok: true,
+      mode: 'retrieve_exhaust_to_hand',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+    };
+  }
+
+  if (pending.mode === 'omniscience') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const dIdx = combat.drawPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || dIdx === -1) {
+      return { ok: false, reason: '未在抽牌堆中找到该卡牌' };
+    }
+    const sourceName = pending.sourceName || '通晓万物';
+    const [card] = combat.drawPile.splice(dIdx, 1);
+    setPendingCardChoice(combat, null);
+    const cStats = getCardStats(card);
+    if (cStats.unplayable) {
+      exhaustCardsBatch(state, [card]);
+      pushCombatLog(combat, `【${sourceName}】选中不可打出的【${cStats.name}】，已直接消耗。`, 'info');
+    } else {
+      const alive = getAliveEnemies(combat);
+      const targetEnemy = cStats.target === 'enemy' ? pickRandom(state, alive) : null;
+      const willExhaust = cStats.type !== 'power';
+      combat.hand.push(card);
+      pushCombatLog(
+        combat,
+        `【${sourceName}】发动：免费连续打出【${cStats.name}】2 次${willExhaust ? '并将其消耗' : ''}！`,
+        'card'
+      );
+      pushCardReveal(combat, {
+        sourceName,
+        kind: 'auto_play',
+        card,
+        targetName: targetEnemy?.name || null,
+        exhausted: willExhaust,
+        summary: `${sourceName}连续打出【${cStats.name}】×2`,
+      });
+      invokePlayCard(state, card.instanceId, targetEnemy?.id ?? null, onVictoryCallback, {
+        forceFree: true,
+        forceExhaust: willExhaust,
+        forceRepeatCount: 2,
+        fromHavoc: true,
+      });
+    }
+    return {
+      ok: true,
+      mode: 'omniscience',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+      cardReveals: [...(combat.pendingCardReveals || [])],
+    };
   }
 
   if (pending.mode === 'discard_to_draw') {
@@ -1327,12 +1610,72 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
     return { ok: false, reason: '未在手牌中找到该卡牌' };
   }
 
+  if (pending.mode === 'dual_wield') {
+    const card = combat.hand[idx];
+    const cStats = getCardStats(card);
+    if (cStats.type !== 'attack' && cStats.type !== 'power') {
+      return { ok: false, reason: '【双持】只能选择攻击牌或能力牌' };
+    }
+    const copies = Math.max(1, pending.copies ?? 1);
+    const sourceName = pending.sourceName || '双持';
+    setPendingCardChoice(combat, null);
+    let addedCount = 0;
+    for (let i = 0; i < copies; i += 1) {
+      if (combat.hand.length >= MAX_HAND_SIZE) break;
+      const copy = createCardInstance(state, card.cardId, card.upgraded);
+      if (Number.isInteger(card.upgradeLevel)) copy.upgradeLevel = card.upgradeLevel;
+      if (typeof card.combatCost === 'number') copy.combatCost = card.combatCost;
+      if (typeof card.combatDamageMod === 'number') copy.combatDamageMod = card.combatDamageMod;
+      if (typeof card.combatBlockMod === 'number') copy.combatBlockMod = card.combatBlockMod;
+      if (typeof card.ritualBonus === 'number') copy.ritualBonus = card.ritualBonus;
+      if (typeof card.expungerHits === 'number') copy.expungerHits = card.expungerHits;
+      if (card.zeroCostUntilPlayed) copy.zeroCostUntilPlayed = true;
+      combat.hand.push(copy);
+      addedCount += 1;
+    }
+    pushCombatLog(combat, `【${sourceName}】复制了【${cStats.name}】，将 ${addedCount} 张复制品加入手牌！`, 'info');
+    return {
+      ok: true,
+      mode: 'dual_wield',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
+  }
+
+  if (pending.mode === 'nightmare') {
+    const card = combat.hand[idx];
+    const copies = Math.max(1, pending.copies ?? 3);
+    const sourceName = pending.sourceName || '夜魇';
+    setPendingCardChoice(combat, null);
+    if (!Array.isArray(combat.nightmareQueue)) combat.nightmareQueue = [];
+    combat.nightmareQueue.push({
+      cardId: card.cardId,
+      upgraded: Boolean(card.upgraded),
+      upgradeLevel: Number.isInteger(card.upgradeLevel) ? card.upgradeLevel : undefined,
+      expungerHits: typeof card.expungerHits === 'number' ? card.expungerHits : undefined,
+      ritualBonus: typeof card.ritualBonus === 'number' ? card.ritualBonus : undefined,
+      count: copies,
+    });
+    applyStatus(state.player, 'nightmare', copies);
+    pushCombatLog(
+      combat,
+      `【${sourceName}】锁定【${getCardStats(card).name}】：下回合开始时将获得 ${copies} 张复制品！`,
+      'status'
+    );
+    return {
+      ok: true,
+      mode: 'nightmare',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
+  }
+
   if (pending.mode === 'upgrade') {
     const card = combat.hand[idx];
     if (!canUpgradeCard(card)) {
       return { ok: false, reason: '该卡牌已达满级或无法升级' };
     }
-    card.upgraded = true;
+    upgradeCardInstance(card);
     pushCombatLog(combat, `【${pending.sourceName}】临时升级了【${getCardStats(card).name}】！`, 'info');
 
     pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
@@ -1341,7 +1684,7 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       setPendingCardChoice(combat, null);
     } else if (remainingUpgradable.length <= pending.remaining) {
       for (const hc of remainingUpgradable) {
-        hc.upgraded = true;
+        upgradeCardInstance(hc);
         pushCombatLog(combat, `【${pending.sourceName}】临时升级了【${getCardStats(hc).name}】！`, 'info');
       }
       setPendingCardChoice(combat, null);
@@ -1358,10 +1701,12 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
   if (pending.mode === 'exhaust') {
     combat.pendingCardReveals = [];
     const grantEnergy = Boolean(pending.grantEnergyFromCost);
+    const drawAfter = Math.max(0, pending.drawAfterExhaust ?? 0);
     const sourceName = pending.sourceName || '消耗';
     const [card] = combat.hand.splice(idx, 1);
     pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
-    if (pending.remaining <= 0) {
+    const choiceDoneNow = pending.remaining <= 0;
+    if (choiceDoneNow) {
       setPendingCardChoice(combat, null);
     }
 
@@ -1419,6 +1764,15 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       }
     }
 
+    if (
+      drawAfter > 0 &&
+      !combat.pendingCardChoice &&
+      getAliveEnemies(combat).length > 0 &&
+      state.player.hp > 0
+    ) {
+      drawCards(state, drawAfter);
+    }
+
     return {
       ok: true,
       mode: 'exhaust',
@@ -1428,11 +1782,21 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
     };
   }
 
-  if (pending.mode === 'hand_to_draw') {
-    const sourceName = pending.sourceName || '战吼';
+  if (pending.mode === 'hand_to_draw' || pending.mode === 'hand_to_draw_bottom') {
+    const isBottom = pending.mode === 'hand_to_draw_bottom';
+    const zeroCost = Boolean(pending.zeroCostUntilPlayed);
+    const sourceName = pending.sourceName || (isBottom ? '预谋' : '战吼');
     const [card] = combat.hand.splice(idx, 1);
-    combat.drawPile.unshift(card);
-    pushCombatLog(combat, `【${sourceName}】将【${getCardStats(card).name}】置于抽牌堆顶！`, 'info');
+    if (zeroCost && !getCardStats(card).isXCost && !getCardStats(card).unplayable) {
+      card.zeroCostUntilPlayed = true;
+    }
+    if (isBottom) combat.drawPile.push(card);
+    else combat.drawPile.unshift(card);
+    pushCombatLog(
+      combat,
+      `【${sourceName}】将【${getCardStats(card).name}】置于抽牌堆${isBottom ? '底' : '顶'}${zeroCost ? '（打出前 0 费）' : ''}！`,
+      'info'
+    );
     pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
     if (pending.remaining <= 0 || combat.hand.length === 0) {
       setPendingCardChoice(combat, null);
@@ -1441,13 +1805,21 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       combat.hand = [];
       setPendingCardChoice(combat, null);
       for (const c of rest) {
-        combat.drawPile.unshift(c);
-        pushCombatLog(combat, `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆顶！`, 'info');
+        if (zeroCost && !getCardStats(c).isXCost && !getCardStats(c).unplayable) {
+          c.zeroCostUntilPlayed = true;
+        }
+        if (isBottom) combat.drawPile.push(c);
+        else combat.drawPile.unshift(c);
+        pushCombatLog(
+          combat,
+          `【${sourceName}】将【${getCardStats(c).name}】置于抽牌堆${isBottom ? '底' : '顶'}${zeroCost ? '（打出前 0 费）' : ''}！`,
+          'info'
+        );
       }
     }
     return {
       ok: true,
-      mode: 'hand_to_draw',
+      mode: pending.mode,
       outcome: state.combat?.status ?? combat.status,
       remaining: combat.pendingCardChoice?.remaining ?? 0,
     };
@@ -1504,6 +1876,7 @@ export function exhaustCardsBatch(state, cardInstances) {
   if (valid.length === 0) return 0;
 
   let sentinelEnergy = 0;
+  const returnToHandAfter = [];
   for (const c of valid) {
     combat.exhaustPile.push(c);
     const cStats = getCardStats(c);
@@ -1511,6 +1884,23 @@ export function exhaustCardsBatch(state, cardInstances) {
     if (cStats.onExhaustGainEnergy) {
       sentinelEnergy += cStats.onExhaustGainEnergy;
     }
+    if (cStats.returnOnExhaust) {
+      returnToHandAfter.push(c.cardId);
+    }
+  }
+
+  for (const returnCardId of returnToHandAfter) {
+    const reborn = createCardInstance(state, returnCardId, false);
+    if (combat.hand.length < MAX_HAND_SIZE) {
+      combat.hand.push(reborn);
+    } else {
+      combat.discardPile.push(reborn);
+    }
+    pushCombatLog(
+      combat,
+      `【${getCardStats(reborn).name}】不灭诅咒回响：重新回到你的手中！`,
+      'status'
+    );
   }
 
   if (sentinelEnergy > 0 && combat.status === 'ongoing') {

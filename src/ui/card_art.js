@@ -7,6 +7,9 @@ import { SILENT_CARD_ART } from './card_art/silent.js';
 import { WATCHER_CARD_ART } from './card_art/watcher.js';
 import { DEFECT_CARD_ART } from './card_art/defect.js';
 import { COLORLESS_SPECIAL_CARD_ART, CARD_THEME_ART } from './card_art/colorless_special.js';
+import { EXP_IRON_SILENT_ART } from './card_art/exp_iron_silent.js';
+import { EXP_WATCHER_COLORLESS_ART } from './card_art/exp_watcher_colorless.js';
+import { EXP_COLORLESS_CURSES_ART } from './card_art/exp_colorless_curses.js';
 
 export { CARD_THEME_ART };
 
@@ -16,6 +19,9 @@ export const SIGNATURE_CARD_ART = Object.freeze({
   ...WATCHER_CARD_ART,
   ...DEFECT_CARD_ART,
   ...COLORLESS_SPECIAL_CARD_ART,
+  ...EXP_IRON_SILENT_ART,
+  ...EXP_WATCHER_COLORLESS_ART,
+  ...EXP_COLORLESS_CURSES_ART,
 });
 
 export function getCardArtKey(cardId, stats = {}, activeCharId = null) {

@@ -5,6 +5,7 @@
 
 import {
   CARD_LIBRARY,
+  COLORLESS_CARD_POOLS,
   createCardInstance,
   getCardCharacter,
   getCardStats,
@@ -22,6 +23,7 @@ import { pickRandom, randomInt, shuffled } from '../rng.js';
 import {
   MAX_HAND_SIZE,
   BASE_DRAW_PER_TURN,
+  pushCardReveal,
   hasRelic,
   healPlayerInCombat,
   getAliveEnemies,
@@ -32,11 +34,13 @@ import {
   syncRedSkullStatus,
   handleEnemyZeroHp,
   pruneDefeatedEnemies,
+  reshuffleDiscardIntoDraw,
   applyEnemyInvincibleCap,
   checkSlimeSplitTrigger,
   setPendingCardChoice,
   hasPendingCardChoice,
   getActivePendingCardChoice,
+  invokePlayCard,
   getPendingChoiceBlockReason,
   requestEndTurnRetainChoice,
   returnDiscardCardsByFlag,
@@ -154,6 +158,64 @@ export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCal
     }
 
     return endPlayerTurn(state, onVictoryCallback, { skipWellLaidPlansPrompt: true });
+  }
+
+  if (pending.mode === 'exhaust_multi') {
+    const sourceName = pending.sourceName || '净化';
+    const pickedCards = [];
+    for (const id of uniqueValidIds) {
+      const hIdx = combat.hand.findIndex((c) => c.instanceId === id);
+      if (hIdx === -1) continue;
+      const [card] = combat.hand.splice(hIdx, 1);
+      if (card) pickedCards.push(card);
+    }
+    setPendingCardChoice(combat, null);
+    if (pickedCards.length > 0) {
+      exhaustCardsBatch(state, pickedCards);
+      if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+        finalizeCombatVictory(state, onVictoryCallback);
+      }
+    } else {
+      pushCombatLog(combat, `【${sourceName}】未消耗任何手牌。`, 'info');
+    }
+    return {
+      ok: true,
+      mode: 'exhaust_multi',
+      exhaustedCount: pickedCards.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
+  if (pending.mode === 'hand_to_draw_bottom_multi') {
+    const sourceName = pending.sourceName || '预谋';
+    const zeroCost = Boolean(pending.zeroCostUntilPlayed);
+    const movedNames = [];
+    for (const id of uniqueValidIds) {
+      const hIdx = combat.hand.findIndex((c) => c.instanceId === id);
+      if (hIdx === -1) continue;
+      const [card] = combat.hand.splice(hIdx, 1);
+      if (card) {
+        if (zeroCost && !getCardStats(card).isXCost && !getCardStats(card).unplayable) {
+          card.zeroCostUntilPlayed = true;
+        }
+        combat.drawPile.push(card);
+        movedNames.push(getCardStats(card).name);
+      }
+    }
+    setPendingCardChoice(combat, null);
+    if (movedNames.length > 0) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】将${movedNames.map((n) => `【${n}】`).join('、')}置于抽牌堆底${zeroCost ? '（打出前 0 费）' : ''}！`,
+        'info'
+      );
+    }
+    return {
+      ok: true,
+      mode: 'hand_to_draw_bottom_multi',
+      movedCount: movedNames.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
   }
 
   if (pending.mode === 'discard_to_draw') {
@@ -533,8 +595,46 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     addCardsToHand(state, 'shiv', state.player.statuses.infiniteBlades, false);
   }
 
+  if (Array.isArray(combat.nightmareQueue) && combat.nightmareQueue.length > 0) {
+    const entries = combat.nightmareQueue.splice(0);
+    delete state.player.statuses.nightmare;
+    for (const entry of entries) {
+      let addedToHand = 0;
+      let addedToDiscard = 0;
+      let cardLabel = CARD_LIBRARY[entry.cardId]?.name ?? entry.cardId;
+      for (let n = 0; n < (entry.count || 3); n += 1) {
+        const copy = createCardInstance(state, entry.cardId, Boolean(entry.upgraded));
+        if (Number.isInteger(entry.upgradeLevel)) copy.upgradeLevel = entry.upgradeLevel;
+        if (typeof entry.expungerHits === 'number') copy.expungerHits = entry.expungerHits;
+        if (typeof entry.ritualBonus === 'number') copy.ritualBonus = entry.ritualBonus;
+        cardLabel = getCardStats(copy).name;
+        if (combat.hand.length < MAX_HAND_SIZE) {
+          combat.hand.push(copy);
+          addedToHand += 1;
+        } else {
+          combat.discardPile.push(copy);
+          addedToDiscard += 1;
+        }
+      }
+      pushCombatLog(
+        combat,
+        `【夜魇】降临：将 ${addedToHand} 张【${cardLabel}】加入手牌${addedToDiscard > 0 ? `（另有 ${addedToDiscard} 张溢入弃牌堆）` : ''}！`,
+        'info'
+      );
+    }
+  }
+
   if ((state.player.statuses.battleHymn ?? 0) > 0) {
     addCardsToHand(state, 'smite', state.player.statuses.battleHymn, false);
+  }
+
+  if ((state.player.statuses.collect ?? 0) > 0) {
+    addCardsToHand(state, 'miracle', 1, true);
+    state.player.statuses.collect -= 1;
+    if (state.player.statuses.collect <= 0) {
+      delete state.player.statuses.collect;
+    }
+    pushCombatLog(combat, '【收集】生效：将 1 张【奇迹+】加入手牌！', 'info');
   }
 
   if ((state.player.statuses.helloWorld ?? 0) > 0) {
@@ -560,6 +660,25 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
       if (picked) {
         addCardsToHand(state, picked, 1, false);
       }
+    }
+  }
+
+  if ((state.player.statuses.magnetism ?? 0) > 0) {
+    const magCount = state.player.statuses.magnetism;
+    for (let mg = 0; mg < magCount; mg += 1) {
+      const picked = pickRandom(state, COLORLESS_CARD_POOLS.all);
+      if (picked) {
+        addCardsToHand(state, picked, 1, false);
+      }
+    }
+  }
+
+  let brutalityDraw = 0;
+  if ((state.player.statuses.brutality ?? 0) > 0) {
+    brutalityDraw = state.player.statuses.brutality;
+    losePlayerHp(state, brutalityDraw, '残暴', { fromCard: true });
+    if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+      return;
     }
   }
 
@@ -621,7 +740,8 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pocketwatchDraw +
     toolsDraw +
     nextTurnDraw +
-    simmeringDraw;
+    simmeringDraw +
+    brutalityDraw;
 
   const handBeforeTurnDraw = combat.hand.length;
   let pendingScryDraw = false;
@@ -709,7 +829,92 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     return;
   }
 
-  if (toolsDraw > 0) {
+  if (
+    !hasPendingCardChoice(combat) &&
+    (state.player.statuses.mayhem ?? 0) > 0 &&
+    getAliveEnemies(combat).length > 0 &&
+    state.player.hp > 0 &&
+    combat.status === 'ongoing'
+  ) {
+    const mayhemCount = state.player.statuses.mayhem;
+    for (let m = 0; m < mayhemCount; m += 1) {
+      if (
+        hasPendingCardChoice(combat) ||
+        getAliveEnemies(combat).length === 0 ||
+        state.player.hp <= 0 ||
+        combat.status !== 'ongoing'
+      ) {
+        break;
+      }
+      if (combat.drawPile.length === 0 && combat.discardPile.length > 0) {
+        reshuffleDiscardIntoDraw(state);
+      }
+      const topCard = combat.drawPile.shift();
+      if (!topCard) break;
+      const topStats = getCardStats(topCard);
+      const blockedByEntangle =
+        topStats.type === 'attack' && (state.player.statuses?.entangled ?? 0) > 0;
+      const blockedByClash = Boolean(
+        topStats.requireAllHandAttacks &&
+          combat.hand.some((c) => getCardStats(c).type !== 'attack')
+      );
+      const blockedBySignature = Boolean(
+        topStats.requireOnlyAttackInHand &&
+          combat.hand.some((c) => getCardStats(c).type === 'attack')
+      );
+      const blockedByGrandFinale = Boolean(
+        topStats.requireEmptyDrawPile && combat.drawPile.length > 0
+      );
+      const isUnplayable =
+        topStats.unplayable && !(topStats.type === 'status' && hasRelic(state, 'medical_kit'));
+      if (
+        isUnplayable ||
+        blockedByEntangle ||
+        blockedByClash ||
+        blockedBySignature ||
+        blockedByGrandFinale
+      ) {
+        combat.discardPile.push(topCard);
+        pushCombatLog(
+          combat,
+          `【乱战】翻出无法打出的【${topStats.name}】，已置入弃牌堆。`,
+          'info'
+        );
+      } else {
+        const aliveNow = getAliveEnemies(combat);
+        const mayhemTarget = topStats.target === 'enemy' ? pickRandom(state, aliveNow) : null;
+        combat.hand.push(topCard);
+        const targetSuffix = mayhemTarget ? `（目标：${mayhemTarget.name}）` : '';
+        pushCombatLog(
+          combat,
+          `【乱战】触发：免费打出抽牌堆顶的【${topStats.name}】${targetSuffix}！`,
+          'card'
+        );
+        pushCardReveal(combat, {
+          sourceName: '乱战',
+          kind: 'auto_play',
+          card: topCard,
+          targetName: mayhemTarget?.name || null,
+          summary: `乱战自动打出【${topStats.name}】${targetSuffix}`,
+        });
+        invokePlayCard(state, topCard.instanceId, mayhemTarget?.id ?? null, onVictoryCallback, {
+          forceFree: true,
+          fromHavoc: true,
+        });
+      }
+    }
+    if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+      finalizeCombatVictory(state, onVictoryCallback);
+      return;
+    }
+  }
+
+  if (
+    toolsDraw > 0 &&
+    !hasPendingCardChoice(combat) &&
+    combat.status === 'ongoing' &&
+    getAliveEnemies(combat).length > 0
+  ) {
     requestManualDiscard(state, toolsDraw, '必备工具', onVictoryCallback);
   }
 }
@@ -728,7 +933,9 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     instanceId: c.instanceId,
     cardId: c.cardId,
     upgraded: Boolean(c.upgraded),
+    ...(Number.isInteger(c.upgradeLevel) ? { upgradeLevel: c.upgradeLevel } : {}),
     ...(typeof c.miscBonus === 'number' ? { miscBonus: c.miscBonus } : {}),
+    ...(typeof c.ritualBonus === 'number' ? { ritualBonus: c.ritualBonus } : {}),
   }));
 
   const shuffledDeck = shuffled(state, deckCopies);
@@ -763,6 +970,7 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     hpLossCountThisCombat: 0,
     centennialUsed: false,
     activeBombs: [],
+    nightmareQueue: [],
     playedAttackLastTurn: false,
     cardsPlayedLastTurn: 0,
     cardsPlayedThisTurn: 0,
@@ -1149,7 +1357,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     }
   }
 
-  // 1. Resolve end-of-turn hand curses/statuses (Burn, Regret, Doubt) + Constricted, then Ethereal / Retain / Discard
+  // 1. Resolve end-of-turn hand curses/statuses (Burn, Regret, Doubt, Decay, Shame, Pride) + Constricted, then Ethereal / Retain / Discard
   for (const cardInstance of combat.hand) {
     if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
     const stats = getCardStats(cardInstance);
@@ -1168,6 +1376,20 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       if (applyStatus(state.player, 'weak', stats.endOfTurnWeak, { appliedDuringEnemyTurn: true })) {
         pushCombatLog(combat, `手牌【${stats.name}】使你获得 ${stats.endOfTurnWeak} 层【虚弱】。`, 'status');
       }
+    }
+    if (stats.endOfTurnFrail) {
+      if (applyStatus(state.player, 'frail', stats.endOfTurnFrail, { appliedDuringEnemyTurn: true })) {
+        pushCombatLog(combat, `手牌【${stats.name}】使你获得 ${stats.endOfTurnFrail} 层【脆弱】。`, 'status');
+      }
+    }
+    if (stats.endOfTurnCopyToDrawTop) {
+      const copy = createCardInstance(state, cardInstance.cardId, false);
+      combat.drawPile.unshift(copy);
+      pushCombatLog(
+        combat,
+        `手牌【${stats.name}】触发：将 1 张【${stats.name}】复制品置于抽牌堆顶！`,
+        'status'
+      );
     }
   }
 
@@ -1234,7 +1456,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     }
   }
 
-  // 2. End of turn relics & powers (Cloak Clasp, Orichalcum, Orbs/Frozen Core, Metallicize, Plated Armor, Like Water, Combust, The Bomb, Omega)
+  // 2. End of turn relics & powers (Cloak Clasp, Orichalcum, Orbs/Frozen Core, Metallicize, Plated Armor, Like Water, Study, Combust, The Bomb, Omega)
   if (hasRelic(state, 'cloak_clasp') && handCountBeforeDiscard > 0) {
     const claspBlock = Math.min(10, handCountBeforeDiscard * 2);
     addPlayerBlock(state, claspBlock);
@@ -1272,6 +1494,20 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     const lw = state.player.statuses.likeWater;
     addPlayerBlock(state, lw);
     pushCombatLog(combat, `【如水】生效（平静姿态）：获得 ${lw} 点格挡！`, 'block');
+  }
+  if ((state.player.statuses.study ?? 0) > 0) {
+    const studyCount = state.player.statuses.study;
+    const upInsight = (state.player.statuses.masterReality ?? 0) > 0;
+    for (let s = 0; s < studyCount; s += 1) {
+      const insightCard = createCardInstance(state, 'insight', upInsight);
+      const insertIdx = randomInt(state, 0, combat.drawPile.length);
+      combat.drawPile.splice(insertIdx, 0, insightCard);
+    }
+    pushCombatLog(
+      combat,
+      `【研习】生效：将 ${studyCount} 张【${upInsight ? '洞见+' : '洞见'}】洗入抽牌堆！`,
+      'info'
+    );
   }
   if ((state.player.statuses.combust ?? 0) > 0 && state.player.hp > 0) {
     const combustDmg = state.player.statuses.combust;

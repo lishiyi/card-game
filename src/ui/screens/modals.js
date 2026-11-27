@@ -6,7 +6,7 @@
  * - Deck / Draw / Discard / Exhaust / Smith / Shop Purge / Unclaimed Loot Alert
  */
 
-import { canUpgradeCard, CARD_LIBRARY, getCardCharacter, getCardStats } from '../../data/cards.js';
+import { canRemoveCard, canUpgradeCard, CARD_LIBRARY, getCardCharacter, getCardStats } from '../../data/cards.js';
 import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
 import { ENEMY_TEMPLATES } from '../../data/enemies.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
@@ -996,13 +996,17 @@ function renderScryChoiceModal({ state }) {
 
 function renderDiscardPileChoiceModal({ state }) {
   const pending = state?.combat?.pendingCardChoice;
-  if (
-    !pending ||
-    (pending.mode !== 'discard_to_draw' &&
-      pending.mode !== 'retrieve_discard_retain' &&
-      pending.mode !== 'retrieve_discard_to_hand' &&
-      pending.mode !== 'pick_from_draw')
-  ) {
+  const MODAL_CHOICE_MODES = new Set([
+    'discard_to_draw',
+    'retrieve_discard_retain',
+    'retrieve_discard_to_hand',
+    'retrieve_exhaust_to_hand',
+    'pick_from_draw',
+    'omniscience',
+    'discover_card',
+    'wish',
+  ]);
+  if (!pending || !MODAL_CHOICE_MODES.has(pending.mode)) {
     return '';
   }
   const candidates = Array.isArray(pending.candidates) ? pending.candidates : [];
@@ -1010,47 +1014,90 @@ function renderDiscardPileChoiceModal({ state }) {
   const isMeditate = pending.mode === 'retrieve_discard_retain';
   const isDrawPick = pending.mode === 'pick_from_draw';
   const isDiscardToHand = pending.mode === 'retrieve_discard_to_hand';
+  const isExhaustPick = pending.mode === 'retrieve_exhaust_to_hand';
+  const isOmniscience = pending.mode === 'omniscience';
+  const isDiscover = pending.mode === 'discover_card';
+  const isWish = pending.mode === 'wish';
 
   const heading = isMeditate
     ? `冥想 · 从弃牌堆取回并保留（${pending.sourceName}）`
     : isDrawPick
-      ? `搜寻 · 从抽牌堆检索（${pending.sourceName}）`
-      : isDiscardToHand
-        ? `全息取回 · 从弃牌堆加入手牌（${pending.sourceName}）`
-        : `弃牌置顶 · ${pending.sourceName}`;
+      ? `${pending.sourceName} · 从抽牌堆检索`
+      : isOmniscience
+        ? `通晓万物 · 从抽牌堆连续打出 2 次`
+        : isExhaustPick
+          ? `发掘 · 从消耗堆取回（${pending.sourceName}）`
+          : isDiscover
+            ? `${pending.sourceName} · 3 选 1 加入手牌`
+            : isWish
+              ? `许愿 · 请选择一项愿望`
+              : isDiscardToHand
+                ? `全息取回 · 从弃牌堆加入手牌（${pending.sourceName}）`
+                : `弃牌置顶 · ${pending.sourceName}`;
   const subtitle = isMeditate
     ? `点击选择最多 ${pending.count} 张弃牌加入手牌并赋予本回合保留（已选 ${selectedSet.size}/${pending.count}），完成后点击确认。`
     : isDrawPick
       ? `点击选择 ${pending.remaining} 张抽牌堆中的卡牌直接加入手牌（已按费用与名称排序）。`
-      : isDiscardToHand
-        ? `点击选择 ${pending.remaining} 张弃牌直接加入手牌。`
-        : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
+      : isOmniscience
+        ? `从抽牌堆任选 1 张卡牌，免费连续打出 2 次并将其消耗（能力牌不会消耗）。`
+        : isExhaustPick
+          ? `点击选择 ${pending.remaining} 张已消耗卡牌发掘加入手牌。`
+          : isDiscover
+            ? `从下方 3 张随机候选卡牌中选择 1 张加入手牌${pending.tempZeroCostTurn ? '（本回合费用变为 0）' : ''}。`
+            : isWish
+              ? `从「活命」、「成名」、「暴富」中选择一项立即生效。`
+              : isDiscardToHand
+                ? `点击选择 ${pending.remaining} 张弃牌直接加入手牌。`
+                : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
   const pickLabel = isMeditate
     ? '点击取回保留'
     : isDrawPick
       ? '点击检索入手'
-      : isDiscardToHand
-        ? '点击取回入手'
-        : '点击置于牌堆顶';
+      : isOmniscience
+        ? '连续打出×2'
+        : isExhaustPick
+          ? '点击发掘入手'
+          : isDiscover
+            ? '点击收入手牌'
+            : isDiscardToHand
+              ? '点击取回入手'
+              : '点击置于牌堆顶';
 
-  const cardsHtml = candidates
-    .map((c, idx) =>
-      renderCardHtml(c, {
-        idPrefix: 'discard-choice-card',
-        action: isMeditate ? 'toggle-discard-choice-card' : 'resolve-card-choice',
-        playable: true,
-        selected: isMeditate && selectedSet.has(c.instanceId),
-        discardPickSelectable: true,
-        discardPickSelected: isMeditate && selectedSet.has(c.instanceId),
-        discardPickLabel: pickLabel,
-        hotkey: idx < 9 ? idx + 1 : undefined,
-        combatContext: {
-          player: state.player,
-          combat: state.combat,
-        },
-      })
-    )
-    .join('');
+  const bodyContentHtml = isWish
+    ? `<div class="choice-list" id="discard-choice-card-list" style="display:flex;flex-direction:column;gap:10px;max-width:480px;margin:0 auto;">${candidates
+        .map(
+          (w, idx) => `
+            <button
+              type="button"
+              id="wish-choice-${escapeHtml(w.instanceId)}"
+              class="choice-btn"
+              data-action="resolve-card-choice"
+              data-instance-id="${escapeHtml(w.instanceId)}"
+            >
+              <span class="choice-title">[${idx + 1}] ${escapeHtml(w.title)}</span>
+              <span class="choice-detail">${escapeHtml(w.subtitle)}</span>
+            </button>
+          `
+        )
+        .join('')}</div>`
+    : `<div class="card-showcase scry-showcase" id="discard-choice-card-list">${candidates
+        .map((c, idx) =>
+          renderCardHtml(c, {
+            idPrefix: 'discard-choice-card',
+            action: isMeditate ? 'toggle-discard-choice-card' : 'resolve-card-choice',
+            playable: true,
+            selected: isMeditate && selectedSet.has(c.instanceId),
+            discardPickSelectable: true,
+            discardPickSelected: isMeditate && selectedSet.has(c.instanceId),
+            discardPickLabel: pickLabel,
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              combat: state.combat,
+            },
+          })
+        )
+        .join('')}</div>`;
 
   return `
     <div class="modal-backdrop" id="modal-backdrop" data-action="noop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -1069,7 +1116,7 @@ function renderDiscardPileChoiceModal({ state }) {
           }
         </div>
         <div class="modal-body">
-          <div class="card-showcase scry-showcase" id="discard-choice-card-list">${cardsHtml}</div>
+          ${bodyContentHtml}
         </div>
       </div>
     </div>
@@ -1405,7 +1452,11 @@ export function renderModal({ state, meta, settings, ui }) {
         pendingMode === 'discard_to_draw' ||
         pendingMode === 'retrieve_discard_retain' ||
         pendingMode === 'retrieve_discard_to_hand' ||
-        pendingMode === 'pick_from_draw'
+        pendingMode === 'retrieve_exhaust_to_hand' ||
+        pendingMode === 'pick_from_draw' ||
+        pendingMode === 'omniscience' ||
+        pendingMode === 'discover_card' ||
+        pendingMode === 'wish'
       ) {
         return renderDiscardPileChoiceModal({ state });
       }
@@ -1534,7 +1585,7 @@ export function renderModal({ state, meta, settings, ui }) {
       cards = getUpgradableDeckCards(state);
       showUpgradePreview = true;
     } else {
-      cards = state.player.deck;
+      cards = state.player.deck.filter((c) => canRemoveCard(c));
     }
 
     const cardsHtml =
@@ -1696,13 +1747,13 @@ export function renderModal({ state, meta, settings, ui }) {
     playable = true;
     showUpgradePreview = true;
   } else if (ui.modal === 'shop_purge') {
-    cards = state.player.deck;
+    cards = state.player.deck.filter((c) => canRemoveCard(c));
     title = `移除卡牌（花费 ${state.shop?.purgeCost ?? 75} 金币）`;
     subtitle = '点击任意一张卡牌将其从牌组中永久移除。';
     cardAction = 'confirm-shop-purge';
     playable = true;
   } else if (ui.modal === 'rest_toke') {
-    cards = state.player.deck;
+    cards = state.player.deck.filter((c) => canRemoveCard(c));
     title = `🪈 宁静烟斗 · 选择 1 张卡牌永久移除（共 ${cards.length} 张）`;
     subtitle = '点击任意一张卡牌将其从牌组中永久移除（合并堆点击将移除其中 1 张）。';
     cardAction = 'confirm-rest-toke';

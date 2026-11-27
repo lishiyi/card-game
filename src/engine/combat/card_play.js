@@ -5,6 +5,7 @@
 import {
   canUpgradeCard,
   CARD_LIBRARY,
+  COLORLESS_CARD_POOLS,
   countCombatStrikeCards,
   createCardInstance,
   getCardAttackFlatBonus,
@@ -12,6 +13,7 @@ import {
   getCardStats,
   getEffectiveCardCost,
   isStrikeCard,
+  upgradeCardInstance,
 } from '../../data/cards.js';
 import {
   getAvailablePotionIds,
@@ -37,9 +39,13 @@ import {
   applyEnemyInvincibleCap,
   setPendingCardChoice,
   hasPendingCardChoice,
+  registerPlayCardHandler,
   getPendingChoiceBlockReason,
   requestDiscardPileChoice,
   requestDrawPileChoice,
+  requestExhaustPileChoice,
+  requestDiscoverCardChoice,
+  requestWishChoice,
   resolveEnemyTarget,
   finalizeCombatVictory,
 } from './state.js';
@@ -94,6 +100,16 @@ export function canPlayCard(state, instanceId) {
       reason: `受【天鹅绒颈圈】限制，每回合最多打出 ${VELVET_CHOKER_CARD_LIMIT} 张卡牌`,
     };
   }
+  const normalityCard = combat.hand.find((c) => getCardStats(c).normalityLimit);
+  if (normalityCard) {
+    const limit = getCardStats(normalityCard).normalityLimit;
+    if ((combat.cardsPlayedThisTurn ?? 0) >= limit) {
+      return {
+        playable: false,
+        reason: `受手牌【凡庸】限制，本回合最多打出 ${limit} 张牌`,
+      };
+    }
+  }
   const stats = getCardStats(cardInstance);
   const canMedKitPlay = stats.unplayable && stats.type === 'status' && hasRelic(state, 'medical_kit');
   if (stats.unplayable && !canMedKitPlay) {
@@ -107,6 +123,15 @@ export function canPlayCard(state, instanceId) {
     combat.hand.some((c) => getCardStats(c).type !== 'attack')
   ) {
     return { playable: false, reason: '手牌中存在非攻击牌，无法打出【交锋】' };
+  }
+  if (
+    stats.requireOnlyAttackInHand &&
+    combat.hand.some((c) => c.instanceId !== instanceId && getCardStats(c).type === 'attack')
+  ) {
+    return { playable: false, reason: '手牌中存在其他攻击牌，无法打出【招牌技】' };
+  }
+  if (stats.requireEmptyDrawPile && (combat.drawPile?.length ?? 0) > 0) {
+    return { playable: false, reason: '抽牌堆必须为空才能打出【华丽收场】' };
   }
   const effectiveCost = getEffectiveCardCost(stats, state.player, combat);
   if (!stats.isXCost && (effectiveCost ?? 0) > state.player.energy) {
@@ -196,31 +221,37 @@ export function playCard(
   const effectiveX = xEnergy + chemXBonus;
   const corruptionActive =
     stats.type === 'skill' && (state.player.statuses.corruption ?? 0) > 0;
+  const useAutoMulti = !internalOpts.forceRepeatCount;
   const burstStacks = state.player.statuses?.burst ?? 0;
-  const burstActive = stats.type === 'skill' && !stats.noBurst && burstStacks > 0;
+  const burstActive = useAutoMulti && stats.type === 'skill' && !stats.noBurst && burstStacks > 0;
   const doubleTapStacks = state.player.statuses?.doubleTap ?? 0;
-  const doubleTapActive = stats.type === 'attack' && doubleTapStacks > 0;
+  const doubleTapActive = useAutoMulti && stats.type === 'attack' && doubleTapStacks > 0;
   const dupStacks = state.player.statuses?.duplication ?? 0;
-  const dupActive = !stats.noBurst && dupStacks > 0;
+  const dupActive = useAutoMulti && !stats.noBurst && dupStacks > 0;
   const amplifyStacks = state.player.statuses?.amplify ?? 0;
-  const amplifyActive = stats.type === 'power' && !stats.noBurst && amplifyStacks > 0;
+  const amplifyActive = useAutoMulti && stats.type === 'power' && !stats.noBurst && amplifyStacks > 0;
   const echoStacks = state.player.statuses?.echoForm ?? 0;
   const echoActive =
+    useAutoMulti &&
     !internalOpts.fromHavoc &&
     !internalOpts.fromDup &&
     !stats.noBurst &&
     echoStacks > 0 &&
     (combat.echoFormUsedThisTurn ?? 0) < echoStacks;
-  const repeatTimes =
-    1 +
-    (burstActive ? 1 : 0) +
-    (doubleTapActive ? 1 : 0) +
-    (dupActive ? 1 : 0) +
-    (amplifyActive ? 1 : 0) +
-    (echoActive ? 1 : 0);
+  const repeatTimes = internalOpts.forceRepeatCount
+    ? internalOpts.forceRepeatCount
+    : 1 +
+      (burstActive ? 1 : 0) +
+      (doubleTapActive ? 1 : 0) +
+      (dupActive ? 1 : 0) +
+      (amplifyActive ? 1 : 0) +
+      (echoActive ? 1 : 0);
 
   // 1. Remove from hand before resolving effects (prevents self-draw and frees hand slot)
   combat.hand.splice(handIndex, 1);
+  if (cardInstance.zeroCostUntilPlayed) {
+    delete cardInstance.zeroCostUntilPlayed;
+  }
   state.player.energy -= energySpent;
   if (usedFreeAttack) {
     state.player.statuses.freeAttackPower -= 1;
@@ -243,6 +274,19 @@ export function playCard(
       : `（消耗 ${energySpent} 点能量${chemXBonus > 0 ? `，化学物X +${chemXBonus}` : ''}）`
     : '';
   pushCombatLog(combat, `打出【${stats.name}】${xCostLogNote}。`, 'card');
+
+  // Pain curse in hand: lose 1 HP whenever another card is played
+  let painLoss = 0;
+  for (const hc of combat.hand) {
+    const hcPain = getCardStats(hc).painOnOtherCardPlay ?? 0;
+    if (hcPain > 0) painLoss += hcPain;
+  }
+  if (painLoss > 0) {
+    losePlayerHp(state, painLoss, '疼痛', { fromCard: true });
+    if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+      return buildPlayResult();
+    }
+  }
 
   if (
     stats.type === 'attack' &&
@@ -305,15 +349,28 @@ export function playCard(
 
   let totalManualDiscard = 0;
   let totalManualExhaust = 0;
+  let totalDrawAfterExhaust = 0;
+  let totalExhaustMulti = 0;
   let totalExhaustForEnergy = 0;
   let totalManualUpgrade = 0;
   let totalHandToDrawTop = 0;
+  let totalHandToDrawTopZero = false;
+  let totalHandToDrawBottom = 0;
+  let totalHandToDrawBottomMulti = false;
+  let totalHandToDrawBottomZero = false;
+  let totalDualWieldCopies = 0;
+  let totalNightmareCopies = 0;
   let totalScry = 0;
   let totalDrawAfterScry = 0;
   let totalDiscardToDraw = 0;
   let totalRetrieveDiscardRetain = 0;
   let totalRetrieveDiscardToHand = 0;
+  let totalRetrieveExhaust = 0;
   let totalPickFromDraw = 0;
+  let pickFromDrawType = null;
+  let totalOmniscience = 0;
+  let pendingDiscoverCfg = null;
+  let pendingWishCfg = null;
 
   for (let pass = 0; pass < repeatTimes; pass += 1) {
     if (pass > 0) {
@@ -478,7 +535,7 @@ export function playCard(
       const allCombatCards = [...combat.hand, ...combat.drawPile, ...combat.discardPile];
       for (const c of allCombatCards) {
         if (canUpgradeCard(c)) {
-          c.upgraded = true;
+          upgradeCardInstance(c);
           upCount += 1;
         }
       }
@@ -493,7 +550,7 @@ export function playCard(
       let upCount = 0;
       for (const hc of combat.hand) {
         if (canUpgradeCard(hc)) {
-          hc.upgraded = true;
+          upgradeCardInstance(hc);
           upCount += 1;
         }
       }
@@ -504,7 +561,7 @@ export function playCard(
       const upgradableInHand = combat.hand.filter((hc) => canUpgradeCard(hc));
       const chosen = pickRandom(state, upgradableInHand);
       if (chosen) {
-        chosen.upgraded = true;
+        upgradeCardInstance(chosen);
         const upgName = getCardStats(chosen).name;
         pushCombatLog(combat, `【${stats.name}】临时升级了【${upgName}】！`, 'info');
         pushCardReveal(combat, {
@@ -516,7 +573,7 @@ export function playCard(
       }
     }
 
-    // 4c. Hand-exhausting skills (True Grit / Second Wind)
+    // 4c. Hand-exhausting skills & attacks (True Grit / Second Wind / Sever Soul)
     if (stats.exhaustHandRandom && combat.hand.length > 0) {
       let targetToExhaust = null;
       if (stats.exhaustHandSmart) {
@@ -557,6 +614,17 @@ export function playCard(
           pushCombatLog(combat, `【${stats.name}】获得 ${totalBlock} 点格挡。`, 'block');
         }
         exhaustCardsBatch(state, nonAttacks);
+      }
+    }
+
+    if (stats.exhaustNonAttacksHand) {
+      const nonAttacks = combat.hand.filter((hc) => getCardStats(hc).type !== 'attack');
+      if (nonAttacks.length > 0) {
+        combat.hand = combat.hand.filter((hc) => getCardStats(hc).type === 'attack');
+        exhaustCardsBatch(state, nonAttacks);
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+          return buildPlayResult();
+        }
       }
     }
 
@@ -643,7 +711,7 @@ export function playCard(
       }
     }
 
-    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Bowling Bash, Wallop, Lesson Learned, Ragnarok, etc.)
+    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Bowling Bash, Wallop, Lesson Learned, Ragnarok, Mind Blast, Rampage, Ritual Dagger, Unload, etc.)
     if (stats.exhaustAllHandDamageEach) {
       const toExhaust = [...combat.hand];
       combat.hand = [];
@@ -697,12 +765,20 @@ export function playCard(
         targetEnemy && targetEnemy.hp > 0 && (targetEnemy.statuses?.weak ?? 0) > 0
       );
 
-      if ((typeof stats.damage === 'number' || stats.useBlockAsDamage) && hits > 0) {
+      if (
+        (typeof stats.damage === 'number' || stats.useBlockAsDamage || stats.damageFromDrawPileSize) &&
+        hits > 0
+      ) {
         const strikeCountOffset = isStrikeCard(cardInstance.cardId) ? 1 : 0;
         const extraStrikeBonus = stats.bonusDamagePerStrike
           ? stats.bonusDamagePerStrike * (countCombatStrikeCards(combat) + strikeCountOffset)
           : 0;
-        const baseDmg = (stats.useBlockAsDamage ? state.player.block : stats.damage) + extraStrikeBonus;
+        const rawBaseDmg = stats.useBlockAsDamage
+          ? state.player.block
+          : stats.damageFromDrawPileSize
+            ? (combat.drawPile?.length ?? 0)
+            : stats.damage;
+        const baseDmg = rawBaseDmg + extraStrikeBonus;
         const strMult = stats.strengthMultiplier ?? 1;
         const targetAliveBefore = Boolean(targetEnemy && targetEnemy.hp > 0);
         const targetUnawakenedBefore = Boolean(
@@ -758,6 +834,16 @@ export function playCard(
             combat,
             `【${stats.name}】击杀目标！返还 ${stats.gainEnergyOnKill} 点能量！`,
             'info'
+          );
+        }
+
+        if (stats.combatDamageScaleOnPlay) {
+          cardInstance.combatDamageMod =
+            (cardInstance.combatDamageMod ?? 0) + stats.combatDamageScaleOnPlay;
+          pushCombatLog(
+            combat,
+            `【${stats.name}】愈战愈狂：本场战斗基础伤害 +${stats.combatDamageScaleOnPlay}！`,
+            'attack'
           );
         }
 
@@ -818,7 +904,11 @@ export function playCard(
         }
 
         const hasFatalEffect = Boolean(
-          stats.fatal || stats.goldOnKill || stats.maxHpOnKill || stats.fatalPermanentUpgrade
+          stats.fatal ||
+            stats.goldOnKill ||
+            stats.maxHpOnKill ||
+            stats.fatalPermanentUpgrade ||
+            stats.ritualDamageGrowth
         );
         const fatalTriggered = isFatalEnemyKill(targetEnemy, targetAliveBefore);
 
@@ -858,11 +948,27 @@ export function playCard(
           );
         }
 
+        if (stats.ritualDamageGrowth && fatalTriggered) {
+          cardInstance.ritualBonus = (cardInstance.ritualBonus ?? 0) + stats.ritualDamageGrowth;
+          const masterCard = (state.player.deck || []).find(
+            (c) => c.instanceId === cardInstance.instanceId
+          );
+          if (masterCard) {
+            masterCard.ritualBonus = (masterCard.ritualBonus ?? 0) + stats.ritualDamageGrowth;
+          }
+          const nextBase = 15 + (cardInstance.ritualBonus ?? 0);
+          pushCombatLog(
+            combat,
+            `【${stats.name}】斩杀献祭：伤害永久 +${stats.ritualDamageGrowth}（当前基础伤害 ${nextBase}）！`,
+            'victory'
+          );
+        }
+
         if (stats.fatalPermanentUpgrade && fatalTriggered) {
           const upgradableDeck = (state.player.deck || []).filter((c) => canUpgradeCard(c));
           const chosenDeckCard = pickRandom(state, upgradableDeck);
           if (chosenDeckCard) {
-            chosenDeckCard.upgraded = true;
+            upgradeCardInstance(chosenDeckCard);
             const upgradedName = getCardStats(chosenDeckCard).name;
             pushCombatLog(
               combat,
@@ -905,6 +1011,15 @@ export function playCard(
           if (healed > 0) {
             pushCombatLog(combat, `【${stats.name}】吸取生命，回复了 ${healed} 点生命！`, 'victory');
           }
+        }
+      }
+
+      if (stats.discardNonAttacksHand && state.player.hp > 0 && combat.status === 'ongoing') {
+        const nonAttacks = combat.hand.filter((hc) => getCardStats(hc).type !== 'attack');
+        if (nonAttacks.length > 0) {
+          combat.hand = combat.hand.filter((hc) => getCardStats(hc).type === 'attack');
+          discardCardsBatch(state, nonAttacks, { manual: true });
+          pushCombatLog(combat, `【${stats.name}】弃置了手牌中 ${nonAttacks.length} 张非攻击牌。`, 'info');
         }
       }
 
@@ -1214,6 +1329,229 @@ export function playCard(
       } else {
         pushCombatLog(combat, `药水栏位已满，【${stats.name}】未能保留新药水。`, 'info');
       }
+    }
+
+    if (stats.addRandomCardToHand) {
+      const cfg = stats.addRandomCardToHand;
+      const targetChar = cfg.character || state.characterId || state.player.characterId || 'ironclad';
+      const excludedHealing = new Set(['feed', 'reaper', 'alchemize', 'self_repair', 'lesson_learned', 'wish']);
+      const pool = Object.values(CARD_LIBRARY)
+        .filter(
+          (c) =>
+            getCardCharacter(c) === targetChar &&
+            (!cfg.type || c.type === cfg.type) &&
+            !c.shopOnly &&
+            c.rarity !== 'starter' &&
+            c.rarity !== 'special' &&
+            c.type !== 'status' &&
+            c.type !== 'curse' &&
+            !c.base?.healHp &&
+            !excludedHealing.has(c.id)
+        )
+        .map((c) => c.id);
+      const pickedId = pickRandom(state, pool);
+      if (pickedId) {
+        const added = addCardsToHand(state, pickedId, 1, false);
+        if (added[0] && cfg.tempZeroCostTurn && !CARD_LIBRARY[pickedId]?.base?.isXCost) {
+          if (!added[0].tempZeroCostTurn) {
+            added[0].prevCombatCost = added[0].combatCost ?? null;
+          }
+          added[0].combatCost = 0;
+          added[0].tempZeroCostTurn = true;
+        }
+        if (added[0]) {
+          const addedName = getCardStats(added[0]).name;
+          pushCardReveal(combat, {
+            sourceName: stats.name,
+            kind: 'generated_card',
+            card: added[0],
+            summary: `${stats.name}生成【${addedName}】${cfg.tempZeroCostTurn ? '（本回合 0 费）' : ''}`,
+          });
+        }
+      }
+    }
+
+    if (stats.addRandomColorlessToHand) {
+      for (let j = 0; j < stats.addRandomColorlessToHand; j += 1) {
+        const pickedId = pickRandom(state, COLORLESS_CARD_POOLS.all);
+        if (pickedId) {
+          addCardsToHand(state, pickedId, 1, false);
+        }
+      }
+    }
+
+    if (stats.shuffleRandomZeroCostToDraw) {
+      const cfg = stats.shuffleRandomZeroCostToDraw;
+      const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
+      const excludedHealing = new Set(['feed', 'reaper', 'alchemize', 'self_repair', 'lesson_learned', 'wish']);
+      const pool = Object.values(CARD_LIBRARY)
+        .filter(
+          (c) =>
+            getCardCharacter(c) === charId &&
+            c.type === cfg.type &&
+            !c.shopOnly &&
+            c.rarity !== 'starter' &&
+            c.rarity !== 'special' &&
+            !c.base?.healHp &&
+            !excludedHealing.has(c.id)
+        )
+        .map((c) => c.id);
+      const createdNames = [];
+      for (let k = 0; k < (cfg.count || 3); k += 1) {
+        const pickedId = pickRandom(state, pool);
+        if (!pickedId) continue;
+        const created = createCardInstance(
+          state,
+          pickedId,
+          Boolean(masterUp && CARD_LIBRARY[pickedId]?.upgraded)
+        );
+        if (!CARD_LIBRARY[pickedId]?.base?.isXCost) {
+          created.combatCost = 0;
+        }
+        const insertIdx = randomInt(state, 0, combat.drawPile.length);
+        combat.drawPile.splice(insertIdx, 0, created);
+        createdNames.push(`【${getCardStats(created).name}】`);
+      }
+      if (createdNames.length > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】将 ${createdNames.length} 张 0 费${cfg.type === 'attack' ? '攻击' : '技能'}牌洗入抽牌堆：${createdNames.join('、')}！`,
+          'info'
+        );
+      }
+    }
+
+    if (stats.transmuteColorlessX && effectiveX > 0) {
+      for (let tx = 0; tx < effectiveX; tx += 1) {
+        const pickedId = pickRandom(state, COLORLESS_CARD_POOLS.all);
+        if (!pickedId) continue;
+        const added = addCardsToHand(state, pickedId, 1, Boolean(stats.transmuteUpgraded));
+        if (added[0] && !CARD_LIBRARY[pickedId]?.base?.isXCost) {
+          if (!added[0].tempZeroCostTurn) {
+            added[0].prevCombatCost = added[0].combatCost ?? null;
+          }
+          added[0].combatCost = 0;
+          added[0].tempZeroCostTurn = true;
+        }
+      }
+    }
+
+    if (stats.randomHandZeroCostCombat && combat.hand.length > 0) {
+      const nonZeroCandidates = combat.hand.filter((hc) => {
+        const cStats = getCardStats(hc);
+        if (cStats.unplayable || cStats.isXCost) return false;
+        const eff = getEffectiveCardCost(cStats, state.player, combat);
+        return typeof eff === 'number' && eff > 0;
+      });
+      const fallbackCandidates =
+        nonZeroCandidates.length > 0
+          ? nonZeroCandidates
+          : combat.hand.filter((hc) => {
+              const cStats = getCardStats(hc);
+              return !cStats.unplayable && !cStats.isXCost;
+            });
+      const chosen = pickRandom(state, fallbackCandidates);
+      if (chosen) {
+        chosen.combatCost = 0;
+        delete chosen.tempZeroCostTurn;
+        delete chosen.prevCombatCost;
+        const cName = getCardStats(chosen).name;
+        pushCombatLog(combat, `【${stats.name}】使手牌【${cName}】在本场战斗中费用变为 0！`, 'info');
+        pushCardReveal(combat, {
+          sourceName: stats.name,
+          kind: 'cost_reduce',
+          card: chosen,
+          summary: `${stats.name}将【${cName}】本场战斗降为 0 费`,
+        });
+      }
+    }
+
+    if (stats.capHandCostToOne) {
+      let reducedCount = 0;
+      const isCombatPermanent = stats.capHandCostToOne === 'combat';
+      for (const hc of combat.hand) {
+        const cStats = getCardStats(hc);
+        if (cStats.unplayable || cStats.isXCost) continue;
+        const eff = getEffectiveCardCost(cStats, state.player, combat);
+        if (typeof eff === 'number' && eff > 1) {
+          if (isCombatPermanent) {
+            hc.combatCost = 1;
+            delete hc.tempZeroCostTurn;
+            delete hc.prevCombatCost;
+          } else {
+            if (!hc.tempZeroCostTurn) {
+              hc.prevCombatCost = hc.combatCost ?? null;
+            }
+            hc.combatCost = 1;
+            hc.tempZeroCostTurn = true;
+          }
+          reducedCount += 1;
+        }
+      }
+      pushCombatLog(
+        combat,
+        reducedCount > 0
+          ? `【${stats.name}】将手牌中 ${reducedCount} 张高费牌${isCombatPermanent ? '本场战斗' : '本回合'}费用降至 1！`
+          : `【${stats.name}】生效，手牌中当前没有高于 1 费的卡牌。`,
+        'info'
+      );
+    }
+
+    if (stats.zeroAllHandCostThisTurn) {
+      let zeroed = 0;
+      for (const hc of combat.hand) {
+        const cStats = getCardStats(hc);
+        if (cStats.unplayable || cStats.isXCost) continue;
+        if (!hc.tempZeroCostTurn) {
+          hc.prevCombatCost = hc.combatCost ?? null;
+        }
+        hc.combatCost = 0;
+        hc.tempZeroCostTurn = true;
+        zeroed += 1;
+      }
+      pushCombatLog(
+        combat,
+        `【${stats.name}】生效：本回合所有手牌（${zeroed} 张）费用变为 0，且本回合无法再抽牌！`,
+        'status'
+      );
+    }
+
+    if (typeof stats.nextTurnDrawAndEnergyX === 'number') {
+      const amt = Math.max(0, effectiveX + stats.nextTurnDrawAndEnergyX);
+      if (amt > 0) {
+        applyStatus(state.player, 'energized', amt);
+        applyStatus(state.player, 'drawCardNextTurn', amt);
+        pushCombatLog(
+          combat,
+          `【${stats.name}】生效：下回合开始时额外获得 ${amt} 点能量并多抽 ${amt} 张牌！`,
+          'status'
+        );
+      }
+    }
+
+    if (typeof stats.collectMiracleTurnsX === 'number') {
+      const turns = Math.max(0, effectiveX + stats.collectMiracleTurnsX);
+      if (turns > 0) {
+        applyStatus(state.player, 'collect', turns);
+        pushCombatLog(
+          combat,
+          `【${stats.name}】生效：接下来 ${turns} 回合开始时各获得 1 张【奇迹+】！`,
+          'status'
+        );
+      }
+    }
+
+    if (typeof stats.conjureExpungerX === 'number') {
+      const hits = Math.max(1, effectiveX + stats.conjureExpungerX);
+      const expunger = createCardInstance(state, 'expunger', Boolean(masterUp));
+      expunger.expungerHits = hits;
+      const insertIdx = randomInt(state, 0, combat.drawPile.length);
+      combat.drawPile.splice(insertIdx, 0, expunger);
+      pushCombatLog(
+        combat,
+        `【${stats.name}】凝结出 ${hits} 段连击的【${getCardStats(expunger).name}】并洗入抽牌堆！`,
+        'info'
+      );
     }
 
     // 7. Self status application, Limit Break, Stances, Mantra & Orbs
@@ -1528,16 +1866,29 @@ export function playCard(
           topStats.requireAllHandAttacks &&
             combat.hand.some((c) => getCardStats(c).type !== 'attack')
         );
+        const blockedBySignature = Boolean(
+          topStats.requireOnlyAttackInHand &&
+            combat.hand.some((c) => getCardStats(c).type === 'attack')
+        );
+        const blockedByGrandFinale = Boolean(
+          topStats.requireEmptyDrawPile && combat.drawPile.length > 0
+        );
         if (
           blockedByEntangle ||
           blockedByClash ||
+          blockedBySignature ||
+          blockedByGrandFinale ||
           (topStats.unplayable && !(topStats.type === 'status' && hasRelic(state, 'medical_kit')))
         ) {
           const reasonText = blockedByEntangle
             ? `处于【缠网】状态，【${stats.name}】翻出的攻击牌【${topStats.name}】无法打出并被消耗。`
             : blockedByClash
               ? `手牌存在非攻击牌，【${stats.name}】翻出的【${topStats.name}】无法打出并被消耗。`
-              : `【${stats.name}】翻出不可打出的【${topStats.name}】并将其消耗。`;
+              : blockedBySignature
+                ? `手牌存在其他攻击牌，【${stats.name}】翻出的【${topStats.name}】无法打出并被消耗。`
+                : blockedByGrandFinale
+                  ? `抽牌堆非空，【${stats.name}】翻出的【${topStats.name}】无法打出并被消耗。`
+                  : `【${stats.name}】翻出不可打出的【${topStats.name}】并将其消耗。`;
           pushCombatLog(combat, reasonText, 'info');
           pushCardReveal(combat, {
             sourceName: stats.name,
@@ -1548,7 +1899,11 @@ export function playCard(
               ? `${stats.name}翻出【${topStats.name}】（受缠网无法打出，已消耗）`
               : blockedByClash
                 ? `${stats.name}翻出【${topStats.name}】（不满足仅攻击牌条件，已消耗）`
-                : `${stats.name}翻出不可打出的【${topStats.name}】并消耗`,
+                : blockedBySignature
+                  ? `${stats.name}翻出【${topStats.name}】（手牌含其他攻击牌，已消耗）`
+                  : blockedByGrandFinale
+                    ? `${stats.name}翻出【${topStats.name}】（抽牌堆非空，已消耗）`
+                    : `${stats.name}翻出不可打出的【${topStats.name}】并消耗`,
           });
           exhaustCardsBatch(state, [topCard]);
         } else {
@@ -1584,10 +1939,16 @@ export function playCard(
       }
     }
 
-    // 9. Post-draw self statuses (e.g. Battle Trance noDraw)
+    // 9. Post-draw self statuses (e.g. Battle Trance noDraw, Bullet Time noDraw, Panic Button noBlock)
     if (stats.applySelfStatusesAfter) {
       for (const [statusKey, val] of Object.entries(stats.applySelfStatusesAfter)) {
-        applyStatus(state.player, statusKey, val);
+        const applied = applyStatus(state.player, statusKey, val);
+        const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
+        if (!applied) {
+          pushCombatLog(combat, `【人工制品】抵消了【${statusName}】！`, 'status');
+        } else if (statusKey === 'noBlock') {
+          pushCombatLog(combat, `玩家获得 ${val} 回合【无法格挡】。`, 'status');
+        }
       }
     }
 
@@ -1745,11 +2106,47 @@ export function playCard(
     if (stats.exhaustHandChoice) {
       totalManualExhaust += stats.exhaustHandChoice;
     }
+    if (stats.drawAfterExhaustChoice) {
+      totalDrawAfterExhaust += stats.drawAfterExhaustChoice;
+    }
+    if (stats.exhaustUpToHandChoice) {
+      totalExhaustMulti += stats.exhaustUpToHandChoice;
+    }
     if (stats.upgradeHandChoice) {
       totalManualUpgrade += stats.upgradeHandChoice;
     }
     if (stats.putHandToDrawTopChoice) {
       totalHandToDrawTop += stats.putHandToDrawTopChoice;
+      if (stats.setZeroCostUntilPlayedOnDrawTop) totalHandToDrawTopZero = true;
+    }
+    if (stats.putHandToDrawBottomChoice) {
+      totalHandToDrawBottom += stats.putHandToDrawBottomChoice;
+      if (stats.setZeroCostUntilPlayedOnDrawBottom) totalHandToDrawBottomZero = true;
+    }
+    if (stats.putHandToDrawBottomMultiChoice) {
+      totalHandToDrawBottomMulti = true;
+      if (stats.setZeroCostUntilPlayedOnDrawBottom) totalHandToDrawBottomZero = true;
+    }
+    if (stats.duplicateAttackOrPowerHandChoice) {
+      totalDualWieldCopies += stats.duplicateAttackOrPowerHandChoice;
+    }
+    if (stats.nightmareHandChoice) {
+      totalNightmareCopies += stats.nightmareHandChoice;
+    }
+    if (stats.retrieveExhaustToHand) {
+      totalRetrieveExhaust += stats.retrieveExhaustToHand;
+    }
+    if (stats.pickFromDrawType) {
+      pickFromDrawType = stats.pickFromDrawType;
+    }
+    if (stats.playFromDrawTwiceAndExhaust) {
+      totalOmniscience += stats.playFromDrawTwiceAndExhaust;
+    }
+    if (stats.discoverCardChoice) {
+      pendingDiscoverCfg = stats.discoverCardChoice;
+    }
+    if (stats.wishChoice) {
+      pendingWishCfg = stats.wishChoice;
     }
     if (stats.scry) {
       totalScry += stats.scry;
@@ -1806,7 +2203,9 @@ export function playCard(
     });
     const chosen = pickRandom(state, candidates);
     if (chosen) {
-      chosen.prevCombatCost = chosen.combatCost ?? null;
+      if (!chosen.tempZeroCostTurn) {
+        chosen.prevCombatCost = chosen.combatCost ?? null;
+      }
       chosen.combatCost = 0;
       chosen.tempZeroCostTurn = true;
       pushCombatLog(
@@ -1916,7 +2315,7 @@ export function playCard(
     return { ...endPlayerTurn(state, onVictoryCallback), cardReveals };
   }
 
-  // 11b. Request interactive hand/draw/discard card choices (Discard / Exhaust / Upgrade / Scry / Discard-Pile / Draw-Pile)
+  // 11b. Request interactive hand/draw/discard/exhaust/discover/wish card choices
   if (getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
     if (totalManualDiscard > 0) {
       requestHandCardChoice(state, 'discard', totalManualDiscard, stats.name, onVictoryCallback);
@@ -1925,11 +2324,38 @@ export function playCard(
         grantEnergyFromCost: true,
       });
     } else if (totalManualExhaust > 0) {
-      requestHandCardChoice(state, 'exhaust', totalManualExhaust, stats.name, onVictoryCallback);
+      requestHandCardChoice(state, 'exhaust', totalManualExhaust, stats.name, onVictoryCallback, {
+        drawAfterExhaust: totalDrawAfterExhaust,
+      });
+    } else if (totalExhaustMulti > 0) {
+      requestHandCardChoice(state, 'exhaust_multi', totalExhaustMulti, stats.name, onVictoryCallback);
     } else if (totalManualUpgrade > 0) {
       requestHandCardChoice(state, 'upgrade', totalManualUpgrade, stats.name, onVictoryCallback);
     } else if (totalHandToDrawTop > 0) {
-      requestHandCardChoice(state, 'hand_to_draw', totalHandToDrawTop, stats.name, onVictoryCallback);
+      requestHandCardChoice(state, 'hand_to_draw', totalHandToDrawTop, stats.name, onVictoryCallback, {
+        zeroCostUntilPlayed: totalHandToDrawTopZero,
+      });
+    } else if (totalHandToDrawBottomMulti) {
+      requestHandCardChoice(state, 'hand_to_draw_bottom_multi', 1, stats.name, onVictoryCallback, {
+        zeroCostUntilPlayed: totalHandToDrawBottomZero,
+      });
+    } else if (totalHandToDrawBottom > 0) {
+      requestHandCardChoice(
+        state,
+        'hand_to_draw_bottom',
+        totalHandToDrawBottom,
+        stats.name,
+        onVictoryCallback,
+        { zeroCostUntilPlayed: totalHandToDrawBottomZero }
+      );
+    } else if (totalDualWieldCopies > 0) {
+      requestHandCardChoice(state, 'dual_wield', totalDualWieldCopies, stats.name, onVictoryCallback, {
+        copies: totalDualWieldCopies,
+      });
+    } else if (totalNightmareCopies > 0) {
+      requestHandCardChoice(state, 'nightmare', totalNightmareCopies, stats.name, onVictoryCallback, {
+        copies: totalNightmareCopies,
+      });
     } else if (totalScry > 0) {
       initiateScry(state, totalScry, stats.name, { drawAfterScry: totalDrawAfterScry });
     } else if (totalDiscardToDraw > 0) {
@@ -1946,8 +2372,16 @@ export function playCard(
           excludeInstanceId: cardInstance.instanceId,
         }
       );
+    } else if (totalRetrieveExhaust > 0) {
+      requestExhaustPileChoice(state, totalRetrieveExhaust, stats.name);
+    } else if (totalOmniscience > 0) {
+      requestDrawPileChoice(state, totalOmniscience, stats.name, { mode: 'omniscience' });
     } else if (totalPickFromDraw > 0) {
-      requestDrawPileChoice(state, totalPickFromDraw, stats.name);
+      requestDrawPileChoice(state, totalPickFromDraw, stats.name, { filterType: pickFromDrawType });
+    } else if (pendingDiscoverCfg) {
+      requestDiscoverCardChoice(state, pendingDiscoverCfg, stats.name);
+    } else if (pendingWishCfg) {
+      requestWishChoice(state, pendingWishCfg, stats.name);
     } else if (totalRetrieveDiscardRetain > 0) {
       requestDiscardPileChoice(
         state,
@@ -2220,3 +2654,5 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
     orbFxEvents: Array.isArray(combat.orbFxEvents) ? [...combat.orbFxEvents] : [],
   };
 }
+
+registerPlayCardHandler(playCard);

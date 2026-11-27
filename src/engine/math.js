@@ -63,6 +63,9 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
 }
 
 export function calculateCardBlock(baseBlock, player) {
+  if ((player?.statuses?.noBlock ?? 0) > 0) {
+    return 0;
+  }
   const safeBase = Number.isFinite(baseBlock) ? baseBlock : 0;
   const dexterity = player?.statuses?.dexterity ?? 0;
   let raw = safeBase + dexterity;

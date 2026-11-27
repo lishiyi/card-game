@@ -204,6 +204,9 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     } else if (stats.useBlockAsDamage) {
       basePerHit = Math.max(0, state.player?.block ?? 0);
       hits = 1;
+    } else if (stats.damageFromDrawPileSize) {
+      basePerHit = Math.max(0, combat.drawPile?.length ?? 0);
+      hits = 1;
     } else if (typeof stats.exhaustAllHandDamageEach === 'number') {
       basePerHit = stats.exhaustAllHandDamageEach;
       const otherHandCount = combat.hand.filter(

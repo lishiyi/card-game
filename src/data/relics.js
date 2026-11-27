@@ -2098,6 +2098,48 @@ export const STATUS_METADATA = deepFreeze({
     polarity: 'buff',
     describe: (v) => `每回合开始时，额外抽 ${v} 张牌。`,
   },
+  brutality: {
+    id: 'brutality',
+    name: '残暴',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，失去 ${v} 点生命并额外抽 ${v} 张牌。`,
+  },
+  nightmare: {
+    id: 'nightmare',
+    name: '夜魇',
+    polarity: 'buff',
+    describe: (v) => `下回合开始时，将已选卡牌的复制品共 ${v} 张加入手牌！`,
+  },
+  collect: {
+    id: 'collect',
+    name: '收集',
+    polarity: 'buff',
+    describe: (v) => `接下来 ${v} 个回合开始时，将 1 张【奇迹+】加入手牌。`,
+  },
+  study: {
+    id: 'study',
+    name: '研习',
+    polarity: 'buff',
+    describe: (v) => `每回合结束时，将 ${v} 张【洞见】洗入抽牌堆。`,
+  },
+  noBlock: {
+    id: 'noBlock',
+    name: '无法格挡',
+    polarity: 'debuff',
+    describe: (v) => `接下来 ${v} 回合内无法从卡牌获得格挡（遗物、充能球与药水不受影响）。`,
+  },
+  magnetism: {
+    id: 'magnetism',
+    name: '磁力',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，将 ${v} 张随机无色卡牌加入手牌。`,
+  },
+  mayhem: {
+    id: 'mayhem',
+    name: '乱战',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，自动打出抽牌堆顶的 ${v} 张牌！`,
+  },
 });
 
 export const STANCE_METADATA = deepFreeze({

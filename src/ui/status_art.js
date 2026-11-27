@@ -32,6 +32,7 @@ const DEFAULT_DEBUFF_KEYS = new Set([
   'focus_down',
   'lockOn',
   'biasedCognition',
+  'noBlock',
   'fallback_debuff',
 ]);
 
@@ -1076,6 +1077,67 @@ export const STATUS_SVG_ART = Object.freeze({
     `<rect x="6.6" y="6" width="10.8" height="12" rx="1.6" fill="hsl(214, 54%, 30%)" stroke="hsl(192, 98%, 74%)" stroke-width="1.3"/>
      <circle cx="10" cy="10" r="1.3" fill="hsl(48, 100%, 74%)"/><circle cx="14.2" cy="10" r="1.3" fill="hsl(190, 100%, 78%)"/>
      <path d="M10 10 L12 14.6 L14.2 10" fill="none" stroke="hsl(48, 100%, 78%)" stroke-width="1.1"/>`
+  ),
+  brutality: wrapStatusSvg(
+    'brutality',
+    'hsl(354, 66%, 22%)',
+    'hsl(344, 64%, 9%)',
+    'hsl(6, 94%, 60%)',
+    `<path d="M5.8 14.6 L7.6 8.2 L10.2 11.4 L12 6.2 L13.8 11.4 L16.4 8.2 L18.2 14.6 Z" fill="hsl(354, 78%, 46%)" stroke="hsl(38, 100%, 74%)" stroke-width="1.15" stroke-linejoin="round"/>
+     <path d="M12 15.2 C10.4 17 10.4 18.8 12 19.2 C13.6 18.8 13.6 17 12 15.2 Z" fill="hsl(6, 98%, 62%)"/>`
+  ),
+  nightmare: wrapStatusSvg(
+    'nightmare',
+    'hsl(274, 58%, 22%)',
+    'hsl(248, 62%, 9%)',
+    'hsl(286, 92%, 68%)',
+    `<path d="M6.4 12.2 C6.4 7.8 9 5.6 12 5.6 C15 5.6 17.6 7.8 17.6 12.2 C17.6 15.6 15.4 18.6 12 19.2 C8.6 18.6 6.4 15.6 6.4 12.2 Z" fill="hsl(272, 54%, 28%)" stroke="hsl(152, 88%, 64%)" stroke-width="1.2"/>
+     <path d="M8.6 11.4 L10.8 12.4 L8.8 13.4 Z M15.4 11.4 L13.2 12.4 L15.2 13.4 Z" fill="hsl(148, 100%, 74%)"/>
+     <path d="M9.4 16 Q12 14.4 14.6 16" fill="none" stroke="hsl(292, 92%, 78%)" stroke-width="1.2" stroke-linecap="round"/>`
+  ),
+  collect: wrapStatusSvg(
+    'collect',
+    'hsl(42, 62%, 22%)',
+    'hsl(282, 56%, 10%)',
+    'hsl(48, 98%, 70%)',
+    `<path d="M7.2 10.6 H16.8 L15.2 16.4 H8.8 Z" fill="hsl(44, 84%, 52%)" stroke="hsl(52, 100%, 84%)" stroke-width="1.15" stroke-linejoin="round"/>
+     <circle cx="12" cy="7.4" r="2.2" fill="hsl(50, 100%, 78%)" stroke="hsl(32, 94%, 54%)" stroke-width="0.9"/>
+     <path d="M9.4 18.8 H14.6" stroke="hsl(48, 96%, 76%)" stroke-width="1.5" stroke-linecap="round"/>`
+  ),
+  study: wrapStatusSvg(
+    'study',
+    'hsl(286, 56%, 22%)',
+    'hsl(258, 60%, 10%)',
+    'hsl(48, 96%, 72%)',
+    `<rect x="6.4" y="6.2" width="11.2" height="11.8" rx="1.6" fill="hsl(276, 48%, 32%)" stroke="hsl(48, 96%, 74%)" stroke-width="1.25"/>
+     <path d="M8.8 9.6 H15.2 M8.8 12.4 H15.2 M8.8 15.2 H12.8" stroke="hsl(50, 100%, 86%)" stroke-width="1.2" stroke-linecap="round"/>
+     <circle cx="15.4" cy="15.2" r="1.2" fill="hsl(44, 100%, 74%)"/>`
+  ),
+  noBlock: wrapStatusSvg(
+    'noBlock',
+    'hsl(354, 62%, 22%)',
+    'hsl(342, 64%, 9%)',
+    'hsl(4, 94%, 60%)',
+    `<path d="M12 4.8 L18 7.2 V12.4 C18 15.8 15.4 18.2 12 19.4 C8.6 18.2 6 15.8 6 12.4 V7.2 Z" fill="hsl(216, 26%, 32%)" stroke="hsl(210, 32%, 66%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M6.4 6.4 L17.6 17.6 M17.6 6.4 L6.4 17.6" stroke="hsl(4, 98%, 62%)" stroke-width="2" stroke-linecap="round"/>`
+  ),
+  magnetism: wrapStatusSvg(
+    'magnetism',
+    'hsl(214, 52%, 22%)',
+    'hsl(232, 56%, 10%)',
+    'hsl(196, 94%, 70%)',
+    `<path d="M7.6 7.4 V13.2 A4.4 4.4 0 0 0 16.4 13.2 V7.4" fill="none" stroke="hsl(210, 30%, 76%)" stroke-width="2.6" stroke-linecap="butt"/>
+     <path d="M6.3 6.2 H8.9 V9.2 H6.3 Z" fill="hsl(4, 90%, 58%)"/><path d="M15.1 6.2 H17.7 V9.2 H15.1 Z" fill="hsl(204, 94%, 60%)"/>
+     <path d="M11 6.2 L12.8 8.2 L11.4 8.6 L13 10.6" fill="none" stroke="hsl(48, 100%, 82%)" stroke-width="1.2" stroke-linecap="round"/>`
+  ),
+  mayhem: wrapStatusSvg(
+    'mayhem',
+    'hsl(24, 64%, 22%)',
+    'hsl(348, 60%, 9%)',
+    'hsl(36, 98%, 66%)',
+    `<path d="M7 16.4 C7 10.6 10.4 6.6 16.6 6.8" fill="none" stroke="hsl(38, 100%, 70%)" stroke-width="1.7" stroke-linecap="round"/>
+     <path d="M17 7.6 C17 13.4 13.6 17.4 7.4 17.2" fill="none" stroke="hsl(12, 96%, 62%)" stroke-width="1.7" stroke-linecap="round"/>
+     <polygon points="12,8.4 13.4,11 16.2,12 13.4,13 12,15.6 10.6,13 7.8,12 10.6,11" fill="hsl(50, 100%, 84%)"/>`
   ),
 });
 

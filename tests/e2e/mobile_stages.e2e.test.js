@@ -1124,7 +1124,7 @@ test('P0 & P1 Real Chromium E2E: ?debug=1 unlock guard, PWA endpoints, 4-tab Com
       };
     })()`);
     assert.equal(compInitial.open, true);
-    assert.ok(compInitial.cardTabText.includes('/307') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
+    assert.ok(compInitial.cardTabText.includes('/361') || compInitial.cardTabText.includes('/'), 'Card tab shows total count');
     assert.equal(compInitial.totalRelicCards, 112, 'Relics tab lists all 112 relics');
     assert.equal(compInitial.totalPotionCards, 32, 'Potions tab lists all 32 potions');
     assert.equal(compInitial.totalEnemyCards, 64, 'Enemies tab lists all 64 enemies');

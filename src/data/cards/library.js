@@ -56,7 +56,7 @@ export const REWARD_CARD_POOLS = deepFreeze(getRewardCardPools('ironclad'));
 
 export const CURSE_CARD_IDS = deepFreeze(
   Object.values(CARD_LIBRARY)
-    .filter((c) => c.type === 'curse')
+    .filter((c) => c.type === 'curse' && !c.specialCurse)
     .map((c) => c.id)
 );
 

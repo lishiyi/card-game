@@ -190,6 +190,11 @@ export const EVENT_LIBRARY = deepFreeze({
         detail: '失去 5 点生命，随机获得 1 张【罕见】卡牌加入牌组。',
       },
       {
+        id: 'embrace_necronomicurse',
+        label: '翻开死灵密卷',
+        detail: '获得 1 件【稀有】遗物与 1 张已升级的【稀有】卡牌，但承受不可移除的诅咒【死灵诅咒】！',
+      },
+      {
         id: 'close_tome',
         label: '合上魔典',
         detail: '克制贪念，安全离开讲台。',
@@ -388,6 +393,11 @@ export const EVENT_LIBRARY = deepFreeze({
         id: 'augment_serum',
         label: '注射强化血清',
         detail: '失去 12 点生命，永久提升 7 点最大生命，并随机获得 1 张罕见/稀有职业卡牌。',
+      },
+      {
+        id: 'take_jax',
+        label: '索取 J.A.X. 针剂',
+        detail: '直接获得特殊无色牌【J.A.X.】（0 费，失去 3 点生命，获得 2 点力量）！',
       },
       {
         id: 'augment_leave',
@@ -629,6 +639,11 @@ export const EVENT_LIBRARY = deepFreeze({
         detail: '必定获得 1 件随机遗物，但有 50% 概率沾染 1 张诅咒【疑虑】。',
       },
       {
+        id: 'ring_cursed_bell',
+        label: '摇响呼唤铃铛',
+        detail: '获得 1 件【罕见】遗物、1 张【稀有】卡牌与 60 金币，但承受不可移除的诅咒【铃铛的诅咒】！',
+      },
+      {
         id: 'leave_mausoleum',
         label: '合掌离去',
         detail: '不惊扰沉睡者，安全离开。',
@@ -654,9 +669,34 @@ export const EVENT_LIBRARY = deepFreeze({
         detail: '需持有【小血瓶】：无损失去它以换取全血回复 + 随机升级 2 张攻击牌！',
       },
       {
+        id: 'embrace_bites',
+        label: '接受暗夜初拥（获得 5 张【噬咬】）',
+        detail: '失去 30% 最大生命（持有【小血瓶】时改为交出【小血瓶】无损换取），移除牌组中全部【打击】并获得 5 张【噬咬】！',
+      },
+      {
         id: 'refuse_vampires',
         label: '谢绝盛宴',
         detail: '拒绝血族的邀请，平静离开。',
+      },
+    ],
+  },
+  the_nest: {
+    id: 'the_nest',
+    title: '邪教巢穴',
+    minAct: 2,
+    maxAct: 2,
+    description:
+      '幽暗大厅中央，一群身披蓝羽斗篷的狂信徒围着祭坛高呼“咔咔！”，祭坛上供奉着沉甸甸的金币与一把散发冷光的仪式匕首。',
+    choices: [
+      {
+        id: 'join_ritual',
+        label: '加入血祭仪式',
+        detail: '失去 6 点生命，获得特殊卡牌【仪式匕首】（1 费造成 15 点伤害；斩杀时，伤害永久 +3，消耗）！',
+      },
+      {
+        id: 'smash_and_grab',
+        label: '趁乱抢钱',
+        detail: '趁教徒闭目祷告时抓走祭坛金币，立即获得 99 金币！',
       },
     ],
   },
@@ -924,6 +964,8 @@ export function getEventTuning(ascension = 0) {
     portalSiphonHpLoss: isA8 ? 21 : 16,
     forgeAltarGold: isA8 ? 100 : 85,
     forgeAltarHpLoss: isA8 ? 14 : 10,
+    nestHpLoss: isA8 ? 8 : 6,
+    nestGold: isA8 ? 50 : 99,
   };
 }
 
@@ -1031,6 +1073,10 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     },
     vampires_den: {
       accept_vampire_pact: `永久失去 ${t.vampMaxHpLossPct}% 最大生命（最低保留 25 点），但立即回满生命并随机升级 2 张攻击牌！`,
+    },
+    the_nest: {
+      join_ritual: `失去 ${t.nestHpLoss} 点生命，获得特殊卡牌【仪式匕首】（1 费造成 15 点伤害；斩杀时，伤害永久 +3，消耗）！`,
+      smash_and_grab: `趁教徒闭目祷告时抓走祭坛金币，立即获得 ${t.nestGold} 金币！`,
     },
     beggar_shrine: {
       give_beggar_gold: `花费 ${t.beggarPurifyGold} 金币，自选并永久移除牌组中的 1 张卡牌。`,

@@ -3,18 +3,18 @@
  * and pending card-choice state helpers.
  */
 
-import { CARD_LIBRARY, createCardInstance, getCardStats } from '../../data/cards.js';
+import { CARD_LIBRARY, createCardInstance, getCardCharacter, getCardStats } from '../../data/cards.js';
 import { ENEMY_TEMPLATES, GREMLIN_POOL, rollEnemyIntent } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STATUS_METADATA } from '../../data/relics.js';
-import { shuffled } from '../rng.js';
+import { pickDistinct, shuffled } from '../rng.js';
 
 export const MAX_HAND_SIZE = 10;
 export const BASE_DRAW_PER_TURN = 5;
 export const VELVET_CHOKER_CARD_LIMIT = 6;
 export const RUSHDOWN_MAX_TRIGGERS_PER_TURN = Infinity;
 export const VALID_STANCES = new Set(['neutral', 'calm', 'wrath', 'divinity']);
-export const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail', 'lockOn'];
-export const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'lockOn', 'intangible'];
+export const DECAYING_DEBUFFS = ['vulnerable', 'weak', 'frail', 'lockOn', 'noBlock'];
+export const ROUND_DECAY_STATUSES = ['vulnerable', 'weak', 'frail', 'lockOn', 'noBlock', 'intangible'];
 export const SIGNED_STATUSES = new Set(['strength', 'dexterity', 'focus']);
 
 export function cloneCardForReveal(cardInstance) {
@@ -23,11 +23,15 @@ export function cloneCardForReveal(cardInstance) {
     instanceId: cardInstance.instanceId,
     cardId: cardInstance.cardId,
     upgraded: Boolean(cardInstance.upgraded),
+    ...(Number.isInteger(cardInstance.upgradeLevel) ? { upgradeLevel: cardInstance.upgradeLevel } : {}),
     combatCost: cardInstance.combatCost ?? null,
     combatDamageMod: cardInstance.combatDamageMod ?? 0,
     combatBlockMod: cardInstance.combatBlockMod ?? 0,
     retainedCostDiscount: cardInstance.retainedCostDiscount ?? 0,
+    ...(cardInstance.zeroCostUntilPlayed ? { zeroCostUntilPlayed: true } : {}),
     ...(typeof cardInstance.miscBonus === 'number' ? { miscBonus: cardInstance.miscBonus } : {}),
+    ...(typeof cardInstance.ritualBonus === 'number' ? { ritualBonus: cardInstance.ritualBonus } : {}),
+    ...(typeof cardInstance.expungerHits === 'number' ? { expungerHits: cardInstance.expungerHits } : {}),
   };
 }
 
@@ -470,14 +474,33 @@ export function getActivePendingCardChoice(combat) {
   return null;
 }
 
+let _playCardHandler = null;
+
+export function registerPlayCardHandler(fn) {
+  _playCardHandler = fn;
+}
+
+export function invokePlayCard(state, instanceId, targetEnemyId = null, onVictoryCallback = null, internalOpts = {}) {
+  if (typeof _playCardHandler !== 'function') {
+    return { ok: false, reason: '出牌处理器未就绪' };
+  }
+  return _playCardHandler(state, instanceId, targetEnemyId, onVictoryCallback, internalOpts);
+}
+
 export function getPendingChoiceBlockReason(combat) {
   const active = getActivePendingCardChoice(combat);
   if (!active) return '';
   switch (active.mode) {
     case 'exhaust':
       return '请先选择要消耗的手牌';
+    case 'exhaust_multi':
+      return '请先选择要消耗的手牌并确认';
     case 'upgrade':
       return '请先选择要升级的手牌';
+    case 'dual_wield':
+      return '请先选择要复制的攻击牌或能力牌';
+    case 'nightmare':
+      return '请先选择下回合要复制的手牌';
     case 'scry':
       return '请先完成预见选择';
     case 'discard_to_draw':
@@ -486,10 +509,22 @@ export function getPendingChoiceBlockReason(combat) {
       return '请先从弃牌堆选择要取回并保留的卡牌';
     case 'retrieve_discard_to_hand':
       return '请先从弃牌堆选择要加入手牌的卡牌';
+    case 'retrieve_exhaust_to_hand':
+      return '请先从消耗堆选择要发掘加入手牌的卡牌';
     case 'pick_from_draw':
       return '请先从抽牌堆选择要加入手牌的卡牌';
+    case 'omniscience':
+      return '请先从抽牌堆选择要连续打出 2 次的卡牌';
+    case 'discover_card':
+      return '请先从 3 张候选卡牌中选择 1 张加入手牌';
+    case 'wish':
+      return '请先选择一项愿望';
     case 'hand_to_draw':
       return '请先选择要置于抽牌堆顶的手牌';
+    case 'hand_to_draw_bottom':
+      return '请先选择要置于抽牌堆底的手牌';
+    case 'hand_to_draw_bottom_multi':
+      return '请先选择要置于抽牌堆底的手牌并确认';
     case 'retain':
       return '请先选择本回合要保留的手牌并确认结束回合';
     default:
@@ -577,7 +612,7 @@ export function requestDiscardPileChoice(
   return false;
 }
 
-export function requestDrawPileChoice(state, count, sourceName = '搜寻') {
+export function requestDrawPileChoice(state, count, sourceName = '搜寻', options = {}) {
   const combat = state?.combat;
   if (
     !combat ||
@@ -588,18 +623,26 @@ export function requestDrawPileChoice(state, count, sourceName = '搜寻') {
   ) {
     return false;
   }
-  const eligible = [...(combat.drawPile || [])];
+  const mode = options.mode === 'omniscience' ? 'omniscience' : 'pick_from_draw';
+  const filterType = options.filterType || null;
+  const eligible = (combat.drawPile || []).filter((c) => {
+    if (!filterType) return true;
+    return getCardStats(c).type === filterType;
+  });
   if (eligible.length === 0) {
-    pushCombatLog(combat, `【${sourceName}】抽牌堆为空，没有可选卡牌。`, 'info');
+    const typeLabel = filterType === 'skill' ? '技能' : filterType === 'attack' ? '攻击' : '';
+    pushCombatLog(combat, `【${sourceName}】抽牌堆中没有可选的${typeLabel}牌。`, 'info');
     return false;
   }
-  const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
-  const maxPick = Math.min(count, handRoom, eligible.length);
+  const maxPick =
+    mode === 'omniscience'
+      ? Math.min(count, eligible.length)
+      : Math.min(count, Math.max(0, MAX_HAND_SIZE - combat.hand.length), eligible.length);
   if (maxPick <= 0) {
     pushCombatLog(combat, `【${sourceName}】手牌已满，无法从抽牌堆检索卡牌。`, 'info');
     return false;
   }
-  // Sort candidates by name/cost rather than draw order so Seek does not spoil upcoming draws
+  // Sort candidates by name/cost rather than draw order so Seek/Omniscience do not spoil upcoming draws
   const sortedCandidates = [...eligible].sort((a, b) => {
     const sa = getCardStats(a);
     const sb = getCardStats(b);
@@ -608,12 +651,168 @@ export function requestDrawPileChoice(state, count, sourceName = '搜寻') {
     return ca - cb || sa.name.localeCompare(sb.name, 'zh-CN');
   });
   setPendingCardChoice(combat, {
-    mode: 'pick_from_draw',
+    mode,
     sourceName,
     count: maxPick,
     remaining: maxPick,
     optional: false,
+    filterType,
     candidates: sortedCandidates,
+    selectedIds: [],
+  });
+  return true;
+}
+
+export function requestExhaustPileChoice(state, count, sourceName = '发掘') {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    count <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const eligible = (combat.exhaustPile || []).filter((c) => c.cardId !== 'exhume');
+  if (eligible.length === 0) {
+    pushCombatLog(combat, `【${sourceName}】消耗堆中没有可发掘的卡牌。`, 'info');
+    return false;
+  }
+  const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
+  const maxPick = Math.min(count, handRoom, eligible.length);
+  if (maxPick <= 0) {
+    pushCombatLog(combat, `【${sourceName}】手牌已满，无法从消耗堆取回卡牌。`, 'info');
+    return false;
+  }
+  setPendingCardChoice(combat, {
+    mode: 'retrieve_exhaust_to_hand',
+    sourceName,
+    count: maxPick,
+    remaining: maxPick,
+    optional: false,
+    candidates: [...eligible],
+    selectedIds: [],
+  });
+  return true;
+}
+
+export function requestDiscoverCardChoice(state, cfg = {}, sourceName = '发现') {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const charId = state.characterId ?? state.player?.characterId ?? 'ironclad';
+  const poolKind = cfg.pool || 'class_any';
+  const count = cfg.count || 3;
+  const masterUp = (state.player?.statuses?.masterReality ?? 0) > 0;
+  let eligibleIds = [];
+  if (poolKind === 'any_attack') {
+    eligibleIds = Object.values(CARD_LIBRARY)
+      .filter(
+        (c) =>
+          c.type === 'attack' &&
+          !c.shopOnly &&
+          c.rarity !== 'starter' &&
+          c.rarity !== 'special' &&
+          c.rarity !== 'status' &&
+          c.rarity !== 'curse' &&
+          c.id !== 'strike'
+      )
+      .map((c) => c.id);
+  } else {
+    eligibleIds = Object.values(CARD_LIBRARY)
+      .filter(
+        (c) =>
+          getCardCharacter(c) === charId &&
+          !c.shopOnly &&
+          c.rarity !== 'starter' &&
+          c.rarity !== 'special' &&
+          c.type !== 'status' &&
+          c.type !== 'curse' &&
+          !c.base?.healHp &&
+          c.id !== 'feed' &&
+          c.id !== 'reaper' &&
+          c.id !== 'alchemize' &&
+          c.id !== 'self_repair' &&
+          c.id !== 'lesson_learned' &&
+          c.id !== 'wish'
+      )
+      .map((c) => c.id);
+  }
+  const pickedIds = pickDistinct(state, eligibleIds, count);
+  if (pickedIds.length === 0) return false;
+  const candidates = pickedIds.map((cid) => {
+    const inst = createCardInstance(state, cid, Boolean(masterUp && CARD_LIBRARY[cid]?.upgraded));
+    if (cfg.tempZeroCostTurn && !CARD_LIBRARY[cid]?.base?.isXCost) {
+      inst.prevCombatCost = null;
+      inst.combatCost = 0;
+      inst.tempZeroCostTurn = true;
+    }
+    return inst;
+  });
+  setPendingCardChoice(combat, {
+    mode: 'discover_card',
+    sourceName,
+    count: 1,
+    remaining: 1,
+    optional: false,
+    tempZeroCostTurn: Boolean(cfg.tempZeroCostTurn),
+    candidates,
+    selectedIds: [],
+  });
+  return true;
+}
+
+export function requestWishChoice(state, wishCfg, sourceName = '许愿') {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    !wishCfg ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  const candidates = [
+    {
+      instanceId: 'wish_plated_armor',
+      wishKey: 'platedArmor',
+      title: '活命',
+      subtitle: `获得 ${wishCfg.platedArmor} 层【多层护甲】`,
+      value: wishCfg.platedArmor,
+      tone: 'block',
+    },
+    {
+      instanceId: 'wish_strength',
+      wishKey: 'strength',
+      title: '成名',
+      subtitle: `获得 ${wishCfg.strength} 点【力量】`,
+      value: wishCfg.strength,
+      tone: 'attack',
+    },
+    {
+      instanceId: 'wish_gold',
+      wishKey: 'gold',
+      title: '暴富',
+      subtitle: `立即获得 ${wishCfg.gold} 金币`,
+      value: wishCfg.gold,
+      tone: 'gold',
+    },
+  ];
+  setPendingCardChoice(combat, {
+    mode: 'wish',
+    sourceName,
+    count: 1,
+    remaining: 1,
+    optional: false,
+    candidates,
     selectedIds: [],
   });
   return true;
@@ -713,7 +912,12 @@ export function togglePendingCardChoice(state, instanceId) {
   if (pending.mode === 'scry') {
     return toggleScryChoice(state, instanceId);
   }
-  if (pending.mode !== 'retrieve_discard_retain' && pending.mode !== 'retain') {
+  if (
+    pending.mode !== 'retrieve_discard_retain' &&
+    pending.mode !== 'retain' &&
+    pending.mode !== 'exhaust_multi' &&
+    pending.mode !== 'hand_to_draw_bottom_multi'
+  ) {
     return { ok: false, reason: '当前选牌模式不支持多选切换' };
   }
   const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);

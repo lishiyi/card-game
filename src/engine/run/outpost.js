@@ -4,11 +4,13 @@
  */
 
 import {
+  canRemoveCard,
   canUpgradeCard,
   CARD_LIBRARY,
   createCardInstance,
   CURSE_CARD_IDS,
   getCardStats,
+  upgradeCardInstance,
 } from '../../data/cards.js';
 import { ENCOUNTERS } from '../../data/enemies.js';
 import { generateAct4Map, generateSpireMap } from '../../data/events.js';
@@ -516,9 +518,9 @@ export function restUpgradeCard(state, instanceId) {
   if (!card || !canUpgradeCard(card)) {
     return { ok: false, reason: '该卡牌无法升级' };
   }
-  card.upgraded = true;
+  upgradeCardInstance(card);
   state.restState.completed = true;
-  state.restState.lastAction = `升级了【${CARD_LIBRARY[card.cardId].name}+】`;
+  state.restState.lastAction = `升级了【${getCardStats(card).name}】`;
   state.screen = 'map';
   return { ok: true, card };
 }
@@ -587,6 +589,9 @@ export function tokeAtCampfire(state, instanceId) {
   const idx = state.player.deck.findIndex((c) => c.instanceId === instanceId);
   if (idx === -1) {
     return { ok: false, reason: '未在牌组中找到该卡牌' };
+  }
+  if (!canRemoveCard(state.player.deck[idx])) {
+    return { ok: false, reason: '该诅咒无法从牌组中移除' };
   }
   const [removed] = state.player.deck.splice(idx, 1);
   const side = applyCardRemovalSideEffects(state, removed);
@@ -752,6 +757,9 @@ export function buyShopPurge(state, instanceId) {
   const idx = state.player.deck.findIndex((c) => c.instanceId === instanceId);
   if (idx === -1) {
     return { ok: false, reason: '未在牌组中找到该卡牌' };
+  }
+  if (!canRemoveCard(state.player.deck[idx])) {
+    return { ok: false, reason: '该诅咒无法从牌组中移除' };
   }
   state.player.gold -= state.shop.purgeCost;
   state.shop.purgeUsed = true;

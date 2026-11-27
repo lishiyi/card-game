@@ -167,11 +167,18 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.discardSynergy ? 'discard-synergy-card' : '',
     options.exhaustSelectable ? 'exhaust-selectable' : '',
     options.upgradeSelectable ? 'upgrade-selectable' : '',
-    options.drawTopSelectable ? 'draw-top-selectable' : '',
+    options.drawTopSelectable || options.drawBottomSelectable || options.nightmareSelectable
+      ? 'draw-top-selectable'
+      : '',
+    options.dualWieldSelectable ? 'upgrade-selectable' : '',
     options.scrySelectable ? 'scry-selectable' : '',
     options.scryMarkedDiscard ? 'scry-marked-discard' : '',
-    options.retainSelectable ? 'retain-selectable' : '',
-    options.retainSelected ? 'retain-selected' : '',
+    options.retainSelectable || options.exhaustMultiSelectable || options.drawBottomMultiSelectable
+      ? 'retain-selectable'
+      : '',
+    options.retainSelected || options.exhaustMultiSelected || options.drawBottomMultiSelected
+      ? 'retain-selected'
+      : '',
     options.discardPickSelectable ? 'discard-pick-selectable' : '',
     options.discardPickSelected ? 'discard-pick-selected' : '',
     typeof options.dealIndex === 'number' ? 'card-deal-in' : '',
@@ -211,7 +218,7 @@ export function renderCardHtml(cardInstance, options = {}) {
   } else if (stats.costReduced) {
     costTooltipAttrs = `data-tooltip-title="升级减费" data-tooltip-tag="卡牌强化" data-tooltip-desc="${escapeHtml(`升级后费用由 ${stats.baseCost} 点减少至 ${stats.cost} 点。`)}" data-tooltip-tone="buff"`;
   } else if (desc.costReducedNow) {
-    costTooltipAttrs = `data-tooltip-title="临时减费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受【腐化】或本回合弃牌减费影响，当前费用已降至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
+    costTooltipAttrs = `data-tooltip-title="临时减费" data-tooltip-tag="战斗增益" data-tooltip-desc="${escapeHtml(`受减费效果影响，当前费用已降至 ${desc.displayCost} 点。`)}" data-tooltip-tone="buff"`;
   }
 
   const extractedKeywords = extractCardKeywords(stats, desc.text);
@@ -251,29 +258,43 @@ export function renderCardHtml(cardInstance, options = {}) {
       ? options.retainSelected
         ? '✦ 将保留'
         : '点击保留'
-      : options.discardPickSelectable
-        ? options.discardPickSelected
-          ? '✦ 已选取回'
-          : options.discardPickLabel || '点击选择'
-        : options.exhaustSelectable
-          ? '点击消耗'
-          : options.upgradeSelectable
-            ? '点击升级'
-            : options.drawTopSelectable
-              ? '置于牌堆顶'
-              : options.discardSelectable
-              ? options.discardSynergy
-                ? '✦ 弃置触发'
-                : '点击弃置'
-              : medKitActive
-                ? '消耗打出'
-                : stats.unplayable
-                  ? '不可打出'
-                  : stats.target === 'all_enemies'
-                    ? '全体目标'
-                    : stats.target === 'enemy'
-                      ? '单体目标'
-                      : '自身';
+      : options.exhaustMultiSelectable
+        ? options.exhaustMultiSelected
+          ? '✕ 将消耗'
+          : '点击选消'
+        : options.drawBottomMultiSelectable
+          ? options.drawBottomMultiSelected
+            ? '✦ 将置底'
+            : '点击置底'
+          : options.discardPickSelectable
+            ? options.discardPickSelected
+              ? '✦ 已选取回'
+              : options.discardPickLabel || '点击选择'
+            : options.exhaustSelectable
+              ? '点击消耗'
+              : options.upgradeSelectable
+                ? '点击升级'
+                : options.dualWieldSelectable
+                  ? '点击复制'
+                  : options.nightmareSelectable
+                    ? '下回合×3'
+                    : options.drawTopSelectable
+                      ? '置于牌堆顶'
+                      : options.drawBottomSelectable
+                        ? '置于牌堆底'
+                        : options.discardSelectable
+                          ? options.discardSynergy
+                            ? '✦ 弃置触发'
+                            : '点击弃置'
+                          : medKitActive
+                            ? '消耗打出'
+                            : stats.unplayable
+                              ? '不可打出'
+                              : stats.target === 'all_enemies'
+                                ? '全体目标'
+                                : stats.target === 'enemy'
+                                  ? '单体目标'
+                                  : '自身';
 
   const styleAttr =
     typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';

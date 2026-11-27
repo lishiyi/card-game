@@ -15,9 +15,34 @@ export function createCardInstance(state, cardId, upgraded = false) {
 }
 
 export function canUpgradeCard(cardInstance) {
-  if (!cardInstance || cardInstance.upgraded) return false;
+  if (!cardInstance) return false;
   const def = CARD_LIBRARY[cardInstance.cardId];
-  return Boolean(def && def.upgraded && def.type !== 'status' && def.type !== 'curse');
+  if (!def || !def.upgraded || def.type === 'status' || def.type === 'curse') return false;
+  if (def.infiniteUpgrade) return true;
+  return !cardInstance.upgraded;
+}
+
+export function upgradeCardInstance(cardInstance) {
+  if (!canUpgradeCard(cardInstance)) return false;
+  const def = CARD_LIBRARY[cardInstance.cardId];
+  if (def?.infiniteUpgrade) {
+    const curLvl = Number.isInteger(cardInstance.upgradeLevel)
+      ? Math.max(0, cardInstance.upgradeLevel)
+      : cardInstance.upgraded
+        ? 1
+        : 0;
+    cardInstance.upgradeLevel = curLvl + 1;
+    cardInstance.upgraded = true;
+    return true;
+  }
+  cardInstance.upgraded = true;
+  return true;
+}
+
+export function canRemoveCard(cardInstance) {
+  if (!cardInstance) return false;
+  const def = CARD_LIBRARY[cardInstance.cardId];
+  return Boolean(def && !def.unremovable && !def.base?.unremovable);
 }
 
 export function isStrikeCard(cardId) {
@@ -36,10 +61,28 @@ export function getCardStats(cardInstance) {
   if (!def) {
     throw new Error(`Unknown cardId on instance: ${cardInstance?.cardId}`);
   }
-  const isUpgraded = Boolean(cardInstance.upgraded && def.upgraded);
+  const upgradeLevel = def.infiniteUpgrade
+    ? Number.isInteger(cardInstance.upgradeLevel)
+      ? Math.max(0, cardInstance.upgradeLevel)
+      : cardInstance.upgraded
+        ? 1
+        : 0
+    : cardInstance.upgraded && def.upgraded
+      ? 1
+      : 0;
+  const isUpgraded = upgradeLevel > 0 && Boolean(def.upgraded);
   const rawStats = isUpgraded ? { ...def.base, ...def.upgraded } : { ...def.base };
+  if (def.infiniteUpgrade && upgradeLevel > 0) {
+    rawStats.damage = 12 + (upgradeLevel * (upgradeLevel + 7)) / 2;
+  }
   if (typeof cardInstance.combatDamageMod === 'number' && typeof rawStats.damage === 'number') {
     rawStats.damage = Math.max(0, rawStats.damage + cardInstance.combatDamageMod);
+  }
+  if (rawStats.ritualDamageGrowth && typeof cardInstance.ritualBonus === 'number' && typeof rawStats.damage === 'number') {
+    rawStats.damage = Math.max(0, rawStats.damage + cardInstance.ritualBonus);
+  }
+  if (rawStats.isExpunger) {
+    rawStats.hits = Math.max(1, Number.isFinite(cardInstance.expungerHits) ? Math.floor(cardInstance.expungerHits) : 1);
   }
   if (typeof cardInstance.combatBlockMod === 'number' && typeof rawStats.block === 'number') {
     rawStats.block = Math.max(0, rawStats.block + cardInstance.combatBlockMod);
@@ -53,16 +96,24 @@ export function getCardStats(cardInstance) {
       typeof rawStats.cost === 'number' &&
       rawStats.cost < def.base.cost
   );
+  const displayName =
+    def.infiniteUpgrade && upgradeLevel >= 2
+      ? `${def.name}+${upgradeLevel}`
+      : isUpgraded
+        ? `${def.name}+`
+        : def.name;
 
   return {
     instanceId: cardInstance.instanceId,
     cardId: def.id,
     character: getCardCharacter(def),
-    name: isUpgraded ? `${def.name}+` : def.name,
+    name: displayName,
     baseName: def.name,
     upgraded: isUpgraded,
+    upgradeLevel,
     baseCost: def.base.cost,
     combatCost: typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : null,
+    zeroCostUntilPlayed: Boolean(cardInstance.zeroCostUntilPlayed),
     retainedCostDiscount:
       typeof cardInstance.retainedCostDiscount === 'number'
         ? Math.max(0, cardInstance.retainedCostDiscount)
@@ -71,6 +122,8 @@ export function getCardStats(cardInstance) {
     type: def.type,
     rarity: def.rarity,
     shopOnly: Boolean(def.shopOnly),
+    specialCurse: Boolean(def.specialCurse),
+    unremovable: Boolean(def.unremovable || rawStats.unremovable),
     price: def.price ?? 50,
     isShiv: Boolean(def.isShiv || rawStats.isShiv),
     unplayable: Boolean(def.unplayable || rawStats.unplayable),
@@ -93,6 +146,7 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
   }
   if (stats.unplayable || stats.cost === null) return null;
   if (stats.isXCost) return 'X';
+  if (stats.zeroCostUntilPlayed) return 0;
   if (stats.type === 'skill' && (player?.statuses?.corruption ?? 0) > 0) {
     return 0;
   }
@@ -108,6 +162,9 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
   }
   if (stats.reduceCostPerHpLossThisCombat && combat) {
     base = Math.max(0, base - (combat.hpLossCountThisCombat ?? 0));
+  }
+  if (stats.increaseCostPerHpLossThisCombat && combat) {
+    base = Math.max(0, base + (combat.hpLossCountThisCombat ?? 0));
   }
   if (stats.reduceCostPerPowerPlayed && combat) {
     base = Math.max(0, base - (combat.powersPlayedThisCombat ?? 0));
@@ -185,6 +242,13 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       : 0;
     if (player && displayDamage > baseFromBlock) damageState = 'boosted';
     else if (player && displayDamage < baseFromBlock) damageState = 'reduced';
+  } else if (stats.damageFromDrawPileSize) {
+    const drawBase = combat ? (combat.drawPile?.length ?? 0) : 0;
+    displayDamage = player
+      ? calculateAttackDamage(drawBase, player, targetEnemy, { flatBonus })
+      : drawBase;
+    if (player && displayDamage > drawBase) damageState = 'boosted';
+    else if (player && displayDamage < drawBase) damageState = 'reduced';
   } else if (typeof rawDamageBase === 'number') {
     if (player) {
       displayDamage = calculateAttackDamage(rawDamageBase, player, targetEnemy, {
@@ -243,6 +307,12 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.requireAllHandAttacks) {
     parts.push('只有当手牌中全是攻击牌时才能打出。');
   }
+  if (stats.requireEmptyDrawPile) {
+    parts.push('只有当抽牌堆为空时才能打出。');
+  }
+  if (stats.requireOnlyAttackInHand) {
+    parts.push('只有当本牌是手牌中唯一的攻击牌时才能打出。');
+  }
   if (stats.unplayable) {
     if (
       stats.type === 'status' &&
@@ -266,6 +336,12 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.onDrawLoseEnergy) {
     parts.push(`抽到这张牌时，失去 ${stats.onDrawLoseEnergy} 点能量。`);
   }
+  if (stats.normalityLimit) {
+    parts.push(`在手牌中时，本回合最多只能打出 ${stats.normalityLimit} 张牌。`);
+  }
+  if (stats.painOnOtherCardPlay) {
+    parts.push(`在手牌中时，每当你打出其他牌，失去 ${stats.painOnOtherCardPlay} 点生命。`);
+  }
   if (stats.endOfTurnSelfDamage) {
     parts.push(`回合结束时若仍在手牌，受到 ${stats.endOfTurnSelfDamage} 点伤害。`);
   }
@@ -275,8 +351,21 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.endOfTurnWeak) {
     parts.push(`回合结束时若仍在手牌，获得 ${stats.endOfTurnWeak} 层虚弱。`);
   }
+  if (stats.endOfTurnFrail) {
+    parts.push(`回合结束时若仍在手牌，获得 ${stats.endOfTurnFrail} 层脆弱。`);
+  }
+  if (stats.endOfTurnCopyToDrawTop) {
+    parts.push('回合结束时若仍在手牌，将 1 张【傲慢】置于抽牌堆顶。');
+  }
   if (stats.onRemoveLoseMaxHp) {
     parts.push(`若从牌组中移除本牌，失去 ${stats.onRemoveLoseMaxHp} 点最大生命值。`);
+  }
+  if (stats.unremovable) {
+    parts.push(
+      stats.returnOnExhaust
+        ? '无法从牌组中移除，且被消耗后会自动回到手牌。'
+        : '无法从牌组中移除。'
+    );
   }
   if (stats.loseHp) {
     parts.push(`失去 ${stats.loseHp} 点生命。`);
@@ -366,8 +455,20 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.retrieveDiscardToHand) {
     parts.push(`从弃牌堆选择 ${stats.retrieveDiscardToHand} 张牌加入手牌。`);
   }
+  if (stats.retrieveExhaustToHand) {
+    parts.push(`从消耗堆选择 ${stats.retrieveExhaustToHand} 张牌加入手牌。`);
+  }
+  if (stats.playFromDrawTwiceAndExhaust) {
+    parts.push('从抽牌堆选择 1 张牌，将其连续打出 2 次并消耗。');
+  }
   if (stats.pickFromDraw) {
-    parts.push(`从抽牌堆选择 ${stats.pickFromDraw} 张牌加入手牌。`);
+    const typeLabel =
+      stats.pickFromDrawType === 'skill'
+        ? '技能'
+        : stats.pickFromDrawType === 'attack'
+          ? '攻击'
+          : '';
+    parts.push(`从抽牌堆选择 ${stats.pickFromDraw} 张${typeLabel}牌加入手牌。`);
   }
   if (stats.doubleBlock) {
     parts.push('将你当前的格挡值翻倍。');
@@ -385,6 +486,8 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   }
   if (stats.exhaustChooseHandForEnergy) {
     parts.push(`选择消耗 ${stats.exhaustChooseHandForEnergy} 张手牌，获得等同于其费用的能量。`);
+  } else if (stats.exhaustUpToHandChoice) {
+    parts.push(`选择并消耗手牌中最多 ${stats.exhaustUpToHandChoice} 张牌。`);
   } else if (stats.exhaustHandChoice) {
     parts.push(`从手牌中自选消耗 ${stats.exhaustHandChoice} 张牌。`);
   } else if (stats.exhaustHandRandom) {
@@ -394,8 +497,19 @@ export function formatCardDescription(cardInstance, combatContext = null) {
         : '随机消耗 1 张手牌。'
     );
   }
+  if (stats.drawAfterExhaustChoice) {
+    parts.push(`抽 ${stats.drawAfterExhaustChoice} 张牌。`);
+  }
   if (stats.exhaustNonAttacksBlockEach) {
     parts.push(`消耗手牌中所有非攻击牌，每张获得 ${displayBlock} 点格挡。`);
+  }
+  if (stats.exhaustNonAttacksHand) {
+    parts.push('消耗手牌中所有非攻击牌。');
+  }
+  if (stats.duplicateAttackOrPowerHandChoice) {
+    parts.push(
+      `选择手牌中 1 张攻击牌或能力牌，将 ${stats.duplicateAttackOrPowerHandChoice} 张它的复制品加入手牌。`
+    );
   }
   if (stats.upgradeAllCombatCards) {
     parts.push('本场战斗中升级你的所有卡牌（手牌、抽牌堆与弃牌堆）。');
@@ -417,6 +531,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   } else if (stats.useBlockAsDamage) {
     const suffix = player ? `（当前 ${displayDamage} 点）` : '';
     parts.push(`造成等同于你当前格挡值的伤害${suffix}。`);
+  } else if (stats.damageFromDrawPileSize) {
+    const suffix = combat ? `（当前 ${displayDamage} 点）` : '';
+    parts.push(`造成等同于你抽牌堆牌数的伤害${suffix}。`);
   } else if (stats.damagePerFrostChanneled) {
     const frostCnt = combat?.orbsChanneledByType?.frost ?? 0;
     const note = combat ? `（已充能 ${frostCnt} 冰，当前 ${displayDamage} 点）` : '';
@@ -442,6 +559,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       : null;
     const countNote = skillCount !== null ? `（当前 ${skillCount} 次）` : '';
     parts.push(`手牌中每有 1 张技能牌，对目标造成 ${displayDamage} 点伤害${countNote}。`);
+  } else if (stats.isExpunger && typeof stats.damage === 'number') {
+    const hitCount = stats.hits ?? 1;
+    parts.push(`造成 ${displayDamage} 点伤害 ${hitCount} 次。`);
   } else if (typeof stats.damage === 'number') {
     const targetPhrase = stats.randomEnemyHits
       ? '对随机一名敌人造成'
@@ -455,6 +575,26 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     } else {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
+  }
+  if (stats.combatDamageScaleOnPlay) {
+    parts.push(`本场战斗每打出一次，本牌伤害 +${stats.combatDamageScaleOnPlay}。`);
+  }
+  if (stats.infiniteUpgrade) {
+    parts.push('可以无限次升级。');
+  }
+  if (stats.copyOnDraw) {
+    parts.push('每当你抽到此牌时，将 1 张复制品加入手牌。');
+  }
+  if (stats.increaseCostPerHpLossThisCombat) {
+    const lostCount = combat?.hpLossCountThisCombat ?? 0;
+    const note = combat && lostCount > 0 ? `（已增 ${lostCount} 费）` : '';
+    parts.push(`本场战斗每失去 1 次生命，本牌费用 +1${note}。`);
+  }
+  if (stats.discardNonAttacksHand) {
+    parts.push('弃掉手牌中所有非攻击牌。');
+  }
+  if (stats.ritualDamageGrowth) {
+    parts.push(`斩杀时，本牌伤害永久 +${stats.ritualDamageGrowth}（跨战斗保留）。`);
   }
   if (stats.clawScale) {
     parts.push(`本场战斗中所有【爪击】伤害 +${stats.clawScale}。`);
@@ -765,11 +905,99 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     parts.push(`选择并弃掉 ${stats.discardHand} 张手牌。`);
   }
   if (stats.putHandToDrawTopChoice) {
-    parts.push(`选择并将 ${stats.putHandToDrawTopChoice} 张手牌置于抽牌堆顶。`);
+    parts.push(
+      stats.setZeroCostUntilPlayedOnDrawTop
+        ? `选择并将 ${stats.putHandToDrawTopChoice} 张手牌置于抽牌堆顶，直至打出前费用变为 0。`
+        : `选择并将 ${stats.putHandToDrawTopChoice} 张手牌置于抽牌堆顶。`
+    );
+  }
+  if (stats.putHandToDrawBottomChoice || stats.putHandToDrawBottomMultiChoice) {
+    const qtyLabel = stats.putHandToDrawBottomMultiChoice
+      ? '任意数量'
+      : `${stats.putHandToDrawBottomChoice} 张`;
+    parts.push(
+      stats.setZeroCostUntilPlayedOnDrawBottom
+        ? `选择将 ${qtyLabel}手牌置于抽牌堆底，直至打出前费用变为 0。`
+        : `选择将 ${qtyLabel}手牌置于抽牌堆底。`
+    );
+  }
+  if (stats.addRandomCardToHand) {
+    const cfg = stats.addRandomCardToHand;
+    const typeLabel = cfg.type === 'attack' ? '攻击牌' : cfg.type === 'skill' ? '技能牌' : '卡牌';
+    const charLabel =
+      cfg.character === 'ironclad'
+        ? '铁甲战士'
+        : cfg.character === 'silent'
+          ? '静默猎手'
+          : cfg.character === 'watcher'
+            ? '观者'
+            : cfg.character === 'defect'
+              ? '故障机器人'
+              : '';
+    parts.push(
+      `随机将 1 张${charLabel}${typeLabel}加入手牌${cfg.tempZeroCostTurn ? '，本回合费用变为 0' : ''}。`
+    );
+  }
+  if (stats.discoverCardChoice) {
+    const cfg = stats.discoverCardChoice;
+    const poolLabel = cfg.pool === 'any_attack' ? '随机跨职业攻击牌' : '随机本职业卡牌';
+    parts.push(
+      `从 ${cfg.count || 3} 张${poolLabel}中选择 1 张加入手牌${cfg.tempZeroCostTurn ? '，本回合费用变为 0' : ''}。`
+    );
+  }
+  if (stats.addRandomColorlessToHand) {
+    parts.push(`随机将 ${stats.addRandomColorlessToHand} 张无色牌加入手牌。`);
+  }
+  if (stats.shuffleRandomZeroCostToDraw) {
+    const cfg = stats.shuffleRandomZeroCostToDraw;
+    const typeLabel = cfg.type === 'attack' ? '攻击牌' : '技能牌';
+    parts.push(`将 ${cfg.count} 张随机本职业${typeLabel}洗入抽牌堆，它们在本场战斗中费用为 0。`);
+  }
+  if (stats.transmuteColorlessX) {
+    parts.push(
+      `随机将 X 张${stats.transmuteUpgraded ? '已升级的' : ''}无色牌加入手牌，本回合费用变为 0。`
+    );
+  }
+  if (stats.randomHandZeroCostCombat) {
+    parts.push('使随机 1 张手牌在本场战斗中费用变为 0。');
+  }
+  if (stats.capHandCostToOne) {
+    parts.push(
+      stats.capHandCostToOne === 'combat'
+        ? '将当前手牌中所有费用高于 1 的卡牌在本场战斗中降至 1 费。'
+        : '将当前手牌中所有费用高于 1 的卡牌在本回合内降至 1 费。'
+    );
+  }
+  if (stats.zeroAllHandCostThisTurn) {
+    parts.push('本回合内，手牌中所有卡牌费用变为 0。');
+  }
+  if (typeof stats.nextTurnDrawAndEnergyX === 'number') {
+    const xExpr = stats.nextTurnDrawAndEnergyX > 0 ? `X+${stats.nextTurnDrawAndEnergyX}` : 'X';
+    parts.push(`下回合抽 ${xExpr} 张牌并获得 ${xExpr} 点能量。`);
+  }
+  if (stats.nightmareHandChoice) {
+    parts.push(`选择 1 张手牌，下回合开始时将 ${stats.nightmareHandChoice} 张它的复制品加入手牌。`);
+  }
+  if (typeof stats.collectMiracleTurnsX === 'number') {
+    const xExpr = stats.collectMiracleTurnsX > 0 ? `X+${stats.collectMiracleTurnsX}` : 'X';
+    parts.push(`在接下来 ${xExpr} 个回合开始时，将 1 张【奇迹+】加入手牌。`);
+  }
+  if (stats.wishChoice) {
+    const w = stats.wishChoice;
+    parts.push(
+      `任选一项愿望：获得 ${w.platedArmor} 层多层护甲、${w.strength} 点力量，或获得 ${w.gold} 金币。`
+    );
+  }
+  if (typeof stats.conjureExpungerX === 'number') {
+    const xExpr = stats.conjureExpungerX > 0 ? `X+${stats.conjureExpungerX}` : 'X';
+    parts.push(`将 1 张攻击次数为 ${xExpr} 的【灭除之刃】洗入抽牌堆。`);
   }
   if (stats.applySelfStatuses) {
     if (stats.applySelfStatuses.strength) {
       parts.push(`获得 ${stats.applySelfStatuses.strength} 点力量。`);
+    }
+    if (stats.applySelfStatuses.vigor) {
+      parts.push(`你的下一张攻击牌额外造成 ${stats.applySelfStatuses.vigor} 点伤害。`);
     }
     if (stats.applySelfStatuses.dexterity) {
       parts.push(`获得 ${stats.applySelfStatuses.dexterity} 点敏捷。`);
@@ -984,9 +1212,24 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applySelfStatuses.machineLearning) {
       parts.push(`每回合开始时，额外抽 ${stats.applySelfStatuses.machineLearning} 张牌。`);
     }
+    if (stats.applySelfStatuses.brutality) {
+      parts.push(`每回合开始时，失去 ${stats.applySelfStatuses.brutality} 点生命并抽 ${stats.applySelfStatuses.brutality} 张牌。`);
+    }
+    if (stats.applySelfStatuses.study) {
+      parts.push(`每回合结束时，将 ${stats.applySelfStatuses.study} 张【洞见】洗入抽牌堆。`);
+    }
+    if (stats.applySelfStatuses.magnetism) {
+      parts.push(`每回合开始时，将 ${stats.applySelfStatuses.magnetism} 张随机无色牌加入手牌。`);
+    }
+    if (stats.applySelfStatuses.mayhem) {
+      parts.push(`每回合开始时，自动打出抽牌堆顶的 ${stats.applySelfStatuses.mayhem} 张牌。`);
+    }
   }
   if (stats.applySelfStatusesAfter?.noDraw) {
     parts.push('本回合内不能再抽牌。');
+  }
+  if (stats.applySelfStatusesAfter?.noBlock) {
+    parts.push(`接下来 ${stats.applySelfStatusesAfter.noBlock} 回合内无法从卡牌获得格挡。`);
   }
   if (stats.extraTurn) {
     parts.push('跳过敌方回合，立即开始你的下一个新回合！');
@@ -1119,8 +1362,20 @@ function diffUpgradeDescriptionSegments(baseText, nextText) {
 export function formatUpgradePreview(cardInstance, combatContext = null) {
   if (!canUpgradeCard(cardInstance)) return null;
 
-  const baseCard = { ...cardInstance, upgraded: false, combatCost: undefined };
-  const nextCard = { ...cardInstance, upgraded: true, combatCost: undefined };
+  const def = CARD_LIBRARY[cardInstance.cardId];
+  const curLvl = def?.infiniteUpgrade
+    ? Number.isInteger(cardInstance.upgradeLevel)
+      ? Math.max(0, cardInstance.upgradeLevel)
+      : cardInstance.upgraded
+        ? 1
+        : 0
+    : 0;
+  const baseCard = def?.infiniteUpgrade
+    ? { ...cardInstance, upgraded: curLvl > 0, upgradeLevel: curLvl, combatCost: undefined }
+    : { ...cardInstance, upgraded: false, combatCost: undefined };
+  const nextCard = def?.infiniteUpgrade
+    ? { ...cardInstance, upgraded: true, upgradeLevel: curLvl + 1, combatCost: undefined }
+    : { ...cardInstance, upgraded: true, combatCost: undefined };
   const baseStats = getCardStats(baseCard);
   const nextStats = getCardStats(nextCard);
   const baseDesc = formatCardDescription(baseCard, combatContext);

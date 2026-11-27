@@ -317,34 +317,49 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after confirmScry seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'discard_to_draw' || choice.mode === 'retrieve_discard_to_hand') {
+            if (
+              choice.mode === 'discard_to_draw' ||
+              choice.mode === 'retrieve_discard_to_hand' ||
+              choice.mode === 'retrieve_exhaust_to_hand' ||
+              choice.mode === 'discover_card' ||
+              choice.mode === 'wish'
+            ) {
               const cand = choice.candidates?.[0] || state.combat.discardPile[0];
               assert.ok(cand, `Pending ${choice.mode} with empty candidates on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
               assertRunInvariants(state, `after ${choice.mode} seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'pick_from_draw') {
+            if (choice.mode === 'pick_from_draw' || choice.mode === 'omniscience') {
               const cand = choice.candidates?.[0] || state.combat.drawPile[0];
-              assert.ok(cand, `Pending pick_from_draw with empty candidates on seed ${seed}`);
+              assert.ok(cand, `Pending ${choice.mode} with empty candidates on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
-              assertRunInvariants(state, `after pick_from_draw seed ${seed}`);
+              assertRunInvariants(state, `after ${choice.mode} seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'retrieve_discard_retain') {
+            if (
+              choice.mode === 'retrieve_discard_retain' ||
+              choice.mode === 'retain' ||
+              choice.mode === 'exhaust_multi' ||
+              choice.mode === 'hand_to_draw_bottom_multi'
+            ) {
               const pickIds = (choice.candidates || [])
-                .slice(0, choice.count || 1)
+                .slice(0, Math.min(1, choice.count || 1))
                 .map((c) => c.instanceId);
               assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
-              assertRunInvariants(state, `after retrieve_discard_retain seed ${seed}`);
+              assertRunInvariants(state, `after ${choice.mode} choice seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'retain') {
-              const pickIds = (choice.candidates || [])
-                .slice(0, choice.count || 1)
-                .map((c) => c.instanceId);
-              assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
-              assertRunInvariants(state, `after retain choice seed ${seed}`);
+            if (choice.mode === 'dual_wield') {
+              const target =
+                choice.candidates?.[0] ||
+                state.combat.hand.find((c) => {
+                  const t = getCardStats(c).type;
+                  return t === 'attack' || t === 'power';
+                });
+              assert.ok(target, `Pending dual_wield with no attack/power in hand on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
+              assertRunInvariants(state, `after dual_wield choice seed ${seed}`);
               continue;
             }
             if (choice.mode === 'upgrade') {
@@ -365,11 +380,15 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after exhaust choice seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'hand_to_draw') {
+            if (
+              choice.mode === 'hand_to_draw' ||
+              choice.mode === 'hand_to_draw_bottom' ||
+              choice.mode === 'nightmare'
+            ) {
               const target = state.combat.hand[0];
-              assert.ok(target, `Pending hand_to_draw with empty hand on seed ${seed}`);
+              assert.ok(target, `Pending ${choice.mode} with empty hand on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
-              assertRunInvariants(state, `after hand_to_draw choice seed ${seed}`);
+              assertRunInvariants(state, `after ${choice.mode} choice seed ${seed}`);
               continue;
             }
             const preferred =
@@ -697,6 +716,12 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
             : state.player.maxHp >= 50 && seed % 3 === 0
               ? 'accept_vampire_pact'
               : 'refuse_vampires';
+          assert.equal(chooseEventOption(state, choice).ok, true);
+        } else if (eventId === 'the_nest') {
+          const choice =
+            state.player.hp > evTune.nestHpLoss + 8 && seed % 2 === 0
+              ? 'join_ritual'
+              : 'smash_and_grab';
           assert.equal(chooseEventOption(state, choice).ok, true);
         } else if (eventId === 'beggar_shrine') {
           if (state.player.gold >= evTune.beggarPurifyGold && state.player.deck.length > 3) {

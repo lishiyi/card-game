@@ -4,11 +4,13 @@
  */
 
 import {
+  canRemoveCard,
   canUpgradeCard,
   CARD_LIBRARY,
   createCardInstance,
   getCardStats,
   getColorlessCardPools,
+  upgradeCardInstance,
 } from '../../data/cards.js';
 import { ENCOUNTERS } from '../../data/enemies.js';
 import { EVENT_LIBRARY, getEventTuning } from '../../data/events.js';
@@ -34,7 +36,7 @@ export function upgradeRandomCardsInEvent(state, count) {
   const upgradable = getUpgradableDeckCards(state);
   const chosen = pickDistinct(state, upgradable, count);
   for (const c of chosen) {
-    c.upgraded = true;
+    upgradeCardInstance(c);
   }
   state.eventState.upgradedCardIds = chosen.map((c) => c.instanceId);
   const names = chosen.map((c) => `【${getCardStats(c).name}】`).join('、');
@@ -268,6 +270,24 @@ const EVENT_OPTION_HANDLERS = {
     state.eventState.outcomeText = `你强忍魔典反噬（-${tune.tomeSkimHpLoss} 生命），习得了罕见卡牌【${getCardStats(created).name}】！`;
     return { ok: true };
   }
+  if (choiceId === 'embrace_necronomicurse') {
+    const relicId = rollUnownedRelicByTier(state, 'rare');
+    if (relicId) {
+      grantRelicToPlayer(state, relicId);
+    } else {
+      addPlayerGold(state, 120);
+    }
+    const rareId = pickRandom(state, cards.rare);
+    const created = createCardInstance(state, rareId, true);
+    addCardToMasterDeck(state, created);
+    const curse = createCardInstance(state, 'necronomicurse', false);
+    addCardToMasterDeck(state, curse);
+    state.eventState.addedCardIds = [created.instanceId, curse.instanceId];
+    state.eventState.resolved = true;
+    const lootText = relicId ? `稀有遗物【${RELIC_LIBRARY[relicId].name}】` : '120 金币';
+    state.eventState.outcomeText = `死灵密卷赋予你${lootText}与【${getCardStats(created).name}】，但不可移除的【死灵诅咒】已烙印在牌组中！`;
+    return { ok: true };
+  }
   if (choiceId === 'close_tome') {
     state.eventState.resolved = true;
     state.eventState.outcomeText = '你合上赤红魔典，稳步向塔顶进发。';
@@ -417,7 +437,7 @@ const EVENT_OPTION_HANDLERS = {
     const upgraded = [];
     for (const c of state.player.deck) {
       if (canUpgradeCard(c)) {
-        c.upgraded = true;
+        upgradeCardInstance(c);
         upgraded.push(c.instanceId);
       }
     }
@@ -560,7 +580,7 @@ const EVENT_OPTION_HANDLERS = {
     const chosen = pickRandom(state, upgradable);
     const upgradedIds = [];
     if (chosen) {
-      chosen.upgraded = true;
+      upgradeCardInstance(chosen);
       upgradedIds.push(chosen.instanceId);
     }
     state.eventState.upgradedCardIds = upgradedIds;
@@ -604,6 +624,14 @@ const EVENT_OPTION_HANDLERS = {
     state.eventState.addedCardIds = [added.instanceId];
     state.eventState.resolved = true;
     state.eventState.outcomeText = `血清在血脉中沸腾（-${tune.augmentSerumHpLoss} 生命，最大生命 +${tune.augmentSerumMaxHpGain}），并激发领悟了【${getCardStats(added).name}】！`;
+    return { ok: true };
+  }
+  if (choiceId === 'take_jax') {
+    const added = createCardInstance(state, 'jax', false);
+    addCardToMasterDeck(state, added);
+    state.eventState.addedCardIds = [added.instanceId];
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = '你接过了闪着荧光的【J.A.X.】针剂，将其收入牌组！';
     return { ok: true };
   }
   if (choiceId === 'augment_leave') {
@@ -811,7 +839,7 @@ const EVENT_OPTION_HANDLERS = {
     );
     const upgradedIds = [];
     if (chosen) {
-      chosen.upgraded = true;
+      upgradeCardInstance(chosen);
       upgradedIds.push(chosen.instanceId);
     }
     state.eventState.upgradedCardIds = upgradedIds;
@@ -925,6 +953,26 @@ const EVENT_OPTION_HANDLERS = {
       : `你推开石棺顺利取出了${lootStr}，黑雾缓缓散去，未沾染任何诅咒！`;
     return { ok: true, cursed };
   }
+  if (choiceId === 'ring_cursed_bell') {
+    const relicId = rollUnownedRelicByTier(state, 'uncommon');
+    if (relicId) {
+      grantRelicToPlayer(state, relicId);
+    } else {
+      addPlayerGold(state, 90);
+    }
+    const { cards } = getUnlockedPools(state);
+    const rareId = pickRandom(state, cards.rare);
+    const rareCard = createCardInstance(state, rareId, false);
+    addCardToMasterDeck(state, rareCard);
+    addPlayerGold(state, 60);
+    const bellCurse = createCardInstance(state, 'curse_of_the_bell', false);
+    addCardToMasterDeck(state, bellCurse);
+    state.eventState.addedCardIds = [rareCard.instanceId, bellCurse.instanceId];
+    state.eventState.resolved = true;
+    const lootText = relicId ? `罕见遗物【${RELIC_LIBRARY[relicId].name}】` : '90 金币';
+    state.eventState.outcomeText = `铃声震荡陵墓：你收获了${lootText}、【${getCardStats(rareCard).name}】与 60 金币，但也背负了不可移除的【铃铛的诅咒】！`;
+    return { ok: true };
+  }
   if (choiceId === 'leave_mausoleum') {
     state.eventState.resolved = true;
     state.eventState.outcomeText = '你合掌致意，不惊扰陵墓中的长眠者。';
@@ -945,7 +993,7 @@ const EVENT_OPTION_HANDLERS = {
       picked.push(...pickDistinct(state, otherUpgradable, 2 - picked.length));
     }
     for (const c of picked) {
-      c.upgraded = true;
+      upgradeCardInstance(c);
     }
     state.eventState.upgradedCardIds = picked.map((c) => c.instanceId);
     return picked;
@@ -983,9 +1031,59 @@ const EVENT_OPTION_HANDLERS = {
         : '血族欣然收下【小血瓶】，为你全额回满生命！';
     return { ok: true };
   }
+  if (choiceId === 'embrace_bites') {
+    let costNote = '';
+    if (hasRelic(state, 'blood_vial')) {
+      const bIdx = state.player.relics.indexOf('blood_vial');
+      if (bIdx !== -1) state.player.relics.splice(bIdx, 1);
+      costNote = '献出了【小血瓶】';
+    } else {
+      const lostMaxHp = Math.max(1, Math.floor(state.player.maxHp * 0.3));
+      const nextMaxHp = Math.max(25, state.player.maxHp - lostMaxHp);
+      const actualLoss = Math.max(0, state.player.maxHp - nextMaxHp);
+      state.player.maxHp = nextMaxHp;
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp);
+      costNote = `永久失去 ${actualLoss} 点最大生命（上限 ${state.player.maxHp}）`;
+    }
+    const beforeLen = state.player.deck.length;
+    state.player.deck = state.player.deck.filter((c) => c.cardId !== 'strike');
+    const removedStrikes = beforeLen - state.player.deck.length;
+    const biteIds = [];
+    for (let i = 0; i < 5; i += 1) {
+      const bite = createCardInstance(state, 'bite', false);
+      addCardToMasterDeck(state, bite);
+      biteIds.push(bite.instanceId);
+    }
+    state.eventState.addedCardIds = biteIds;
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = `暗夜初拥降临！你${costNote}，移除了 ${removedStrikes} 张【打击】并获得 5 张【噬咬】！`;
+    return { ok: true };
+  }
   if (choiceId === 'refuse_vampires') {
     state.eventState.resolved = true;
     state.eventState.outcomeText = '你婉拒了暗夜血族的邀约，平静离开。';
+    return { ok: true };
+  }
+  return { ok: false, reason: '无效的事件选项' };
+  },
+
+  the_nest(state, choiceId, tune) {
+  if (choiceId === 'join_ritual') {
+    if (state.player.hp <= tune.nestHpLoss) {
+      return { ok: false, reason: `当前生命值不足（需大于 ${tune.nestHpLoss} 点）` };
+    }
+    state.player.hp -= tune.nestHpLoss;
+    const dagger = createCardInstance(state, 'ritual_dagger', false);
+    addCardToMasterDeck(state, dagger);
+    state.eventState.addedCardIds = [dagger.instanceId];
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = `你随狂信徒高呼“咔咔！”并献出鲜血（-${tune.nestHpLoss} 生命），获赐特殊卡牌【仪式匕首】！`;
+    return { ok: true };
+  }
+  if (choiceId === 'smash_and_grab') {
+    addPlayerGold(state, tune.nestGold);
+    state.eventState.resolved = true;
+    state.eventState.outcomeText = `趁教徒闭目狂热祷告，你一把抓走祭坛上的 ${tune.nestGold} 枚金币扬长而去！`;
     return { ok: true };
   }
   return { ok: false, reason: '无效的事件选项' };
@@ -1182,7 +1280,7 @@ const EVENT_OPTION_HANDLERS = {
   if (choiceId === 'study_portal') {
     const upgraded = pickDistinct(state, getUpgradableDeckCards(state), 1);
     for (const c of upgraded) {
-      c.upgraded = true;
+      upgradeCardInstance(c);
     }
     state.eventState.upgradedCardIds = upgraded.map((c) => c.instanceId);
     let gainedPotionName = '';
@@ -1300,6 +1398,9 @@ export function completeEventPurge(state, instanceId) {
   if (idx === -1) {
     return { ok: false, reason: '未在牌组中找到该卡牌' };
   }
+  if (!canRemoveCard(state.player.deck[idx])) {
+    return { ok: false, reason: '该诅咒无法从牌组中移除' };
+  }
   const hpCost = state.eventState.purgeHpCost ?? 0;
   if (hpCost > 0) {
     if (state.player.hp <= hpCost) {
@@ -1359,7 +1460,7 @@ export function completeEventCardAction(state, instanceId) {
     if (!canUpgradeCard(target)) {
       return { ok: false, reason: '该卡牌无法升级' };
     }
-    target.upgraded = true;
+    upgradeCardInstance(target);
     state.eventState.pendingCardAction = null;
     state.eventState.cardActionHpCost = 0;
     state.eventState.upgradedCardIds = [target.instanceId];
@@ -1369,6 +1470,10 @@ export function completeEventCardAction(state, instanceId) {
   }
 
   if (mode === 'transform' || mode === 'transform_rare') {
+    const oldCard = state.player.deck[idx];
+    if (!canRemoveCard(oldCard)) {
+      return { ok: false, reason: '该诅咒无法变化' };
+    }
     const hpCost = state.eventState.cardActionHpCost ?? 0;
     if (hpCost > 0) {
       if (state.player.hp <= hpCost) {
@@ -1376,7 +1481,6 @@ export function completeEventCardAction(state, instanceId) {
       }
       state.player.hp -= hpCost;
     }
-    const oldCard = state.player.deck[idx];
     const oldName = getCardStats(oldCard).name;
     const { cards } = getUnlockedPools(state);
     const rawPool =
