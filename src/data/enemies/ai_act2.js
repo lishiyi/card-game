@@ -363,10 +363,10 @@ export const ACT2_ENEMY_AI_HANDLERS = {
           id: 'leader_encourage',
           name: '鼓舞士气',
           type: 'defend_buff',
-          allEnemiesBlock: 6,
-          block: 6,
+          allEnemiesBlock: 4,
+          block: 4,
           applyAllEnemiesStatuses: { strength: 2 },
-          summary: '意图：使全体敌方获得 2 点【力量】与 6 点格挡！',
+          summary: '意图：使全体敌方获得 2 点【力量】与 4 点格挡！',
         },
       },
       {

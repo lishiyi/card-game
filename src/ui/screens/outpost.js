@@ -908,7 +908,7 @@ export function renderShopScreen({ state, ui }) {
           ? `<div class="shop-section shop-colorless-section">
               <div class="shop-section-head">
                 <h3>商店专属 · 无色秘牌</h3>
-                <span class="shop-colorless-note">仅神秘商人出售（固定 1 张罕见 + 1 张稀有）</span>
+                <span class="shop-colorless-note">仅神秘商人出售（固定 2 张罕见 + 1 张稀有）</span>
               </div>
               <div class="card-showcase" id="shop-colorless-cards">${colorlessHtml}</div>
             </div>`

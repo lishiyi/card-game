@@ -563,11 +563,11 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 112);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 113);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 4);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 26);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 26);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 23);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 24);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 10);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
@@ -2363,19 +2363,19 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   mEnemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
   assert.equal(mState.player.statuses.mantra, 1, 'Damaru grants 1 Mantra on Turn 1');
   mState.player.energy = 5;
-  const pray = createCardInstance(mState, 'pray', true); // +5 Mantra -> 6
-  const worship = createCardInstance(mState, 'worship', true); // +5 Mantra -> 11 -> Divinity + 1 leftover!
-  const brilliance = createCardInstance(mState, 'brilliance', false); // 12 + 11 combat mantra = 23 * 3 = 69!
+  const pray = createCardInstance(mState, 'pray', true); // +4 Mantra -> 5
+  const worship = createCardInstance(mState, 'worship', true); // +5 Mantra -> 10 -> Divinity + 0 leftover!
+  const brilliance = createCardInstance(mState, 'brilliance', false); // 12 + 10 combat mantra = 22 * 3 = 66!
   mState.combat.hand = [pray, worship, brilliance];
   playCard(mState, pray.instanceId);
-  assert.equal(mState.player.statuses.mantra, 6);
+  assert.equal(mState.player.statuses.mantra, 5);
   playCard(mState, worship.instanceId);
   assert.equal(mState.combat.stance, 'divinity');
-  assert.equal(mState.player.statuses.mantra, 1, 'Excess Mantra carries over past 10');
+  assert.equal(mState.player.statuses.mantra ?? 0, 0, 'Exact 10 Mantra enters Divinity with 0 leftover');
   assert.equal(mState.player.energy, 5, '5 - 1 - 2 + 3 (Divinity) = 5');
   const hpBeforeBril = mEnemy.hp;
   playCard(mState, brilliance.instanceId, mEnemy.id);
-  assert.equal(hpBeforeBril - mEnemy.hp, 69, 'Brilliance scales with combatMantra (12+11=23) and triples in Divinity (69)');
+  assert.equal(hpBeforeBril - mEnemy.hp, 66, 'Brilliance scales with combatMantra (12+10=22) and triples in Divinity (66)');
   endPlayerTurn(mState);
   assert.equal(mState.combat.stance, 'neutral', 'Divinity automatically exits at start of next player turn');
 
@@ -2440,7 +2440,7 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
 
   const tth = createCardInstance(kState, 'talk_to_the_hand', false); // 5 dmg + 2 TTH
   const bb = createCardInstance(kState, 'bowling_bash', false); // 7 * 2 enemies = 14
-  const pp = createCardInstance(kState, 'pressure_points', false); // +9 Mark & trigger (ignores block!)
+  const pp = createCardInstance(kState, 'pressure_points', false); // +8 Mark & trigger (ignores block!)
   const judg = createCardInstance(kState, 'judgment', false); // <=30 instant kill!
   const halt = createCardInstance(kState, 'halt', false);
   const cj = createCardInstance(kState, 'crush_joints', false); // skill -> vulnerable
@@ -2451,12 +2451,12 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   assert.equal(previewCardDamageOnEnemy(kState, judg, e2)?.isLethal, true);
   assert.equal(previewCardDamageOnEnemy(kState, judg, e1), null);
 
-  // Pressure Points ignores e1's 10 block, deals 10 direct HP loss, and opens Scry 2
+  // Pressure Points ignores e1's 10 block, deals 8 direct HP loss (official STS1: no Scry)
   const e1HpBeforeMark = e1.hp;
   playCard(kState, pp.instanceId, e1.id);
-  if (kState.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(kState);
-  assert.equal(e1.statuses.mark, 10);
-  assert.equal(e1.hp, e1HpBeforeMark - 10, 'Pressure Points Mark ignores enemy block');
+  assert.equal(kState.combat.pendingCardChoice, null, 'Official STS1 Pressure Points does not Scry');
+  assert.equal(e1.statuses.mark, 8);
+  assert.equal(e1.hp, e1HpBeforeMark - 8, 'Pressure Points Mark ignores enemy block');
   assert.equal(e1.block, 10);
 
   // Crush Joints after Pressure Points (a Skill!) triggers Vulnerable
@@ -2498,7 +2498,7 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   rState.combat.enemies[0].hp = 200;
   rState.combat.enemies[0].intent = { id: 'atk', name: '攻击', type: 'attack', damage: 15, hits: 1 };
   const sands = createCardInstance(rState, 'sands_of_time', false); // cost 4 -> 2 after retain + establishment!
-  const pers = createCardInstance(rState, 'perseverance', false); // block 6 -> 9 on retain
+  const pers = createCardInstance(rState, 'perseverance', false); // block 5 -> 7 on retain
   const vault = createCardInstance(rState, 'vault', true); // 2E extra turn
   rState.player.statuses.establishment = 1;
   rState.player.statuses.omega = 50;
@@ -2510,7 +2510,7 @@ test('Stage 2: The Watcher stances (Calm/Wrath/Divinity), Mantra, Rushdown 2-tri
   assert.equal(rState.player.hp, hpBeforeVault, 'Vault extra turn skips enemy attack completely');
   assert.equal(rState.combat.enemies[0].hp, 150, 'Omega deals 50 AoE damage at end of turn');
   assert.equal(getEffectiveCardCost(getCardStats(sands), rState.player, rState.combat), 2, 'Sands of Time (-1) + Establishment (-1) drops cost 4 -> 2');
-  assert.equal(getCardStats(pers).block, 9, 'Perseverance grows +3 block when retained');
+  assert.equal(getCardStats(pers).block, 7, 'Perseverance grows +2 block when retained (5 -> 7)');
 
   // Miracle Potion & Ambrosia potions
   assert.equal(usePotion(rState, 0).ok, true);
@@ -2773,21 +2773,23 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   assert.ok(tvCard && tvCard.upgraded, 'Master Reality upgrades Through Violence shuffled by Reach Heaven');
 
   playCard(wa, woth.instanceId);
-  assert.ok((enWa.statuses.weak ?? 0) >= 1, 'Wave of the Hand applies Weak to all enemies');
+  assert.equal(wa.player.statuses.waveOfTheHand, 1, 'Wave of the Hand arms block-to-Weak aura (0 direct Weak/Block)');
+  assert.equal(enWa.statuses.weak ?? 0, 0, 'Wave of the Hand only applies Weak upon gaining Block');
   playCard(wa, swivel.instanceId);
+  assert.ok((enWa.statuses.weak ?? 0) >= 1, 'Gaining Block from Swivel triggers Wave of the Hand Weak on all enemies');
   assert.equal(wa.player.statuses.freeAttackPower, 1, 'Swivel arms freeAttackPower');
   assert.equal(getEffectiveCardCost(getCardStats(windmill), wa.player, wa.combat), 0, 'Swivel makes Windmill Strike cost 0');
 
-  // Meditate enters Calm, opens interactive discard-pile pick, and ends turn on confirm (retaining Windmill Strike -> +6 dmg!)
+  // Meditate enters Calm, opens interactive discard-pile pick, and ends turn on confirm (retaining Windmill Strike -> +4 dmg!)
   playCard(wa, meditate.instanceId);
   assert.equal(wa.combat.stance, 'calm', 'Meditate enters Calm');
   assert.equal(wa.combat.pendingCardChoice?.mode, 'retrieve_discard_retain', 'Meditate prompts interactive discard choice');
   assert.equal(confirmPendingCardChoice(wa, [strikeDiscWa.instanceId]).ok, true);
-  assert.equal(windmill.combatDamageMod, 6, 'Windmill Strike gained +6 permanent combat damage on retain');
+  assert.equal(windmill.combatDamageMod, 4, 'Windmill Strike gained +4 permanent combat damage on retain');
   assert.ok(wa.combat.hand.some((c) => c.instanceId === strikeDiscWa.instanceId), 'Meditate retrieved chosen card and retained it into next turn');
   assert.ok(wa.combat.hand.some((c) => c.cardId === 'miracle' && c.upgraded), 'Deus Ex Machina auto-exhausted on draw into upgraded Miracles+');
 
-  // 4. Colorless P1: Panacea (Artifact), Dark Shackles (-9 Str), Panache (every 5 cards 8 AoE), The Bomb (30 AoE after 3 turns)
+  // 4. Colorless P1: Panacea (Artifact), Dark Shackles (-9 Str), Panache (every 5 cards 10 AoE), The Bomb (40 AoE after 3 turns)
   const co = createNewRun({ seed: 21004, characterId: 'ironclad', skipNeow: true });
   startCombat(co, ENCOUNTERS.floor1[0], 'normal');
   const enCo = co.combat.enemies[0];
@@ -2812,16 +2814,16 @@ test('P1 New Cards (Ironclad, Silent, Watcher & Colorless): core mechanics, trig
   playCard(co, sA.instanceId); // 4th card after Panache
   const hpPre5th = enCo.hp;
   playCard(co, sB.instanceId); // 5th card after Panache -> triggers Panache!
-  assert.equal(hpPre5th - enCo.hp, 8, 'Panache deals 8 AoE on 5th card played after activation');
+  assert.equal(hpPre5th - enCo.hp, 10, 'Panache deals 10 AoE on 5th card played after activation');
 
-  // Tick 3 turns for The Bomb detonation (38 AoE)
+  // Tick 3 turns for The Bomb detonation (40 AoE)
   endPlayerTurn(co);
   assert.equal(co.combat.activeBombs[0].turns, 2);
   endPlayerTurn(co);
   assert.equal(co.combat.activeBombs[0].turns, 1);
   const hpPreBomb = enCo.hp;
   endPlayerTurn(co);
-  assert.equal(hpPreBomb - enCo.hp, 38, 'The Bomb detonates for 38 AoE after 3 turns');
+  assert.equal(hpPreBomb - enCo.hp, 40, 'The Bomb detonates for 40 AoE after 3 turns');
 });
 
 test('Watcher Original-StS Restorations: uncapped Rushdown, rarities, Omega 50/60, cross-turn Chain & Swivel, Nirvana 0-discard/empty Scry, Blasphemy+Intangible, Vault vs Time Eater, 0-dmg Talk to the Hand, interactive Meditate', () => {
@@ -3786,7 +3788,7 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   startCombat(hRun, ENCOUNTERS.act4Boss[0], 'boss');
   const heart = hRun.combat.enemies[0];
   assert.equal(heart.templateId, 'corrupt_heart');
-  assert.equal(heart.hp, 500);
+  assert.equal(heart.hp, 470);
   assert.equal(heart.statuses.invincible, 180);
   assert.equal(heart.statuses.beatOfDeath, 1);
   assert.equal(heart.intent.id, 'heart_debilitate');
@@ -3805,11 +3807,11 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   // Invincible caps total HP loss to 180 per turn (including Attack, Mark, Choke, Poison)
   hRun.player.statuses.strength = 250;
   assert.equal(playCard(hRun, strikeCard.instanceId, heart.id).ok, true);
-  assert.equal(heart.hp, 320, 'Invincible 180 caps single 256-dmg strike to 180 HP loss');
+  assert.equal(heart.hp, 290, 'Invincible 180 caps single 256-dmg strike to 180 HP loss');
   assert.equal(heart.statuses.invincible, 0, 'Invincible decrements to 0 when cap reached');
   // Further damage (attack / poison) this turn deals 0 HP loss!
   dealDamageToEnemy(hRun, heart, 99, { isAttack: true });
-  assert.equal(heart.hp, 320, 'Heart cannot lose more HP once Invincible reaches 0');
+  assert.equal(heart.hp, 290, 'Heart cannot lose more HP once Invincible reaches 0');
 
   // End Turn 1 -> Heart casts Debilitate (Vulnerable 2, Weak 2, Frail 2 + 5 status cards in draw pile)
   // and Start Turn 2 resets Invincible back to 180!
@@ -4310,12 +4312,14 @@ test('Comprehensive Balance Pass (P0/P1/P2): customHp A9 scaling, Slime Split ex
   assert.equal(CARD_LIBRARY.mental_fortress.upgraded.applySelfStatuses.mentalFortress, 6);
   assert.equal(CARD_LIBRARY.sanctity.base.block, 6);
   assert.equal(CARD_LIBRARY.sanctity.upgraded.block, 9);
-  assert.equal(CARD_LIBRARY.swivel.base.block, 10);
-  assert.equal(CARD_LIBRARY.swivel.upgraded.block, 14);
-  assert.equal(CARD_LIBRARY.wave_of_the_hand.base.block, 3);
-  assert.equal(CARD_LIBRARY.wave_of_the_hand.upgraded.block, 5);
-  assert.equal(CARD_LIBRARY.meditate.base.block, 3);
-  assert.equal(CARD_LIBRARY.meditate.upgraded.block, 5);
+  assert.equal(CARD_LIBRARY.swivel.base.block, 8);
+  assert.equal(CARD_LIBRARY.swivel.upgraded.block, 11);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.base.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.upgraded.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.base.applySelfStatuses.waveOfTheHand, 1);
+  assert.equal(CARD_LIBRARY.wave_of_the_hand.upgraded.applySelfStatuses.waveOfTheHand, 2);
+  assert.equal(CARD_LIBRARY.meditate.base.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.meditate.upgraded.block ?? 0, 0);
   assert.equal(CARD_LIBRARY.battle_hymn.base.cost, 1);
   assert.equal(CARD_LIBRARY.battle_hymn.upgraded.cost, 1);
   assert.equal(CARD_LIBRARY.battle_hymn.upgraded.innate, true);
@@ -4331,18 +4335,21 @@ test('Comprehensive Balance Pass (P0/P1/P2): customHp A9 scaling, Slime Split ex
   assert.equal(CARD_LIBRARY.pummel.base.damage, 2);
   assert.equal(CARD_LIBRARY.pummel.base.hits, 4);
   assert.equal(CARD_LIBRARY.pummel.upgraded.hits, 5);
-  assert.equal(CARD_LIBRARY.rupture.upgraded.cost, 0);
-  assert.equal(CARD_LIBRARY.riddle_with_holes.base.damage, 4);
-  assert.equal(CARD_LIBRARY.riddle_with_holes.upgraded.damage, 5);
+  assert.equal(CARD_LIBRARY.rupture.upgraded.cost, 1);
+  assert.equal(CARD_LIBRARY.rupture.upgraded.applySelfStatuses.rupture, 2);
+  assert.equal(CARD_LIBRARY.riddle_with_holes.base.damage, 3);
+  assert.equal(CARD_LIBRARY.riddle_with_holes.upgraded.damage, 4);
   assert.equal(CARD_LIBRARY.thinking_ahead.base.block ?? 0, 0);
+  assert.equal(CARD_LIBRARY.thinking_ahead.base.putHandToDrawTopChoice, 1);
+  assert.equal(CARD_LIBRARY.thinking_ahead.upgraded.putHandToDrawTopChoice, 1);
   assert.equal(CARD_LIBRARY.thinking_ahead.upgraded.exhaust, false);
-  assert.equal(CARD_LIBRARY.the_bomb.base.plantBombDamage, 38);
+  assert.equal(CARD_LIBRARY.the_bomb.base.plantBombDamage, 40);
   assert.equal(CARD_LIBRARY.the_bomb.upgraded.plantBombDamage, 50);
   assert.equal(Boolean(CARD_LIBRARY.the_bomb.base.exhaust), false);
-  assert.equal(CARD_LIBRARY.pressure_points.base.applyMarkAndTrigger, 10);
-  assert.equal(CARD_LIBRARY.pressure_points.upgraded.applyMarkAndTrigger, 14);
-  assert.equal(CARD_LIBRARY.pressure_points.base.scry, 2);
-  assert.equal(CARD_LIBRARY.pressure_points.upgraded.scry, 3);
+  assert.equal(CARD_LIBRARY.pressure_points.base.applyMarkAndTrigger, 8);
+  assert.equal(CARD_LIBRARY.pressure_points.upgraded.applyMarkAndTrigger, 11);
+  assert.equal(CARD_LIBRARY.pressure_points.base.scry ?? 0, 0);
+  assert.equal(CARD_LIBRARY.pressure_points.upgraded.scry ?? 0, 0);
 
   // 5. P2-3: Secret Portal study_portal upgrades 1 card + 1 potion; siphon_portal costs 16 HP at A0
   const spRun = createNewRun({ seed: 88007, characterId: 'ironclad', ascension: 0, skipNeow: true });
@@ -4510,7 +4517,7 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   playCard(state, coreSurge.instanceId, e1.id);
   assert.equal(state.player.statuses.artifact, 1);
   playCard(state, biased.instanceId);
-  assert.equal(state.player.statuses.focus, 3);
+  assert.equal(state.player.statuses.focus, 4);
   assert.equal(state.player.statuses.biasedCognition ?? 0, 0, 'Artifact must block Biased Cognition debuff');
 
   // 2. Darkness+ triggers all Dark passives & Recursion re-channels Dark preserving darkStored
@@ -4521,15 +4528,15 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   state.player.energy = 5;
   playCard(state, darkPlus.instanceId);
   assert.equal(state.player.orbs.length, 1);
-  assert.equal(state.player.orbs[0].darkStored, 15, 'Darkness+ channels Dark (6) then triggers passive (6 + 3 Focus = 9 -> 15)');
+  assert.equal(state.player.orbs[0].darkStored, 16, 'Darkness+ channels Dark (6) then triggers passive (6 + 4 Focus = 10 -> 16)');
 
   const lowestEnemy = e2 && e2.hp < e1.hp ? e2 : e1;
   const lowestHpBefore = lowestEnemy.hp;
   playCard(state, recursion.instanceId);
-  assert.equal(lowestHpBefore - lowestEnemy.hp, 15, 'Recursion evokes Dark (15 dmg to lowest-HP enemy)');
+  assert.equal(lowestHpBefore - lowestEnemy.hp, 16, 'Recursion evokes Dark (16 dmg to lowest-HP enemy)');
   assert.equal(state.player.orbs.length, 1);
   assert.equal(state.player.orbs[0].type, 'dark');
-  assert.equal(state.player.orbs[0].darkStored, 15, 'Recursion must preserve Dark darkStored value');
+  assert.equal(state.player.orbs[0].darkStored, 16, 'Recursion must preserve Dark darkStored value');
 
   // 3. Multi-Cast X-cost + Chemical X evokes front orb X+2 times
   state.player.relics.push('chemical_x');
@@ -4539,8 +4546,8 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   state.combat.hand = [multiCast];
   state.player.energy = 2;
   playCard(state, multiCast.instanceId);
-  // 3 Focus -> Frost Evoke = 5 + 3 = 8; (2 + 2 ChemX) = 4 evokes -> 32 block
-  assert.equal(state.player.block, 32);
+  // 4 Focus -> Frost Evoke = 5 + 4 = 9; (2 + 2 ChemX) = 4 evokes -> 36 block
+  assert.equal(state.player.block, 36);
   assert.equal(state.player.orbs.length, 0);
 
   // 4. Fission (base) removes without evoking vs Fission+ evokes all orbs
@@ -4562,7 +4569,7 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   const fissionPlus = createCardInstance(state, 'fission', true);
   state.combat.hand = [fissionPlus];
   playCard(state, fissionPlus.instanceId);
-  assert.equal(state.player.block, 8, 'Fission+ evokes Frost (5 + 3 Focus = 8) AND grants +1 Energy & +1 draw');
+  assert.equal(state.player.block, 9, 'Fission+ evokes Frost (5 + 4 Focus = 9) AND grants +1 Energy & +1 draw');
 
   // 5. Electrodynamics makes Lightning hit ALL enemies & Loop triggers front orb passive extra times at start of turn
   if (e2) {
@@ -4578,14 +4585,14 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
     state.player.energy = 5;
     playCard(state, electro.instanceId);
     playCard(state, loop.instanceId);
-    assert.equal(state.player.orbs.length, 1);
+    assert.equal(state.player.orbs.length, 2);
     const e1Before = e1.hp;
     const e2Before = e2.hp;
     state.combat.hand = [];
     endPlayerTurn(state);
-    // End of turn: 1 Lightning passive (3 AoE); Start of next turn: Loop triggers front Lightning (+3 AoE) -> 6 dmg to BOTH enemies
-    assert.equal(e1Before - e1.hp, 6, 'Electrodynamics + Loop must hit enemy 1 for 6 total');
-    assert.equal(e2Before - e2.hp, 6, 'Electrodynamics + Loop must hit enemy 2 for 6 total');
+    // End of turn: 2 Lightning passives (6 AoE); Start of next turn: Loop triggers front Lightning (+3 AoE) -> 9 dmg to BOTH enemies
+    assert.equal(e1Before - e1.hp, 9, 'Electrodynamics + Loop must hit enemy 1 for 9 total');
+    assert.equal(e2Before - e2.hp, 9, 'Electrodynamics + Loop must hit enemy 2 for 9 total');
   }
 });
 
@@ -5617,4 +5624,134 @@ test('P0-1 & P0-2 Regression: Unified in-combat generation blacklist (Discovery,
   assert.equal(resolveCardChoice(w2, wof2.instanceId).ok, true);
   assert.equal(w2.player.statuses.vigor, 10, 'Resumed Omniscience pick played Wreath of Flame twice');
   assert.equal(w2.combat.pendingCardChoice, null);
+});
+
+test('P1/P2 & 361-Card Official STS1 Fidelity: Bird-Faced Urn, Thinking Ahead hand_to_draw, Panic Button 112g, Act 2/A9/Heart smoothing, and restored Defect/Watcher/Ironclad/Silent/Colorless vanilla stats', () => {
+  // 1. Bird-Faced Urn (P2-1): official Rare relic heals 2 HP on Power play, respects Max HP cap, and surfaces tactics callout
+  assert.equal(RELIC_LIBRARY.bird_faced_urn.name, '鸟面瓮');
+  assert.equal(RELIC_LIBRARY.bird_faced_urn.tier, 'rare');
+  const urnRun = createNewRun({ seed: 95001, characterId: 'defect', skipNeow: true });
+  urnRun.player.relics = ['bird_faced_urn'];
+  urnRun.player.maxHp = 72;
+  urnRun.player.hp = 69;
+  startCombat(urnRun, ENCOUNTERS.floor1[0], 'normal');
+  const urnEnemy = urnRun.combat.enemies[0];
+  urnEnemy.hp = 200;
+  urnEnemy.intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const defrag1 = createCardInstance(urnRun, 'defragment', false);
+  const defrag2 = createCardInstance(urnRun, 'defragment', false);
+  const strikeU = createCardInstance(urnRun, 'strike', false);
+  urnRun.combat.hand = [defrag1, defrag2, strikeU];
+  urnRun.player.energy = 5;
+  const syn = computeCardSynergies(urnRun, defrag1);
+  assert.ok(syn.callouts.some((c) => c.text.includes('鸟面瓮')));
+  assert.equal(playCard(urnRun, strikeU.instanceId, urnEnemy.id).ok, true);
+  assert.equal(urnRun.player.hp, 69, 'Bird-Faced Urn does not heal on Attack cards');
+  assert.equal(playCard(urnRun, defrag1.instanceId).ok, true);
+  assert.equal(urnRun.player.hp, 71, 'Bird-Faced Urn heals +2 HP on Power card (69 -> 71)');
+  assert.equal(playCard(urnRun, defrag2.instanceId).ok, true);
+  assert.equal(urnRun.player.hp, 72, 'Bird-Faced Urn healing clamps at Max HP (71 -> 72)');
+
+  // 2. Thinking Ahead official STS1: Draw 2, put 1 hand card on top of draw pile; base Exhausts, upgraded does not
+  const taRun = createNewRun({ seed: 95002, characterId: 'ironclad', skipNeow: true });
+  startCombat(taRun, ENCOUNTERS.floor1[0], 'normal');
+  taRun.combat.enemies[0].hp = 200;
+  const taBase = createCardInstance(taRun, 'thinking_ahead', false);
+  const taPlus = createCardInstance(taRun, 'thinking_ahead', true);
+  const keepDef = createCardInstance(taRun, 'defend', false);
+  const drawA = createCardInstance(taRun, 'strike', false);
+  const drawB = createCardInstance(taRun, 'bash', false);
+  const drawC = createCardInstance(taRun, 'strike', false);
+  const drawD = createCardInstance(taRun, 'defend', false);
+  taRun.combat.hand = [taBase, taPlus, keepDef];
+  taRun.combat.drawPile = [drawD, drawC, drawB, drawA];
+  taRun.combat.exhaustPile = [];
+  taRun.combat.discardPile = [];
+  taRun.player.energy = 3;
+  assert.equal(playCard(taRun, taBase.instanceId).ok, true);
+  assert.equal(taRun.combat.pendingCardChoice?.mode, 'hand_to_draw', 'Thinking Ahead prompts hand_to_draw choice');
+  assert.equal(taRun.combat.exhaustPile.some((c) => c.instanceId === taBase.instanceId), true, 'Base Thinking Ahead exhausts');
+  assert.equal(resolveCardChoice(taRun, keepDef.instanceId).ok, true);
+  assert.equal(
+    taRun.combat.drawPile[0]?.instanceId,
+    keepDef.instanceId,
+    'Thinking Ahead places chosen card on top of drawPile'
+  );
+  assert.equal(playCard(taRun, taPlus.instanceId).ok, true);
+  assert.equal(taRun.combat.pendingCardChoice?.mode, 'hand_to_draw');
+  assert.equal(taRun.combat.discardPile.some((c) => c.instanceId === taPlus.instanceId), true, 'Thinking Ahead+ does NOT exhaust');
+  assert.equal(resolveCardChoice(taRun, taRun.combat.hand[0].instanceId).ok, true);
+
+  // 3. P1-1: Panic Button shop price 112 while keeping 100% official STS1 stats
+  assert.equal(CARD_LIBRARY.panic_button.price, 112);
+  assert.equal(CARD_LIBRARY.panic_button.base.cost, 0);
+  assert.equal(CARD_LIBRARY.panic_button.base.block, 30);
+  assert.equal(CARD_LIBRARY.panic_button.upgraded.block, 40);
+  assert.equal(CARD_LIBRARY.panic_button.base.applySelfStatusesAfter.noBlock, 2);
+  assert.equal(CARD_LIBRARY.panic_button.base.exhaust, true);
+
+  // 4. Restored official STS1 stats across Defect & Watcher
+  assert.equal(CARD_LIBRARY.self_repair.base.applySelfStatuses.selfRepair, 7);
+  assert.equal(CARD_LIBRARY.self_repair.upgraded.applySelfStatuses.selfRepair, 10);
+  assert.equal(CARD_LIBRARY.biased_cognition.base.applySelfStatuses.focus, 4);
+  assert.equal(CARD_LIBRARY.biased_cognition.upgraded.applySelfStatuses.focus, 5);
+  assert.equal(CARD_LIBRARY.electrodynamics.base.channelOrbs.length, 2);
+  assert.equal(CARD_LIBRARY.electrodynamics.upgraded.channelOrbs.length, 3);
+
+  assert.equal(CARD_LIBRARY.vigilance.base.block, 8);
+  assert.equal(CARD_LIBRARY.vigilance.upgraded.block, 12);
+  assert.equal(CARD_LIBRARY.prostrate.base.gainMantra, 2);
+  assert.equal(CARD_LIBRARY.prostrate.upgraded.gainMantra, 3);
+  assert.equal(CARD_LIBRARY.prostrate.base.block, 4);
+  assert.equal(CARD_LIBRARY.prostrate.upgraded.block, 4);
+  assert.equal(CARD_LIBRARY.protect.base.block, 12);
+  assert.equal(CARD_LIBRARY.protect.upgraded.block, 16);
+  assert.equal(CARD_LIBRARY.deceive_reality.base.block, 4);
+  assert.equal(CARD_LIBRARY.deceive_reality.upgraded.block, 7);
+  assert.equal(CARD_LIBRARY.perseverance.base.block, 5);
+  assert.equal(CARD_LIBRARY.perseverance.upgraded.block, 7);
+  assert.equal(CARD_LIBRARY.perseverance.base.retainScaleBlock, 2);
+  assert.equal(CARD_LIBRARY.perseverance.upgraded.retainScaleBlock, 3);
+  assert.equal(CARD_LIBRARY.pray.base.gainMantra, 3);
+  assert.equal(CARD_LIBRARY.pray.upgraded.gainMantra, 4);
+  assert.equal(CARD_LIBRARY.like_water.base.applySelfStatuses.likeWater, 5);
+  assert.equal(CARD_LIBRARY.like_water.upgraded.applySelfStatuses.likeWater, 7);
+  assert.equal(CARD_LIBRARY.nirvana.base.applySelfStatuses.nirvana, 3);
+  assert.equal(CARD_LIBRARY.nirvana.upgraded.applySelfStatuses.nirvana, 4);
+  assert.equal(CARD_LIBRARY.devotion.base.applySelfStatuses.devotion, 2);
+  assert.equal(CARD_LIBRARY.devotion.upgraded.applySelfStatuses.devotion, 3);
+  assert.equal(CARD_LIBRARY.windmill_strike.base.damage, 7);
+  assert.equal(CARD_LIBRARY.windmill_strike.upgraded.damage, 10);
+  assert.equal(CARD_LIBRARY.windmill_strike.base.retainScaleDamage, 4);
+  assert.equal(CARD_LIBRARY.windmill_strike.upgraded.retainScaleDamage, 5);
+  assert.equal(CARD_LIBRARY.reach_heaven.base.damage, 10);
+  assert.equal(CARD_LIBRARY.reach_heaven.upgraded.damage, 15);
+  assert.equal(CARD_LIBRARY.through_violence.base.damage, 20);
+  assert.equal(CARD_LIBRARY.through_violence.upgraded.damage, 30);
+  assert.equal(CARD_LIBRARY.panache.base.applySelfStatuses.panache, 10);
+  assert.equal(CARD_LIBRARY.panache.upgraded.applySelfStatuses.panache, 14);
+
+  // 5. P1-2 & P1-3 enemy smoothing: Chosen & Byrd (64 HP), Gremlin Leader encourage (4 Block), A9 normal HP (1.09x), Heart (470 HP)
+  const cbEnc = ENCOUNTERS.act2Hard.find((e) => e.id === 'chosen_and_byrd');
+  assert.equal(cbEnc.enemies.find((e) => e.templateId === 'chosen').customHp, 64);
+
+  const glRun = createNewRun({ seed: 95003, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  startCombat(glRun, ENCOUNTERS.act2Elite.find((e) => e.id === 'gremlin_leader_elite'), 'elite');
+  const leader = glRun.combat.enemies.find((e) => e.templateId === 'gremlin_leader');
+  if (leader.intent.id !== 'leader_encourage') {
+    glRun.player.block = 99;
+    endPlayerTurn(glRun);
+  }
+  assert.equal(leader.intent.id, 'leader_encourage');
+  assert.equal(leader.intent.allEnemiesBlock, 4);
+  assert.equal(leader.intent.block, 4);
+
+  // A9 normal enemy HP scaling: 1.09x (not 1.10x) -> 100 base HP -> 109 HP
+  const normalEnc100 = { id: 'test_100', name: '测试', enemies: [{ templateId: 'cultist', customHp: 100 }] };
+  const a0Run = createNewRun({ seed: 95004, characterId: 'ironclad', ascension: 0, skipNeow: true });
+  const a9Run = createNewRun({ seed: 95004, characterId: 'ironclad', ascension: 9, skipNeow: true });
+  startCombat(a0Run, normalEnc100, 'normal');
+  startCombat(a9Run, normalEnc100, 'normal');
+  assert.equal(a0Run.combat.enemies[0].maxHp, 100);
+  assert.equal(a9Run.combat.enemies[0].maxHp, 109, 'A9 normal enemy HP scales by 1.09x (+9%)');
 });

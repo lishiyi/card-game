@@ -18,7 +18,7 @@ export function createEnemyInstance(state, spec) {
 
   if (!spec.skipHpScaling) {
     if (tpl.role === 'normal') {
-      if (asc >= 9) maxHp = Math.round(maxHp * 1.1);
+      if (asc >= 9) maxHp = Math.round(maxHp * 1.09);
       else if (asc >= 2) maxHp = Math.round(maxHp * 1.07);
     } else if (tpl.role === 'elite' || tpl.role === 'boss') {
       if (asc >= 9) maxHp = Math.round(maxHp * 1.12);

@@ -2186,6 +2186,17 @@ export function playCard(
     }
   }
 
+  if (stats.type === 'power' && hasRelic(state, 'bird_faced_urn') && state.player.hp > 0) {
+    const urnHealed = healPlayerInCombat(state, 2);
+    if (urnHealed > 0) {
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.bird_faced_urn.name}】触发：打出能力牌回复 ${urnHealed} 点生命！`,
+        'victory'
+      );
+    }
+  }
+
   if (stats.type === 'power' && hasRelic(state, 'mummified_hand') && getAliveEnemies(combat).length > 0) {
     const candidates = combat.hand.filter((hc) => {
       const cStats = getCardStats(hc);

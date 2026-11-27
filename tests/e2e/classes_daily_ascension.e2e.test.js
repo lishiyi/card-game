@@ -839,10 +839,10 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
     })()`);
     assert.equal(shopSetupAudit.screen, 'shop');
     assert.equal(shopSetupAudit.hasMapBtnInShop, true, 'HUD Map button must appear inside Shop');
-    assert.equal(shopSetupAudit.colorlessCount, 2);
+    assert.equal(shopSetupAudit.colorlessCount, 3);
     assert.equal(shopSetupAudit.allHaveColorlessClass, true);
-    assert.deepEqual(shopSetupAudit.rarities, ['uncommon', 'rare']);
-    assert.deepEqual(shopSetupAudit.badges, ['无色·罕见', '无色·稀有']);
+    assert.deepEqual(shopSetupAudit.rarities, ['uncommon', 'uncommon', 'rare']);
+    assert.deepEqual(shopSetupAudit.badges, ['无色·罕见', '无色·罕见', '无色·稀有']);
 
     // Open Map Modal from Shop via HUD button -> verify read-only nodes, current pos, clicking node does NOT leave shop, M hotkey toggles closed/open
     const shopMapModalAudit = await cdp.evaluate(`(() => {

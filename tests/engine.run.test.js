@@ -1119,7 +1119,7 @@ test('The Silent run setup: 70 HP (65 Asc 4), 12-card deck, Ring of the Snake (+
   assert.equal(meta.runHistory[0].characterName, '静默猎手');
 });
 
-test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Uncommon + 1 Rare shelf, purchase & stats tracking', () => {
+test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 2 Uncommon + 1 Rare shelf, purchase & stats tracking', () => {
   assert.equal(COLORLESS_CARD_POOLS.uncommon.length, 20);
   assert.equal(COLORLESS_CARD_POOLS.rare.length, 15);
 
@@ -1137,7 +1137,7 @@ test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Un
     }
   }
 
-  // 2. Shop always stocks exactly 2 colorless cards (1 uncommon + 1 rare) for both classes, supports purchase, tracks stats, rejects double-buy
+  // 2. Shop always stocks exactly 3 colorless cards (2 distinct uncommon + 1 rare) for both classes, supports purchase, tracks stats, rejects double-buy
   for (const characterId of ['ironclad', 'silent']) {
     const shopRun = createNewRun({ seed: characterId === 'ironclad' ? 4201 : 4202, characterId, skipNeow: true });
     const shopNode = shopRun.map.flat().find((n) => n.type === 'shop');
@@ -1147,31 +1147,34 @@ test('Shop-exclusive Colorless shelf: strict isolation from combat rewards, 1 Un
 
     assert.equal(selectMapNode(shopRun, shopNode.id).ok, true);
     assert.equal(shopRun.screen, 'shop');
-    assert.equal(shopRun.shop.colorlessCards.length, 2);
+    assert.equal(shopRun.shop.colorlessCards.length, 3);
 
-    const [uncOffer, rareOffer] = shopRun.shop.colorlessCards;
-    assert.equal(getCardCharacter(CARD_LIBRARY[uncOffer.card.cardId]), 'colorless');
-    assert.equal(CARD_LIBRARY[uncOffer.card.cardId].rarity, 'uncommon');
+    const [uncOffer1, uncOffer2, rareOffer] = shopRun.shop.colorlessCards;
+    assert.equal(getCardCharacter(CARD_LIBRARY[uncOffer1.card.cardId]), 'colorless');
+    assert.equal(CARD_LIBRARY[uncOffer1.card.cardId].rarity, 'uncommon');
+    assert.equal(getCardCharacter(CARD_LIBRARY[uncOffer2.card.cardId]), 'colorless');
+    assert.equal(CARD_LIBRARY[uncOffer2.card.cardId].rarity, 'uncommon');
+    assert.notEqual(uncOffer1.card.cardId, uncOffer2.card.cardId, 'Shop colorless uncommon slots should not duplicate');
     assert.equal(getCardCharacter(CARD_LIBRARY[rareOffer.card.cardId]), 'colorless');
     assert.equal(CARD_LIBRARY[rareOffer.card.cardId].rarity, 'rare');
-    assert.ok(uncOffer.price >= 60 && rareOffer.price > uncOffer.price);
+    assert.ok(uncOffer1.price >= 60 && rareOffer.price > uncOffer1.price);
 
     // Insufficient gold fails cleanly
     shopRun.player.gold = 10;
     assert.equal(buyShopColorlessCard(shopRun, 0).ok, false);
-    assert.equal(uncOffer.sold, false);
+    assert.equal(uncOffer1.sold, false);
 
     // Sufficient gold buys colorless card, deducts gold, increments colorlessBought, rejects duplicate buy
     shopRun.player.gold = 600;
     const deckLenBefore = shopRun.player.deck.length;
-    const buyRes = buyShopColorlessCard(shopRun, 1);
+    const buyRes = buyShopColorlessCard(shopRun, 2);
     assert.equal(buyRes.ok, true);
     assert.equal(rareOffer.sold, true);
     assert.equal(shopRun.player.gold, 600 - rareOffer.price);
     assert.equal(shopRun.player.deck.length, deckLenBefore + 1);
     assert.equal(shopRun.stats.colorlessBought, 1);
     assert.equal(getCardCharacter(CARD_LIBRARY[buyRes.addedCard.cardId]), 'colorless');
-    assert.equal(buyShopColorlessCard(shopRun, 1).ok, false);
+    assert.equal(buyShopColorlessCard(shopRun, 2).ok, false);
   }
 });
 
@@ -2767,11 +2770,11 @@ test('Official Simplified Chinese card names (361 unique) & concise card keyword
   assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
 });
 
-test('Official Simplified Chinese relic names (112 unique) & War Paint / Whetstone upgrade tracking', () => {
+test('Official Simplified Chinese relic names (113 unique) & War Paint / Whetstone upgrade tracking', () => {
   const allRelics = Object.values(RELIC_LIBRARY);
-  assert.equal(allRelics.length, 112);
+  assert.equal(allRelics.length, 113);
   const nameSet = new Set(allRelics.map((r) => r.name));
-  assert.equal(nameSet.size, 112, 'All 112 relics must have unique Simplified Chinese names');
+  assert.equal(nameSet.size, 113, 'All 113 relics must have unique Simplified Chinese names');
 
   const expectedOfficialRelicNames = {
     pure_water: '至纯之水',
@@ -2784,6 +2787,7 @@ test('Official Simplified Chinese relic names (112 unique) & War Paint / Whetsto
     frozen_core: '冻结核心',
     inserter: '插入器',
     nuclear_battery: '核能电池',
+    bird_faced_urn: '鸟面瓮',
     oddly_smooth_stone: '意外光滑的石头',
     lantern: '灯笼',
     blood_vial: '小血瓶',
@@ -3002,10 +3006,10 @@ test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and a
   }
 });
 
-test('Relic Art Integrity: all 112 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
+test('Relic Art Integrity: all 113 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
   const libIds = Object.keys(RELIC_LIBRARY);
   const artIds = Object.keys(RELIC_SVG_ART);
-  assert.equal(libIds.length, 112, `Expected 112 relics in RELIC_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 113, `Expected 113 relics in RELIC_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'RELIC_SVG_ART must match RELIC_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();

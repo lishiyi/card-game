@@ -111,7 +111,7 @@ const NEOW_RISK_POOL = Object.freeze([
     tier: 'risk',
     badge: '高风险高回报',
     title: '得 1 张随机诅咒 · 换 250 金币',
-    detail: '代价：向牌组加入 1 张随机【诅咒】牌。回报：立即获得 250 金币！',
+    detail: '代价：从 10 种随机诅咒（含高危【凡庸】【疼痛】）中加入 1 张进牌组。回报：立即获得 250 金币！',
   }),
   Object.freeze({
     id: 'max_hp_for_rare_relic',

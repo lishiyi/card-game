@@ -581,7 +581,7 @@ export const ENEMY_TEMPLATES = deepFreeze({
     name: '腐化之心',
     role: 'boss',
     artKey: 'corrupt_heart',
-    hpRange: [500, 500],
+    hpRange: [470, 470],
     initialStatuses: { invincible: 180, beatOfDeath: 1 },
   },
 });
@@ -823,7 +823,7 @@ export const ENCOUNTERS = deepFreeze({
       id: 'chosen_and_byrd',
       name: '天选者与尖塔飞鸟',
       enemies: [
-        { templateId: 'chosen', customHp: 74 },
+        { templateId: 'chosen', customHp: 64 },
         { templateId: 'byrd' },
       ],
     },

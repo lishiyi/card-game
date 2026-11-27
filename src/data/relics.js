@@ -454,7 +454,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'boss',
     price: 320,
     energyBonus: 1,
-    description: '最大能量 +1；但此后每次开启宝箱时，会将 1 张随机【诅咒】牌加入牌组。',
+    description: '最大能量 +1；但此后每次开启宝箱时，会从 10 种随机诅咒（含高危【凡庸】【疼痛】）中将 1 张加入牌组。',
   },
   velvet_choker: {
     id: 'velvet_choker',
@@ -889,6 +889,13 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 360,
     description: '每场战斗第 1 回合开始时，充能 1 个【等离子球】。',
   },
+  bird_faced_urn: {
+    id: 'bird_faced_urn',
+    name: '鸟面瓮',
+    tier: 'rare',
+    price: 295,
+    description: '每当你打出一张能力牌时，回复 2 点生命。',
+  },
 });
 
 export const CAMPFIRE_RELIC_IDS = deepFreeze(['girya', 'shovel', 'peace_pipe']);
@@ -975,6 +982,7 @@ export const RELIC_ICONS = deepFreeze({
   thread_and_needle: '🪡',
   lizard_tail: '🦎',
   cloak_clasp: '🧷',
+  bird_faced_urn: '🏺',
   girya: '🏋️',
   shovel: '⛏️',
   peace_pipe: '🪈',

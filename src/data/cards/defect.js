@@ -597,8 +597,8 @@ export const DEFECT_CARDS = {
     rarity: 'uncommon',
     target: 'self',
     price: 88,
-    base: { cost: 1, applySelfStatuses: { selfRepair: 5 } },
-    upgraded: { cost: 1, applySelfStatuses: { selfRepair: 8 } },
+    base: { cost: 1, applySelfStatuses: { selfRepair: 7 } },
+    upgraded: { cost: 1, applySelfStatuses: { selfRepair: 10 } },
   },
   static_discharge: {
     id: 'static_discharge',
@@ -753,8 +753,8 @@ export const DEFECT_CARDS = {
     rarity: 'rare',
     target: 'self',
     price: 162,
-    base: { cost: 1, applySelfStatuses: { focus: 3, biasedCognition: 1 } },
-    upgraded: { cost: 1, applySelfStatuses: { focus: 4, biasedCognition: 1 } },
+    base: { cost: 1, applySelfStatuses: { focus: 4, biasedCognition: 1 } },
+    upgraded: { cost: 1, applySelfStatuses: { focus: 5, biasedCognition: 1 } },
   },
   buffer_card: {
     id: 'buffer_card',
@@ -797,8 +797,8 @@ export const DEFECT_CARDS = {
     rarity: 'rare',
     target: 'self',
     price: 158,
-    base: { cost: 2, applySelfStatuses: { electro: 1 }, channelOrbs: ['lightning'] },
-    upgraded: { cost: 2, applySelfStatuses: { electro: 1 }, channelOrbs: ['lightning', 'lightning'] },
+    base: { cost: 2, applySelfStatuses: { electro: 1 }, channelOrbs: ['lightning', 'lightning'] },
+    upgraded: { cost: 2, applySelfStatuses: { electro: 1 }, channelOrbs: ['lightning', 'lightning', 'lightning'] },
   },
   machine_learning: {
     id: 'machine_learning',

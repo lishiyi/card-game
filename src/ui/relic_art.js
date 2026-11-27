@@ -1173,6 +1173,17 @@ export const RELIC_SVG_ART = Object.freeze({
      <circle cx="18" cy="18.5" r="1.8" fill="hsl(54, 100%, 96%)"/>
      <path d="M13 13.5 H23 M13 23.5 H23" stroke="hsl(190, 100%, 74%)" stroke-width="1.1" opacity="0.8"/>`
   ),
+  bird_faced_urn: wrapRelicSvg(
+    'bird_faced_urn',
+    'hsl(166, 54%, 24%)',
+    'hsl(198, 56%, 10%)',
+    'hsl(48, 96%, 72%)',
+    `<path d="M13 8.5 H23 L21.5 12.5 Q26.5 15 25.5 22.5 Q24.5 28 18 28.5 Q11.5 28 10.5 22.5 Q9.5 15 14.5 12.5 Z" fill="hsl(174, 52%, 34%)" stroke="hsl(46, 94%, 72%)" stroke-width="1.4" stroke-linejoin="round"/>
+     <path d="M10.5 15.5 Q6.5 17 8.5 21.5 M25.5 15.5 Q29.5 17 27.5 21.5" fill="none" stroke="hsl(46, 92%, 68%)" stroke-width="1.5" stroke-linecap="round"/>
+     <circle cx="15" cy="18.5" r="1.5" fill="hsl(52, 100%, 92%)"/><circle cx="21" cy="18.5" r="1.5" fill="hsl(52, 100%, 92%)"/>
+     <polygon points="18,19.5 20.5,22.5 18,24.5 15.5,22.5" fill="hsl(44, 98%, 62%)" stroke="hsl(28, 70%, 26%)" stroke-width="0.9"/>
+     <path d="M14.5 11 H21.5" stroke="hsl(152, 92%, 74%)" stroke-width="1.3" stroke-linecap="round"/>`
+  ),
 });
 
 const FALLBACK_RELIC_SVG = wrapRelicSvg(

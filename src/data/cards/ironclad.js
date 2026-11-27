@@ -459,7 +459,7 @@ export const IRONCLAD_CARDS = {
     target: 'self',
     price: 78,
     base: { cost: 1, applySelfStatuses: { rupture: 1 } },
-    upgraded: { cost: 0, applySelfStatuses: { rupture: 2 } },
+    upgraded: { cost: 1, applySelfStatuses: { rupture: 2 } },
   },
   // === Rare Cards (12) ===
   impervious: {

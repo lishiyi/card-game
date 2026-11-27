@@ -833,6 +833,14 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
   }
 
+  if (stats.type === 'power' && hasRelic(state, 'bird_faced_urn')) {
+    pushRelic('bird_faced_urn', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: '✦ 【鸟面瓮】联动：打出能力牌后回复 2 点生命！',
+    });
+  }
+
   if (stats.type === 'power' && hasRelic(state, 'mummified_hand')) {
     pushRelic('mummified_hand', 'buff');
     result.callouts.push({

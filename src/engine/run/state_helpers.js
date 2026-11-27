@@ -521,9 +521,9 @@ export function buildShopState(state) {
       }
     : null;
 
-  // Shop-exclusive Colorless shelf: 1 Uncommon Colorless + 1 Rare Colorless
+  // Shop-exclusive Colorless shelf: 2 Uncommon Colorless + 1 Rare Colorless
   const colorlessPools = getColorlessCardPools();
-  const colorlessUncommon = pickDistinct(state, colorlessPools.uncommon, 1);
+  const colorlessUncommon = pickDistinct(state, colorlessPools.uncommon, 2);
   const colorlessRare = pickDistinct(state, colorlessPools.rare, 1);
   const colorlessIds = [...colorlessUncommon, ...colorlessRare];
   const colorlessCards = colorlessIds.map((cardId) => {
