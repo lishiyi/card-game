@@ -52,6 +52,40 @@ export function getColorlessCardPools() {
 
 export const COLORLESS_CARD_POOLS = deepFreeze(getColorlessCardPools());
 
+/**
+ * Official Slay the Spire in-combat random generation exclusion list:
+ * prevents stalling/infinite loops that generate persistent HP, Max HP, Gold,
+ * Potions, master-deck upgrades, or Exhume recursion.
+ */
+export const NON_GENERATABLE_COMBAT_CARD_IDS = deepFreeze([
+  'feed',
+  'reaper',
+  'exhume',
+  'alchemize',
+  'self_repair',
+  'lesson_learned',
+  'wish',
+  'bandage_up',
+  'hand_of_greed',
+]);
+
+const NON_GENERATABLE_COMBAT_CARD_SET = new Set(NON_GENERATABLE_COMBAT_CARD_IDS);
+
+export function isGeneratableCombatCard(card) {
+  if (!card) return false;
+  const def = !card.type && card.cardId && CARD_LIBRARY[card.cardId] ? CARD_LIBRARY[card.cardId] : card;
+  if (!def) return false;
+  if (NON_GENERATABLE_COMBAT_CARD_SET.has(def.id)) return false;
+  if (def.base?.healHp) return false;
+  if (def.rarity === 'starter' || def.rarity === 'special') return false;
+  if (def.type === 'status' || def.type === 'curse') return false;
+  return true;
+}
+
+export const GENERATABLE_COLORLESS_CARD_IDS = deepFreeze(
+  COLORLESS_CARD_POOLS.all.filter((id) => isGeneratableCombatCard(CARD_LIBRARY[id]))
+);
+
 export const REWARD_CARD_POOLS = deepFreeze(getRewardCardPools('ironclad'));
 
 export const CURSE_CARD_IDS = deepFreeze(

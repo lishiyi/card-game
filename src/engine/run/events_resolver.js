@@ -271,21 +271,25 @@ const EVENT_OPTION_HANDLERS = {
     return { ok: true };
   }
   if (choiceId === 'embrace_necronomicurse') {
+    if (state.player.hp <= tune.tomeNecroHpLoss) {
+      return { ok: false, reason: `当前生命值不足（需大于 ${tune.tomeNecroHpLoss} 点）` };
+    }
+    state.player.hp -= tune.tomeNecroHpLoss;
     const relicId = rollUnownedRelicByTier(state, 'rare');
     if (relicId) {
       grantRelicToPlayer(state, relicId);
     } else {
-      addPlayerGold(state, 120);
+      addPlayerGold(state, 100);
     }
     const rareId = pickRandom(state, cards.rare);
-    const created = createCardInstance(state, rareId, true);
+    const created = createCardInstance(state, rareId, false);
     addCardToMasterDeck(state, created);
     const curse = createCardInstance(state, 'necronomicurse', false);
     addCardToMasterDeck(state, curse);
     state.eventState.addedCardIds = [created.instanceId, curse.instanceId];
     state.eventState.resolved = true;
-    const lootText = relicId ? `稀有遗物【${RELIC_LIBRARY[relicId].name}】` : '120 金币';
-    state.eventState.outcomeText = `死灵密卷赋予你${lootText}与【${getCardStats(created).name}】，但不可移除的【死灵诅咒】已烙印在牌组中！`;
+    const lootText = relicId ? `稀有遗物【${RELIC_LIBRARY[relicId].name}】` : '100 金币';
+    state.eventState.outcomeText = `死灵密卷噬去鲜血（-${tune.tomeNecroHpLoss} 生命），赋予你${lootText}与【${getCardStats(created).name}】，但不可移除的【死灵诅咒】已烙印在牌组中！`;
     return { ok: true };
   }
   if (choiceId === 'close_tome') {
@@ -961,16 +965,15 @@ const EVENT_OPTION_HANDLERS = {
       addPlayerGold(state, 90);
     }
     const { cards } = getUnlockedPools(state);
-    const rareId = pickRandom(state, cards.rare);
-    const rareCard = createCardInstance(state, rareId, false);
-    addCardToMasterDeck(state, rareCard);
-    addPlayerGold(state, 60);
+    const uncId = pickRandom(state, cards.uncommon);
+    const uncCard = createCardInstance(state, uncId, false);
+    addCardToMasterDeck(state, uncCard);
     const bellCurse = createCardInstance(state, 'curse_of_the_bell', false);
     addCardToMasterDeck(state, bellCurse);
-    state.eventState.addedCardIds = [rareCard.instanceId, bellCurse.instanceId];
+    state.eventState.addedCardIds = [uncCard.instanceId, bellCurse.instanceId];
     state.eventState.resolved = true;
     const lootText = relicId ? `罕见遗物【${RELIC_LIBRARY[relicId].name}】` : '90 金币';
-    state.eventState.outcomeText = `铃声震荡陵墓：你收获了${lootText}、【${getCardStats(rareCard).name}】与 60 金币，但也背负了不可移除的【铃铛的诅咒】！`;
+    state.eventState.outcomeText = `铃声震荡陵墓：你收获了${lootText}与【${getCardStats(uncCard).name}】，但也背负了不可移除的【铃铛的诅咒】！`;
     return { ok: true };
   }
   if (choiceId === 'leave_mausoleum') {
@@ -1038,7 +1041,10 @@ const EVENT_OPTION_HANDLERS = {
       if (bIdx !== -1) state.player.relics.splice(bIdx, 1);
       costNote = '献出了【小血瓶】';
     } else {
-      const lostMaxHp = Math.max(1, Math.floor(state.player.maxHp * 0.3));
+      const lostMaxHp = Math.max(
+        1,
+        Math.floor(state.player.maxHp * (tune.vampBitesMaxHpLossPct / 100))
+      );
       const nextMaxHp = Math.max(25, state.player.maxHp - lostMaxHp);
       const actualLoss = Math.max(0, state.player.maxHp - nextMaxHp);
       state.player.maxHp = nextMaxHp;

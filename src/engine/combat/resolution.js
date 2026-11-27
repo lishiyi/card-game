@@ -4,11 +4,13 @@
  */
 
 import {
+  CARD_LIBRARY,
   canUpgradeCard,
   createCardInstance,
   getCardStats,
   getEffectiveCardCost,
   getRewardCardPools,
+  isGeneratableCombatCard,
   upgradeCardInstance,
 } from '../../data/cards.js';
 import { getGuardianDefensiveIntent, rollEnemyIntent } from '../../data/enemies.js';
@@ -33,6 +35,7 @@ import {
   setPendingCardChoice,
   hasPendingCardChoice,
   getActivePendingCardChoice,
+  flushQueuedOmniscience,
   invokePlayCard,
   returnDiscardCardsByFlag,
   togglePendingCardChoice,
@@ -1349,6 +1352,8 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
 
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     finalizeCombatVictory(state, onVictoryCallback);
+  } else {
+    flushQueuedOmniscience(state);
   }
 
   return {
@@ -1360,6 +1365,15 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
 }
 
 export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
+  const result = resolveCardChoiceInner(state, instanceId, onVictoryCallback);
+  if (result?.ok) {
+    flushQueuedOmniscience(state);
+    result.remaining = state?.combat?.pendingCardChoice?.remaining ?? 0;
+  }
+  return result;
+}
+
+function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
   const combat = state?.combat;
   const pending = getActivePendingCardChoice(combat);
   if (
@@ -1475,8 +1489,13 @@ export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
       return { ok: false, reason: '未在抽牌堆中找到该卡牌' };
     }
     const sourceName = pending.sourceName || '通晓万物';
+    const remainingAfter = Math.max(0, (pending.remaining ?? 1) - 1);
     const [card] = combat.drawPile.splice(dIdx, 1);
     setPendingCardChoice(combat, null);
+    if (remainingAfter > 0) {
+      combat.queuedOmnisciencePicks = (combat.queuedOmnisciencePicks ?? 0) + remainingAfter;
+      combat.queuedOmniscienceSource = sourceName;
+    }
     const cStats = getCardStats(card);
     if (cStats.unplayable) {
       exhaustCardsBatch(state, [card]);
@@ -1940,7 +1959,9 @@ export function exhaustCardsBatch(state, cardInstances) {
   ) {
     const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
     const pools = getRewardCardPools(charId);
-    const allClassCards = [...pools.common, ...pools.uncommon, ...pools.rare];
+    const allClassCards = [...pools.common, ...pools.uncommon, ...pools.rare].filter((id) =>
+      isGeneratableCombatCard(CARD_LIBRARY[id])
+    );
     const generatedNames = [];
     for (let i = 0; i < count; i += 1) {
       const randId = pickRandom(state, allClassCards);

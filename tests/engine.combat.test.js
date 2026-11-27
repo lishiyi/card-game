@@ -9,9 +9,12 @@ import {
   CURSE_CARD_IDS,
   formatCardDescription,
   formatUpgradePreview,
+  GENERATABLE_COLORLESS_CARD_IDS,
   getCardCharacter,
   getCardStats,
   getEffectiveCardCost,
+  isGeneratableCombatCard,
+  NON_GENERATABLE_COMBAT_CARD_IDS,
   upgradeCardInstance,
 } from '../src/data/cards.js';
 import { ENCOUNTERS, GREMLIN_POOL } from '../src/data/enemies.js';
@@ -4507,7 +4510,7 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   playCard(state, coreSurge.instanceId, e1.id);
   assert.equal(state.player.statuses.artifact, 1);
   playCard(state, biased.instanceId);
-  assert.equal(state.player.statuses.focus, 4);
+  assert.equal(state.player.statuses.focus, 3);
   assert.equal(state.player.statuses.biasedCognition ?? 0, 0, 'Artifact must block Biased Cognition debuff');
 
   // 2. Darkness+ triggers all Dark passives & Recursion re-channels Dark preserving darkStored
@@ -4518,15 +4521,15 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   state.player.energy = 5;
   playCard(state, darkPlus.instanceId);
   assert.equal(state.player.orbs.length, 1);
-  assert.equal(state.player.orbs[0].darkStored, 16, 'Darkness+ channels Dark (6) then triggers passive (6 + 4 Focus = 10 -> 16)');
+  assert.equal(state.player.orbs[0].darkStored, 15, 'Darkness+ channels Dark (6) then triggers passive (6 + 3 Focus = 9 -> 15)');
 
   const lowestEnemy = e2 && e2.hp < e1.hp ? e2 : e1;
   const lowestHpBefore = lowestEnemy.hp;
   playCard(state, recursion.instanceId);
-  assert.equal(lowestHpBefore - lowestEnemy.hp, 16, 'Recursion evokes Dark (16 dmg to lowest-HP enemy)');
+  assert.equal(lowestHpBefore - lowestEnemy.hp, 15, 'Recursion evokes Dark (15 dmg to lowest-HP enemy)');
   assert.equal(state.player.orbs.length, 1);
   assert.equal(state.player.orbs[0].type, 'dark');
-  assert.equal(state.player.orbs[0].darkStored, 16, 'Recursion must preserve Dark darkStored value');
+  assert.equal(state.player.orbs[0].darkStored, 15, 'Recursion must preserve Dark darkStored value');
 
   // 3. Multi-Cast X-cost + Chemical X evokes front orb X+2 times
   state.player.relics.push('chemical_x');
@@ -4536,8 +4539,8 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   state.combat.hand = [multiCast];
   state.player.energy = 2;
   playCard(state, multiCast.instanceId);
-  // 4 Focus -> Frost Evoke = 5 + 4 = 9; (2 + 2 ChemX) = 4 evokes -> 36 block
-  assert.equal(state.player.block, 36);
+  // 3 Focus -> Frost Evoke = 5 + 3 = 8; (2 + 2 ChemX) = 4 evokes -> 32 block
+  assert.equal(state.player.block, 32);
   assert.equal(state.player.orbs.length, 0);
 
   // 4. Fission (base) removes without evoking vs Fission+ evokes all orbs
@@ -4559,7 +4562,7 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
   const fissionPlus = createCardInstance(state, 'fission', true);
   state.combat.hand = [fissionPlus];
   playCard(state, fissionPlus.instanceId);
-  assert.equal(state.player.block, 9, 'Fission+ evokes Frost (5 + 4 Focus = 9) AND grants +1 Energy & +1 draw');
+  assert.equal(state.player.block, 8, 'Fission+ evokes Frost (5 + 3 Focus = 8) AND grants +1 Energy & +1 draw');
 
   // 5. Electrodynamics makes Lightning hit ALL enemies & Loop triggers front orb passive extra times at start of turn
   if (e2) {
@@ -4575,14 +4578,14 @@ test('Defect Orb Combos: Biased Cognition + Core Surge Artifact, Darkness+, Recu
     state.player.energy = 5;
     playCard(state, electro.instanceId);
     playCard(state, loop.instanceId);
-    assert.equal(state.player.orbs.length, 2);
+    assert.equal(state.player.orbs.length, 1);
     const e1Before = e1.hp;
     const e2Before = e2.hp;
     state.combat.hand = [];
     endPlayerTurn(state);
-    // End of turn: 2 Lightning passives (3+3=6 AoE); Start of next turn: Loop triggers front Lightning (+3 AoE) -> 9 dmg to BOTH enemies
-    assert.equal(e1Before - e1.hp, 9, 'Electrodynamics + Loop must hit enemy 1 for 9 total');
-    assert.equal(e2Before - e2.hp, 9, 'Electrodynamics + Loop must hit enemy 2 for 9 total');
+    // End of turn: 1 Lightning passive (3 AoE); Start of next turn: Loop triggers front Lightning (+3 AoE) -> 6 dmg to BOTH enemies
+    assert.equal(e1Before - e1.hp, 6, 'Electrodynamics + Loop must hit enemy 1 for 6 total');
+    assert.equal(e2Before - e2.hp, 6, 'Electrodynamics + Loop must hit enemy 2 for 6 total');
   }
 });
 
@@ -5467,4 +5470,151 @@ test('Full Roster 361 — Watcher (+8), Shop Colorless (+15), Special (+4) & Cur
     true,
     'Pride copied itself onto top of draw pile and was drawn next turn'
   );
+});
+
+test('P0-1 & P0-2 Regression: Unified in-combat generation blacklist (Discovery, Foreign Influence, Creative AI, Magnetism, White Noise, Enchiridion, Dead Branch, Jack/Transmutation) & Omniscience multi-pick/nested chain queue', () => {
+  // 1. Canonical blacklist metadata integrity
+  const forbiddenSet = new Set(NON_GENERATABLE_COMBAT_CARD_IDS);
+  for (const id of [
+    'feed',
+    'reaper',
+    'exhume',
+    'alchemize',
+    'self_repair',
+    'lesson_learned',
+    'wish',
+    'bandage_up',
+    'hand_of_greed',
+  ]) {
+    assert.equal(forbiddenSet.has(id), true, `${id} must be in NON_GENERATABLE_COMBAT_CARD_IDS`);
+    assert.equal(isGeneratableCombatCard(CARD_LIBRARY[id]), false, `${id} must fail isGeneratableCombatCard`);
+  }
+  assert.equal(GENERATABLE_COLORLESS_CARD_IDS.includes('bandage_up'), false);
+  assert.equal(GENERATABLE_COLORLESS_CARD_IDS.includes('hand_of_greed'), false);
+
+  // 2. Stress-test Creative AI, White Noise, Enchiridion (Defect) never leak self_repair
+  const def = createNewRun({ seed: 94001, characterId: 'defect', skipNeow: true, unlockAllOverride: true });
+  def.player.relics.push('enchiridion');
+  startCombat(def, ENCOUNTERS.floor1[0], 'normal');
+  const defEnemy = def.combat.enemies[0];
+  defEnemy.hp = 500;
+  defEnemy.maxHp = 500;
+  defEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  for (const c of def.combat.hand) {
+    assert.equal(forbiddenSet.has(c.cardId), false, `Enchiridion leaked forbidden card ${c.cardId}`);
+  }
+  def.player.statuses.creativeAi = 4;
+  def.player.statuses.magnetism = 4;
+  for (let t = 0; t < 15; t += 1) {
+    def.combat.hand = [];
+    def.combat.drawPile = Array.from({ length: 5 }, () => createCardInstance(def, 'strike', false));
+    endPlayerTurn(def);
+    for (const c of [...def.combat.hand, ...def.combat.discardPile]) {
+      assert.equal(
+        forbiddenSet.has(c.cardId),
+        false,
+        `Creative AI / Magnetism leaked forbidden card ${c.cardId} on turn ${t}`
+      );
+    }
+  }
+  for (let i = 0; i < 30; i += 1) {
+    const wn = createCardInstance(def, 'white_noise', true);
+    def.combat.hand = [wn];
+    def.player.energy = 5;
+    playCard(def, wn.instanceId);
+    for (const c of def.combat.hand) {
+      assert.equal(forbiddenSet.has(c.cardId), false, `White Noise leaked forbidden card ${c.cardId}`);
+    }
+  }
+
+  // 3. Stress-test Discovery, Foreign Influence, Jack of All Trades, Transmutation & Dead Branch
+  const ic = createNewRun({ seed: 94002, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
+  ic.player.relics.push('dead_branch');
+  startCombat(ic, ENCOUNTERS.floor1[0], 'normal');
+  const icEnemy = ic.combat.enemies[0];
+  icEnemy.hp = 500;
+  icEnemy.maxHp = 500;
+  icEnemy.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  for (let i = 0; i < 25; i += 1) {
+    for (const genId of ['discovery', 'foreign_influence', 'jack_of_all_trades', 'transmutation']) {
+      const card = createCardInstance(ic, genId, true);
+      ic.combat.hand = [card];
+      ic.player.energy = 3;
+      playCard(ic, card.instanceId);
+      if (ic.combat.pendingCardChoice?.mode === 'discover_card') {
+        for (const cand of ic.combat.pendingCardChoice.candidates || []) {
+          assert.equal(
+            forbiddenSet.has(cand.cardId),
+            false,
+            `${genId} offered forbidden card ${cand.cardId}`
+          );
+        }
+        resolveCardChoice(ic, ic.combat.pendingCardChoice.candidates[0].instanceId);
+      }
+      for (const hCard of ic.combat.hand) {
+        assert.equal(
+          forbiddenSet.has(hCard.cardId),
+          false,
+          `${genId} / Dead Branch generated forbidden card ${hCard.cardId}`
+        );
+      }
+    }
+  }
+
+  // 4. P0-2: Omniscience -> Omniscience -> Worship+ -> Ragnarok+ preserves 2nd pick
+  const w1 = createNewRun({ seed: 94003, characterId: 'watcher', skipNeow: true, unlockAllOverride: true });
+  startCombat(w1, ENCOUNTERS.floor1[0], 'normal');
+  const boss1 = w1.combat.enemies[0];
+  boss1.hp = 300;
+  boss1.maxHp = 300;
+  boss1.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  const omniA = createCardInstance(w1, 'omniscience', true);
+  const omniB = createCardInstance(w1, 'omniscience', true);
+  const worship = createCardInstance(w1, 'worship', true);
+  const ragnarok = createCardInstance(w1, 'ragnarok', true);
+  w1.combat.hand = [omniA];
+  w1.combat.drawPile = [omniB, worship, ragnarok];
+  w1.player.energy = 4;
+  assert.equal(playCard(w1, omniA.instanceId).ok, true);
+  assert.equal(w1.combat.pendingCardChoice?.mode, 'omniscience');
+  assert.equal(resolveCardChoice(w1, omniB.instanceId).ok, true);
+  assert.equal(w1.combat.pendingCardChoice?.mode, 'omniscience');
+  assert.equal(w1.combat.pendingCardChoice?.remaining, 2, 'Chained Omniscience must grant 2 picks');
+  assert.equal(resolveCardChoice(w1, worship.instanceId).ok, true);
+  assert.equal(w1.player.stance, 'divinity', 'First chained pick (Worship+ x2) enters Divinity');
+  assert.equal(w1.combat.pendingCardChoice?.mode, 'omniscience', 'Second chained Omniscience pick must remain open');
+  assert.equal(w1.combat.pendingCardChoice?.remaining, 1);
+  const hpBeforeRag = boss1.hp;
+  assert.equal(resolveCardChoice(w1, ragnarok.instanceId).ok, true);
+  assert.equal(hpBeforeRag - boss1.hp, 6 * 6 * 3 * 2, 'Second chained pick (Ragnarok+ x2 in Divinity) deals 216 damage');
+  assert.equal(w1.combat.pendingCardChoice, null);
+
+  // 5. P0-2 nested modal: Omniscience -> Omniscience -> Wish+ (opens Wish modal) -> resolves Wish -> resumes 2nd Omniscience pick
+  const w2 = createNewRun({ seed: 94004, characterId: 'watcher', skipNeow: true, unlockAllOverride: true });
+  startCombat(w2, ENCOUNTERS.floor1[0], 'normal');
+  const boss2 = w2.combat.enemies[0];
+  boss2.hp = 200;
+  boss2.maxHp = 200;
+  boss2.intent = { id: 'idle', name: '等待', type: 'buff', block: 0, summary: '等待' };
+  const o1 = createCardInstance(w2, 'omniscience', true);
+  const o2 = createCardInstance(w2, 'omniscience', true);
+  const wish2 = createCardInstance(w2, 'wish', true);
+  const wof2 = createCardInstance(w2, 'wreath_of_flame', false);
+  w2.combat.hand = [o1];
+  w2.combat.drawPile = [o2, wish2, wof2];
+  w2.player.energy = 4;
+  assert.equal(playCard(w2, o1.instanceId).ok, true);
+  assert.equal(resolveCardChoice(w2, o2.instanceId).ok, true);
+  assert.equal(resolveCardChoice(w2, wish2.instanceId).ok, true);
+  assert.equal(w2.combat.pendingCardChoice?.mode, 'wish', 'Wish modal must open first');
+  assert.equal(resolveCardChoice(w2, 'wish_strength').ok, true);
+  assert.equal(w2.player.statuses.strength, 4);
+  assert.equal(
+    w2.combat.pendingCardChoice?.mode,
+    'omniscience',
+    'Remaining Omniscience pick must automatically resume after nested Wish resolves'
+  );
+  assert.equal(resolveCardChoice(w2, wof2.instanceId).ok, true);
+  assert.equal(w2.player.statuses.vigor, 10, 'Resumed Omniscience pick played Wreath of Flame twice');
+  assert.equal(w2.combat.pendingCardChoice, null);
 });

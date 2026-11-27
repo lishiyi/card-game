@@ -5,13 +5,14 @@
 import {
   canUpgradeCard,
   CARD_LIBRARY,
-  COLORLESS_CARD_POOLS,
+  GENERATABLE_COLORLESS_CARD_IDS,
   countCombatStrikeCards,
   createCardInstance,
   getCardAttackFlatBonus,
   getCardCharacter,
   getCardStats,
   getEffectiveCardCost,
+  isGeneratableCombatCard,
   isStrikeCard,
   upgradeCardInstance,
 } from '../../data/cards.js';
@@ -1334,19 +1335,13 @@ export function playCard(
     if (stats.addRandomCardToHand) {
       const cfg = stats.addRandomCardToHand;
       const targetChar = cfg.character || state.characterId || state.player.characterId || 'ironclad';
-      const excludedHealing = new Set(['feed', 'reaper', 'alchemize', 'self_repair', 'lesson_learned', 'wish']);
       const pool = Object.values(CARD_LIBRARY)
         .filter(
           (c) =>
             getCardCharacter(c) === targetChar &&
             (!cfg.type || c.type === cfg.type) &&
             !c.shopOnly &&
-            c.rarity !== 'starter' &&
-            c.rarity !== 'special' &&
-            c.type !== 'status' &&
-            c.type !== 'curse' &&
-            !c.base?.healHp &&
-            !excludedHealing.has(c.id)
+            isGeneratableCombatCard(c)
         )
         .map((c) => c.id);
       const pickedId = pickRandom(state, pool);
@@ -1373,7 +1368,7 @@ export function playCard(
 
     if (stats.addRandomColorlessToHand) {
       for (let j = 0; j < stats.addRandomColorlessToHand; j += 1) {
-        const pickedId = pickRandom(state, COLORLESS_CARD_POOLS.all);
+        const pickedId = pickRandom(state, GENERATABLE_COLORLESS_CARD_IDS);
         if (pickedId) {
           addCardsToHand(state, pickedId, 1, false);
         }
@@ -1383,17 +1378,13 @@ export function playCard(
     if (stats.shuffleRandomZeroCostToDraw) {
       const cfg = stats.shuffleRandomZeroCostToDraw;
       const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
-      const excludedHealing = new Set(['feed', 'reaper', 'alchemize', 'self_repair', 'lesson_learned', 'wish']);
       const pool = Object.values(CARD_LIBRARY)
         .filter(
           (c) =>
             getCardCharacter(c) === charId &&
             c.type === cfg.type &&
             !c.shopOnly &&
-            c.rarity !== 'starter' &&
-            c.rarity !== 'special' &&
-            !c.base?.healHp &&
-            !excludedHealing.has(c.id)
+            isGeneratableCombatCard(c)
         )
         .map((c) => c.id);
       const createdNames = [];
@@ -1423,7 +1414,7 @@ export function playCard(
 
     if (stats.transmuteColorlessX && effectiveX > 0) {
       for (let tx = 0; tx < effectiveX; tx += 1) {
-        const pickedId = pickRandom(state, COLORLESS_CARD_POOLS.all);
+        const pickedId = pickRandom(state, GENERATABLE_COLORLESS_CARD_IDS);
         if (!pickedId) continue;
         const added = addCardsToHand(state, pickedId, 1, Boolean(stats.transmuteUpgraded));
         if (added[0] && !CARD_LIBRARY[pickedId]?.base?.isXCost) {
@@ -1730,7 +1721,7 @@ export function playCard(
     }
     if (stats.addRandomPowerZeroCost) {
       const defectPowerPool = Object.values(CARD_LIBRARY)
-        .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power')
+        .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power' && isGeneratableCombatCard(c))
         .map((c) => c.id);
       const pickedId = pickRandom(state, defectPowerPool);
       if (pickedId && combat.hand.length < MAX_HAND_SIZE) {
@@ -2296,6 +2287,7 @@ export function playCard(
       if (enemy.statuses.timeWarp <= 0) {
         enemy.statuses.timeWarp = 12;
         applyStatus(enemy, 'strength', 2);
+        combat.queuedOmnisciencePicks = 0;
         setPendingCardChoice(combat, null);
         triggeredTimeWarp = true;
         pushCombatLog(

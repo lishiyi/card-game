@@ -1882,9 +1882,9 @@ test('The Defect Real Chromium E2E: 4-hero select, Adaptive Orb Rail (Desktop 12
     assert.ok(selectAudit.launchText.includes('故障机器人'));
     assert.equal(selectAudit.launchAzure, true);
     assert.equal(selectAudit.charId, 'defect');
-    assert.equal(selectAudit.maxHp, 75);
+    assert.equal(selectAudit.maxHp, 72);
     assert.equal(selectAudit.starterRelic, 'cracked_core');
-    assert.equal(selectAudit.starterPotion, 'focus_potion');
+    assert.equal(selectAudit.starterPotion, 'potion_of_capacity');
 
     // 2. Desktop 1280x820 Combat: verify Adaptive Side Rail geometry across 1, 2, 3 enemies × 3 & 10 orbs (ZERO overlap, 0px vertical bloat, rightmost front orb in 2-col)
     const desktopCombatAudit = await cdp.evaluate(`(() => {

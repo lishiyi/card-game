@@ -5,10 +5,11 @@
 
 import {
   CARD_LIBRARY,
-  COLORLESS_CARD_POOLS,
+  GENERATABLE_COLORLESS_CARD_IDS,
   createCardInstance,
   getCardCharacter,
   getCardStats,
+  isGeneratableCombatCard,
 } from '../../data/cards.js';
 import {
   createEnemyInstance,
@@ -40,6 +41,7 @@ import {
   setPendingCardChoice,
   hasPendingCardChoice,
   getActivePendingCardChoice,
+  flushQueuedOmniscience,
   invokePlayCard,
   getPendingChoiceBlockReason,
   requestEndTurnRetainChoice,
@@ -71,6 +73,14 @@ import {
 } from './orbs.js';
 
 export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
+  const result = confirmPendingCardChoiceInner(state, explicitIds, onVictoryCallback);
+  if (result?.ok) {
+    flushQueuedOmniscience(state);
+  }
+  return result;
+}
+
+function confirmPendingCardChoiceInner(state, explicitIds = null, onVictoryCallback = null) {
   const combat = state?.combat;
   const pending = getActivePendingCardChoice(combat);
   if (
@@ -639,7 +649,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
 
   if ((state.player.statuses.helloWorld ?? 0) > 0) {
     const commonDefectPool = Object.values(CARD_LIBRARY)
-      .filter((c) => getCardCharacter(c) === 'defect' && c.rarity === 'common')
+      .filter((c) => getCardCharacter(c) === 'defect' && c.rarity === 'common' && isGeneratableCombatCard(c))
       .map((c) => c.id);
     const hwCount = state.player.statuses.helloWorld;
     for (let h = 0; h < hwCount; h += 1) {
@@ -652,7 +662,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
 
   if ((state.player.statuses.creativeAi ?? 0) > 0) {
     const defectPowerPool = Object.values(CARD_LIBRARY)
-      .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power')
+      .filter((c) => getCardCharacter(c) === 'defect' && c.type === 'power' && isGeneratableCombatCard(c))
       .map((c) => c.id);
     const aiCount = state.player.statuses.creativeAi;
     for (let a = 0; a < aiCount; a += 1) {
@@ -666,7 +676,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   if ((state.player.statuses.magnetism ?? 0) > 0) {
     const magCount = state.player.statuses.magnetism;
     for (let mg = 0; mg < magCount; mg += 1) {
-      const picked = pickRandom(state, COLORLESS_CARD_POOLS.all);
+      const picked = pickRandom(state, GENERATABLE_COLORLESS_CARD_IDS);
       if (picked) {
         addCardsToHand(state, picked, 1, false);
       }
@@ -791,7 +801,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
         (c) =>
           c.type === 'power' &&
           !c.shopOnly &&
-          c.rarity !== 'special' &&
+          isGeneratableCombatCard(c) &&
           (getCardCharacter(c) === charId || getCardCharacter(c) === 'colorless')
       )
       .map((c) => c.id);
@@ -986,6 +996,8 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     playedCardTypesThisTurn: { attack: false, skill: false, power: false },
     pendingCardChoice: null,
     pendingDiscard: null,
+    queuedOmnisciencePicks: 0,
+    queuedOmniscienceSource: '通晓万物',
     drawPile: [...innateCards, ...normalCards],
     hand: [],
     discardPile: [],
@@ -1313,6 +1325,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   combat.phase = 'enemy';
+  combat.queuedOmnisciencePicks = 0;
   combat.fledEnemyIds = [];
   combat.orbFxEvents = [];
   combat.playedAttackLastTurn = (combat.attacksPlayedThisTurn ?? 0) > 0;

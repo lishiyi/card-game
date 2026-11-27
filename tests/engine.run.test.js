@@ -3326,14 +3326,14 @@ test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inli
   );
 });
 
-test('The Defect run setup (75/70 HP, 10 cards, Cracked/Frozen Core), 4-hero pool isolation, Boss Swap, ?char=defect URL & Daily Challenge 2026-11-26 cutoff', () => {
+test('The Defect run setup (72/68 HP, 10 cards, Cracked/Frozen Core), 4-hero pool isolation, Boss Swap, ?char=defect URL & Daily Challenge 2026-11-26 cutoff', () => {
   const run = createNewRun({ seed: 44101, characterId: 'defect', ascension: 0, unlockAllOverride: true });
   assert.equal(run.characterId, 'defect');
   assert.equal(run.player.name, '故障机器人');
-  assert.equal(run.player.maxHp, 75);
-  assert.equal(run.player.hp, 75);
+  assert.equal(run.player.maxHp, 72);
+  assert.equal(run.player.hp, 72);
   assert.deepEqual(run.player.relics, ['cracked_core']);
-  assert.equal(run.player.potions[0], 'focus_potion');
+  assert.equal(run.player.potions[0], 'potion_of_capacity');
   assert.equal(run.player.deck.length, 10);
   const deckCounts = {};
   for (const c of run.player.deck) {
@@ -3341,10 +3341,10 @@ test('The Defect run setup (75/70 HP, 10 cards, Cracked/Frozen Core), 4-hero poo
   }
   assert.deepEqual(deckCounts, { strike: 4, defend: 4, zap: 1, dualcast: 1 });
 
-  // Ascension 4 reduces Defect Max HP to 70
+  // Ascension 4 reduces Defect Max HP to 68
   const runA4 = createNewRun({ seed: 44102, characterId: 'defect', ascension: 4, unlockAllOverride: true, skipNeow: true });
-  assert.equal(runA4.player.maxHp, 70);
-  assert.equal(runA4.player.hp, 70);
+  assert.equal(runA4.player.maxHp, 68);
+  assert.equal(runA4.player.hp, 68);
 
   // Strict 4-class card/relic/potion isolation: Defect combat rewards never leak Ironclad/Silent/Watcher class cards
   const rewardRun = createNewRun({ seed: 44103, characterId: 'defect', unlockAllOverride: true, skipNeow: true });
@@ -3542,12 +3542,28 @@ test('Full Roster 361 Run Integration: the_nest, vampires embrace_bites, augment
   assert.equal(chooseEventOption(nestA8, 'smash_and_grab').ok, true);
   assert.equal(nestA8.player.gold, goldBeforeNest + 50, 'A8 the_nest smash_and_grab yields 50 gold');
 
-  // 2. vampires_den embrace_bites removes all Strikes and grants 5 Bites
+  // 2. vampires_den embrace_bites removes all Strikes, grants 5 Bites, and scales 30% (A0) -> 35% (A8)
   const vampRun = createNewRun({ seed: 8803, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
   openEvt(vampRun, 'vampires_den');
   assert.equal(chooseEventOption(vampRun, 'embrace_bites').ok, true);
+  assert.equal(vampRun.player.maxHp, 80 - Math.floor(80 * 0.3), 'A0 embrace_bites deducts 30% Max HP');
   assert.equal(vampRun.player.deck.filter((c) => c.cardId === 'strike').length, 0);
   assert.equal(vampRun.player.deck.filter((c) => c.cardId === 'bite').length, 5);
+
+  const vampA8 = createNewRun({ seed: 8806, characterId: 'ironclad', ascension: 8, skipNeow: true, unlockAllOverride: true });
+  const a8MaxHpBefore = vampA8.player.maxHp;
+  openEvt(vampA8, 'vampires_den');
+  assert.equal(chooseEventOption(vampA8, 'embrace_bites').ok, true);
+  assert.equal(
+    vampA8.player.maxHp,
+    a8MaxHpBefore - Math.floor(a8MaxHpBefore * 0.35),
+    'A8 embrace_bites deducts 35% Max HP'
+  );
+  const a8VampChoices = getEventChoicesForAscension('vampires_den', 8);
+  assert.ok(
+    a8VampChoices.find((c) => c.id === 'embrace_bites')?.detail.includes('35%'),
+    'A8 vampires_den embrace_bites detail must reflect 35% Max HP cost'
+  );
 
   // 3. augmenter take_jax grants J.A.X.
   const augRun = createNewRun({ seed: 8804, characterId: 'silent', skipNeow: true, unlockAllOverride: true });
@@ -3555,19 +3571,43 @@ test('Full Roster 361 Run Integration: the_nest, vampires embrace_bites, augment
   assert.equal(chooseEventOption(augRun, 'take_jax').ok, true);
   assert.equal(augRun.player.deck.some((c) => c.cardId === 'jax'), true);
 
-  // 4. cursed_tome embrace_necronomicurse & the_mausoleum ring_cursed_bell grant unremovable curses
+  // 4. cursed_tome embrace_necronomicurse (10/14 HP cost + unupgraded rare card + rare relic) & the_mausoleum ring_cursed_bell (uncommon relic + uncommon card + 0 bonus gold)
   const tomeRun = createNewRun({ seed: 8805, characterId: 'ironclad', skipNeow: true, unlockAllOverride: true });
   openEvt(tomeRun, 'cursed_tome');
+  tomeRun.player.hp = 10;
+  assert.equal(
+    chooseEventOption(tomeRun, 'embrace_necronomicurse').ok,
+    false,
+    'cursed_tome embrace_necronomicurse must require HP > 10'
+  );
+  tomeRun.player.hp = 60;
   assert.equal(chooseEventOption(tomeRun, 'embrace_necronomicurse').ok, true);
+  assert.equal(tomeRun.player.hp, 50, 'A0 embrace_necronomicurse deducts 10 HP');
   const necro = tomeRun.player.deck.find((c) => c.cardId === 'necronomicurse');
   assert.ok(necro, 'cursed_tome embrace_necronomicurse must add Necronomicurse');
   assert.equal(canRemoveCard(necro), false);
+  const addedRareCard = tomeRun.player.deck.find(
+    (c) => tomeRun.eventState.addedCardIds.includes(c.instanceId) && c.cardId !== 'necronomicurse'
+  );
+  assert.ok(addedRareCard && !addedRareCard.upgraded, 'embrace_necronomicurse rare card must be unupgraded');
+
+  const tomeA8 = createNewRun({ seed: 8807, characterId: 'ironclad', ascension: 8, skipNeow: true, unlockAllOverride: true });
+  openEvt(tomeA8, 'cursed_tome');
+  const tomeA8HpBefore = tomeA8.player.hp;
+  assert.equal(chooseEventOption(tomeA8, 'embrace_necronomicurse').ok, true);
+  assert.equal(tomeA8.player.hp, tomeA8HpBefore - 14, 'A8 embrace_necronomicurse deducts 14 HP');
 
   openEvt(tomeRun, 'the_mausoleum');
+  const goldBeforeBell = tomeRun.player.gold;
   assert.equal(chooseEventOption(tomeRun, 'ring_cursed_bell').ok, true);
+  assert.equal(tomeRun.player.gold, goldBeforeBell, 'ring_cursed_bell must not grant extra bonus gold when an uncommon relic is awarded');
   const bell = tomeRun.player.deck.find((c) => c.cardId === 'curse_of_the_bell');
   assert.ok(bell, 'the_mausoleum ring_cursed_bell must add Curse of the Bell');
   assert.equal(canRemoveCard(bell), false);
+  const bellCard = tomeRun.player.deck.find(
+    (c) => tomeRun.eventState.addedCardIds.includes(c.instanceId) && c.cardId !== 'curse_of_the_bell'
+  );
+  assert.equal(CARD_LIBRARY[bellCard?.cardId]?.rarity, 'uncommon', 'ring_cursed_bell must grant an Uncommon card');
 
   // 5. Unremovable curses cannot be purged in shop, Peace Pipe campfire, or events, nor transformed
   tomeRun.player.gold = 500;

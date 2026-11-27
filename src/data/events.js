@@ -192,7 +192,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'embrace_necronomicurse',
         label: '翻开死灵密卷',
-        detail: '获得 1 件【稀有】遗物与 1 张已升级的【稀有】卡牌，但承受不可移除的诅咒【死灵诅咒】！',
+        detail: '失去 10 点生命，获得 1 件【稀有】遗物与 1 张【稀有】卡牌，但承受不可移除的诅咒【死灵诅咒】！',
       },
       {
         id: 'close_tome',
@@ -641,7 +641,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'ring_cursed_bell',
         label: '摇响呼唤铃铛',
-        detail: '获得 1 件【罕见】遗物、1 张【稀有】卡牌与 60 金币，但承受不可移除的诅咒【铃铛的诅咒】！',
+        detail: '获得 1 件【罕见】遗物与 1 张【罕见】卡牌，但承受不可移除的诅咒【铃铛的诅咒】！',
       },
       {
         id: 'leave_mausoleum',
@@ -671,7 +671,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'embrace_bites',
         label: '接受暗夜初拥（获得 5 张【噬咬】）',
-        detail: '失去 30% 最大生命（持有【小血瓶】时改为交出【小血瓶】无损换取），移除牌组中全部【打击】并获得 5 张【噬咬】！',
+        detail: '失去 30% 最大生命（最低保留 25 点；持有【小血瓶】时改为交出【小血瓶】无损换取），移除牌组中全部【打击】并获得 5 张【噬咬】！',
       },
       {
         id: 'refuse_vampires',
@@ -918,6 +918,7 @@ export function getEventTuning(ascension = 0) {
     idolCurseGold: isA8 ? 150 : 175,
     tomeFinalHpLoss: isA8 ? 20 : 16,
     tomeSkimHpLoss: isA8 ? 8 : 5,
+    tomeNecroHpLoss: isA8 ? 14 : 10,
     alchemistBuyGold: isA8 ? 45 : 35,
     alchemistMutagenMaxHp: isA8 ? 4 : 6,
     alchemistRobGold: isA8 ? 50 : 60,
@@ -955,6 +956,7 @@ export function getEventTuning(ascension = 0) {
     goopHpLoss: isA8 ? 14 : 11,
     goopLeaveGoldLoss: isA8 ? 25 : 15,
     vampMaxHpLossPct: isA8 ? 32 : 25,
+    vampBitesMaxHpLossPct: isA8 ? 35 : 30,
     beggarPurifyGold: isA8 ? 90 : 75,
     colosseumHpLoss: isA8 ? 18 : 14,
     colosseumGold: isA8 ? 80 : 100,
@@ -1005,6 +1007,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     cursed_tome: {
       read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，获得事件专属遗物【英雄宝典】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！`,
       skim_preface: `失去 ${t.tomeSkimHpLoss} 点生命，随机获得 1 张【罕见】卡牌加入牌组。`,
+      embrace_necronomicurse: `失去 ${t.tomeNecroHpLoss} 点生命，获得 1 件【稀有】遗物与 1 张【稀有】卡牌，但承受不可移除的诅咒【死灵诅咒】！`,
     },
     potion_alchemist: {
       buy_potions: `花费 ${t.alchemistBuyGold} 金币，随机获得药水直至填满空药水栏。`,
@@ -1073,6 +1076,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     },
     vampires_den: {
       accept_vampire_pact: `永久失去 ${t.vampMaxHpLossPct}% 最大生命（最低保留 25 点），但立即回满生命并随机升级 2 张攻击牌！`,
+      embrace_bites: `失去 ${t.vampBitesMaxHpLossPct}% 最大生命（最低保留 25 点；持有【小血瓶】时改为交出【小血瓶】无损换取），移除牌组中全部【打击】并获得 5 张【噬咬】！`,
     },
     the_nest: {
       join_ritual: `失去 ${t.nestHpLoss} 点生命，获得特殊卡牌【仪式匕首】（1 费造成 15 点伤害；斩杀时，伤害永久 +3，消耗）！`,

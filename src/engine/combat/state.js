@@ -3,7 +3,13 @@
  * and pending card-choice state helpers.
  */
 
-import { CARD_LIBRARY, createCardInstance, getCardCharacter, getCardStats } from '../../data/cards.js';
+import {
+  CARD_LIBRARY,
+  createCardInstance,
+  getCardCharacter,
+  getCardStats,
+  isGeneratableCombatCard,
+} from '../../data/cards.js';
 import { ENEMY_TEMPLATES, GREMLIN_POOL, rollEnemyIntent } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STATUS_METADATA } from '../../data/relics.js';
 import { pickDistinct, shuffled } from '../rng.js';
@@ -663,6 +669,41 @@ export function requestDrawPileChoice(state, count, sourceName = '搜寻', optio
   return true;
 }
 
+export function flushQueuedOmniscience(state) {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    state.player.hp <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    if (combat) combat.queuedOmnisciencePicks = 0;
+    return false;
+  }
+  const queued = Math.max(0, Math.floor(combat.queuedOmnisciencePicks ?? 0));
+  if (queued <= 0) return false;
+  if (hasPendingCardChoice(combat)) {
+    // If another Omniscience choice just opened (e.g. Omniscience -> Omniscience #3), fold remaining picks in immediately
+    if (combat.pendingCardChoice?.mode === 'omniscience') {
+      const maxAllowed = (combat.pendingCardChoice.candidates || []).length;
+      const merged = Math.min(maxAllowed, (combat.pendingCardChoice.remaining ?? 1) + queued);
+      combat.pendingCardChoice.remaining = merged;
+      combat.pendingCardChoice.count = merged;
+      combat.queuedOmnisciencePicks = 0;
+      return true;
+    }
+    return false;
+  }
+  combat.queuedOmnisciencePicks = 0;
+  return requestDrawPileChoice(
+    state,
+    queued,
+    combat.queuedOmniscienceSource || '通晓万物',
+    { mode: 'omniscience' }
+  );
+}
+
 export function requestExhaustPileChoice(state, count, sourceName = '发掘') {
   const combat = state?.combat;
   if (
@@ -718,11 +759,8 @@ export function requestDiscoverCardChoice(state, cfg = {}, sourceName = '发现'
         (c) =>
           c.type === 'attack' &&
           !c.shopOnly &&
-          c.rarity !== 'starter' &&
-          c.rarity !== 'special' &&
-          c.rarity !== 'status' &&
-          c.rarity !== 'curse' &&
-          c.id !== 'strike'
+          c.id !== 'strike' &&
+          isGeneratableCombatCard(c)
       )
       .map((c) => c.id);
   } else {
@@ -731,17 +769,7 @@ export function requestDiscoverCardChoice(state, cfg = {}, sourceName = '发现'
         (c) =>
           getCardCharacter(c) === charId &&
           !c.shopOnly &&
-          c.rarity !== 'starter' &&
-          c.rarity !== 'special' &&
-          c.type !== 'status' &&
-          c.type !== 'curse' &&
-          !c.base?.healHp &&
-          c.id !== 'feed' &&
-          c.id !== 'reaper' &&
-          c.id !== 'alchemize' &&
-          c.id !== 'self_repair' &&
-          c.id !== 'lesson_learned' &&
-          c.id !== 'wish'
+          isGeneratableCombatCard(c)
       )
       .map((c) => c.id);
   }

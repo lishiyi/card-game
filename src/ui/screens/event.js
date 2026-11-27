@@ -172,6 +172,7 @@ export function renderEventScreen({ state, ui }) {
           (evDef.id === 'golden_idol' && ch.id === 'smash_trap' && state.player.hp <= evTune.idolSmashHpLoss) ||
           (evDef.id === 'cursed_tome' && ch.id === 'read_final_chapter' && state.player.hp <= evTune.tomeFinalHpLoss) ||
           (evDef.id === 'cursed_tome' && ch.id === 'skim_preface' && state.player.hp <= evTune.tomeSkimHpLoss) ||
+          (evDef.id === 'cursed_tome' && ch.id === 'embrace_necronomicurse' && state.player.hp <= evTune.tomeNecroHpLoss) ||
           (evDef.id === 'mushroom_grotto' && ch.id === 'refine_red_spore' && state.player.hp <= evTune.grottoRedHpLoss) ||
           (evDef.id === 'scrap_ooze' && ch.id === 'reach_ooze' && state.player.hp <= oozeHpCost) ||
           (evDef.id === 'wing_statue' && ch.id === 'pray_wing' && state.player.hp <= evTune.wingPrayHpLoss) ||
