@@ -870,3 +870,117 @@ body.spire-modal-open {
   align-items: center;
   gap: 8px;
 }
+
+/* === Run History Filters & Card Win-Rate Statistics === */
+
+.meta-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.meta-filter-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border-muted);
+  margin: 0 2px;
+}
+
+.history-defeat-cause {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: hsl(12, 86%, 78%);
+  background: hsla(10, 44%, 18%, 0.85);
+  border: 1px solid hsla(12, 62%, 46%, 0.52);
+}
+
+.card-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.card-stat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-cavern);
+  border: 1px solid var(--border-muted);
+}
+
+.card-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card-stat-name {
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--text-ivory);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-stat-name.rarity-rare {
+  color: var(--accent-brass);
+}
+
+.card-stat-name.rarity-uncommon {
+  color: hsl(198, 86%, 76%);
+}
+
+.card-stat-winrate {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--jade-upgrade);
+  flex-shrink: 0;
+}
+
+.card-stat-winrate.mid {
+  color: var(--accent-brass);
+}
+
+.card-stat-winrate.low {
+  color: hsl(12, 82%, 74%);
+}
+
+.card-stat-bar-track {
+  height: 5px;
+  border-radius: 999px;
+  background: hsla(24, 18%, 8%, 0.9);
+  overflow: hidden;
+}
+
+.card-stat-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, hsl(146, 62%, 44%), hsl(156, 78%, 58%));
+}
+
+.card-stat-bar-fill.mid {
+  background: linear-gradient(90deg, hsl(36, 72%, 46%), hsl(44, 92%, 62%));
+}
+
+.card-stat-bar-fill.low {
+  background: linear-gradient(90deg, hsl(8, 66%, 44%), hsl(14, 82%, 58%));
+}
+
+.card-stat-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--text-sand);
+}

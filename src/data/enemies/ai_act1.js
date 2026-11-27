@@ -636,6 +636,7 @@ export const ACT1_ENEMY_AI_HANDLERS = {
       ];
     }
     if (chargeStep === 1) {
+      const blastDmg = 25 + ((enemy.ascension ?? 0) >= 2 ? 1 : 0);
       return [
         {
           probability: 1,
@@ -643,7 +644,7 @@ export const ACT1_ENEMY_AI_HANDLERS = {
             id: 'wizard_charge_2',
             name: '魔力满溢',
             type: 'buff',
-            summary: '意图：蓄力即将完成（2/2），下回合将释放【终极冲击波】（25 点伤害）！',
+            summary: `意图：蓄力即将完成（2/2），下回合将释放【终极冲击波】（${blastDmg} 点伤害）！`,
           },
         },
       ];

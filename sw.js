@@ -68,17 +68,7 @@ const PRECACHE_URLS = [
   './src/ui/app.js',
   './src/ui/audio.js',
   './src/ui/card_art.js',
-  './src/ui/card_art/colorless_special.js',
-  './src/ui/card_art/defect_a.js',
-  './src/ui/card_art/defect_b.js',
-  './src/ui/card_art/defect_c.js',
-  './src/ui/card_art/defect.js',
-  './src/ui/card_art/exp_colorless_curses.js',
-  './src/ui/card_art/exp_iron_silent.js',
-  './src/ui/card_art/exp_watcher_colorless.js',
-  './src/ui/card_art/ironclad.js',
-  './src/ui/card_art/silent.js',
-  './src/ui/card_art/watcher.js',
+  './src/ui/card_art/themes.js',
   './src/ui/card_art/wrap.js',
   './src/ui/combat_interact.js',
   './src/ui/enemy_art.js',
@@ -98,6 +88,43 @@ const PRECACHE_URLS = [
   './src/ui/settings.js',
   './src/ui/status_art.js',
 ];
+
+const LAZY_PRECACHE_URLS = [
+  './src/ui/card_art/colorless_special.js',
+  './src/ui/card_art/defect_a.js',
+  './src/ui/card_art/defect_b.js',
+  './src/ui/card_art/defect_c.js',
+  './src/ui/card_art/defect.js',
+  './src/ui/card_art/exp_colorless_curses.js',
+  './src/ui/card_art/exp_iron_silent.js',
+  './src/ui/card_art/exp_watcher_colorless.js',
+  './src/ui/card_art/ironclad.js',
+  './src/ui/card_art/silent.js',
+  './src/ui/card_art/watcher.js',
+];
+
+async function precacheFreshUrls(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return;
+  const cache = await caches.open(CACHE_NAME);
+  let nextIdx = 0;
+  const workerCount = Math.min(8, urls.length);
+  const runWorker = async () => {
+    while (nextIdx < urls.length) {
+      const url = urls[nextIdx];
+      nextIdx += 1;
+      try {
+        const freshReq = new Request(url, { cache: 'reload', credentials: 'same-origin' });
+        const res = await fetch(freshReq);
+        if (res && res.ok) {
+          await cache.put(url, res);
+        }
+      } catch {
+        // Ignore transient errors on background chunk warming
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+}
 
 async function precacheFreshAssets() {
   const cache = await caches.open(CACHE_NAME);
@@ -137,6 +164,10 @@ self.addEventListener('activate', (event) => {
         Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
+      .then(() => {
+        // Warm lazy per-class card art chunks in background for full offline PWA support
+        precacheFreshUrls(LAZY_PRECACHE_URLS).catch(() => {});
+      })
   );
 });
 

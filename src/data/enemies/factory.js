@@ -64,7 +64,7 @@ export function createEnemyInstance(state, spec) {
 
   let initialBlock = statuses.metallicize ? statuses.metallicize : 0;
   if (typeof tpl.initialBlock === 'number' && tpl.initialBlock > 0) {
-    initialBlock += tpl.initialBlock + (asc >= 9 ? (tpl.id === 'shelled_parasite' ? 2 : 6) : 0);
+    initialBlock += tpl.initialBlock + (asc >= 9 ? (tpl.id === 'shelled_parasite' ? 4 : 6) : 0);
   }
   if (spec.hordeMode && tpl.id === 'jaw_worm') {
     // Canonical Act 3 Jaw Worm Horde: starts as if Bellow was already cast

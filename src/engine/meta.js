@@ -1,7 +1,7 @@
 /**
- * Meta-progression: Ascension difficulty levels (0-5), career XP, unlockable card/relic tiers,
+ * Meta-progression: Ascension difficulty levels (0-10), career XP, unlockable card/relic tiers,
  * deterministic run scoring, Daily Challenge personal bests, detailed run review history,
- * and one-click shareable battle reports.
+ * per-card win-rate statistics, and one-click shareable battle reports.
  */
 
 import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
@@ -12,7 +12,7 @@ import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
 import { formatSeedCode } from './rng.js';
 
 export const MAX_ASCENSION = 10;
-export const MAX_RUN_HISTORY = 30;
+export const MAX_RUN_HISTORY = 50;
 export const META_STORAGE_KEY = 'sts_lite_meta_v1';
 
 function deepFreeze(obj) {
@@ -54,13 +54,13 @@ export const ASCENSION_DEFS = deepFreeze([
     level: 4,
     name: '进阶 4 · 荒芜补给',
     shortLabel: '进阶 4',
-    description: '含进阶 1–3；开局最大生命 -5，幕间休整回复降至 65%。',
+    description: '含进阶 1–3；开局最大生命降低（铁甲/猎手 -5，观者/机器人 -4），幕间休整回复降至 65%。',
   },
   {
     level: 5,
-    name: '进阶 5 · 尖塔诅咒',
+    name: '进阶 5 · 进阶之灾',
     shortLabel: '进阶 5',
-    description: '含进阶 1–4；开局牌组加入 1 张诅咒【笨拙】，商店商品与删牌价格上涨 15%。',
+    description: '含进阶 1–4；开局牌组加入 1 张无法移除的诅咒【进阶之灾】，商店商品与删牌价格上涨 15%。',
   },
   {
     level: 6,
@@ -324,9 +324,12 @@ export function syncCompendiumFromRunState(meta, state) {
     for (const entry of state.shop.relics || []) {
       if (entry?.relicId) relics.push(entry.relicId);
     }
+    if (state.shop.relicOffer?.relicId) relics.push(state.shop.relicOffer.relicId);
+    if (state.shop.exclusiveRelicOffer?.relicId) relics.push(state.shop.exclusiveRelicOffer.relicId);
     for (const entry of state.shop.potions || []) {
       if (entry?.potionId) potions.push(entry.potionId);
     }
+    if (state.shop.potionOffer?.potionId) potions.push(state.shop.potionOffer.potionId);
   }
   if (state.eventState?.libraryChoices) {
     for (const item of state.eventState.libraryChoices) {
@@ -340,6 +343,88 @@ export function syncCompendiumFromRunState(meta, state) {
   }
 
   return recordCompendiumDiscovery(meta, { cards, relics, potions, enemies });
+}
+
+export function ensureCardStats(meta) {
+  if (!meta) return {};
+  if (!meta.cardStats || typeof meta.cardStats !== 'object' || Array.isArray(meta.cardStats)) {
+    meta.cardStats = {};
+  }
+  return meta.cardStats;
+}
+
+export function accumulateCardStatsFromDeckSummary(cardStats, deckSummary, isVictory) {
+  if (!cardStats || !Array.isArray(deckSummary) || deckSummary.length === 0) return;
+  const perCard = new Map();
+  for (const item of deckSummary) {
+    if (!item || !item.cardId) continue;
+    const cid = migrateLegacyCardId(item.cardId);
+    if (!CARD_LIBRARY[cid]) continue;
+    const count = Number.isFinite(item.count) ? Math.max(1, Math.floor(item.count)) : 1;
+    const prev = perCard.get(cid) || { copies: 0, upgradedCopies: 0 };
+    prev.copies += count;
+    if (item.upgraded) prev.upgradedCopies += count;
+    perCard.set(cid, prev);
+  }
+  for (const [cid, info] of perCard.entries()) {
+    const rec = cardStats[cid] || { runs: 0, wins: 0, copies: 0, upgradedCopies: 0 };
+    rec.runs += 1;
+    if (isVictory) rec.wins += 1;
+    rec.copies += info.copies;
+    rec.upgradedCopies += info.upgradedCopies;
+    cardStats[cid] = rec;
+  }
+}
+
+export function computeCardWinRateRows(
+  meta,
+  { characterFilter = 'all', sortBy = 'winRate', includeStarters = false } = {}
+) {
+  const statsMap = ensureCardStats(meta);
+  const rows = [];
+  for (const [cardId, entry] of Object.entries(statsMap)) {
+    const def = CARD_LIBRARY[cardId];
+    if (!def || !entry || (entry.runs ?? 0) <= 0) continue;
+    if (def.type === 'status' || def.type === 'curse') continue;
+    if (!includeStarters && (cardId === 'strike' || cardId === 'defend')) continue;
+    const cardChar = getCardCharacter(def);
+    if (characterFilter !== 'all' && cardChar !== characterFilter) continue;
+    const runs = Math.max(1, Math.floor(entry.runs));
+    const wins = Math.max(0, Math.min(runs, Math.floor(entry.wins ?? 0)));
+    const copies = Math.max(runs, Math.floor(entry.copies ?? runs));
+    const upgradedCopies = Math.max(0, Math.min(copies, Math.floor(entry.upgradedCopies ?? 0)));
+    rows.push({
+      cardId,
+      name: def.name,
+      character: cardChar,
+      rarity: def.rarity,
+      type: def.type,
+      runs,
+      wins,
+      winRate: Math.round((wins / runs) * 100),
+      copies,
+      avgCopies: Number((copies / runs).toFixed(1)),
+      upgradedCopies,
+      upgradeRate: Math.round((upgradedCopies / copies) * 100),
+    });
+  }
+
+  rows.sort((a, b) => {
+    if (sortBy === 'runs') {
+      if (b.runs !== a.runs) return b.runs - a.runs;
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+    } else if (sortBy === 'upgradeRate') {
+      if (b.upgradeRate !== a.upgradeRate) return b.upgradeRate - a.upgradeRate;
+      if (b.runs !== a.runs) return b.runs - a.runs;
+    } else {
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.runs !== a.runs) return b.runs - a.runs;
+    }
+    return a.name.localeCompare(b.name, 'zh-CN');
+  });
+
+  return rows;
 }
 
 export function createDefaultMeta() {
@@ -359,6 +444,7 @@ export function createDefaultMeta() {
     recordedRunKeys: [],
     dailyRecords: {},
     runHistory: [],
+    cardStats: {},
     compendium: createDefaultCompendium(),
   };
 }
@@ -838,6 +924,12 @@ export function recordCompletedRun(meta, state) {
     meta.runHistory.length = MAX_RUN_HISTORY;
   }
 
+  accumulateCardStatsFromDeckSummary(
+    ensureCardStats(meta),
+    report.deckSummary,
+    report.outcome === 'victory'
+  );
+
   return {
     xpGained,
     newlyUnlockedTiers,
@@ -920,6 +1012,29 @@ export function normalizeMetaData(parsed) {
     parsed.dailyRecords && typeof parsed.dailyRecords === 'object' && !Array.isArray(parsed.dailyRecords)
       ? parsed.dailyRecords
       : {};
+  const normalizedCardStats = {};
+  const hasSavedCardStats =
+    parsed.cardStats && typeof parsed.cardStats === 'object' && !Array.isArray(parsed.cardStats);
+  if (hasSavedCardStats) {
+    for (const [rawId, entry] of Object.entries(parsed.cardStats)) {
+      if (!entry || typeof entry !== 'object') continue;
+      const cid = migrateLegacyCardId(rawId);
+      if (!CARD_LIBRARY[cid]) continue;
+      const runs = Number.isFinite(entry.runs) ? Math.max(0, Math.floor(entry.runs)) : 0;
+      if (runs <= 0) continue;
+      const wins = Number.isFinite(entry.wins) ? Math.max(0, Math.min(runs, Math.floor(entry.wins))) : 0;
+      const copies = Number.isFinite(entry.copies) ? Math.max(runs, Math.floor(entry.copies)) : runs;
+      const upgradedCopies = Number.isFinite(entry.upgradedCopies)
+        ? Math.max(0, Math.min(copies, Math.floor(entry.upgradedCopies)))
+        : 0;
+      const prev = normalizedCardStats[cid] || { runs: 0, wins: 0, copies: 0, upgradedCopies: 0 };
+      prev.runs += runs;
+      prev.wins += wins;
+      prev.copies += copies;
+      prev.upgradedCopies += upgradedCopies;
+      normalizedCardStats[cid] = prev;
+    }
+  }
   const loaded = {
     xp,
     unlockedTier: Math.max(
@@ -941,6 +1056,7 @@ export function normalizeMetaData(parsed) {
     recordedRunKeys: Array.isArray(parsed.recordedRunKeys) ? parsed.recordedRunKeys.slice(-60) : [],
     dailyRecords,
     runHistory,
+    cardStats: normalizedCardStats,
     compendium: parsed.compendium,
   };
   ensureCompendium(loaded);
@@ -951,6 +1067,13 @@ export function normalizeMetaData(parsed) {
       cards: (rec?.deckSnapshot || []).map((c) => c?.cardId).filter(Boolean),
       relics: Array.isArray(rec?.relicIds) ? rec.relicIds : [],
     });
+    if (!hasSavedCardStats && Array.isArray(rec?.deckSummary)) {
+      accumulateCardStatsFromDeckSummary(
+        loaded.cardStats,
+        rec.deckSummary,
+        rec.outcome === 'victory'
+      );
+    }
   }
   return loaded;
 }
@@ -1086,6 +1209,10 @@ export function validateSaveBackup(rawInput, expectedFloors = 16) {
       showDamageNumbers: typeof s.showDamageNumbers === 'boolean' ? s.showDamageNumbers : true,
       tutorialDismissed: Boolean(s.tutorialDismissed),
       mobileTapConfirm: Boolean(s.mobileTapConfirm),
+      showMechanicTips: typeof s.showMechanicTips === 'boolean' ? s.showMechanicTips : true,
+      seenMechanicTips: Array.isArray(s.seenMechanicTips)
+        ? [...new Set(s.seenMechanicTips.filter((id) => typeof id === 'string' && id.length > 0))]
+        : [],
     };
   }
 

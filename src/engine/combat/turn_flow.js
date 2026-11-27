@@ -24,6 +24,7 @@ import { pickRandom, randomInt, shuffled } from '../rng.js';
 import {
   MAX_HAND_SIZE,
   BASE_DRAW_PER_TURN,
+  VELVET_CHOKER_CARD_LIMIT,
   pushCardReveal,
   hasRelic,
   healPlayerInCombat,
@@ -41,8 +42,8 @@ import {
   setPendingCardChoice,
   hasPendingCardChoice,
   getActivePendingCardChoice,
-  flushQueuedOmniscience,
   invokePlayCard,
+  registerEndPlayerTurnHandler,
   getPendingChoiceBlockReason,
   requestEndTurnRetainChoice,
   returnDiscardCardsByFlag,
@@ -54,6 +55,7 @@ import {
   triggerChampionBeltIfVulnerable,
   applyPoisonToEnemy,
   handleEnemyDeathPassives,
+  flushPostChoiceQueues,
   drawCards,
   dealDamageToEnemy,
   dealDamageToPlayer,
@@ -75,7 +77,7 @@ import {
 export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
   const result = confirmPendingCardChoiceInner(state, explicitIds, onVictoryCallback);
   if (result?.ok) {
-    flushQueuedOmniscience(state);
+    flushPostChoiceQueues(state, onVictoryCallback);
   }
   return result;
 }
@@ -357,8 +359,20 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   for (const e of combat.enemies || []) {
     if (e.slowStacks) e.slowStacks = 0;
     if (e.statuses?.choke) delete e.statuses.choke;
-    if (e.hp > 0 && (e.invincibleMax ?? 0) > 0) {
-      e.statuses.invincible = e.invincibleMax;
+  }
+
+  // Incense Burner ticks before Blasphemy so Intangible on counter 5 -> 0 saves the player!
+  if (!state.relicCounters) state.relicCounters = {};
+  if (hasRelic(state, 'incense_burner')) {
+    const next = ((state.relicCounters.incense_burner ?? 0) + 1) % 6;
+    state.relicCounters.incense_burner = next;
+    if (next === 0) {
+      applyStatus(state.player, 'intangible', 1);
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.incense_burner.name}】清烟缭绕（每 6 回合）：获得 1 层【无实体】！`,
+        'status'
+      );
     }
   }
 
@@ -470,7 +484,6 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     );
   }
 
-  if (!state.relicCounters) state.relicCounters = {};
   if (hasRelic(state, 'happy_flower')) {
     const next = ((state.relicCounters.happy_flower ?? 0) + 1) % 3;
     state.relicCounters.happy_flower = next;
@@ -480,18 +493,6 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
         combat,
         `遗物【${RELIC_LIBRARY.happy_flower.name}】绽放（每 3 回合）：获得 1 点能量！`,
         'info'
-      );
-    }
-  }
-  if (hasRelic(state, 'incense_burner')) {
-    const next = ((state.relicCounters.incense_burner ?? 0) + 1) % 6;
-    state.relicCounters.incense_burner = next;
-    if (next === 0) {
-      applyStatus(state.player, 'intangible', 1);
-      pushCombatLog(
-        combat,
-        `遗物【${RELIC_LIBRARY.incense_burner.name}】清烟缭绕（每 6 回合）：获得 1 层【无实体】！`,
-        'status'
       );
     }
   }
@@ -716,7 +717,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   const machineLearningDraw = state.player.statuses.machineLearning ?? 0;
   const pocketwatchDraw =
     combat.turn > 1 && hasRelic(state, 'pocketwatch') && (combat.cardsPlayedLastTurn ?? 0) <= 3
-      ? 2
+      ? 3
       : 0;
   const toolsDraw = state.player.statuses.toolsOfTheTrade ?? 0;
   const nextTurnDraw = state.player.statuses.drawCardNextTurn ?? 0;
@@ -727,7 +728,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   if (pocketwatchDraw > 0) {
     pushCombatLog(
       combat,
-      `遗物【${RELIC_LIBRARY.pocketwatch.name}】生效（上回合出牌 ≤ 3）：额外抽 2 张牌！`,
+      `遗物【${RELIC_LIBRARY.pocketwatch.name}】生效（上回合出牌 ≤ 3）：额外抽 ${pocketwatchDraw} 张牌！`,
       'info'
     );
   }
@@ -802,7 +803,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
           c.type === 'power' &&
           !c.shopOnly &&
           isGeneratableCombatCard(c) &&
-          (getCardCharacter(c) === charId || getCardCharacter(c) === 'colorless')
+          getCardCharacter(c) === charId
       )
       .map((c) => c.id);
     const chosenPowerId = pickRandom(state, powerPool);
@@ -862,6 +863,10 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
       const topCard = combat.drawPile.shift();
       if (!topCard) break;
       const topStats = getCardStats(topCard);
+      const blockedByVelvetChoker = Boolean(
+        hasRelic(state, 'velvet_choker') &&
+          (combat.cardsPlayedThisTurn ?? 0) >= VELVET_CHOKER_CARD_LIMIT
+      );
       const blockedByEntangle =
         topStats.type === 'attack' && (state.player.statuses?.entangled ?? 0) > 0;
       const blockedByClash = Boolean(
@@ -879,6 +884,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
         topStats.unplayable && !(topStats.type === 'status' && hasRelic(state, 'medical_kit'));
       if (
         isUnplayable ||
+        blockedByVelvetChoker ||
         blockedByEntangle ||
         blockedByClash ||
         blockedBySignature ||
@@ -1056,13 +1062,19 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
 
   if (encounter.id === 'spire_shield_and_spear' && enemies.length >= 2) {
     state.player.statuses.surrounded = 1;
-    enemies[0].backAttack = false;
-    for (let i = 1; i < enemies.length; i += 1) {
-      enemies[i].backAttack = true;
+    const frontEnemy = enemies.find((e) => e.templateId === 'spire_spear') || enemies[0];
+    const backEnemies = [];
+    for (const e of enemies) {
+      if (e.id === frontEnemy.id) {
+        e.backAttack = false;
+      } else {
+        e.backAttack = true;
+        backEnemies.push(`【${e.name}】`);
+      }
     }
     pushCombatLog(
       combat,
-      `⚠️ 陷入【夹击】：你正面对【${enemies[0].name}】，背对【${enemies[1].name}】（背侧攻击伤害 +50%，对目标打出单体攻击可转向迎击）！`,
+      `⚠️ 陷入【夹击】：你正面对【${frontEnemy.name}】，背对${backEnemies.join('、')}（背侧攻击伤害 +50%，对目标打出指向牌或药水可转向迎击）！`,
       'status'
     );
   }
@@ -1100,8 +1112,8 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.bronze_scales.name}】生效：获得 3 层【荆棘】。`, 'status');
   }
   if (hasRelic(state, 'thread_and_needle')) {
-    applyStatus(state.player, 'platedArmor', 3);
-    pushCombatLog(combat, `遗物【${RELIC_LIBRARY.thread_and_needle.name}】生效：获得 3 层【多层护甲】。`, 'block');
+    applyStatus(state.player, 'platedArmor', 4);
+    pushCombatLog(combat, `遗物【${RELIC_LIBRARY.thread_and_needle.name}】生效：获得 4 层【多层护甲】。`, 'block');
   }
   if (hasRelic(state, 'clockwork_souvenir')) {
     applyStatus(state.player, 'artifact', 1);
@@ -1145,7 +1157,7 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     );
   }
   if (hasRelic(state, 'snecko_eye')) {
-    applyStatus(state.player, 'confused', 1);
+    applyStatus(state.player, 'confused', 1, { bypassArtifact: true });
     pushCombatLog(
       combat,
       `遗物【${RELIC_LIBRARY.snecko_eye.name}】生效：获得【混乱】，每回合额外抽 2 张牌，抽到的牌费用将随机重设！`,
@@ -1185,14 +1197,14 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   if (hasRelic(state, 'twisted_funnel')) {
     let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
-      if (applyPoisonToEnemy(state, enemy, 3) > 0) {
+      if (applyPoisonToEnemy(state, enemy, 4) > 0) {
         appliedCount += 1;
       }
     }
     if (appliedCount > 0) {
       pushCombatLog(
         combat,
-        `遗物【${RELIC_LIBRARY.twisted_funnel.name}】生效：给予敌人 3 层【中毒】！`,
+        `遗物【${RELIC_LIBRARY.twisted_funnel.name}】生效：给予敌人 4 层【中毒】！`,
         'status'
       );
     }
@@ -1365,7 +1377,9 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   if ((state.player.statuses.tempDexterityDown ?? 0) > 0) {
     const dropDex = state.player.statuses.tempDexterityDown;
     delete state.player.statuses.tempDexterityDown;
-    if (!applyStatus(state.player, 'dexterity', -dropDex)) {
+    if (applyStatus(state.player, 'dexterity', -dropDex)) {
+      pushCombatLog(combat, `临时敏捷消退，失去 ${dropDex} 点敏捷。`, 'status');
+    } else {
       pushCombatLog(combat, '【人工制品】抵消了临时敏捷消退，敏捷永久保留！', 'status');
     }
   }
@@ -1427,9 +1441,10 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     const stats = getCardStats(cardInstance);
     const keepByTempRetain = Boolean(cardInstance.tempRetainTurn);
     delete cardInstance.tempRetainTurn;
+    const isActuallyRetained = Boolean(stats.retain || keepHandByEquilibrium || keepByTempRetain);
     if (stats.ethereal) {
       etherealToExhaust.push(cardInstance);
-    } else if (stats.retain || keepHandByPyramid || keepHandByEquilibrium || keepByTempRetain) {
+    } else if (isActuallyRetained || keepHandByPyramid) {
       retainedHand.push(cardInstance);
       if (stats.retainCostReduce) {
         cardInstance.retainedCostDiscount =
@@ -1443,7 +1458,14 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         cardInstance.combatDamageMod =
           (cardInstance.combatDamageMod ?? 0) + stats.retainScaleDamage;
       }
-      if (establishmentDiscount > 0 && !stats.unplayable && !stats.isXCost && typeof stats.cost === 'number') {
+      // Runic Pyramid prevents discarding without triggering "Retain" for Establishment
+      if (
+        isActuallyRetained &&
+        establishmentDiscount > 0 &&
+        !stats.unplayable &&
+        !stats.isXCost &&
+        typeof stats.cost === 'number'
+      ) {
         cardInstance.retainedCostDiscount =
           (cardInstance.retainedCostDiscount ?? 0) + establishmentDiscount;
       }
@@ -1462,7 +1484,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   };
 
   if (etherealToExhaust.length > 0) {
-    exhaustCardsBatch(state, etherealToExhaust);
+    exhaustCardsBatch(state, etherealToExhaust, { allowEndOfTurn: true });
     if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
       finalizeCombatVictory(state, onVictoryCallback);
       return { ok: true, outcome: state.combat?.status ?? combat.status };
@@ -1471,7 +1493,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
   // 2. End of turn relics & powers (Cloak Clasp, Orichalcum, Orbs/Frozen Core, Metallicize, Plated Armor, Like Water, Study, Combust, The Bomb, Omega)
   if (hasRelic(state, 'cloak_clasp') && handCountBeforeDiscard > 0) {
-    const claspBlock = Math.min(10, handCountBeforeDiscard * 2);
+    const claspBlock = handCountBeforeDiscard;
     addPlayerBlock(state, claspBlock);
     pushCombatLog(
       combat,
@@ -1583,14 +1605,75 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     return { ok: true, outcome: state.combat?.status ?? combat.status };
   }
 
-  // 3. Enemy phase: clear enemy previous block (unless Barricade), reset Malleable, tick Poison, then execute each alive enemy's intent
+  // 3. Enemy phase: reset Invincible, clear previous block (unless Barricade), reset Malleable, tick Poison on all enemies first, then execute intents
   for (const enemy of getAliveEnemies(combat)) {
+    if ((enemy.invincibleMax ?? 0) > 0) {
+      if (!enemy.statuses) enemy.statuses = {};
+      enemy.statuses.invincible = enemy.invincibleMax;
+    }
     if (!((enemy.statuses?.barricade ?? 0) > 0)) {
       enemy.block = 0;
     }
     if ((enemy.malleableBase ?? 0) > 0 && enemy.statuses) {
       enemy.statuses.malleable = enemy.malleableBase;
     }
+  }
+
+  // Dedicated Poison pre-pass across all living enemies before any regrow/intent executes
+  // (fixes Darkling Life Link order, Minion fleeing, Transient Shifting; Poison does NOT wake sleeping Lagavulin)
+  for (const enemy of [...combat.enemies]) {
+    if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+    if (enemy.hp <= 0) continue;
+    if ((enemy.statuses?.poison ?? 0) > 0) {
+      const poisonStacks = enemy.statuses.poison;
+      const rawPoisonDmg =
+        (enemy.statuses?.intangible ?? 0) > 0 ? Math.min(1, poisonStacks) : poisonStacks;
+      const poisonDmg = applyEnemyInvincibleCap(combat, enemy, rawPoisonDmg);
+      const actualPoisonLoss = Math.min(enemy.hp, poisonDmg);
+      enemy.hp = Math.max(0, enemy.hp - poisonDmg);
+      if (state.stats && actualPoisonLoss > 0) {
+        state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualPoisonLoss;
+        state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualPoisonLoss);
+      }
+      if (poisonDmg > 0) {
+        pushCombatLog(combat, `【${enemy.name}】受【中毒】折磨失去 ${poisonDmg} 点生命！`, 'damage');
+      }
+      if (enemy.hp <= 0) {
+        if (!handleEnemyZeroHp(state, enemy)) {
+          enemy.block = 0;
+          enemy.intent = null;
+          pushCombatLog(combat, `【${enemy.name}】毒发倒下！`, 'victory');
+          handleEnemyDeathPassives(state, enemy);
+        }
+        continue;
+      }
+      if (actualPoisonLoss > 0) {
+        if ((enemy.statuses?.shifting ?? 0) > 0) {
+          enemy.statuses.strength = (enemy.statuses.strength ?? 0) - actualPoisonLoss;
+          if (enemy.statuses.strength === 0) delete enemy.statuses.strength;
+          enemy.tempStrengthRestore = (enemy.tempStrengthRestore ?? 0) + actualPoisonLoss;
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】触发【游移】，本回合力量降低 ${actualPoisonLoss} 点！`,
+            'status'
+          );
+        }
+        checkSlimeSplitTrigger(combat, enemy);
+      }
+      if (poisonStacks - 1 <= 0) {
+        delete enemy.statuses.poison;
+      } else {
+        enemy.statuses.poison = poisonStacks - 1;
+      }
+    }
+  }
+
+  if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+    return { ok: true, outcome: state.combat?.status ?? combat.status };
+  }
+  if (getAliveEnemies(combat).length === 0) {
+    finalizeCombatVictory(state, onVictoryCallback);
+    return { ok: true, outcome: state.combat?.status ?? combat.status };
   }
 
   const actingEnemies = [...combat.enemies];
@@ -1627,66 +1710,27 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       continue;
     }
 
-    // Poison ticks at the start of the enemy's turn (bypasses block, decrements by 1; lethal Poison skips enemy intent!)
-    if ((enemy.statuses?.poison ?? 0) > 0) {
-      const poisonStacks = enemy.statuses.poison;
-      const rawPoisonDmg =
-        (enemy.statuses?.intangible ?? 0) > 0 ? Math.min(1, poisonStacks) : poisonStacks;
-      const poisonDmg = applyEnemyInvincibleCap(combat, enemy, rawPoisonDmg);
-      const actualPoisonLoss = Math.min(enemy.hp, poisonDmg);
-      enemy.hp = Math.max(0, enemy.hp - poisonDmg);
-      if (state.stats && actualPoisonLoss > 0) {
-        state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualPoisonLoss;
-        state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualPoisonLoss);
-      }
-      if (poisonDmg > 0) {
-        pushCombatLog(combat, `【${enemy.name}】受【中毒】折磨失去 ${poisonDmg} 点生命！`, 'damage');
-      }
-      if (enemy.hp <= 0) {
-        if (handleEnemyZeroHp(state, enemy)) {
-          continue;
-        }
-        enemy.block = 0;
-        enemy.intent = null;
-        pushCombatLog(combat, `【${enemy.name}】毒发倒下！`, 'victory');
-        handleEnemyDeathPassives(state, enemy);
-        continue;
-      }
-      if (actualPoisonLoss > 0 && (enemy.statuses?.asleep ?? 0) > 0) {
-        delete enemy.statuses.asleep;
-        delete enemy.statuses.metallicize;
-        enemy.statuses.stunned = 1;
-        enemy.awakeTurnIndex = 0;
-        enemy.intent = {
-          id: 'stunned',
-          name: '惊醒眩晕',
-          type: 'sleep',
-          summary: '意图：刚被中毒惊醒并陷入眩晕，本回合无法行动！',
-        };
-        pushCombatLog(
-          combat,
-          `【${enemy.name}】受毒伤惊醒，失去金属化并陷入【眩晕】！`,
-          'status'
-        );
-      }
-      if (actualPoisonLoss > 0) {
-        checkSlimeSplitTrigger(combat, enemy);
-      }
-      if (poisonStacks - 1 <= 0) {
-        delete enemy.statuses.poison;
-      } else {
-        enemy.statuses.poison = poisonStacks - 1;
-      }
-    }
-
     const intent = enemy.intent;
     if (intent) {
       if (
         intent.id === 'asleep_idle' ||
         intent.id === 'stunned' ||
-        intent.id === 'automaton_stunned'
+        intent.id === 'automaton_stunned' ||
+        intent.id === 'awakened_rebirth'
       ) {
-        if (intent.id === 'stunned') {
+        if (intent.id === 'awakened_rebirth') {
+          enemy.hp = enemy.maxHp;
+          enemy.awakenedRebirthing = false;
+          if (!enemy.statuses) enemy.statuses = {};
+          enemy.statuses.regenerating = Math.max(enemy.statuses.regenerating ?? 0, 10);
+          enemy.awakeTurnIndex = 0;
+          enemy._justCompletedRebirth = true;
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】完成【黑暗重生】，以完整形态苏醒！`,
+            'status'
+          );
+        } else if (intent.id === 'stunned') {
           delete enemy.statuses.stunned;
           enemy.awakeTurnIndex = 0;
           pushCombatLog(
@@ -1736,67 +1780,73 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         }
 
         if (typeof intent.damage === 'number') {
-          const hits = intent.hits ?? 1;
-          for (let h = 0; h < hits; h += 1) {
-            if (state.player.hp <= 0 || enemy.hp <= 0 || combat.status !== 'ongoing') break;
-            const dmg = calculateAttackDamage(intent.damage, enemy, state.player);
-            const hpLost = dealDamageToPlayer(state, dmg, `【${enemy.name}】的${intent.name || '攻击'}`);
-            if (
-              hpLost > 0 &&
-              state.player.hp > 0 &&
-              combat.status === 'ongoing' &&
-              (state.player.statuses?.staticDischarge ?? 0) > 0
-            ) {
-              const sdCount = state.player.statuses.staticDischarge;
-              for (let sd = 0; sd < sdCount; sd += 1) {
-                if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
-                channelOrb(state, 'lightning', { sourceName: '静电释放' });
+          if (intent.isNonAttack) {
+            dealDamageToPlayer(state, intent.damage, `【${enemy.name}】的${intent.name || '爆炸'}`, {
+              isAttack: false,
+            });
+          } else {
+            const hits = intent.hits ?? 1;
+            for (let h = 0; h < hits; h += 1) {
+              if (state.player.hp <= 0 || enemy.hp <= 0 || combat.status !== 'ongoing') break;
+              const dmg = calculateAttackDamage(intent.damage, enemy, state.player);
+              const hpLost = dealDamageToPlayer(state, dmg, `【${enemy.name}】的${intent.name || '攻击'}`);
+              if (
+                hpLost > 0 &&
+                state.player.hp > 0 &&
+                combat.status === 'ongoing' &&
+                (state.player.statuses?.staticDischarge ?? 0) > 0
+              ) {
+                const sdCount = state.player.statuses.staticDischarge;
+                for (let sd = 0; sd < sdCount; sd += 1) {
+                  if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+                  channelOrb(state, 'lightning', { sourceName: '静电释放' });
+                }
+                if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+                  finalizeCombatVictory(state, onVictoryCallback);
+                  return {
+                    ok: true,
+                    outcome: state.combat?.status ?? combat.status,
+                    orbFxEvents: [...(combat.orbFxEvents || [])],
+                  };
+                }
               }
-              if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
-                finalizeCombatVictory(state, onVictoryCallback);
-                return {
-                  ok: true,
-                  outcome: state.combat?.status ?? combat.status,
-                  orbFxEvents: [...(combat.orbFxEvents || [])],
-                };
+              if (hpLost > 0 && intent.lifesteal && enemy.hp > 0) {
+                const prevHp = enemy.hp;
+                enemy.hp = Math.min(enemy.maxHp, enemy.hp + hpLost);
+                const healed = enemy.hp - prevHp;
+                if (healed > 0) {
+                  pushCombatLog(
+                    combat,
+                    `【${enemy.name}】吸血回复了 ${healed} 点生命（${enemy.hp}/${enemy.maxHp}）！`,
+                    'status'
+                  );
+                }
               }
-            }
-            if (hpLost > 0 && intent.lifesteal && enemy.hp > 0) {
-              const prevHp = enemy.hp;
-              enemy.hp = Math.min(enemy.maxHp, enemy.hp + hpLost);
-              const healed = enemy.hp - prevHp;
-              if (healed > 0) {
+              if (
+                hpLost > 0 &&
+                state.player.hp > 0 &&
+                (enemy.statuses?.painfulStabs ?? 0) > 0
+              ) {
+                const woundCount = enemy.statuses.painfulStabs;
+                for (let w = 0; w < woundCount; w += 1) {
+                  combat.discardPile.push(createCardInstance(state, 'wound', false));
+                }
                 pushCombatLog(
                   combat,
-                  `【${enemy.name}】吸血回复了 ${healed} 点生命（${enemy.hp}/${enemy.maxHp}）！`,
+                  `【痛刺】触发：将 ${woundCount} 张【伤口】塞入你的弃牌堆！`,
                   'status'
                 );
               }
-            }
-            if (
-              hpLost > 0 &&
-              state.player.hp > 0 &&
-              (enemy.statuses?.painfulStabs ?? 0) > 0
-            ) {
-              const woundCount = enemy.statuses.painfulStabs;
-              for (let w = 0; w < woundCount; w += 1) {
-                combat.discardPile.push(createCardInstance(state, 'wound', false));
+              const thornsTotal =
+                (state.player.statuses.flameBarrier ?? 0) + (state.player.statuses.thorns ?? 0);
+              if (state.player.hp > 0 && enemy.hp > 0 && thornsTotal > 0) {
+                pushCombatLog(
+                  combat,
+                  `反伤效果对【${enemy.name}】造成 ${thornsTotal} 点伤害！`,
+                  'attack'
+                );
+                dealDamageToEnemy(state, enemy, thornsTotal, { isAttack: false });
               }
-              pushCombatLog(
-                combat,
-                `【痛苦刺击】触发：将 ${woundCount} 张【伤口】塞入你的弃牌堆！`,
-                'status'
-              );
-            }
-            const thornsTotal =
-              (state.player.statuses.flameBarrier ?? 0) + (state.player.statuses.thorns ?? 0);
-            if (state.player.hp > 0 && enemy.hp > 0 && thornsTotal > 0) {
-              pushCombatLog(
-                combat,
-                `反伤效果对【${enemy.name}】造成 ${thornsTotal} 点伤害！`,
-                'attack'
-              );
-              dealDamageToEnemy(state, enemy, thornsTotal, { isAttack: false });
             }
           }
         }
@@ -1977,7 +2027,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             stageMsg = '+1 层【死亡律动】';
           } else if (buffStage === 2) {
             applyStatus(enemy, 'painfulStabs', 1);
-            stageMsg = '【痛苦刺击】';
+            stageMsg = '【痛刺】';
           } else if (buffStage === 3) {
             applyStatus(enemy, 'strength', 10);
             stageMsg = '额外 +10 点【力量】';
@@ -2048,26 +2098,35 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
 
         if (intent.addCurseToDeck && CARD_LIBRARY[intent.addCurseToDeck]) {
           enemy.implantUsed = true;
+          // Official STS1: Implant adds Parasite ONLY to the Master Deck (not to the active combat piles)
           const curseMaster = createCardInstance(state, intent.addCurseToDeck, false);
           state.player.deck.push(curseMaster);
-          const curseCombat = createCardInstance(state, intent.addCurseToDeck, false);
-          combat.discardPile.push(curseCombat);
           const cName = CARD_LIBRARY[intent.addCurseToDeck]?.name ?? intent.addCurseToDeck;
+          const bonusNotes = [];
           if (hasRelic(state, 'darkstone_periapt')) {
             state.player.maxHp += 6;
             state.player.hp += 6;
-            pushCombatLog(
-              combat,
-              `【${enemy.name}】将永久诅咒【${cName}】植入了你的牌组！（【黑石护符】触发：最大生命 +6）`,
-              'status'
-            );
-          } else {
-            pushCombatLog(
-              combat,
-              `【${enemy.name}】将永久诅咒【${cName}】植入了你的牌组与弃牌堆！`,
-              'status'
-            );
+            syncRedSkullStatus(state);
+            bonusNotes.push(`【${RELIC_LIBRARY.darkstone_periapt.name}】最大生命 +6`);
           }
+          if (hasRelic(state, 'ceramic_fish')) {
+            state.player.gold = (state.player.gold ?? 0) + 9;
+            if (state.stats) state.stats.goldEarned = (state.stats.goldEarned ?? 0) + 9;
+            bonusNotes.push(`【${RELIC_LIBRARY.ceramic_fish.name}】+9 金币`);
+            if (hasRelic(state, 'bloody_idol') && state.player.hp > 0) {
+              const healed = healPlayerInCombat(state, 5);
+              if (healed > 0) {
+                bonusNotes.push(`【${RELIC_LIBRARY.bloody_idol.name}】回复 ${healed} 生命`);
+              }
+            }
+          }
+          pushCombatLog(
+            combat,
+            bonusNotes.length > 0
+              ? `【${enemy.name}】将永久诅咒【${cName}】植入了你的主牌组！（${bonusNotes.join('、')}）`
+              : `【${enemy.name}】将永久诅咒【${cName}】植入了你的主牌组！`,
+            'status'
+          );
         }
 
         if (intent.summonMinions) {
@@ -2161,6 +2220,35 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       }
     }
 
+    // Lagavulin natural Turn-3 wake-up happens BEFORE end-of-turn Metallicize Block so it does not gain Block on the turn it wakes!
+    if (enemy.templateId === 'lagavulin') {
+      if ((enemy.statuses?.asleep ?? 0) > 0) {
+        enemy.statuses.asleep -= 1;
+        if (enemy.statuses.asleep <= 0) {
+          delete enemy.statuses.asleep;
+          delete enemy.statuses.metallicize;
+          enemy.awakeTurnIndex = 0;
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】从沉睡中自然苏醒，失去金属化并准备发起猛攻！`,
+            'status'
+          );
+        }
+      } else if (
+        (enemy.statuses?.stunned ?? 0) <= 0 &&
+        intent?.id !== 'asleep_idle' &&
+        intent?.id !== 'stunned'
+      ) {
+        enemy.awakeTurnIndex = (enemy.awakeTurnIndex ?? 0) + 1;
+      }
+    } else if (enemy.templateId === 'awakened_one' && enemy.unawakened === false) {
+      if (enemy._justCompletedRebirth) {
+        delete enemy._justCompletedRebirth;
+      } else {
+        enemy.awakeTurnIndex = (enemy.awakeTurnIndex ?? 0) + 1;
+      }
+    }
+
     // Ritual & Metallicize trigger at end of enemy turn
     if ((enemy.statuses.ritual ?? 0) > 0) {
       if (enemy.skipRitualThisTurn) {
@@ -2196,30 +2284,6 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     }
     if (enemy.hp > 0 && (enemy.statuses?.explosive ?? 0) > 0 && !intent?.selfDestruct) {
       enemy.statuses.explosive = Math.max(1, enemy.statuses.explosive - 1);
-    }
-
-    if (enemy.templateId === 'lagavulin') {
-      if ((enemy.statuses?.asleep ?? 0) > 0) {
-        enemy.statuses.asleep -= 1;
-        if (enemy.statuses.asleep <= 0) {
-          delete enemy.statuses.asleep;
-          delete enemy.statuses.metallicize;
-          enemy.awakeTurnIndex = 0;
-          pushCombatLog(
-            combat,
-            `【${enemy.name}】从沉睡中自然苏醒，失去金属化并准备发起猛攻！`,
-            'status'
-          );
-        }
-      } else if (
-        (enemy.statuses?.stunned ?? 0) <= 0 &&
-        intent?.id !== 'asleep_idle' &&
-        intent?.id !== 'stunned'
-      ) {
-        enemy.awakeTurnIndex = (enemy.awakeTurnIndex ?? 0) + 1;
-      }
-    } else if (enemy.templateId === 'awakened_one' && enemy.unawakened === false) {
-      enemy.awakeTurnIndex = (enemy.awakeTurnIndex ?? 0) + 1;
     }
 
     if ((enemy.statuses?.gainStrengthEndTurn ?? 0) > 0) {
@@ -2302,7 +2366,7 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         'status'
       );
     }
-    enemy.intent = rollEnemyIntent(state, enemy, state.player, combat);
+    enemy.intent = rollEnemyIntent(state, enemy);
   }
 
   // 5. Start next Player turn
@@ -2314,3 +2378,5 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
     orbFxEvents: [...(combat.orbFxEvents || [])],
   };
 }
+
+registerEndPlayerTurnHandler(endPlayerTurn);

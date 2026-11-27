@@ -25,12 +25,16 @@ export const AUDIO_CUES = Object.freeze([
   'stance_calm',
   'stance_wrath',
   'stance_divinity',
+  'stance_exit',
+  'mantra',
   'orb_channel',
   'orb_evoke',
   'orb_lightning',
   'orb_frost',
   'orb_dark',
   'orb_plasma',
+  'orb_slot',
+  'strength_up',
   'heal',
   'potion',
   'gold',
@@ -1308,6 +1312,90 @@ export function createSoundEngine(getSettings) {
             duration: 0.22,
             gain: baseGain * 0.72,
             reverb: 0.36,
+          });
+          break;
+        }
+        case 'orb_slot': {
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 330,
+            endFreq: 660,
+            duration: 0.16,
+            filterFreq: 1800,
+            gain: baseGain * 0.62,
+            reverb: 0.3,
+          });
+          playFmTone(audioCtx, {
+            carrierFreq: 660,
+            modFreq: 990,
+            modDepth: 120,
+            start: 0.05,
+            duration: 0.16,
+            gain: baseGain * 0.54,
+            reverb: 0.34,
+          });
+          break;
+        }
+        case 'stance_exit': {
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 523.25,
+            endFreq: 392.0,
+            duration: 0.16,
+            gain: baseGain * 0.56,
+            reverb: 0.32,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 659.25,
+            endFreq: 783.99,
+            start: 0.04,
+            duration: 0.14,
+            gain: baseGain * 0.44,
+            reverb: 0.34,
+          });
+          break;
+        }
+        case 'mantra': {
+          playFmTone(audioCtx, {
+            carrierFreq: 587.33,
+            modFreq: 1762.0,
+            modDepth: 95,
+            duration: 0.34,
+            attack: 0.014,
+            gain: baseGain * 0.64,
+            reverb: 0.48,
+          });
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 880.0,
+            start: 0.05,
+            attack: 0.015,
+            duration: 0.3,
+            gain: baseGain * 0.42,
+            reverb: 0.48,
+          });
+          break;
+        }
+        case 'strength_up': {
+          playTone(audioCtx, {
+            type: 'sawtooth',
+            freq: 146.83,
+            endFreq: 220.0,
+            duration: 0.22,
+            attack: 0.01,
+            filterFreq: 1100,
+            gain: baseGain * 0.72,
+            reverb: 0.28,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 293.66,
+            endFreq: 440.0,
+            start: 0.04,
+            duration: 0.18,
+            gain: baseGain * 0.56,
+            reverb: 0.3,
           });
           break;
         }

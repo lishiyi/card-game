@@ -799,7 +799,7 @@ test('E2E: Larger potion row tap targets, clickable campfire dig loot, War Paint
         hasPeacePipeZhs: compText.includes('宁静烟斗'),
         hasMummifiedHandZhs: compText.includes('干瘪之手'),
         hasCoffeeDripperZhs: compText.includes('咖啡滤杯'),
-        hasVelvetChokerZhs: compText.includes('天鹅绒颈圈'),
+        hasVelvetChokerZhs: compText.includes('天鹅绒项圈'),
       };
     })()`);
     assert.ok(desktopAudit.potHeight >= 31, `Desktop potion button should be >= 31px tall, got ${desktopAudit.potHeight}px`);
@@ -2415,6 +2415,165 @@ test('E2E: Slay-the-Spire Turn Transition Banner & Discard/Reshuffle/Draw Card S
     }))()`);
     assert.equal(offAudit.banners, 0, 'animSpeed=off must suppress turn transition banner');
     assert.equal(offAudit.sweeps, 0, 'animSpeed=off must suppress discard/draw sweep ghosts');
+  } finally {
+    await session?.close();
+  }
+});
+
+test('E2E Part A: Run History Filters & Card Win-Rate Table, First-Time Mechanic Tip Toast + Settings Toggle, and Lazy Card Art Hydration (Desktop + 390px Mobile)', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('No local Chromium/Chrome binary available');
+    return;
+  }
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    const waitUntil = async (expr, timeoutMs = 4000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (await cdp.evaluate(`Boolean(${expr})`)) return true;
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      throw new Error(`Timed out waiting for: ${expr}`);
+    };
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
+    await waitUntil('window.__SPIRE_APP__?.getState');
+
+    // 1. Seed meta with multi-class Run History (victories + defeat with cause) & cardStats -> verify Meta modal filters & Card Win-Rate table
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const meta = app.getMeta();
+      meta.totalRuns = 3;
+      meta.victories = 2;
+      meta.xp = 400;
+      meta.unlockedTier = 2;
+      meta.maxAscensionUnlocked = 1;
+      meta.cardStats = {
+        pommel_strike: { runs: 2, wins: 2, copies: 3, upgradedCopies: 2 },
+        tantrum: { runs: 1, wins: 0, copies: 1, upgradedCopies: 1 },
+      };
+      meta.runHistory = [
+        {
+          characterId: 'ironclad',
+          ascension: 0,
+          outcome: 'victory',
+          act: 3,
+          floor: 16,
+          seed: 1001,
+          seedText: '1001',
+          score: 820,
+          deckSize: 18,
+          relicCount: 9,
+          enemiesSlain: 22,
+          deckSummary: [{ cardId: 'pommel_strike', count: 2, upgraded: true }],
+        },
+        {
+          characterId: 'watcher',
+          ascension: 0,
+          outcome: 'defeat',
+          act: 2,
+          floor: 10,
+          seed: 1002,
+          seedText: '1002',
+          score: 310,
+          deckSize: 15,
+          relicCount: 4,
+          enemiesSlain: 11,
+          defeatedBy: '地精首领',
+          deckSummary: [{ cardId: 'tantrum', count: 1, upgraded: true }],
+        },
+      ];
+      app.openModal('meta');
+    })()`);
+    await waitUntil('document.getElementById("meta-card-stats-section")');
+
+    const metaAudit = await cdp.evaluate(`(() => {
+      const allHistoryRows = document.querySelectorAll('#run-history-list .history-row').length;
+      const defeatCauseText = document.querySelector('#run-history-list .history-defeat-cause')?.textContent?.trim() || '';
+      const cardRowsAll = document.querySelectorAll('#meta-card-stats-grid .card-stat-row').length;
+      document.querySelector('[data-action="set-history-outcome"][data-outcome-filter="victory"]')?.click();
+      const historyWinsOnly = document.querySelectorAll('#run-history-list .history-row').length;
+      document.querySelector('[data-action="set-history-outcome"][data-outcome-filter="all"]')?.click();
+      document.querySelector('[data-action="set-history-char"][data-char-filter="watcher"]')?.click();
+      const historyWatcherOnly = document.querySelectorAll('#run-history-list .history-row').length;
+      document.querySelector('[data-action="set-card-stats-char"][data-char-filter="ironclad"]')?.click();
+      const cardRowsIron = document.querySelectorAll('#meta-card-stats-grid .card-stat-row').length;
+      document.querySelector('[data-action="close-modal"]')?.click();
+      return { allHistoryRows, defeatCauseText, cardRowsAll, historyWinsOnly, historyWatcherOnly, cardRowsIron };
+    })()`);
+    assert.equal(metaAudit.allHistoryRows, 2);
+    assert.ok(metaAudit.defeatCauseText.includes('地精首领'), `Defeat cause pill should show enemy name, got: ${metaAudit.defeatCauseText}`);
+    assert.equal(metaAudit.cardRowsAll, 2);
+    assert.equal(metaAudit.historyWinsOnly, 1);
+    assert.equal(metaAudit.historyWatcherOnly, 1);
+    assert.equal(metaAudit.cardRowsIron, 1);
+
+    // 2. Launch Watcher run -> enter Floor 1 combat -> verify First-Time Mechanic Tip toast & Lazy Card Art hydration
+    await launchHeroFromCharacterSelect(cdp, 'watcher');
+    await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      st.neowState = null;
+      app.render();
+      document.querySelector('.map-node-btn.available')?.click();
+    })()`);
+    await waitUntil('document.querySelectorAll("#hand-tray .game-card").length >= 4');
+    // Wait briefly for lazy Watcher card art chunk to hydrate
+    await waitUntil(`(() => {
+      const svgs = [...document.querySelectorAll('#hand-tray .card-art-svg')];
+      return svgs.length >= 4 && svgs.every((s) => s.querySelector('path, circle, polygon, rect, ellipse, line'));
+    })()`);
+
+    const tipAudit = await cdp.evaluate(`(() => {
+      const toast = document.getElementById('mechanic-tip-toast');
+      const tipId = toast?.dataset?.tipId || '';
+      const tipVisible = Boolean(toast && getComputedStyle(toast).display !== 'none');
+      document.getElementById('btn-dismiss-mechanic-tip')?.click();
+      const toastAfterDismiss = Boolean(document.getElementById('mechanic-tip-toast'));
+      return { tipId, tipVisible, toastAfterDismiss };
+    })()`);
+    assert.equal(tipAudit.tipVisible, true, 'Watcher first combat must show Mechanic Tip toast');
+    assert.equal(tipAudit.tipId, 'watcher_stance');
+    assert.equal(tipAudit.toastAfterDismiss, false, 'Clicking 知道了 dismisses the tip toast');
+
+    // 3. Settings modal toggles Mechanic Tips cleanly & 390px mobile has zero overflow
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await new Promise((r) => setTimeout(r, 80));
+    const settingsAudit = await cdp.evaluate(`(() => {
+      document.getElementById('btn-hud-more')?.click();
+      document.getElementById('btn-open-settings')?.click();
+      const btn = document.getElementById('btn-toggle-mechanic-tips');
+      const beforeText = btn?.textContent?.trim() || '';
+      btn?.click();
+      const afterText = document.getElementById('btn-toggle-mechanic-tips')?.textContent?.trim() || '';
+      document.querySelector('[data-action="close-modal"]')?.click();
+      const overflow = document.documentElement.scrollWidth - window.innerWidth;
+      return { beforeText, afterText, overflow };
+    })()`);
+    assert.ok(settingsAudit.beforeText.includes('已开启'), `Expected 机制提示：已开启, got: ${settingsAudit.beforeText}`);
+    assert.ok(settingsAudit.afterText.includes('已关闭'), `Expected 机制提示：已关闭, got: ${settingsAudit.afterText}`);
+    assert.ok(settingsAudit.overflow <= 1, `390px mobile must have zero overflow, got ${settingsAudit.overflow}px`);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
   } finally {
     await session?.close();
   }

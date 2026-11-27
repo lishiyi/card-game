@@ -181,11 +181,19 @@ export const ACT2_ENEMY_AI_HANDLERS = {
       ];
     }
 
+    const peckHits = (enemy.ascension ?? 0) >= 2 ? 6 : 5;
     if (enemy.turnIndex === 0) {
       return [
         {
           probability: 0.65,
-          intent: { id: 'byrd_peck', name: '迅捷啄击', type: 'attack', damage: 1, hits: 4 },
+          intent: {
+            id: 'byrd_peck',
+            name: '迅捷啄击',
+            type: 'attack',
+            damage: 1,
+            hits: peckHits,
+            skipGenericAscScaling: true,
+          },
         },
         {
           probability: 0.35,
@@ -203,7 +211,14 @@ export const ACT2_ENEMY_AI_HANDLERS = {
     const pool = [
       {
         weight: 0.5,
-        intent: { id: 'byrd_peck', name: '迅捷啄击', type: 'attack', damage: 1, hits: 4 },
+        intent: {
+          id: 'byrd_peck',
+          name: '迅捷啄击',
+          type: 'attack',
+          damage: 1,
+          hits: peckHits,
+          skipGenericAscScaling: true,
+        },
       },
       {
         weight: 0.3,
@@ -924,7 +939,7 @@ export const ACT2_ENEMY_AI_HANDLERS = {
           intent: {
             id: 'stunned',
             name: '硬壳碎裂 · 眩晕',
-            type: 'debuff',
+            type: 'sleep',
             summary: '多层护甲已被击碎！本回合陷入眩晕无法行动。',
           },
         },

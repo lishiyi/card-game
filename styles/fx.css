@@ -356,8 +356,13 @@
 }
 
 .fx-impact-block .fx-impact-svg-el,
-.fx-impact-stance_calm .fx-impact-svg-el {
+.fx-impact-stance_calm .fx-impact-svg-el,
+.fx-impact-stance_exit .fx-impact-svg-el {
   filter: drop-shadow(0 0 10px hsla(196, 94%, 64%, 0.85));
+}
+
+.fx-impact-electric .fx-impact-svg-el {
+  filter: drop-shadow(0 0 12px hsla(196, 100%, 66%, 0.92));
 }
 
 .fx-impact-heal .fx-impact-svg-el {

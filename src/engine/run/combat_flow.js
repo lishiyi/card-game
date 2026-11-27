@@ -4,7 +4,7 @@
 
 import { ENCOUNTERS } from '../../data/enemies.js';
 import { getEventIdsForAct, TOTAL_FLOORS } from '../../data/events.js';
-import { RELIC_LIBRARY } from '../../data/relics.js';
+import { RELIC_LIBRARY, rollWeightedPotionId } from '../../data/relics.js';
 import {
   confirmPendingCardChoice,
   confirmScryChoice,
@@ -13,6 +13,7 @@ import {
   hasRelic,
   initiateScry,
   playCard,
+  pushCombatLog,
   reconcileCombatState,
   resolveCardChoice,
   restartCombat,
@@ -48,7 +49,7 @@ import {
 export function transitionCombatVictory(state) {
   const role = state.combat?.role ?? 'normal';
   const asc = state.ascension ?? 0;
-  const { relics, potions } = getUnlockedPools(state);
+  const { relics } = getUnlockedPools(state);
   const goldMult =
     (hasDailyModifier(state, 'midas') ? 1.65 : 1) *
     (hasRelic(state, 'golden_idol_relic') ? 1.25 : 1);
@@ -80,12 +81,12 @@ export function transitionCombatVictory(state) {
           name: `${secondBoss.name}（终末双王 · 第 2/2 战）`,
         };
         startCombat(state, secondEncounter, 'boss', transitionCombatVictory);
-        if (state.combat?.logs) {
-          state.combat.logs.push({
-            turn: 1,
-            type: 'warning',
-            message: `【进阶 10 · 终末双王】首位首领已陨落！第 2 位第 3 幕首领【${cleanSecondName}】无休整降临！`,
-          });
+        if (state.combat) {
+          pushCombatLog(
+            state.combat,
+            `【进阶 10 · 终末双王】首位首领已陨落！第 2 位第 3 幕首领【${cleanSecondName}】无休整降临！`,
+            'status'
+          );
         }
         return;
       }
@@ -159,18 +160,23 @@ export function transitionCombatVictory(state) {
   } else if (isElite) {
     relicId = rollUnownedRelicId(state, 'elite');
     if (relicId && hasRelic(state, 'black_star')) {
-      const candidates = getUnlockedPools(state).relics.allStandard.filter(
-        (id) => !hasRelic(state, id) && id !== relicId
-      );
-      if (candidates.length > 0) {
-        extraRelicId = pickRandom(state, candidates);
-      }
+      extraRelicId = rollUnownedRelicId(state, 'elite', null, [relicId]);
     }
   }
 
-  const dropPotion =
-    hasRelic(state, 'white_beast_statue') || nextRandom(state) < (isElite ? 0.65 : 0.42);
-  const potionId = dropPotion ? pickRandom(state, potions) : null;
+  // Official STS1 40% ±10% Blizzard/Pity potion drop system (White Beast Statue guarantees a drop without draining pity)
+  if (typeof state.potionDropChance !== 'number' || !Number.isFinite(state.potionDropChance)) {
+    state.potionDropChance = 40;
+  }
+  const guaranteedPotion = hasRelic(state, 'white_beast_statue');
+  const dropPotion = guaranteedPotion || nextRandom(state) * 100 < state.potionDropChance;
+  if (!guaranteedPotion) {
+    state.potionDropChance = dropPotion
+      ? Math.max(0, state.potionDropChance - 10)
+      : Math.min(100, state.potionDropChance + 10);
+  }
+  const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
+  const potionId = dropPotion ? rollWeightedPotionId(charId, () => nextRandom(state)) : null;
   const cardChoices = rollRewardCards(state, 3, role);
   const dropEmeraldKey = Boolean(state.combat?.isBurningElite && !ensureRunKeys(state).emerald);
 
@@ -191,6 +197,28 @@ export function transitionCombatVictory(state) {
     pickedCardId: null,
   };
   state.screen = 'reward';
+}
+
+function meetsEventSpawnPrereq(state, eventId) {
+  const gold = state.player?.gold ?? 0;
+  const hp = state.player?.hp ?? 0;
+  const maxHp = Math.max(1, state.player?.maxHp ?? 1);
+  const asc = state.ascension ?? 0;
+  const floor = state.floor ?? 1;
+  switch (eventId) {
+    case 'cleric':
+      return gold >= 35;
+    case 'the_joust':
+      return gold >= 50;
+    case 'beggar_shrine':
+      return gold >= (asc >= 8 ? 90 : 75);
+    case 'moai_head':
+      return hp <= Math.floor(maxHp * 0.5) || hasRelic(state, 'golden_idol_relic');
+    case 'dead_adventurer':
+      return floor > 6;
+    default:
+      return true;
+  }
 }
 
 export function selectMapNode(state, nodeId) {
@@ -355,7 +383,17 @@ export function selectMapNode(state, nodeId) {
     case 'event': {
       const eligibleEvents = getEventIdsForAct(act);
       const unseen = eligibleEvents.filter((id) => !state.visitedEventIds.includes(id));
-      const eventId = pickRandom(state, unseen.length > 0 ? unseen : eligibleEvents);
+      const unseenQualified = unseen.filter((id) => meetsEventSpawnPrereq(state, id));
+      const anyQualified = eligibleEvents.filter((id) => meetsEventSpawnPrereq(state, id));
+      const eventPool =
+        unseenQualified.length > 0
+          ? unseenQualified
+          : unseen.length > 0
+            ? unseen
+            : anyQualified.length > 0
+              ? anyQualified
+              : eligibleEvents;
+      const eventId = pickRandom(state, eventPool);
       state.visitedEventIds.push(eventId);
       state.eventState = {
         eventId,

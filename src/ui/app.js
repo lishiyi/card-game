@@ -55,6 +55,12 @@ import {
 import { dispatchUiAction } from './actions/index.js';
 import { createSoundEngine } from './audio.js';
 import {
+  ensureAllCardArtLoaded,
+  ensureCharacterCardArtLoaded,
+  onCardArtLoaded,
+  patchRenderedCardArtFrames,
+} from './card_art.js';
+import {
   applyCombatTacticsUI,
   clearCombatTacticsUI,
   createCombatDragController,
@@ -412,6 +418,11 @@ export function mountSpireApp(rootEl) {
     compendiumCharFilter: 'all',
     compendiumRelicTier: 'all',
     compendiumShowUpgraded: false,
+    historyCharFilter: 'all',
+    historyOutcomeFilter: 'all',
+    cardStatsCharFilter: 'all',
+    cardStatsSort: 'winRate',
+    cardStatsIncludeStarters: false,
     deckSort: 'order',
     deckStack: true,
     inspectedMapNodeId: null,
@@ -652,6 +663,14 @@ export function mountSpireApp(rootEl) {
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
     const prevModal = lastRenderedModal;
+
+    const artCharTarget = normalizeCharacterId(
+      state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId
+    );
+    ensureCharacterCardArtLoaded(artCharTarget);
+    if (ui.modal === 'compendium' || ui.modal === 'history_detail') {
+      ensureAllCardArtLoaded();
+    }
 
     if (ui.showCharacterSelect || !state) {
       const menuView = ui.menuView || 'home';
@@ -2007,6 +2026,10 @@ export function mountSpireApp(rootEl) {
     }
   });
 
+  onCardArtLoaded(() => {
+    patchRenderedCardArtFrames(rootEl);
+  });
+
   render();
   return {
     getState: () => state,
@@ -2016,6 +2039,7 @@ export function mountSpireApp(rootEl) {
     getLastAudioCue: () => soundEngine.getLastCue(),
     getRecentAudioCues: () => soundEngine.getRecentCues(),
     clearRecentAudioCues: () => soundEngine.clearRecentCues(),
+    ensureAllCardArtLoaded,
     isCharacterSelect: () => Boolean(ui.showCharacterSelect || !state),
     render,
     openModal: (modalName) => {

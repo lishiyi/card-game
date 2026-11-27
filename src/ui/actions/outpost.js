@@ -654,25 +654,40 @@ export const OUTPOST_ACTIONS = {
 
   'confirm-event-purge'(ctx, target) {
     const { state, soundEngine } = ctx;
-    completeEventPurge(state, target.dataset.instanceId);
-    soundEngine.play('exhaust');
-    ctx.setNotice('');
+    const res = completeEventPurge(state, target.dataset.instanceId);
+    if (res?.ok) {
+      soundEngine.play('exhaust');
+      ctx.setNotice('');
+    } else {
+      soundEngine.play('error');
+      ctx.setNotice(res?.reason || '无法移除该卡牌', 'warn');
+    }
     ctx.render();
   },
 
   'confirm-event-card-action'(ctx, target) {
     const { state, soundEngine } = ctx;
-    completeEventCardAction(state, target.dataset.instanceId);
-    soundEngine.play('smith');
-    ctx.setNotice('');
+    const res = completeEventCardAction(state, target.dataset.instanceId);
+    if (res?.ok) {
+      soundEngine.play('smith');
+      ctx.setNotice('');
+    } else {
+      soundEngine.play('error');
+      ctx.setNotice(res?.reason || '无法执行该卡牌操作', 'warn');
+    }
     ctx.render();
   },
 
   'pick-event-library-card'(ctx, target) {
     const { state, soundEngine } = ctx;
-    pickEventLibraryCard(state, target.dataset.instanceId);
-    soundEngine.play('card_skill');
-    ctx.setNotice('');
+    const res = pickEventLibraryCard(state, target.dataset.instanceId);
+    if (res?.ok) {
+      soundEngine.play('card_skill');
+      ctx.setNotice('');
+    } else {
+      soundEngine.play('error');
+      ctx.setNotice(res?.reason || '无法选择该卡牌', 'warn');
+    }
     ctx.render();
   },
 

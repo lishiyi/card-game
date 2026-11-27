@@ -15,6 +15,7 @@ import {
 } from '../../engine/combat.js';
 import { getEnemyIntentPreview } from '../../engine/math.js';
 import { isCardBonusConditionMet } from '../../engine/tactics.js';
+import { detectActiveMechanicTip } from '../glossary.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
 import { getCharacterSvg, getIntentIconSvg, getOrbSvg } from '../icons.js';
 
@@ -103,6 +104,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           isIconOnlyIntent = !blockVal;
         } else if (intentType === 'defend_buff') {
           intentBadgeInnerHtml = `${getIntentIconSvg('defend')}${blockVal ? `<span class="intent-num">${escapeHtml(blockVal)}</span>` : ''}<span class="intent-sub-icon buff">${getIntentIconSvg('buff')}</span>`;
+          isIconOnlyIntent = !blockVal;
+        } else if (intentType === 'defend_debuff') {
+          intentBadgeInnerHtml = `${getIntentIconSvg('defend')}${blockVal ? `<span class="intent-num">${escapeHtml(blockVal)}</span>` : ''}<span class="intent-sub-icon debuff">${getIntentIconSvg('debuff')}</span>`;
           isIconOnlyIntent = !blockVal;
         } else if (intentType === 'buff') {
           intentBadgeInnerHtml = getIntentIconSvg('buff');
@@ -367,7 +371,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         ? ''
         : check.reason.includes('能量')
           ? 'energy'
-          : check.reason.includes('天鹅绒颈圈') || check.reason.includes('凡庸')
+          : check.reason.includes('天鹅绒项圈') || check.reason.includes('天鹅绒颈圈') || check.reason.includes('凡庸')
             ? 'choker'
             : 'unplayable';
       const conditionMet = check.playable && isCardBonusConditionMet(state, card);
@@ -804,6 +808,24 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           ? `<div class="mobile-log-peek" id="mobile-log-peek" data-action="toggle-mobile-log">${escapeHtml(latestLogMsg)}</div>`
           : ''
       }
+      ${(() => {
+        const activeTip = !ui?.modal && !isAnyPendingChoice ? detectActiveMechanicTip(state, settings) : null;
+        if (!activeTip) return '';
+        return `
+          <aside class="mechanic-tip-toast" id="mechanic-tip-toast" data-tip-id="${escapeHtml(activeTip.id)}" role="status" aria-live="polite">
+            <div class="mechanic-tip-head">
+              <span class="mechanic-tip-badge">${escapeHtml(activeTip.badge)}</span>
+              <strong class="mechanic-tip-title">${escapeHtml(activeTip.title)}</strong>
+            </div>
+            <p class="mechanic-tip-body">${escapeHtml(activeTip.body)}</p>
+            <div class="mechanic-tip-actions">
+              <button type="button" class="btn-brass btn-compact" id="btn-dismiss-mechanic-tip" data-action="dismiss-mechanic-tip" data-tip-id="${escapeHtml(activeTip.id)}">知道了</button>
+              <button type="button" class="btn-stone btn-compact" data-action="open-tip-glossary" data-tip-id="${escapeHtml(activeTip.id)}" data-glossary-query="${escapeHtml(activeTip.glossaryQuery || '')}">词典详情</button>
+              <button type="button" class="btn-stone btn-compact" data-action="disable-mechanic-tips">不再提示</button>
+            </div>
+          </aside>
+        `;
+      })()}
     </section>
   `;
 }

@@ -14,15 +14,22 @@ import {
 import { getCharacterDef, normalizeCharacterId } from '../../data/characters.js';
 import { ENCOUNTERS } from '../../data/enemies.js';
 import { generateSpireMap } from '../../data/events.js';
-import { getRelicPoolsForCharacter, POTION_LIBRARY, RELIC_LIBRARY } from '../../data/relics.js';
+import {
+  getRelicPoolsForCharacter,
+  POTION_LIBRARY,
+  RELIC_LIBRARY,
+  rollWeightedPotionId,
+} from '../../data/relics.js';
 import { hasRelic } from '../combat.js';
 import { getDailyChallengeSpec, hasDailyModifier } from '../daily.js';
 import { MAX_ASCENSION } from '../meta.js';
-import { normalizeSeed, pickDistinct, pickRandom } from '../rng.js';
+import { nextRandom, normalizeSeed, pickDistinct, pickRandom } from '../rng.js';
 import {
   getStarterPotionSlotCount,
   addPlayerGold,
   addCardToMasterDeck,
+  applyCardRemovalSideEffects,
+  transformCardInMasterDeck,
   formatRelicUpgradeSummary,
   grantRelicToPlayer,
   hasPendingNeowBlessing,
@@ -174,7 +181,12 @@ export function generateNeowState(state) {
 
   const opt1 = localizeOpt(pickRandom(state, NEOW_SMALL_POOL));
   const opt2 = localizeOpt(pickRandom(state, NEOW_MEDIUM_POOL));
-  const opt3 = localizeOpt(pickRandom(state, NEOW_RISK_POOL));
+  // Avoid spawning strictly-dominated duplicate rare-card choices together
+  const riskCandidates =
+    opt2.id === 'choose_rare_card'
+      ? NEOW_RISK_POOL.filter((item) => item.id !== 'hp_for_rare_card')
+      : NEOW_RISK_POOL;
+  const opt3 = localizeOpt(pickRandom(state, riskCandidates));
   const opt4 = {
     ...NEOW_BOSS_SWAP_OPTION,
     title: `放弃【${starterRelicName}】· 换随机首领遗物`,
@@ -239,7 +251,7 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'gold_100': {
-      state.player.gold += 100;
+      addPlayerGold(state, 100);
       neow.resolved = true;
       neow.chosenId = option.id;
       neow.pendingAction = null;
@@ -254,7 +266,7 @@ export function chooseNeowOptionCore(state, optionId) {
         const def = RELIC_LIBRARY[relicId];
         neow.outcomeText = `涅奥赐福生效：获得普通遗物【${def.name}】（${def.description}）`;
       } else {
-        state.player.gold += 100;
+        addPlayerGold(state, 100);
         neow.outcomeText = '涅奥赐福生效：普通遗物已集齐，改为获得 100 金币。';
       }
       neow.resolved = true;
@@ -264,11 +276,11 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'fill_potions': {
-      const { potions } = getUnlockedPools(state);
+      const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
       const gainedNames = [];
       for (let i = 0; i < state.player.potions.length; i += 1) {
         if (!state.player.potions[i]) {
-          const potId = pickRandom(state, potions);
+          const potId = rollWeightedPotionId(charId, () => nextRandom(state));
           state.player.potions[i] = potId;
           gainedNames.push(POTION_LIBRARY[potId]?.name || potId);
         }
@@ -287,7 +299,7 @@ export function chooseNeowOptionCore(state, optionId) {
       const curseId = pickRandom(state, CURSE_CARD_IDS);
       const curseCard = createCardInstance(state, curseId, false);
       addCardToMasterDeck(state, curseCard);
-      state.player.gold += 250;
+      addPlayerGold(state, 250);
       neow.resolved = true;
       neow.chosenId = option.id;
       neow.pendingAction = null;
@@ -305,7 +317,7 @@ export function chooseNeowOptionCore(state, optionId) {
         const def = RELIC_LIBRARY[relicId];
         neow.outcomeText = `涅奥赐福生效：最大生命 -7，换得稀有遗物【${def.name}】（${def.description}）`;
       } else {
-        state.player.gold += 220;
+        addPlayerGold(state, 220);
         neow.outcomeText = '涅奥赐福生效：最大生命 -7，改为获得 220 金币。';
       }
       neow.resolved = true;
@@ -341,7 +353,7 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'choose_card': {
-      const offered = rollRewardCards(state, 3, 'normal', { trackPity: false });
+      const offered = rollRewardCards(state, 3, 'normal', { affectPity: false });
       neow.pendingAction = {
         type: 'pick_card',
         optionId: option.id,
@@ -396,8 +408,8 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'remove_1': {
-      if (state.player.deck.length <= 1) {
-        return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+      if (state.player.deck.length <= 1 || !state.player.deck.some((c) => canRemoveCard(c))) {
+        return { ok: false, reason: '牌组中没有可移除的卡牌' };
       }
       neow.pendingAction = {
         type: 'remove',
@@ -416,10 +428,11 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'gold_for_remove_2': {
-      if (state.player.deck.length <= 1) {
-        return { ok: false, reason: '牌组至少保留 1 张卡牌' };
+      const removableCount = state.player.deck.filter((c) => canRemoveCard(c)).length;
+      if (state.player.deck.length <= 1 || removableCount === 0) {
+        return { ok: false, reason: '牌组中没有可移除的卡牌' };
       }
-      const count = Math.min(2, state.player.deck.length - 1);
+      const count = Math.min(2, state.player.deck.length - 1, removableCount);
       neow.pendingAction = {
         type: 'remove',
         optionId: option.id,
@@ -437,8 +450,8 @@ export function chooseNeowOptionCore(state, optionId) {
     }
 
     case 'transform_1': {
-      if (state.player.deck.length === 0) {
-        return { ok: false, reason: '当前牌组为空' };
+      if (!state.player.deck.some((c) => canRemoveCard(c))) {
+        return { ok: false, reason: '当前牌组没有可变化的卡牌' };
       }
       const charName = getCharacterDef(state?.characterId).name;
       neow.pendingAction = {
@@ -511,18 +524,14 @@ export function completeNeowAction(state, instanceId) {
       return { ok: false, reason: '该诅咒无法变化' };
     }
     const oldName = getCardStats(oldCard).name;
-    const { cards } = getUnlockedPools(state);
-    const pool = [...cards.common, ...cards.uncommon, ...cards.rare].filter(
-      (cid) => cid !== oldCard.cardId
-    );
-    const nextCardId = pickRandom(state, pool.length > 0 ? pool : cards.common);
-    const created = createCardInstance(state, nextCardId, false);
-    state.player.deck.splice(idx, 1, created);
+    const { created, removalEffect } = transformCardInMasterDeck(state, idx);
     neow.resolved = true;
     neow.chosenId = action.optionId;
     neow.pendingAction = null;
     const createdStats = getCardStats(created);
-    neow.outcomeText = `涅奥赐福生效：【${oldName}】变化为全新卡牌【${createdStats.name}】（${createdStats.description}）！`;
+    const sideNote =
+      removalEffect.lostMaxHp > 0 ? `（失去 ${removalEffect.lostMaxHp} 点最大生命）` : '';
+    neow.outcomeText = `涅奥赐福生效：【${oldName}】${sideNote}变化为全新卡牌【${createdStats.name}】（${createdStats.description}）！`;
     return { ok: true, resolved: true, card: created, outcomeText: neow.outcomeText };
   }
 
@@ -541,11 +550,16 @@ export function completeNeowAction(state, instanceId) {
       action.committed = true;
     }
     const [removed] = state.player.deck.splice(idx, 1);
+    applyCardRemovalSideEffects(state, removed);
     const removedName = getCardStats(removed).name;
     action.removedNames = [...(action.removedNames || []), removedName];
     action.remaining = Math.max(0, (action.remaining ?? 1) - 1);
 
-    if (action.remaining > 0 && state.player.deck.length > 1) {
+    if (
+      action.remaining > 0 &&
+      state.player.deck.length > 1 &&
+      state.player.deck.some((c) => canRemoveCard(c))
+    ) {
       action.title = `鲸鱼赐福 · 还需选择 ${action.remaining} 张卡牌移除`;
       action.subtitle = `已移除【${action.removedNames.join('】、【')}】，请继续选择剩余卡牌。`;
       return { ok: true, resolved: false, remaining: action.remaining, removed };
@@ -685,6 +699,7 @@ export function createNewRun(options = {}) {
     heartVictory: false,
     purgeCount: 0,
     rarePityBonus: 0,
+    potionDropChance: 40,
     bossEncounterId: null,
     act3BossRushStage: 1,
     act3FirstBossId: null,
@@ -754,7 +769,7 @@ export function createNewRun(options = {}) {
     createCardInstance(state, cardId, false)
   );
   if (ascension >= 5) {
-    state.player.deck.push(createCardInstance(state, 'clumsy', false));
+    state.player.deck.push(createCardInstance(state, 'ascenders_bane', false));
   }
 
   state.map = generateSpireMap(state);

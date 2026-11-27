@@ -64,7 +64,7 @@ export function healPlayerInCombat(state, rawAmount) {
   if (!state?.player || state.player.hp <= 0 || !Number.isFinite(rawAmount) || rawAmount <= 0) return 0;
   let amt = Math.floor(rawAmount);
   if (hasRelic(state, 'magic_flower')) {
-    amt = Math.max(1, Math.floor(amt * 1.5));
+    amt = Math.max(1, Math.round(amt * 1.5));
   }
   const before = state.player.hp;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + amt);
@@ -99,11 +99,17 @@ export function applyStatus(entity, statusKey, delta, options = {}) {
   if (!entity.statuses) entity.statuses = {};
   if (!entity.skipStatusTick) entity.skipStatusTick = {};
 
+  const statusMeta = STATUS_METADATA[statusKey];
   const isNegativeDebuff =
-    (STATUS_METADATA[statusKey]?.polarity === 'debuff' && delta > 0) ||
+    (statusMeta?.polarity === 'debuff' && delta > 0) ||
     (SIGNED_STATUSES.has(statusKey) && delta < 0);
 
-  if (!options.bypassArtifact && isNegativeDebuff && (entity.statuses.artifact ?? 0) > 0) {
+  if (
+    !options.bypassArtifact &&
+    !statusMeta?.bypassArtifact &&
+    isNegativeDebuff &&
+    (entity.statuses.artifact ?? 0) > 0
+  ) {
     entity.statuses.artifact -= 1;
     if (entity.statuses.artifact <= 0) {
       delete entity.statuses.artifact;
@@ -219,6 +225,7 @@ export function handleEnemyZeroHp(state, enemy) {
   if (enemy.templateId === 'awakened_one' && enemy.unawakened) {
     enemy.unawakened = false;
     enemy.awakenedPhase = 2;
+    enemy.awakenedRebirthing = true;
     enemy.awakeTurnIndex = 0;
     enemy.hp = enemy.maxHp;
     enemy.block = 0;
@@ -231,6 +238,10 @@ export function handleEnemyZeroHp(state, enemy) {
       'corpseExplosion',
       'gainStrengthEndTurn',
       'curiosity',
+      'mark',
+      'talkToTheHand',
+      'choke',
+      'lockOn',
     ]) {
       delete enemy.statuses[debuffKey];
       if (enemy.skipStatusTick) delete enemy.skipStatusTick[debuffKey];
@@ -238,13 +249,16 @@ export function handleEnemyZeroHp(state, enemy) {
     if ((enemy.statuses.strength ?? 0) < 0) {
       delete enemy.statuses.strength;
     }
-    if ((enemy.statuses.regenerating ?? 0) <= 0) {
-      enemy.statuses.regenerating = 10;
-    }
-    enemy.intent = rollEnemyIntent(state, enemy);
+    enemy.statuses.regenerating = Math.max(enemy.statuses.regenerating ?? 0, 10);
+    enemy.intent = {
+      id: 'awakened_rebirth',
+      name: '黑暗重生',
+      type: 'buff',
+      summary: '意图：正在黑暗重生，本回合不会攻击，下回合以完整二阶段苏醒！',
+    };
     pushCombatLog(
       combat,
-      `【${enemy.name}】触发【黑暗重生】！清除负面并摆脱好奇限制，以 ${enemy.hp} 点生命苏醒进入二阶段！`,
+      `【${enemy.name}】触发【黑暗重生】！清除全部负面状态并摆脱好奇限制，将在其回合结束苏醒（本回合不会攻击）！`,
       'status'
     );
     return true;
@@ -394,7 +408,7 @@ export function reshuffleDiscardIntoDraw(state, { triggerRelics = true } = {}) {
       }
     }
     if (hasRelic(state, 'melange') && combat.phase === 'player') {
-      combat._melangeScryQueued = true;
+      combat._melangeScryQueuedCount = (combat._melangeScryQueuedCount ?? 0) + 1;
     }
   }
   return true;
@@ -481,6 +495,7 @@ export function getActivePendingCardChoice(combat) {
 }
 
 let _playCardHandler = null;
+let _endPlayerTurnHandler = null;
 
 export function registerPlayCardHandler(fn) {
   _playCardHandler = fn;
@@ -491,6 +506,17 @@ export function invokePlayCard(state, instanceId, targetEnemyId = null, onVictor
     return { ok: false, reason: '出牌处理器未就绪' };
   }
   return _playCardHandler(state, instanceId, targetEnemyId, onVictoryCallback, internalOpts);
+}
+
+export function registerEndPlayerTurnHandler(fn) {
+  _endPlayerTurnHandler = fn;
+}
+
+export function invokeEndPlayerTurn(state, onVictoryCallback = null, options = {}) {
+  if (typeof _endPlayerTurnHandler !== 'function') {
+    return { ok: false, reason: '回合结束处理器未就绪' };
+  }
+  return _endPlayerTurnHandler(state, onVictoryCallback, options);
 }
 
 export function getPendingChoiceBlockReason(combat) {
@@ -991,7 +1017,11 @@ export function handleCombatDefeat(state) {
   if (hasRelic(state, 'lizard_tail') && !state.relicFlags?.lizardTailUsed) {
     if (!state.relicFlags) state.relicFlags = {};
     state.relicFlags.lizardTailUsed = true;
-    state.player.hp = Math.max(1, Math.floor(state.player.maxHp * 0.3));
+    const baseRevive = Math.max(1, Math.floor(state.player.maxHp * 0.5));
+    const finalRevive = hasRelic(state, 'magic_flower')
+      ? Math.min(state.player.maxHp, Math.round(baseRevive * 1.5))
+      : baseRevive;
+    state.player.hp = Math.min(state.player.maxHp, finalRevive);
     syncRedSkullStatus(state);
     pushCombatLog(
       state.combat,

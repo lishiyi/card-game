@@ -17,7 +17,7 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     const hasPaperKrane =
       Boolean(options.hasPaperKrane) ||
       (Array.isArray(defender?.relics) && defender.relics.includes('paper_krane'));
-    raw *= hasPaperKrane ? 0.65 : 0.75;
+    raw *= hasPaperKrane ? 0.6 : 0.75;
   }
 
   if (defender && (defender?.statuses?.vulnerable ?? 0) > 0) {
@@ -97,7 +97,11 @@ export function getEnemyIntentPreview(enemy, player) {
 
   const hits = intent.hits ?? 1;
   const isAttack = typeof intent.damage === 'number' && intent.damage >= 0;
-  let perHitDamage = isAttack ? calculateAttackDamage(intent.damage, enemy, player) : 0;
+  let perHitDamage = isAttack
+    ? intent.isNonAttack
+      ? Math.max(0, Math.floor(intent.damage))
+      : calculateAttackDamage(intent.damage, enemy, player)
+    : 0;
   if (isAttack && perHitDamage > 1 && (player?.statuses?.intangible ?? 0) > 0) {
     perHitDamage = 1;
   }
@@ -116,7 +120,11 @@ export function getEnemyIntentPreview(enemy, player) {
         hitText,
         block: 0,
         label: hitText,
-        detail: hits > 1 ? `意图：攻击 ${perHitDamage} 点 × ${hits} 次（共 ${totalDamage} 点）` : `意图：造成 ${perHitDamage} 点攻击伤害`,
+        detail: intent.isNonAttack
+          ? `意图：自爆造成 ${perHitDamage} 点固定伤害（不受力量/虚弱/易伤/姿态影响）`
+          : hits > 1
+            ? `意图：攻击 ${perHitDamage} 点 × ${hits} 次（共 ${totalDamage} 点）`
+            : `意图：造成 ${perHitDamage} 点攻击伤害`,
       };
     case 'attack_block':
     case 'attack_defend':
@@ -141,7 +149,9 @@ export function getEnemyIntentPreview(enemy, player) {
         hitText,
         block: 0,
         label: `${hitText} · 减益`,
-        detail: `意图：造成 ${hitText} 点伤害，并施加负面效果`,
+        detail: intent.summary
+          ? `意图：造成 ${hitText} 点伤害（${intent.summary.replace(/^意图：/, '')}）`
+          : `意图：造成 ${hitText} 点伤害，并施加负面效果`,
       };
     case 'attack_buff':
       return {
@@ -153,7 +163,9 @@ export function getEnemyIntentPreview(enemy, player) {
         hitText,
         block: 0,
         label: `${hitText} · 强化`,
-        detail: `意图：造成 ${hitText} 点伤害，并获得强化或转换形态`,
+        detail: intent.summary
+          ? `意图：造成 ${hitText} 点伤害（${intent.summary.replace(/^意图：/, '')}）`
+          : `意图：造成 ${hitText} 点伤害，并获得强化或转换形态`,
       };
     case 'defend':
       return {
@@ -178,6 +190,18 @@ export function getEnemyIntentPreview(enemy, player) {
         block,
         label: `盾${block} · 强化`,
         detail: intent.summary || `意图：获得 ${block} 点格挡并提升自身属性`,
+      };
+    case 'defend_debuff':
+      return {
+        type: intent.type,
+        isAttack: false,
+        hits: 0,
+        perHitDamage: 0,
+        totalDamage: 0,
+        hitText: '',
+        block,
+        label: `盾${block} · 干扰`,
+        detail: intent.summary || `意图：获得 ${block} 点格挡并施加干扰效果`,
       };
     case 'buff':
       return {

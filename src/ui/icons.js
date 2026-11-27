@@ -460,7 +460,7 @@ export function getIntentIconSvg(intentType) {
   if (intentType && intentType.startsWith('attack')) {
     return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="attack" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 3l3 3-9 9H5v-3l9-9z"/><path d="M3 17l3-3"/></svg>`;
   }
-  if (intentType === 'defend' || intentType === 'defend_buff') {
+  if (intentType === 'defend' || intentType === 'defend_buff' || intentType === 'defend_debuff') {
     return `<svg viewBox="0 0 20 20" width="16" height="16" data-intent-icon="defend" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 2l6 2.5v5c0 4.2-2.6 6.9-6 8.5-3.4-1.6-6-4.3-6-8.5v-5L10 2z"/></svg>`;
   }
   if (intentType === 'buff') {

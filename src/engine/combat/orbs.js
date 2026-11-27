@@ -454,20 +454,26 @@ export function triggerStartOfTurnOrbs(state) {
   }
 
   // 2. Emotion Chip: if player lost HP last turn, trigger passive of ALL orbs at start of turn
+  //    (Gold-Plated Cables triggers frontmost orb passive an extra time, matching STS1 ImpulseAction)
+  const hasCables = hasRelic(state, 'gold_plated_cables');
   if (hasRelic(state, 'emotion_chip') && combat.lostHpLastTurn && state.player.orbs.length > 0) {
     pushCombatLog(
       combat,
       `遗物【${RELIC_LIBRARY.emotion_chip.name}】触发：上回合受损，立即触发全部 ${state.player.orbs.length} 个充能球的被动效果！`,
       'status'
     );
-    for (const orb of [...state.player.orbs]) {
+    const snapshotOrbs = [...state.player.orbs];
+    for (let idx = 0; idx < snapshotOrbs.length; idx += 1) {
+      const orb = snapshotOrbs[idx];
       if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
       triggerOrbPassive(state, orb, { sourceName: '情感芯片' });
+      if (idx === 0 && hasCables && state.player.hp > 0 && combat.status === 'ongoing') {
+        triggerOrbPassive(state, orb, { sourceName: '情感芯片 · 镀金电缆' });
+      }
     }
   }
 
   // 3. Plasma start-of-turn passive (+1 Energy per Plasma; +1 extra if frontmost with Gold-Plated Cables)
-  const hasCables = hasRelic(state, 'gold_plated_cables');
   for (let i = 0; i < state.player.orbs.length; i += 1) {
     const orb = state.player.orbs[i];
     if (orb.type === 'plasma') {

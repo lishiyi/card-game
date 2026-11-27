@@ -175,7 +175,7 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
 /**
  * Single source of truth for flat per-hit attack bonuses (Accuracy on Shivs, Wrist Blade on 0-cost attacks, Strike Dummy, Vigor, Blizzard frost scaling).
  */
-export function getCardAttackFlatBonus(stats, player = null, combat = null) {
+export function getCardAttackFlatBonus(stats, player = null, combat = null, options = {}) {
   if (!stats || stats.type !== 'attack' || !player) return 0;
   let bonus = 0;
   if (stats.isShiv && (player.statuses?.accuracy ?? 0) > 0) {
@@ -197,7 +197,7 @@ export function getCardAttackFlatBonus(stats, player = null, combat = null) {
     bonus += 3;
   }
   if (Array.isArray(player.relics) && player.relics.includes('wrist_blade')) {
-    const effCost = getEffectiveCardCost(stats, player, combat);
+    const effCost = options.forceFree ? 0 : getEffectiveCardCost(stats, player, combat);
     if (effCost === 0) {
       bonus += 4;
     }

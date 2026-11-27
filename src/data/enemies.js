@@ -2,3 +2,4 @@
 export * from './enemies/templates.js';
 export * from './enemies/ai.js';
 export * from './enemies/factory.js';
+export * from './enemies/scaling.js';

@@ -25,6 +25,85 @@ export const TUTORIAL_STEPS = Object.freeze([
   },
 ]);
 
+export const MECHANIC_TIPS = Object.freeze([
+  {
+    id: 'watcher_stance',
+    badge: '机制提示 · 观者姿态',
+    title: '平静回能 · 愤怒双伤 · 神格三倍',
+    body: '退出【平静】立即获得 +2 能量；处于【愤怒】时你造成与承受的攻击伤害均翻倍，进入前记得留好退出手段或确认本回合斩杀！',
+    glossaryQuery: '姿态',
+  },
+  {
+    id: 'defect_orbs',
+    badge: '机制提示 · 充能球栏位',
+    title: '回合末被动触发 · 最右侧球优先激发',
+    body: '球槽满时继续充能会自动激发最右侧的充能球。闪电打伤、冰霜叠甲、黑暗每回合蓄力、等离子回能；【集中】可同步放大闪电/冰霜/黑暗效果。',
+    glossaryQuery: '充能球',
+  },
+  {
+    id: 'watcher_mantra',
+    badge: '机制提示 · 真言与神格',
+    title: '集满 10 层真言自动进入【神格】',
+    body: '真言达 10 层时立即消耗 10 层进入【神格】：立刻 +3 能量、本回合攻击伤害 ×3，且下回合开始自动退出。',
+    glossaryQuery: '真言',
+  },
+  {
+    id: 'silent_mechanics',
+    badge: '机制提示 · 静默猎手流派',
+    title: '剧毒先手扣血 · 小刀连击 · 主动弃牌',
+    body: '敌方中毒会在其行动前扣血（毒杀可免受攻击）；【小刀】0 费消耗适合叠加连击遗物；主动弃置手牌可触发【战术大师】【本能反应】等联动。',
+    glossaryQuery: '中毒',
+  },
+  {
+    id: 'exhaust_mechanic',
+    badge: '机制提示 · 消耗词条',
+    title: '移入消耗堆，本场战斗不再洗回',
+    body: '带【消耗】的牌打出后移入消耗堆，战斗结束自动恢复。合理消耗冗余牌可精简循环，并触发【无惧疼痛】【黑暗之拥】等能力。',
+    glossaryQuery: '消耗',
+  },
+  {
+    id: 'status_curse',
+    badge: '机制提示 · 状态牌与诅咒牌',
+    title: '状态仅限本战 · 诅咒永久留存',
+    body: '【伤口/灼伤/晕眩/黏液/虚空】战后自动消失；黑色【诅咒】会永久留在牌组干扰抽牌，建议尽早在商店或事件中移除。',
+    glossaryQuery: '状态牌',
+  },
+]);
+
+export function detectActiveMechanicTip(state, settings) {
+  if (!state || state.screen !== 'combat' || !state.combat) return null;
+  if (settings && settings.showMechanicTips === false) return null;
+  const seen = new Set(Array.isArray(settings?.seenMechanicTips) ? settings.seenMechanicTips : []);
+  const byId = (id) => MECHANIC_TIPS.find((t) => t.id === id) || null;
+  const combat = state.combat;
+  const player = state.player || {};
+  const charId = state.characterId || 'ironclad';
+
+  if (charId === 'watcher' && !seen.has('watcher_stance')) {
+    return byId('watcher_stance');
+  }
+  if (charId === 'defect' && !seen.has('defect_orbs')) {
+    return byId('defect_orbs');
+  }
+  if ((player.statuses?.mantra ?? 0) > 0 && !seen.has('watcher_mantra')) {
+    return byId('watcher_mantra');
+  }
+  if (charId === 'silent' && !seen.has('silent_mechanics')) {
+    return byId('silent_mechanics');
+  }
+  const hand = Array.isArray(combat.hand) ? combat.hand : [];
+  if (
+    !seen.has('status_curse') &&
+    hand.some((c) => c?.cardId && ['wound', 'dazed', 'slimed', 'burn', 'void', 'clumsy', 'doubt', 'regret', 'parasite', 'injury', 'normality', 'pain', 'shame', 'writhe', 'decay', 'ascenders_bane', 'necronomicurse', 'curse_of_the_bell', 'pride'].includes(c.cardId))
+  ) {
+    return byId('status_curse');
+  }
+  if (!seen.has('exhaust_mechanic') && (combat.exhaustPile?.length ?? 0) > 0) {
+    return byId('exhaust_mechanic');
+  }
+  return null;
+}
+
 const CORE_MECHANIC_ENTRIES = [
   {
     id: 'kw_block',

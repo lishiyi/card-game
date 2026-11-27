@@ -780,13 +780,13 @@ test('Real Chromium E2E: 3-4 col map + F9 Treasure Chest + Curse card UI + Boss 
       maxHp: window.__SPIRE_APP__.getState().player.maxHp,
       ascPillText: document.querySelector('.ascension-pill')?.textContent?.trim() || '',
       deckBtnText: document.getElementById('btn-open-deck')?.textContent?.trim() || '',
-      hasClumsy: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'clumsy'),
+      hasAscendersBane: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'ascenders_bane'),
     })`);
     assert.equal(asc5Audit.ascension, 5);
     assert.equal(asc5Audit.maxHp, 75);
     assert.equal(asc5Audit.ascPillText, '进阶 5');
     assert.equal(asc5Audit.deckBtnText, '🃏 牌组 (11)');
-    assert.equal(asc5Audit.hasClumsy, true);
+    assert.equal(asc5Audit.hasAscendersBane, true);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

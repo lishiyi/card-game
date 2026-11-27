@@ -10,7 +10,7 @@ const STATUS_ZH_LABELS = Object.freeze({
   platedArmor: '多层护甲',
   artifact: '人工制品',
   beatOfDeath: '死亡律动',
-  painfulStabs: '痛苦刺击',
+  painfulStabs: '痛刺',
   weak: '虚弱',
   vulnerable: '易伤',
   frail: '脆弱',
@@ -19,6 +19,7 @@ const STATUS_ZH_LABELS = Object.freeze({
   constricted: '缠绕',
   entangled: '缠网',
   stasis: '静止力场',
+  focus: '集中',
 });
 
 const STATUS_CARD_ZH_LABELS = Object.freeze({
@@ -104,6 +105,7 @@ const SWARM_NORMAL_IDS = new Set([
   'exploder',
   'repulsor',
   'darkling',
+  'dagger',
 ]);
 
 export function applyAscensionIntentScaling(state, enemy, intent) {
@@ -142,7 +144,7 @@ export function applyAscensionIntentScaling(state, enemy, intent) {
       mutatedNonDamage = true;
     }
 
-    if (next.applyAllEnemiesStatuses) {
+    if (next.applyAllEnemiesStatuses && next.id !== 'circle_of_power') {
       const scaledAll = { ...next.applyAllEnemiesStatuses };
       for (const [k, v] of Object.entries(scaledAll)) {
         if (typeof v === 'number' && v > 0) {
@@ -205,7 +207,7 @@ export function applyAscensionIntentScaling(state, enemy, intent) {
       mutatedNonDamage = true;
     }
 
-    if (mutatedNonDamage && next.summary && next.id !== 'dividing_flames' && next.id !== 'time_warp_heal') {
+    if (mutatedNonDamage && next.summary && next.id !== 'divider' && next.id !== 'time_haste') {
       next.summary = rebuildA9IntentSummary(next);
     }
   }

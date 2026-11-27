@@ -194,7 +194,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   pear: {
     id: 'pear',
-    name: '梨子',
+    name: '梨',
     tier: 'uncommon',
     price: 205,
     maxHpBonus: 10,
@@ -210,9 +210,9 @@ export const RELIC_LIBRARY = deepFreeze({
   red_skull: {
     id: 'red_skull',
     name: '红头骨',
-    tier: 'uncommon',
+    tier: 'common',
     character: 'ironclad',
-    price: 210,
+    price: 155,
     description: '战斗中当你的生命值不高于 50% 时，获得额外 3 点【力量】（回复至半血以上时消失）。',
   },
   mummified_hand: {
@@ -351,14 +351,14 @@ export const RELIC_LIBRARY = deepFreeze({
     name: '医药箱',
     tier: 'shop',
     price: 160,
-    description: '商店专属：手牌中不可打出的【状态牌】（伤口/灼伤/晕眩）变为 0 费可打出，并立即【消耗】。',
+    description: '商店专属：手牌中不可打出的【状态牌】（伤口/灼伤/晕眩/虚空）变为 0 费可打出，并立即【消耗】。',
   },
   orange_pellets: {
     id: 'orange_pellets',
     name: '橙色药丸',
     tier: 'shop',
     price: 150,
-    description: '商店专属：在同一回合内打齐攻击、技能、能力三种牌后，立即净化你身上的全部负面状态。',
+    description: '商店专属：在同一回合内打齐攻击、技能、能力三种牌后，立即净化你身上的全部负面状态（含负力量/敏捷/集中）。',
   },
   lees_waffle: {
     id: 'lees_waffle',
@@ -387,7 +387,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   enchiridion: {
     id: 'enchiridion',
-    name: '英雄宝典',
+    name: '手册',
     tier: 'event',
     price: 220,
     description: '事件专属：每场战斗第 1 回合开始时，随机将 1 张本回合 0 费的【能力牌】加入手牌。',
@@ -458,7 +458,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   velvet_choker: {
     id: 'velvet_choker',
-    name: '天鹅绒颈圈',
+    name: '天鹅绒项圈',
     tier: 'boss',
     price: 320,
     energyBonus: 1,
@@ -466,7 +466,7 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   sacred_bark: {
     id: 'sacred_bark',
-    name: '神圣树皮',
+    name: '圣树皮',
     tier: 'boss',
     price: 320,
     description: '所有药水的数值效果翻倍（伤害、格挡、属性、中毒、小刀、能量、抽牌与回复全部 ×2）。',
@@ -590,14 +590,14 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '拾取时，随机永久升级牌组中 2 张可升级的技能牌。',
   },
 
-  // === P1 Expansion: Uncommon Relics (+12) ===
+  // === P1 Expansion: Uncommon & Shop Relics ===
   self_forming_clay: {
     id: 'self_forming_clay',
     name: '自成型黏土',
     tier: 'uncommon',
     character: 'ironclad',
     price: 215,
-    description: '每当你在战斗中失去生命值时，下回合开始额外获得 2 点格挡（每回合最多触发 2 次）。',
+    description: '每当你在战斗中失去生命值时，下回合开始额外获得 3 点格挡。',
   },
   letter_opener: {
     id: 'letter_opener',
@@ -633,7 +633,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'uncommon',
     character: 'silent',
     price: 225,
-    description: '处于【虚弱】状态的敌人造成的攻击伤害降幅由 25% 强化至 35%！',
+    description: '处于【虚弱】状态的敌人造成的攻击伤害降幅由 25% 强化至 40%！',
   },
   ninja_scroll: {
     id: 'ninja_scroll',
@@ -655,7 +655,7 @@ export const RELIC_LIBRARY = deepFreeze({
     name: '颂钵',
     tier: 'uncommon',
     price: 215,
-    description: '在战斗奖励中跳过选牌时，最大生命 +2 并回复 2 点生命。',
+    description: '在战斗或首领奖励中跳过选牌时，最大生命 +2 并回复 2 点生命。',
   },
   melange: {
     id: 'melange',
@@ -663,7 +663,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'shop',
     character: 'watcher',
     price: 165,
-    description: '商店专属：每当你将弃牌堆洗入抽牌堆时，获得 2 点【真言】并触发【预见 3】。',
+    description: '商店专属：每当你将弃牌堆洗入抽牌堆时，触发【预见 3】。',
   },
   white_beast_statue: {
     id: 'white_beast_statue',
@@ -709,21 +709,21 @@ export const RELIC_LIBRARY = deepFreeze({
     name: '怀表',
     tier: 'rare',
     price: 285,
-    description: '若你在本回合打出的卡牌不超过 3 张，下回合开始额外抽 2 张牌。',
+    description: '若你在本回合打出的卡牌不超过 3 张，下回合开始额外抽 3 张牌。',
   },
   thread_and_needle: {
     id: 'thread_and_needle',
     name: '针线',
     tier: 'rare',
     price: 280,
-    description: '每场战斗开始时，获得 3 层【多层护甲】（每回合结束自动获得格挡）。',
+    description: '每场战斗开始时，获得 4 层【多层护甲】（每回合结束自动获得格挡）。',
   },
   lizard_tail: {
     id: 'lizard_tail',
     name: '蜥蜴尾巴',
     tier: 'rare',
     price: 290,
-    description: '本局触发一次：当你即将阵亡时免于死亡，并回复至 30% 最大生命！',
+    description: '本局触发一次：当你即将阵亡时免于死亡，并回复至 50% 最大生命！',
   },
   cloak_clasp: {
     id: 'cloak_clasp',
@@ -731,7 +731,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'rare',
     character: 'watcher',
     price: 285,
-    description: '回合结束时，弃牌前手中每剩余 1 张卡牌便获得 2 点格挡（单回合最高 10 点）。',
+    description: '回合结束时，弃牌前手中每剩余 1 张卡牌便获得 1 点格挡。',
   },
 
   // === P1 Expansion: Shop Relics (+3) ===
@@ -749,7 +749,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'shop',
     character: 'silent',
     price: 180,
-    description: '每场战斗开始时，立即给予所有敌人 3 层【中毒】。',
+    description: '每场战斗开始时，立即给予所有敌人 4 层【中毒】。',
   },
   clockwork_souvenir: {
     id: 'clockwork_souvenir',
@@ -766,7 +766,7 @@ export const RELIC_LIBRARY = deepFreeze({
     tier: 'boss',
     character: 'ironclad',
     price: 320,
-    description: '每当你于己方或敌方回合首次失去生命值时，抽 1 张牌（每阶段最多触发 1 次）。',
+    description: '每当你在战斗中失去生命值时，抽 1 张牌。',
   },
   hovering_kite: {
     id: 'hovering_kite',
@@ -781,11 +781,11 @@ export const RELIC_LIBRARY = deepFreeze({
     name: '黑星',
     tier: 'boss',
     price: 320,
-    description: '拾取时获得 75 金币，且此后每场精英战胜利额外多掉落 1 件遗物！',
+    description: '此后每场精英战胜利额外多掉落 1 件遗物！',
   },
   slavers_collar: {
     id: 'slavers_collar',
-    name: '奴隶贩子颈环',
+    name: '奴隶贩子项圈',
     tier: 'boss',
     price: 320,
     description: '精英战斗与首领战斗中，每回合开始时额外获得 1 点能量（零负面代价）。',
@@ -814,10 +814,10 @@ export const RELIC_LIBRARY = deepFreeze({
     description: '现在你可以在篝火营地选择「吞云」，从牌组中永久移除 1 张卡牌！',
   },
 
-  // === The Defect Class Relics (9) ===
+  // === The Defect Class Relics (9) & Shared Rare ===
   cracked_core: {
     id: 'cracked_core',
-    name: '碎裂核心',
+    name: '破损核心',
     tier: 'starter',
     character: 'defect',
     price: 150,
@@ -865,13 +865,13 @@ export const RELIC_LIBRARY = deepFreeze({
   },
   frozen_core: {
     id: 'frozen_core',
-    name: '冻结核心',
+    name: '冰冻核心',
     tier: 'boss',
     character: 'defect',
     requiresRelic: 'cracked_core',
     replacesRelic: 'cracked_core',
     price: 360,
-    description: '替换【碎裂核心】。每回合结束时，若存在空充能球槽位，充能 1 个【冰霜球】。',
+    description: '替换【破损核心】。每回合结束时，若存在空充能球槽位，充能 1 个【冰霜球】。',
   },
   inserter: {
     id: 'inserter',
@@ -1087,6 +1087,7 @@ export const POTION_LIBRARY = deepFreeze({
   fire_potion: {
     id: 'fire_potion',
     name: '火焰药水',
+    rarity: 'common',
     target: 'enemy',
     price: 50,
     damage: 20,
@@ -1095,30 +1096,34 @@ export const POTION_LIBRARY = deepFreeze({
   block_potion: {
     id: 'block_potion',
     name: '格挡药水',
+    rarity: 'common',
     target: 'self',
-    price: 48,
+    price: 50,
     block: 12,
     description: '立即获得 12 点格挡。',
   },
   strength_potion: {
     id: 'strength_potion',
     name: '力量药水',
+    rarity: 'common',
     target: 'self',
-    price: 55,
+    price: 50,
     strength: 2,
     description: '本场战斗获得 2 点力量。',
   },
   energy_potion: {
     id: 'energy_potion',
     name: '能量药水',
+    rarity: 'common',
     target: 'self',
-    price: 52,
+    price: 50,
     energy: 2,
     description: '本回合获得 2 点能量。',
   },
   swift_potion: {
     id: 'swift_potion',
     name: '迅捷药水',
+    rarity: 'common',
     target: 'self',
     price: 50,
     draw: 3,
@@ -1127,14 +1132,16 @@ export const POTION_LIBRARY = deepFreeze({
   fear_potion: {
     id: 'fear_potion',
     name: '恐惧药水',
+    rarity: 'common',
     target: 'enemy',
-    price: 52,
+    price: 50,
     applyEnemyStatuses: { vulnerable: 3 },
     description: '给予目标敌人 3 层易伤。',
   },
   weak_potion: {
     id: 'weak_potion',
     name: '虚弱药水',
+    rarity: 'common',
     target: 'enemy',
     price: 50,
     applyEnemyStatuses: { weak: 3 },
@@ -1143,60 +1150,67 @@ export const POTION_LIBRARY = deepFreeze({
   dexterity_potion: {
     id: 'dexterity_potion',
     name: '敏捷药水',
+    rarity: 'common',
     target: 'self',
-    price: 55,
+    price: 50,
     dexterity: 2,
     description: '本场战斗获得 2 点敏捷。',
   },
   regen_potion: {
     id: 'regen_potion',
     name: '鲜血药水',
+    rarity: 'common',
     target: 'self',
-    price: 62,
+    price: 50,
     healPct: 20,
     description: '立即回复最大生命值 20% 的生命。',
   },
   explosive_potion: {
     id: 'explosive_potion',
     name: '爆炸药水',
+    rarity: 'common',
     target: 'all_enemies',
-    price: 58,
+    price: 50,
     aoeDamage: 10,
     description: '对所有敌人造成 10 点固定伤害。',
   },
   poison_potion: {
     id: 'poison_potion',
-    name: '剧毒药水',
+    name: '毒药水',
+    rarity: 'common',
     character: 'silent',
     target: 'enemy',
-    price: 52,
+    price: 50,
     applyEnemyStatuses: { poison: 6 },
     description: '给予目标敌人 6 层【中毒】。',
   },
   cunning_potion: {
     id: 'cunning_potion',
     name: '诡计药水',
+    rarity: 'uncommon',
     character: 'silent',
     target: 'self',
-    price: 56,
+    price: 75,
     addCardsToHand: { cardId: 'shiv', count: 3, upgraded: true },
     description: '将 3 张【小刀+】加入手牌。',
   },
   heart_of_iron: {
     id: 'heart_of_iron',
-    name: '钢铁之心药水',
+    name: '铁之心',
+    rarity: 'rare',
     character: 'ironclad',
     target: 'self',
-    price: 58,
+    price: 100,
     metallicize: 6,
     description: '本场战斗获得 6 层【金属化】（每回合结束自动获得格挡）。',
   },
   fury_potion: {
     id: 'fury_potion',
     name: '狂怒药水',
+    rarity: 'common',
     character: 'ironclad',
     target: 'self',
-    price: 54,
+    price: 50,
     tempStrength: 5,
     draw: 1,
     description: '本回合临时获得 5 点【力量】并抽 1 张牌。',
@@ -1204,34 +1218,39 @@ export const POTION_LIBRARY = deepFreeze({
   miracle_potion: {
     id: 'miracle_potion',
     name: '瓶装奇迹',
+    rarity: 'common',
     character: 'watcher',
     target: 'self',
-    price: 54,
+    price: 50,
     addCardsToHand: { cardId: 'miracle', count: 2, upgraded: false },
     description: '将 2 张【奇迹】（0 费保留消耗，+1 能量）加入手牌。',
   },
   ambrosia: {
     id: 'ambrosia',
-    name: '神格甘露',
+    name: '仙馔密酒',
+    rarity: 'rare',
     character: 'watcher',
     target: 'self',
-    price: 68,
+    price: 100,
     enterStance: 'divinity',
+    noSacredBark: true,
     description: '立即进入【神格】姿态（获得 3 点能量，本回合攻击伤害 ×3）！',
   },
 
-  // === P1 Expansion: Universal & Class Potions (+12) ===
+  // === P1 Expansion: Universal & Class Potions ===
   ancient_potion: {
     id: 'ancient_potion',
-    name: '远古药水',
+    name: '先古药水',
+    rarity: 'uncommon',
     target: 'self',
-    price: 54,
+    price: 75,
     artifact: 1,
     description: '获得 1 层【人工制品】（免疫下 1 次负面状态）。',
   },
   speed_potion: {
     id: 'speed_potion',
-    name: '疾风药水',
+    name: '速度药水',
+    rarity: 'common',
     target: 'self',
     price: 50,
     tempDexterity: 5,
@@ -1239,7 +1258,8 @@ export const POTION_LIBRARY = deepFreeze({
   },
   flex_potion: {
     id: 'flex_potion',
-    name: '壮硕药水',
+    name: '柔韧药水',
+    rarity: 'common',
     target: 'self',
     price: 50,
     tempStrength: 5,
@@ -1248,62 +1268,70 @@ export const POTION_LIBRARY = deepFreeze({
   gamblers_brew: {
     id: 'gamblers_brew',
     name: '赌徒佳酿',
+    rarity: 'uncommon',
     target: 'self',
-    price: 56,
+    price: 75,
     gambleHand: true,
+    noSacredBark: true,
     description: '弃置当前所有手牌，并抽取等量新牌。',
   },
   duplication_potion: {
     id: 'duplication_potion',
     name: '复制药水',
+    rarity: 'uncommon',
     target: 'self',
-    price: 62,
+    price: 75,
     duplication: 1,
     description: '本回合你打出的下 1 张卡牌将额外连续触发一次！',
   },
   essence_of_steel: {
     id: 'essence_of_steel',
-    name: '精钢精华',
+    name: '钢之精华',
+    rarity: 'uncommon',
     target: 'self',
-    price: 58,
+    price: 75,
     platedArmor: 4,
     description: '获得 4 层【多层护甲】（每回合结束自动获得格挡）。',
   },
   blood_surge_potion: {
     id: 'blood_surge_potion',
     name: '狂血药水',
+    rarity: 'uncommon',
     character: 'ironclad',
     target: 'self',
-    price: 60,
+    price: 75,
     healFlat: 8,
     strength: 2,
     description: '立即回复 8 点生命，并在本场战斗获得 2 点【力量】。',
   },
   elixir_potion: {
     id: 'elixir_potion',
-    name: '净化炼金液',
+    name: '灵液',
+    rarity: 'uncommon',
     character: 'ironclad',
     target: 'self',
-    price: 54,
+    price: 75,
     exhaustStatusCurseDraw: true,
     block: 10,
     description: '消耗手中所有【状态】与【诅咒】牌（每消耗 1 张抽 1 张牌），并获得 10 点格挡。',
   },
   ghost_in_a_jar: {
     id: 'ghost_in_a_jar',
-    name: '瓶中幽灵',
+    name: '罐装幽灵',
+    rarity: 'rare',
     character: 'silent',
     target: 'self',
-    price: 68,
+    price: 100,
     intangible: 1,
     description: '获得 1 层【无实体】（所有即将承受的伤害降至 1 点）！',
   },
   phantom_draught: {
     id: 'phantom_draught',
     name: '幻影合剂',
+    rarity: 'uncommon',
     character: 'silent',
     target: 'self',
-    price: 56,
+    price: 75,
     block: 10,
     drawCardNextTurn: 2,
     description: '立即获得 10 点格挡，下回合开始额外抽 2 张牌。',
@@ -1311,9 +1339,10 @@ export const POTION_LIBRARY = deepFreeze({
   stance_potion: {
     id: 'stance_potion',
     name: '姿态药水',
+    rarity: 'uncommon',
     character: 'watcher',
     target: 'self',
-    price: 56,
+    price: 75,
     toggleWrathCalm: true,
     block: 8,
     draw: 1,
@@ -1322,9 +1351,10 @@ export const POTION_LIBRARY = deepFreeze({
   mantra_elixir: {
     id: 'mantra_elixir',
     name: '净心真言露',
+    rarity: 'uncommon',
     character: 'watcher',
     target: 'self',
-    price: 58,
+    price: 75,
     gainMantra: 6,
     block: 6,
     scry: 4,
@@ -1333,36 +1363,40 @@ export const POTION_LIBRARY = deepFreeze({
   focus_potion: {
     id: 'focus_potion',
     name: '集中药水',
+    rarity: 'common',
     character: 'defect',
     target: 'self',
-    price: 54,
+    price: 50,
     focus: 2,
     description: '获得 2 点【集中】（强化闪电、冰霜与黑暗充能球效果）。',
   },
   potion_of_capacity: {
     id: 'potion_of_capacity',
     name: '扩容药水',
+    rarity: 'uncommon',
     character: 'defect',
     target: 'self',
-    price: 52,
+    price: 75,
     orbSlots: 2,
     description: '获得 2 个充能球槽位（上限 10）。',
   },
   essence_of_darkness: {
     id: 'essence_of_darkness',
     name: '黑暗精华',
+    rarity: 'rare',
     character: 'defect',
     target: 'self',
-    price: 58,
+    price: 100,
     channelDarkPerSlot: 1,
     description: '为你当前的每个充能球槽位充能 1 个【黑暗球】。',
   },
   liquid_plasma: {
     id: 'liquid_plasma',
     name: '液态等离子',
+    rarity: 'uncommon',
     character: 'defect',
     target: 'self',
-    price: 56,
+    price: 75,
     channelOrb: 'plasma',
     evokeFront: 1,
     description: '充能 1 个【等离子球】，随后立即激发队首充能球 1 次。',
@@ -1375,6 +1409,49 @@ export function getAvailablePotionIds(characterId = 'ironclad') {
   return Object.values(POTION_LIBRARY)
     .filter((p) => !p.character || p.character === characterId)
     .map((p) => p.id);
+}
+
+/**
+ * Official STS1 potion rarity roll: 65% Common, 25% Uncommon, 10% Rare.
+ */
+export function rollWeightedPotionId(characterId = 'ironclad', rng = Math.random) {
+  const available = Object.values(POTION_LIBRARY).filter(
+    (p) => !p.character || p.character === characterId
+  );
+  if (available.length === 0) return 'fire_potion';
+  const roll = typeof rng === 'function' ? rng() : Math.random();
+  const desiredRarity = roll < 0.65 ? 'common' : roll < 0.9 ? 'uncommon' : 'rare';
+  const bucket = available.filter((p) => (p.rarity || 'common') === desiredRarity);
+  const pool = bucket.length > 0 ? bucket : available;
+  const pickRoll = typeof rng === 'function' ? rng() : Math.random();
+  const idx = Math.min(pool.length - 1, Math.floor(pickRoll * pool.length));
+  return pool[idx].id;
+}
+
+export function getPotionEffectiveDescription(potionId, hasSacredBark = false) {
+  const pot = POTION_LIBRARY[potionId];
+  if (!pot) return '';
+  if (!hasSacredBark || pot.noSacredBark) return pot.description;
+  const doubled = pot.description.replace(/\b(\d+)(%?)/g, (match, numStr, pct) => {
+    const val = Number(numStr);
+    // Do not double fixed caps like "上限 10" or card-text parentheticals like "0 费" or "×3" or "降至 1 点"
+    if (!Number.isFinite(val) || val === 0) return match;
+    return `${val * 2}${pct}`;
+  });
+  // Handle special descriptions containing non-scalable reference numbers safely
+  if (potionId === 'potion_of_capacity') {
+    return '获得 4 个充能球槽位（上限 10 · 圣树皮翻倍）。';
+  }
+  if (potionId === 'miracle_potion') {
+    return '将 4 张【奇迹】（0 费保留消耗，+1 能量）加入手牌（圣树皮翻倍）。';
+  }
+  if (potionId === 'ghost_in_a_jar') {
+    return '获得 2 层【无实体】（所有即将承受的伤害降至 1 点 · 圣树皮翻倍）！';
+  }
+  if (potionId === 'ancient_potion') {
+    return '获得 2 层【人工制品】（免疫下 2 次负面状态 · 圣树皮翻倍）。';
+  }
+  return `${doubled}（圣树皮生效）`;
 }
 
 export const STATUS_METADATA = deepFreeze({
@@ -1813,7 +1890,9 @@ export const STATUS_METADATA = deepFreeze({
     id: 'blasphemer',
     name: '渎神誓约',
     polarity: 'debuff',
-    describe: () => '下个你的回合开始时，你将承受 999 点致命反噬伤害（可被无实体降至 1 点或被缓冲抵挡）——请在本回合内终结战斗！',
+    bypassArtifact: true,
+    unclearable: true,
+    describe: () => '下个你的回合开始时，你将承受 999 点致命反噬伤害（无法被人工制品或橙色药丸净化，但可被无实体降至 1 点或被缓冲抵挡）——请在本回合内终结战斗！',
   },
   simmeringFury: {
     id: 'simmeringFury',
@@ -2002,8 +2081,10 @@ export const STATUS_METADATA = deepFreeze({
     id: 'surrounded',
     name: '夹击',
     polarity: 'debuff',
+    bypassArtifact: true,
+    unclearable: true,
     describe: () =>
-      '正被尖塔之盾与尖塔之矛前后夹击：来自背侧敌人的攻击伤害提高 50%！打出单体攻击牌可转身面对目标；击败其中任意一人后解除。',
+      '正被尖塔之盾与尖塔之矛前后夹击：来自背侧敌人的攻击伤害提高 50%！对其打出任意单体指向牌或药水即可转身面对目标；击败其中任意一人后解除（无法被人工制品或橙色药丸净化）。',
   },
   // === The Defect Statuses (16) ===
   focus: {

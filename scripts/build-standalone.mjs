@@ -7,6 +7,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const IMPORT_RE = /^\s*import\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]+)['"]\s*;/gm;
 const EXPORT_FROM_RE = /^\s*export\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]+)['"]\s*;/gm;
 const EXPORT_ALL_FROM_RE = /^\s*export\s*\*\s*from\s*['"]([^'"]+)['"]\s*;/gm;
+const DYNAMIC_IMPORT_RE = /\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g;
 const EXPORT_DECL_RE = /^export\s+(async\s+function|function|const|let)\s+([A-Za-z0-9_$]+)/gm;
 const EXPORT_LIST_RE = /^export\s*\{([\s\S]*?)\}\s*;/gm;
 const LOCAL_STYLESHEET_LINK_RE = /^[ \t]*<link\s+rel="stylesheet"\s+href="(\.\/styles\/[^"]+\.css)"\s*\/?>[ \t]*\r?\n?/gm;
@@ -48,7 +49,11 @@ export function discoverStylesheets(repoRoot = REPO_ROOT) {
  * (default `src/main.js`) and returns a deterministic post-order topological list
  * of relative POSIX module paths.
  */
-export function discoverModuleOrder(entryRel = 'src/main.js', repoRoot = REPO_ROOT) {
+export function discoverModuleOrder(
+  entryRel = 'src/main.js',
+  repoRoot = REPO_ROOT,
+  { includeDynamic = true } = {}
+) {
   const ordered = [];
   const visiting = new Set();
   const visited = new Set();
@@ -71,6 +76,9 @@ export function discoverModuleOrder(entryRel = 'src/main.js', repoRoot = REPO_RO
     for (const match of source.matchAll(IMPORT_RE)) targets.push(match[2]);
     for (const match of source.matchAll(EXPORT_FROM_RE)) targets.push(match[2]);
     for (const match of source.matchAll(EXPORT_ALL_FROM_RE)) targets.push(match[1]);
+    if (includeDynamic) {
+      for (const match of source.matchAll(DYNAMIC_IMPORT_RE)) targets.push(match[1]);
+    }
 
     for (const targetSpec of targets) {
       const resolved = resolveImportTarget(relPosix, targetSpec);
@@ -86,10 +94,19 @@ export function discoverModuleOrder(entryRel = 'src/main.js', repoRoot = REPO_RO
   return ordered;
 }
 
+function sortJsUrls(moduleList) {
+  return [...moduleList]
+    .sort((a, b) => {
+      if (a === 'src/main.js') return -1;
+      if (b === 'src/main.js') return 1;
+      return a.localeCompare(b);
+    })
+    .map((rel) => `./${rel}`);
+}
+
 /**
- * Computes the complete deterministic list of PWA precache URLs required by `sw.js`,
- * combining static shell/icon assets, all CSS files linked in `index.html`, and every
- * ES module reachable from `src/main.js`.
+ * Computes the critical core PWA precache URLs required for fast first-load install in `sw.js`:
+ * static shell/icon assets, all CSS files linked in `index.html`, and all statically imported ES modules.
  */
 export function computeExpectedPrecacheUrls(repoRoot = REPO_ROOT) {
   const staticUrls = [
@@ -101,22 +118,27 @@ export function computeExpectedPrecacheUrls(repoRoot = REPO_ROOT) {
     './icons/icon-512.png',
   ];
   const cssUrls = discoverStylesheets(repoRoot).map((rel) => `./${rel}`);
-  const jsUrls = [...discoverModuleOrder('src/main.js', repoRoot)]
-    .sort((a, b) => {
-      if (a === 'src/main.js') return -1;
-      if (b === 'src/main.js') return 1;
-      return a.localeCompare(b);
-    })
-    .map((rel) => `./${rel}`);
-  return [...staticUrls, ...cssUrls, ...jsUrls];
+  const staticModules = discoverModuleOrder('src/main.js', repoRoot, { includeDynamic: false });
+  return [...staticUrls, ...cssUrls, ...sortJsUrls(staticModules)];
 }
 
 /**
- * Compiles all ES modules reachable from `src/main.js` + all local CSS stylesheets linked
- * in `index.html` into a single self-contained standalone HTML string.
+ * Computes the deferred lazy-loaded module URLs (e.g. per-class card illustration chunks)
+ * that `sw.js` warms in the background after activation without delaying initial install.
+ */
+export function computeExpectedLazyPrecacheUrls(repoRoot = REPO_ROOT) {
+  const staticSet = new Set(discoverModuleOrder('src/main.js', repoRoot, { includeDynamic: false }));
+  const allModules = discoverModuleOrder('src/main.js', repoRoot, { includeDynamic: true });
+  const lazyModules = allModules.filter((rel) => !staticSet.has(rel));
+  return sortJsUrls(lazyModules);
+}
+
+/**
+ * Compiles all ES modules reachable from `src/main.js` (including dynamic chunks) + all local CSS
+ * stylesheets linked in `index.html` into a single self-contained standalone HTML string.
  */
 export function buildStandaloneHtml(repoRoot = REPO_ROOT) {
-  const modules = discoverModuleOrder('src/main.js', repoRoot);
+  const modules = discoverModuleOrder('src/main.js', repoRoot, { includeDynamic: true });
   const stylesheets = discoverStylesheets(repoRoot);
   if (stylesheets.length === 0) {
     throw new Error('Could not find any local ./styles/*.css stylesheet links in index.html');
@@ -163,6 +185,11 @@ export function buildStandaloneHtml(repoRoot = REPO_ROOT) {
       return '';
     });
 
+    code = code.replace(DYNAMIC_IMPORT_RE, (_, targetRel) => {
+      const resolved = resolveImportTarget(rel, targetRel);
+      return `Promise.resolve(${modVar(resolved)})`;
+    });
+
     code = code.replace(EXPORT_DECL_RE, (_, kw, name) => {
       exportedNames.push(name);
       return `${kw} ${name}`;
@@ -190,9 +217,18 @@ export function buildStandaloneHtml(repoRoot = REPO_ROOT) {
 
     code = code.replace(/<\/script/gi, '<\\/script');
 
-    chunks.push(
-      `// --- Module: ${rel} ---\nconst ${modVar(rel)} = (() => {\n${code}\n  return { ${exportedNames.join(', ')} };\n})();`
-    );
+    let chunkCode = `// --- Module: ${rel} ---\nconst ${modVar(rel)} = (() => {\n${code}\n  return { ${exportedNames.join(', ')} };\n})();`;
+    if (rel === 'src/ui/card_art.js') {
+      const regLines = [
+        `  ${modVar(rel)}.registerCardArtChunk('ironclad', { ...${modVar('src/ui/card_art/ironclad.js')}.IRONCLAD_CARD_ART, ...${modVar('src/ui/card_art/exp_iron_silent.js')}.EXP_IRON_SILENT_ART });`,
+        `  ${modVar(rel)}.registerCardArtChunk('silent', { ...${modVar('src/ui/card_art/silent.js')}.SILENT_CARD_ART, ...${modVar('src/ui/card_art/exp_iron_silent.js')}.EXP_IRON_SILENT_ART });`,
+        `  ${modVar(rel)}.registerCardArtChunk('watcher', { ...${modVar('src/ui/card_art/watcher.js')}.WATCHER_CARD_ART, ...${modVar('src/ui/card_art/exp_watcher_colorless.js')}.EXP_WATCHER_COLORLESS_ART });`,
+        `  ${modVar(rel)}.registerCardArtChunk('defect', ${modVar('src/ui/card_art/defect.js')}.DEFECT_CARD_ART);`,
+        `  ${modVar(rel)}.registerCardArtChunk('colorless', { ...${modVar('src/ui/card_art/colorless_special.js')}.COLORLESS_SPECIAL_CARD_ART, ...${modVar('src/ui/card_art/exp_colorless_curses.js')}.EXP_COLORLESS_CURSES_ART, ...${modVar('src/ui/card_art/exp_watcher_colorless.js')}.EXP_WATCHER_COLORLESS_ART });`,
+      ];
+      chunkCode += `\n(() => {\n${regLines.join('\n')}\n})();`;
+    }
+    chunks.push(chunkCode);
   }
 
   const css = stylesheets

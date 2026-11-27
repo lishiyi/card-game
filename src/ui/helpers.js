@@ -354,7 +354,7 @@ export function renderCardHtml(cardInstance, options = {}) {
           </span>
           <span class="rarity-badge rarity-${escapeHtml(stats.rarity)} ${isColorless ? 'badge-colorless' : ''}">${escapeHtml(rarityText)}</span>
         </div>
-        <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}</div>
+        <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" data-card-art-id="${escapeHtml(cardInstance.cardId)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}</div>
         <div class="card-desc ${descToneClass}">${formatCardDescHtml(desc.text)}</div>
       </div>
       ${upgradePreviewNote}

@@ -3,7 +3,13 @@
  */
 
 import { getCharacterDef } from '../../data/characters.js';
-import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
+import {
+  getPotionEffectiveDescription,
+  getRelicIcon,
+  POTION_LIBRARY,
+  RELIC_LIBRARY,
+  RELIC_TIER_LABELS,
+} from '../../data/relics.js';
 import { getDailyModifierDefs } from '../../engine/daily.js';
 import { getActTotalFloors, getCollectedKeyCount } from '../../engine/game.js';
 import { ASCENSION_DEFS } from '../../engine/meta.js';
@@ -115,15 +121,14 @@ export function renderTopHud({ state, ui }) {
       const selected = ui.selectedPotionSlot === idx;
       const popoverOpen = ui.activePotionPopoverSlot === idx;
       const showDiscard =
+        state.screen === 'combat' ||
         (state.screen === 'reward' && state.reward?.potionId && !state.reward.potionClaimed) ||
         state.screen === 'shop' ||
         state.screen === 'event';
       const targetLabel =
         pot.target === 'enemy' ? '单体目标' : pot.target === 'all_enemies' ? '全体目标' : '自身';
       const stateHint = canDrinkNow ? '点击饮用' : '战斗中可用';
-      const descText = hasSacredBark
-        ? `${pot.description}（神圣树皮生效：效果翻倍！）`
-        : pot.description;
+      const descText = getPotionEffectiveDescription(potionId, hasSacredBark);
       const accent = getPotionAccentColor(potionId);
 
       return `
@@ -172,9 +177,7 @@ export function renderTopHud({ state, ui }) {
           : activePot.target === 'all_enemies'
             ? '全体目标'
             : '自身';
-      const descText = hasSacredBark
-        ? `${activePot.description}（神圣树皮生效：效果翻倍！）`
-        : activePot.description;
+      const descText = getPotionEffectiveDescription(activePotId, hasSacredBark);
       const accent = getPotionAccentColor(activePotId);
       const drinkLabel = canDrinkNow
         ? activePot.target === 'enemy' && aliveEnemiesCount > 1

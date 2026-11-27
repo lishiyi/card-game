@@ -7,6 +7,8 @@ import {
   canUpgradeCard,
   CARD_LIBRARY,
   createCardInstance,
+  CURSE_CARD_IDS,
+  getCardCharacter,
   getCardStats,
   getColorlessCardPools,
   getRewardCardPools,
@@ -21,6 +23,7 @@ import {
   getRelicPoolsForCharacter,
   POTION_LIBRARY,
   RELIC_LIBRARY,
+  rollWeightedPotionId,
 } from '../../data/relics.js';
 import { hasRelic } from '../combat.js';
 import { hasDailyModifier } from '../daily.js';
@@ -188,9 +191,6 @@ export function grantRelicToPlayer(state, relicId) {
   if (relicId === 'smiling_mask' && state.shop && !state.shop.purgeUsed) {
     state.shop.purgeCost = getCurrentPurgeCost(state);
   }
-  if (relicId === 'black_star') {
-    addPlayerGold(state, 75);
-  }
   state._relicPickupSeq = (state._relicPickupSeq || 0) + 1;
   state.lastRelicPickup = {
     seq: state._relicPickupSeq,
@@ -305,14 +305,18 @@ export function rollChestProfile(state) {
   };
 }
 
-export function rollUnownedRelicId(state, source = 'elite', tierOddsOverride = null) {
+export function rollUnownedRelicId(state, source = 'elite', tierOddsOverride = null, excludeIds = []) {
   const { relics } = getUnlockedPools(state);
-  const ownedCampfireCount = CAMPFIRE_RELIC_IDS.filter((id) => hasRelic(state, id)).length;
+  const excludedSet = new Set(Array.isArray(excludeIds) ? excludeIds : []);
+  const ownedCampfireCount =
+    CAMPFIRE_RELIC_IDS.filter((id) => hasRelic(state, id)).length +
+    CAMPFIRE_RELIC_IDS.filter((id) => excludedSet.has(id) && !hasRelic(state, id)).length;
   const unowned = (pool) =>
     Array.isArray(pool)
       ? pool.filter(
           (id) =>
             !hasRelic(state, id) &&
+            !excludedSet.has(id) &&
             !(ownedCampfireCount >= 2 && CAMPFIRE_RELIC_IDS.includes(id))
         )
       : [];
@@ -456,7 +460,7 @@ export function applyShopMembershipDiscount(state) {
 }
 
 export function buildShopState(state) {
-  const { cards: unlockedCards, potions } = getUnlockedPools(state);
+  const { cards: unlockedCards } = getUnlockedPools(state);
   const priceMult =
     ((state.ascension ?? 0) >= 5 ? 1.15 : 1) *
     (hasDailyModifier(state, 'hoarder_gold') ? 1.15 : 1);
@@ -510,7 +514,8 @@ export function buildShopState(state) {
       }
     : null;
 
-  const potionId = pickRandom(state, potions);
+  const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
+  const potionId = rollWeightedPotionId(charId, () => nextRandom(state));
   const potionBase = potionId ? Math.round(POTION_LIBRARY[potionId].price * priceMult) : 0;
   const potionOffer = potionId
     ? {
@@ -600,14 +605,56 @@ export function applyCardRemovalSideEffects(state, removedCard) {
   return { lostMaxHp: 0 };
 }
 
+/**
+ * Official STS1 Master-Deck Transform:
+ * - Triggers removal side effects (e.g. Parasite -3 Max HP)
+ * - Curse -> random different Curse; Colorless -> random different Colorless; Class -> random different Class card (or Rare-only when requested)
+ * - Triggers addCardToMasterDeck hooks (Ceramic Fish +9g, Darkstone Periapt +6 Max HP on Curse)
+ */
+export function transformCardInMasterDeck(state, deckIndex, { rareOnly = false } = {}) {
+  const oldCard = state.player.deck[deckIndex];
+  const oldDef = CARD_LIBRARY[oldCard.cardId];
+  const oldChar = getCardCharacter(oldDef);
+  const { cards } = getUnlockedPools(state);
+
+  let rawPool;
+  if (rareOnly) {
+    rawPool = [...cards.rare];
+  } else if (oldDef?.type === 'curse') {
+    rawPool = [...CURSE_CARD_IDS];
+  } else if (oldChar === 'colorless') {
+    const colorless = getColorlessCardPools();
+    rawPool = [...colorless.uncommon, ...colorless.rare];
+  } else {
+    rawPool = [...cards.common, ...cards.uncommon, ...cards.rare];
+  }
+  const pool = rawPool.filter((cid) => cid !== oldCard.cardId);
+  const fallbackPool = rareOnly ? cards.rare : rawPool.length > 0 ? rawPool : cards.common;
+  const nextCardId = pickRandom(state, pool.length > 0 ? pool : fallbackPool);
+
+  state.player.deck.splice(deckIndex, 1);
+  const removalEffect = applyCardRemovalSideEffects(state, oldCard);
+  const created = createCardInstance(state, nextCardId, false);
+  addCardToMasterDeck(state, created);
+  return { oldCard, created, removalEffect };
+}
+
 export function rollUnownedRelicByTier(state, tier) {
   const { relics } = getUnlockedPools(state);
-  const unowned = (pool) => pool.filter((id) => !hasRelic(state, id));
+  const ownedCampfireCount = CAMPFIRE_RELIC_IDS.filter((id) => hasRelic(state, id)).length;
+  const unowned = (pool) =>
+    Array.isArray(pool)
+      ? pool.filter(
+          (id) =>
+            !hasRelic(state, id) &&
+            !(ownedCampfireCount >= 2 && CAMPFIRE_RELIC_IDS.includes(id))
+        )
+      : [];
   const preferred = unowned(relics[tier] || []);
   if (preferred.length > 0) {
     return pickRandom(state, preferred);
   }
-  const fallback = unowned(relics.allNonBoss);
+  const fallback = unowned(relics.allStandard);
   return fallback.length > 0 ? pickRandom(state, fallback) : null;
 }
 

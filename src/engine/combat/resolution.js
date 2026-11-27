@@ -13,14 +13,20 @@ import {
   isGeneratableCombatCard,
   upgradeCardInstance,
 } from '../../data/cards.js';
-import { getGuardianDefensiveIntent, rollEnemyIntent } from '../../data/enemies.js';
+import {
+  applyAscensionIntentScaling,
+  getGuardianDefensiveIntent,
+  rollEnemyIntent,
+} from '../../data/enemies.js';
 import { RELIC_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
 import { pickRandom, randomInt } from '../rng.js';
 import {
   MAX_HAND_SIZE,
+  VELVET_CHOKER_CARD_LIMIT,
   VALID_STANCES,
   pushCardReveal,
   hasRelic,
+  healPlayerInCombat,
   getAliveEnemies,
   pushCombatLog,
   applyStatus,
@@ -37,6 +43,7 @@ import {
   getActivePendingCardChoice,
   flushQueuedOmniscience,
   invokePlayCard,
+  invokeEndPlayerTurn,
   returnDiscardCardsByFlag,
   togglePendingCardChoice,
   handleCombatDefeat,
@@ -204,22 +211,17 @@ export function handleEnemyDeathPassives(state, deadEnemy) {
     }
   }
 
-  // The Specimen: transfer remaining poison to a random alive enemy
+  // The Specimen: transfer remaining poison to a random alive enemy (triggers Snecko Skull + Sadistic Nature)
   const remPoison = deadEnemy.statuses?.poison ?? 0;
   if (remPoison > 0 && hasRelic(state, 'the_specimen')) {
     const alive = getAliveEnemies(combat);
     const recipient = pickRandom(state, alive);
     if (recipient) {
-      if (applyStatus(recipient, 'poison', remPoison)) {
+      const transferred = applyPoisonToEnemy(state, recipient, remPoison);
+      if (transferred > 0) {
         pushCombatLog(
           combat,
-          `遗物【${RELIC_LIBRARY.the_specimen.name}】生效：将 ${remPoison} 层【中毒】转移给【${recipient.name}】！`,
-          'status'
-        );
-      } else {
-        pushCombatLog(
-          combat,
-          `【${recipient.name}】的【人工制品】抵消了【${RELIC_LIBRARY.the_specimen.name}】转移的【中毒】！`,
+          `遗物【${RELIC_LIBRARY.the_specimen.name}】生效：将 ${transferred} 层【中毒】转移给【${recipient.name}】！`,
           'status'
         );
       }
@@ -248,19 +250,72 @@ export function handleEnemyDeathPassives(state, deadEnemy) {
 
   // Gremlin Horn: +1 energy & draw 1 card whenever an enemy dies
   if (hasRelic(state, 'gremlin_horn') && combat.status === 'ongoing' && state.player.hp > 0) {
-    state.player.energy += 1;
-    pushCombatLog(
-      combat,
-      `遗物【${RELIC_LIBRARY.gremlin_horn.name}】触发：击杀【${deadEnemy.name}】，获得 1 点能量并抽 1 张牌！`,
-      'info'
-    );
     if (combat.phase === 'player' && getAliveEnemies(combat).length > 0) {
+      state.player.energy += 1;
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.gremlin_horn.name}】触发：击杀【${deadEnemy.name}】，获得 1 点能量并抽 1 张牌！`,
+        'info'
+      );
       drawCards(state, 1);
+    } else if (getAliveEnemies(combat).length > 0) {
+      applyStatus(state.player, 'drawCardNextTurn', 1);
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.gremlin_horn.name}】触发：敌方回合击杀【${deadEnemy.name}】，下回合额外抽 1 张牌！`,
+        'info'
+      );
     }
   }
 
   // Clear permanently defeated / fled enemies off the battlefield (keep regrowing Darklings)
   pruneDefeatedEnemies(combat);
+}
+
+export function flushQueuedMelangeScry(state) {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    (combat._melangeScryQueuedCount ?? 0) <= 0 ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    hasPendingCardChoice(combat) ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  combat._melangeScryQueuedCount -= 1;
+  if (combat.drawPile.length > 0) {
+    initiateScry(state, 3, RELIC_LIBRARY.melange.name);
+    return true;
+  }
+  return false;
+}
+
+export function flushPostChoiceQueues(state, onVictoryCallback = null) {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    state.player.hp <= 0 ||
+    hasPendingCardChoice(combat) ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  if (combat._pendingTimeWarpEndTurn) {
+    combat._pendingTimeWarpEndTurn = false;
+    combat.queuedOmnisciencePicks = 0;
+    combat._melangeScryQueuedCount = 0;
+    invokeEndPlayerTurn(state, onVictoryCallback);
+    return true;
+  }
+  flushQueuedOmniscience(state);
+  if (!hasPendingCardChoice(combat)) {
+    flushQueuedMelangeScry(state);
+  }
+  return false;
 }
 
 export function drawCards(state, count, options = {}) {
@@ -297,6 +352,8 @@ export function drawCards(state, count, options = {}) {
         typeof drawnStats.cost === 'number'
       ) {
         nextCard.combatCost = randomInt(state, 0, 3);
+        delete nextCard.tempZeroCostTurn;
+        delete nextCard.prevCombatCost;
       }
     }
     combat.hand.push(nextCard);
@@ -370,26 +427,7 @@ export function drawCards(state, count, options = {}) {
     }
   }
 
-  if (
-    combat._melangeScryQueued &&
-    combat.status === 'ongoing' &&
-    combat.phase === 'player' &&
-    !hasPendingCardChoice(combat) &&
-    getAliveEnemies(combat).length > 0
-  ) {
-    combat._melangeScryQueued = false;
-    gainMantra(state, 2);
-    pushCombatLog(
-      combat,
-      `遗物【${RELIC_LIBRARY.melange.name}】触发：获得 2 点【真言】！`,
-      'status'
-    );
-    if (combat.drawPile.length > 0 && combat.status === 'ongoing') {
-      initiateScry(state, 3, RELIC_LIBRARY.melange.name);
-    }
-  } else {
-    combat._melangeScryQueued = false;
-  }
+  flushQueuedMelangeScry(state);
 
   return drawn;
 }
@@ -515,7 +553,7 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
         enemy.intent = {
           id: 'stunned',
           name: '硬壳碎裂 · 眩晕',
-          type: 'debuff',
+          type: 'sleep',
           summary: '多层护甲已被击碎！本回合陷入眩晕无法行动。',
         };
         pushCombatLog(
@@ -591,11 +629,12 @@ export function dealDamageToEnemy(state, enemy, rawAmount, options = { isAttack:
       enemy.mode = 'defensive';
       enemy.defensiveStep = 0;
       enemy.block += 16;
-      applyStatus(enemy, 'sharpHide', 3);
-      enemy.intent = getGuardianDefensiveIntent(0);
+      const sharpAmt = (state.ascension ?? 0) >= 9 ? 4 : 3;
+      applyStatus(enemy, 'sharpHide', sharpAmt);
+      enemy.intent = applyAscensionIntentScaling(state, enemy, getGuardianDefensiveIntent(0));
       pushCombatLog(
         combat,
-        `【${enemy.name}】进入【防御形态】：获得 16 点格挡与 3 层【锋利外壳】！`,
+        `【${enemy.name}】进入【防御形态】：获得 16 点格挡与 ${sharpAmt} 层【锋利外壳】！`,
         'status'
       );
     }
@@ -622,12 +661,12 @@ export function handlePlayerHpLostTriggers(state, { isAttack = false } = {}) {
 
   if (state.player.hp <= 0) return;
 
-  if (hasRelic(state, 'self_forming_clay') && (combat.clayTriggersThisTurn ?? 0) < 2) {
+  if (hasRelic(state, 'self_forming_clay')) {
     combat.clayTriggersThisTurn = (combat.clayTriggersThisTurn ?? 0) + 1;
-    applyStatus(state.player, 'nextTurnBlock', 2);
+    applyStatus(state.player, 'nextTurnBlock', 3);
     pushCombatLog(
       combat,
-      `遗物【${RELIC_LIBRARY.self_forming_clay.name}】触发：下回合开始获得 2 点格挡！`,
+      `遗物【${RELIC_LIBRARY.self_forming_clay.name}】触发：下回合开始获得 3 点格挡！`,
       'block'
     );
   }
@@ -652,24 +691,20 @@ export function handlePlayerHpLostTriggers(state, { isAttack = false } = {}) {
   }
 
   if (hasRelic(state, 'runic_cube')) {
-    const phaseKey = `${combat.turn}:${combat.phase}`;
-    if (combat.runicCubeLastPhaseKey !== phaseKey) {
-      combat.runicCubeLastPhaseKey = phaseKey;
-      if (combat.phase === 'player' && getAliveEnemies(combat).length > 0) {
-        pushCombatLog(
-          combat,
-          `遗物【${RELIC_LIBRARY.runic_cube.name}】触发：损血抽 1 张牌！`,
-          'info'
-        );
-        drawCards(state, 1);
-      } else {
-        applyStatus(state.player, 'drawCardNextTurn', 1);
-        pushCombatLog(
-          combat,
-          `遗物【${RELIC_LIBRARY.runic_cube.name}】触发：下回合开始额外抽 1 张牌！`,
-          'info'
-        );
-      }
+    if (combat.phase === 'player' && getAliveEnemies(combat).length > 0) {
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.runic_cube.name}】触发：损血抽 1 张牌！`,
+        'info'
+      );
+      drawCards(state, 1);
+    } else {
+      applyStatus(state.player, 'drawCardNextTurn', 1);
+      pushCombatLog(
+        combat,
+        `遗物【${RELIC_LIBRARY.runic_cube.name}】触发：下回合开始额外抽 1 张牌！`,
+        'info'
+      );
     }
   }
 }
@@ -1353,7 +1388,7 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     finalizeCombatVictory(state, onVictoryCallback);
   } else {
-    flushQueuedOmniscience(state);
+    flushPostChoiceQueues(state, onVictoryCallback);
   }
 
   return {
@@ -1367,7 +1402,7 @@ export function confirmScryChoice(state, explicitDiscardIds = null, onVictoryCal
 export function resolveCardChoice(state, instanceId, onVictoryCallback = null) {
   const result = resolveCardChoiceInner(state, instanceId, onVictoryCallback);
   if (result?.ok) {
-    flushQueuedOmniscience(state);
+    flushPostChoiceQueues(state, onVictoryCallback);
     result.remaining = state?.combat?.pendingCardChoice?.remaining ?? 0;
   }
   return result;
@@ -1413,6 +1448,16 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
       state.player.gold = (state.player.gold ?? 0) + picked.value;
       if (state.stats) state.stats.goldEarned = (state.stats.goldEarned ?? 0) + picked.value;
       pushCombatLog(combat, `【${sourceName}】选择「暴富」：立即获得 ${picked.value} 金币！`, 'victory');
+      if (hasRelic(state, 'bloody_idol') && picked.value > 0) {
+        const healed = healPlayerInCombat(state, 5);
+        if (healed > 0) {
+          pushCombatLog(
+            combat,
+            `遗物【${RELIC_LIBRARY.bloody_idol.name}】生效：获得金币回复 ${healed} 点生命！`,
+            'heal'
+          );
+        }
+      }
     }
     return {
       ok: true,
@@ -1497,9 +1542,22 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
       combat.queuedOmniscienceSource = sourceName;
     }
     const cStats = getCardStats(card);
-    if (cStats.unplayable) {
+    const medKitPlayable = Boolean(
+      cStats.unplayable && cStats.type === 'status' && hasRelic(state, 'medical_kit')
+    );
+    const blockedByVelvetChoker = Boolean(
+      hasRelic(state, 'velvet_choker') &&
+        (combat.cardsPlayedThisTurn ?? 0) >= VELVET_CHOKER_CARD_LIMIT
+    );
+    if ((cStats.unplayable && !medKitPlayable) || blockedByVelvetChoker) {
       exhaustCardsBatch(state, [card]);
-      pushCombatLog(combat, `【${sourceName}】选中不可打出的【${cStats.name}】，已直接消耗。`, 'info');
+      pushCombatLog(
+        combat,
+        blockedByVelvetChoker
+          ? `受【${RELIC_LIBRARY.velvet_choker.name}】限制，【${sourceName}】选中的【${cStats.name}】无法打出，已直接消耗。`
+          : `【${sourceName}】选中不可打出的【${cStats.name}】，已直接消耗。`,
+        'info'
+      );
     } else {
       const alive = getAliveEnemies(combat);
       const targetEnemy = cStats.target === 'enemy' ? pickRandom(state, alive) : null;
@@ -1887,12 +1945,13 @@ export function discardHandCard(state, instanceId, onVictoryCallback = null) {
   return resolveCardChoice(state, instanceId, onVictoryCallback);
 }
 
-export function exhaustCardsBatch(state, cardInstances) {
-  const combat = state.combat;
+export function exhaustCardsBatch(state, cardInstances, options = {}) {
+  const combat = state?.combat;
   if (!combat || !Array.isArray(cardInstances) || cardInstances.length === 0) return 0;
 
   const valid = cardInstances.filter(Boolean);
   if (valid.length === 0) return 0;
+  const allowEndOfTurn = Boolean(options.allowEndOfTurn);
 
   let sentinelEnergy = 0;
   const returnToHandAfter = [];
@@ -1936,25 +1995,35 @@ export function exhaustCardsBatch(state, cardInstances) {
   }
 
   if (hasRelic(state, 'charons_ashes')) {
-    const ashDmg = 3 * count;
-    const alive = getAliveEnemies(combat);
-    if (alive.length > 0) {
-      pushCombatLog(combat, `遗物【${RELIC_LIBRARY.charons_ashes.name}】触发：对全体敌人造成 ${ashDmg} 点伤害！`, 'attack');
+    for (let hitIdx = 0; hitIdx < count; hitIdx += 1) {
+      const alive = getAliveEnemies(combat);
+      if (alive.length === 0 || combat.status !== 'ongoing') break;
+      if (hitIdx === 0) {
+        pushCombatLog(
+          combat,
+          `遗物【${RELIC_LIBRARY.charons_ashes.name}】触发：对全体敌人造成 ${count > 1 ? `3×${count}` : '3'} 点伤害！`,
+          'attack'
+        );
+      }
       for (const enemy of alive) {
-        dealDamageToEnemy(state, enemy, ashDmg, { isAttack: false });
+        dealDamageToEnemy(state, enemy, 3, { isAttack: false });
       }
     }
   }
 
   const darkEmbrace = state.player.statuses.darkEmbrace ?? 0;
-  if (darkEmbrace > 0 && combat.phase === 'player' && getAliveEnemies(combat).length > 0) {
+  if (
+    darkEmbrace > 0 &&
+    (combat.phase === 'player' || allowEndOfTurn) &&
+    getAliveEnemies(combat).length > 0
+  ) {
     drawCards(state, darkEmbrace * count);
   }
 
   if (
     hasRelic(state, 'dead_branch') &&
     combat.status === 'ongoing' &&
-    combat.phase === 'player' &&
+    (combat.phase === 'player' || allowEndOfTurn) &&
     getAliveEnemies(combat).length > 0
   ) {
     const charId = state.characterId ?? state.player.characterId ?? 'ironclad';

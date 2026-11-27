@@ -17,8 +17,15 @@ import {
 } from '../src/data/cards.js';
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
-import { CARD_THEME_ART, getCardArtKey, getCardArtSvg, SIGNATURE_CARD_ART } from '../src/ui/card_art.js';
-import { getGlossaryEntries } from '../src/ui/glossary.js';
+import {
+  CARD_THEME_ART,
+  ensureAllCardArtLoaded,
+  getCardArtKey,
+  getCardArtSvg,
+  SIGNATURE_CARD_ART,
+} from '../src/ui/card_art.js';
+import { detectActiveMechanicTip, getGlossaryEntries, MECHANIC_TIPS } from '../src/ui/glossary.js';
+import { createDefaultSettings, loadSettings, saveSettings } from '../src/ui/settings.js';
 import { extractCardKeywords, formatCardDescHtml } from '../src/ui/helpers.js';
 import { getCharacterSvg, getOrbSvg, getVitalIconSvg } from '../src/ui/icons.js';
 import { getRelicSvg, getUndiscoveredRelicSvg, RELIC_SVG_ART } from '../src/ui/relic_art.js';
@@ -44,6 +51,7 @@ import {
   NON_STARTER_RELIC_IDS,
   POTION_LIBRARY,
   RELIC_LIBRARY,
+  rollWeightedPotionId,
   STATUS_METADATA,
 } from '../src/data/relics.js';
 import { startCombat } from '../src/engine/combat.js';
@@ -123,6 +131,7 @@ import {
   ASCENSION_DEFS,
   buildRunReportFromState,
   calculateRunScore,
+  computeCardWinRateRows,
   createDefaultCompendium,
   createDefaultMeta,
   exportSaveBackup,
@@ -133,7 +142,9 @@ import {
   getScoreGrade,
   loadSavedMeta,
   MAX_ASCENSION,
+  MAX_RUN_HISTORY,
   META_STORAGE_KEY,
+  normalizeMetaData,
   recordCompletedRun,
   SAVE_BACKUP_APP_ID,
   saveMeta,
@@ -728,7 +739,7 @@ test('Treasure Chest + Cursed Key, Boss Relic Altar, Act 2 progression, Dynamic 
   const a5 = createNewRun({ seed: 600, ascension: 5, unlockedTier: 0, unlockAllOverride: false });
   assert.equal(a5.player.maxHp, 75);
   assert.equal(a5.player.deck.length, 11);
-  assert.equal(a5.player.deck.some((c) => c.cardId === 'clumsy'), true);
+  assert.equal(a5.player.deck.some((c) => c.cardId === 'ascenders_bane'), true);
   assert.equal(getCurrentPurgeCost(a5), Math.round(75 * 1.15));
 
   const { lockedCardIds, lockedRelicIds } = getLockedContentSets(0, false);
@@ -784,9 +795,9 @@ test('P2: Seed code formatting/parsing, deterministic seeded runs, and persisten
     runB.map.map((row) => row.map((n) => ({ id: n.id, type: n.type, nextIds: n.nextIds })))
   );
 
-  // Run history records entries newest-first, caps at 30, and persists cleanly
+  // Run history records entries newest-first, caps at 50, and persists cardStats cleanly
   const meta = createDefaultMeta();
-  for (let i = 1; i <= 35; i += 1) {
+  for (let i = 1; i <= 55; i += 1) {
     const r = createNewRun({ seed: 1000 + i, ascension: i % 3 });
     r.floor = (i % 16) + 1;
     r.stats.floorsCleared = i % 16;
@@ -794,11 +805,13 @@ test('P2: Seed code formatting/parsing, deterministic seeded runs, and persisten
     r.runOutcome = i % 5 === 0 ? 'victory' : 'defeat';
     recordCompletedRun(meta, r);
   }
-  assert.equal(meta.runHistory.length, 30);
-  assert.equal(meta.runHistory[0].seed, 1035);
-  assert.equal(meta.runHistory[0].seedCode, formatSeedCode(1035));
+  assert.equal(meta.runHistory.length, 50);
+  assert.equal(meta.runHistory[0].seed, 1055);
+  assert.equal(meta.runHistory[0].seedCode, formatSeedCode(1055));
   assert.equal(meta.runHistory[0].outcome, 'victory');
-  assert.equal(meta.runHistory[29].seed, 1006);
+  assert.equal(meta.runHistory[49].seed, 1006);
+  assert.equal(meta.cardStats.bash.runs, 55);
+  assert.equal(meta.cardStats.bash.wins, 11);
 
   const fakeStorage = {
     data: new Map(),
@@ -811,8 +824,10 @@ test('P2: Seed code formatting/parsing, deterministic seeded runs, and persisten
   };
   saveMeta(meta, fakeStorage);
   const reloaded = loadSavedMeta(fakeStorage);
-  assert.equal(reloaded.runHistory.length, 30);
-  assert.equal(reloaded.runHistory[0].seedCode, formatSeedCode(1035));
+  assert.equal(reloaded.runHistory.length, 50);
+  assert.equal(reloaded.runHistory[0].seedCode, formatSeedCode(1055));
+  assert.equal(reloaded.cardStats.bash.runs, 55);
+  assert.equal(reloaded.cardStats.bash.wins, 11);
 });
 
 test('P2: Enemy next-turn intent prediction handles Ritual scaling, Boss cycles, Guardian mode shift, Slime split, and probabilistic weights', () => {
@@ -864,7 +879,7 @@ test('P2: Enemy next-turn intent prediction handles Ritual scaling, Boss cycles,
   assert.ok(jawPred.summaryText.startsWith('下回合：'));
 });
 
-test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.js modules with zero orphans or unbundled syntax', () => {
+test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.js modules with zero orphans or unbundled syntax', async () => {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
   function listAllJsUnder(dirRel) {
@@ -897,7 +912,18 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
   assert.deepEqual(
     extractSwPrecacheUrls(swText),
     computeExpectedPrecacheUrls(repoRoot),
-    'sw.js PRECACHE_URLS must stay in exact sync with index.html stylesheets and src/main.js module graph (run `npm run sync:sw`)'
+    'sw.js PRECACHE_URLS must stay in exact sync with index.html stylesheets and static src/main.js module graph (run `npm run sync:sw`)'
+  );
+  const { computeExpectedLazyPrecacheUrls } = await import('../scripts/build-standalone.mjs');
+  const { extractSwLazyPrecacheUrls } = await import('../scripts/sync-sw-precache.mjs');
+  assert.deepEqual(
+    extractSwLazyPrecacheUrls(swText),
+    computeExpectedLazyPrecacheUrls(repoRoot),
+    'sw.js LAZY_PRECACHE_URLS must stay in exact sync with dynamic card-art chunks (run `npm run sync:sw`)'
+  );
+  assert.ok(
+    extractSwLazyPrecacheUrls(swText).length >= 8,
+    'Per-class card art chunks must be deferred into LAZY_PRECACHE_URLS for fast initial load'
   );
 });
 
@@ -1254,8 +1280,8 @@ test('Daily Challenge determinism, ?daily= URL round-trip, all 10 modifiers, Run
   assert.equal(dailyA6Run.player.potions.length, 2, 'Daily A6 must apply 2-slot potion limit');
   assert.ok(dailyA6Run.player.hp < dailyA6Run.player.maxHp, 'Daily A6 must apply 10% damaged start');
   assert.ok(
-    dailyA6Run.player.deck.some((c) => c.cardId === 'clumsy'),
-    'Daily A6 must include A5 Clumsy curse'
+    dailyA6Run.player.deck.some((c) => c.cardId === 'ascenders_bane'),
+    'Daily A6 must include A5 Ascender\'s Bane curse'
   );
 
   // 3a. Starting deck/relic/gold modifiers: all_star, shiny, heirloom, specialized, hoarder_gold, cursed_run
@@ -1413,8 +1439,8 @@ test('Relic Pool Tiering, Small/Medium/Large Chests, Dual Shop Relic Slots & Mem
   const silentPools = getRelicPoolsForCharacter('silent');
   assert.equal(ironPools.common.includes('snecko_skull'), false);
   assert.equal(silentPools.common.includes('snecko_skull'), true);
-  assert.equal(ironPools.uncommon.includes('red_skull'), true);
-  assert.equal(silentPools.uncommon.includes('red_skull'), false);
+  assert.equal(ironPools.common.includes('red_skull'), true);
+  assert.equal(silentPools.common.includes('red_skull'), false);
   assert.equal(ironPools.shop.length, 7);
   assert.equal(ironPools.event.length, 4);
   assert.equal(ironPools.boss.length, 11);
@@ -1894,7 +1920,7 @@ test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent 
   openEvent(altarRun, 'forgotten_altar');
   assert.equal(chooseEventOption(altarRun, 'desecrate_altar').ok, true);
   assert.equal(altarRun.player.hp, 55, 'Bloody Idol must heal +5 HP on event gold gain');
-  assert.ok(altarRun.player.deck.some((c) => c.cardId === 'regret'));
+  assert.ok(altarRun.player.deck.some((c) => c.cardId === 'decay'));
 
   // 6. Augmenter: transform_rare turns chosen card into a Rare class card
   const augRun = createNewRun({ seed: 10105, characterId: 'silent', skipNeow: true });
@@ -1935,7 +1961,7 @@ test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent 
   assert.equal(CARD_LIBRARY[addedRareColorless.cardId].rarity, 'rare');
   assert.equal(getCardCharacter(CARD_LIBRARY[addedRareColorless.cardId]), 'colorless');
 
-  // 8. Winding Halls: embrace_madness adds 2x 0-cost Colorless uncommon cards; retrace_steps heals + Doubt; push_through_halls loses 6% Max HP
+  // 8. Winding Halls: embrace_madness adds 2x Madness; retrace_steps heals + Writhe; push_through_halls loses 6% Max HP
   const hallRun = createNewRun({ seed: 10107, skipNeow: true });
   hallRun.player.hp = 70;
   openEvent(hallRun, 'winding_halls');
@@ -1945,13 +1971,12 @@ test('Stage 1: Act-scoped 35-event pool, 7 Stage 1 events + Bloody Idol, Silent 
   for (const cid of hallRun.eventState.addedCardIds) {
     const inst = hallRun.player.deck.find((c) => c.instanceId === cid);
     assert.ok(inst);
-    assert.equal(getCardCharacter(CARD_LIBRARY[inst.cardId]), 'colorless');
-    assert.equal(getCardStats(inst).cost, 0);
+    assert.equal(inst.cardId, 'madness');
   }
   openEvent(hallRun, 'winding_halls');
   assert.equal(chooseEventOption(hallRun, 'retrace_steps').ok, true);
   assert.equal(hallRun.player.hp, 78, '58 + floor(80 * 0.25) = 78');
-  assert.ok(hallRun.player.deck.some((c) => c.cardId === 'doubt'));
+  assert.ok(hallRun.player.deck.some((c) => c.cardId === 'writhe'));
 
   // A8 tuning check for new events
   const a8Tune = getEventTuning(8);
@@ -2127,7 +2152,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 361 cards resolve valid, richly de-duplicated vector art', () => {
+test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 361 cards resolve valid, richly de-duplicated vector art', async () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
@@ -2183,6 +2208,7 @@ test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradi
     seenUnitGradIds.add(m[1]);
   }
 
+  await ensureAllCardArtLoaded();
   const cardEntries = Object.entries(CARD_LIBRARY);
   assert.equal(cardEntries.length, 361);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
@@ -2322,7 +2348,7 @@ test('P1 Out-of-Combat Relics & All 16 New Events (Normal & A8 scaling): full li
 
   const goldBeforeStar = st.player.gold;
   grantRelicToPlayer(st, 'black_star');
-  assert.equal(st.player.gold, goldBeforeStar + 75, 'Black Star grants +75 gold on pickup');
+  assert.equal(st.player.gold, goldBeforeStar, 'Black Star grants no bonus gold on pickup (STS1 faithful)');
 
   // Shop entry triggers Meal Ticket (+15 HP)
   const shopNode = st.map.flat().find((n) => n.type === 'shop');
@@ -2778,13 +2804,13 @@ test('Official Simplified Chinese relic names (113 unique) & War Paint / Whetsto
 
   const expectedOfficialRelicNames = {
     pure_water: '至纯之水',
-    cracked_core: '碎裂核心',
+    cracked_core: '破损核心',
     data_disk: '数据磁盘',
     gold_plated_cables: '镀金电缆',
     symbiotic_virus: '共生病毒',
     emotion_chip: '情感芯片',
     runic_capacitor: '符文电容器',
-    frozen_core: '冻结核心',
+    frozen_core: '冰冻核心',
     inserter: '插入器',
     nuclear_battery: '核能电池',
     bird_faced_urn: '鸟面瓮',
@@ -2808,13 +2834,13 @@ test('Official Simplified Chinese relic names (113 unique) & War Paint / Whetsto
     lees_waffle: '李家华夫饼',
     golden_idol_relic: '金神像',
     red_mask: '红面具',
-    enchiridion: '英雄宝典',
+    enchiridion: '手册',
     bloody_idol: '鲜血神像',
     black_blood: '黑暗之血',
     ring_of_the_serpent: '长蛇戒指',
     violet_lotus: '紫色莲花',
     wrist_blade: '袖剑',
-    velvet_choker: '天鹅绒颈圈',
+    velvet_choker: '天鹅绒项圈',
     coffee_dripper: '咖啡滤杯',
     ceramic_fish: '陶瓷小鱼',
     toy_ornithopter: '玩具扑翼飞机',
@@ -2831,7 +2857,7 @@ test('Official Simplified Chinese relic names (113 unique) & War Paint / Whetsto
     dead_branch: '枯木树枝',
     clockwork_souvenir: '齿轮工艺品',
     hovering_kite: '悬浮风筝',
-    slavers_collar: '奴隶贩子颈环',
+    slavers_collar: '奴隶贩子项圈',
     peace_pipe: '宁静烟斗',
   };
   for (const [id, expectedName] of Object.entries(expectedOfficialRelicNames)) {
@@ -3644,4 +3670,184 @@ test('Full Roster 361 Run Integration: the_nest, vampires embrace_bites, augment
   }
   assert.equal(getCardStats(sbCard).damage, 27, 'Searing Blow+3 deals 27 base damage');
   assert.equal(getCardStats(sbCard).name, '灼热攻击+3');
+});
+
+test('Part A Features & STS1 Run/Meta/Event Fidelity: 50-run history + cardStats, Mechanic Tips, New Audio Cues, Living Wall anti-softlock, Max HP clamp, Tungsten Rod in Events, Transform Curse/Colorless/Parasite/Ceramic Fish, Boss Singing Bowl, Mausoleum Writhe+A8, Mind Bloom Normality, Potion 40%±10% pity & weighted rarity', () => {
+  // 1. Run History 50-cap + cumulative cardStats accumulation & legacy backfill
+  assert.equal(MAX_RUN_HISTORY, 50);
+  const meta = createDefaultMeta();
+  for (let i = 0; i < 55; i += 1) {
+    const run = createNewRun({ seed: 97000 + i, characterId: i % 2 === 0 ? 'ironclad' : 'watcher', skipNeow: true });
+    if (i % 2 === 0) {
+      addCardToMasterDeck(run, createCardInstance(run, 'pommel_strike', false), { triggerRelics: false });
+    } else {
+      addCardToMasterDeck(run, createCardInstance(run, 'tantrum', false), { triggerRelics: false });
+    }
+    run.screen = 'game_over';
+    run.outcome = i % 3 === 0 ? 'victory' : 'defeat';
+    recordCompletedRun(meta, run);
+  }
+  assert.equal(meta.runHistory.length, 50, 'runHistory retains up to 50 runs');
+  assert.ok(meta.cardStats.pommel_strike?.runs >= 27, 'cardStats accumulates across runs even beyond 50-run history cap');
+  const ironRows = computeCardWinRateRows(meta, { characterFilter: 'ironclad' });
+  assert.ok(ironRows.some((r) => r.cardId === 'pommel_strike' && r.runs >= 27), 'computeCardWinRateRows filters by character');
+  // Legacy backfill from runHistory when cardStats missing
+  const legacyNorm = normalizeMetaData({
+    runHistory: [
+      {
+        characterId: 'silent',
+        outcome: 'victory',
+        deckSummary: [{ cardId: 'noxious_fumes', count: 1 }],
+      },
+    ],
+  });
+  assert.equal(legacyNorm.cardStats.noxious_fumes?.runs, 1, 'Legacy meta backfills cardStats from runHistory');
+  assert.equal(legacyNorm.cardStats.noxious_fumes?.wins, 1);
+
+  // 2. First-time Mechanic Tips detection & settings round-trip
+  assert.ok(MECHANIC_TIPS.length >= 6);
+  const mem = new Map();
+  const mockStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const sDef = createDefaultSettings();
+  assert.equal(sDef.showMechanicTips, true);
+  assert.deepEqual(sDef.seenMechanicTips, []);
+  const watcherCombat = createNewRun({ seed: 97101, characterId: 'watcher', skipNeow: true });
+  startCombat(watcherCombat, ENCOUNTERS.floor1[0], 'normal');
+  const tip1 = detectActiveMechanicTip(watcherCombat, sDef);
+  assert.equal(tip1?.id, 'watcher_stance', 'Watcher first combat surfaces watcher_stance tip');
+  sDef.seenMechanicTips.push('watcher_stance');
+  saveSettings(sDef, mockStorage);
+  const reloadedSettings = loadSettings(mockStorage);
+  assert.deepEqual(reloadedSettings.seenMechanicTips, ['watcher_stance']);
+  assert.equal(detectActiveMechanicTip(watcherCombat, reloadedSettings), null, 'Seen tip does not re-trigger');
+  reloadedSettings.showMechanicTips = false;
+  watcherCombat.player.statuses.mantra = 2;
+  assert.equal(detectActiveMechanicTip(watcherCombat, reloadedSettings), null, 'Disabled showMechanicTips suppresses all tips');
+
+  // 3. New Part A Audio cues exist & execute cleanly
+  for (const cue of ['stance_exit', 'mantra', 'orb_slot', 'strength_up', 'shiv']) {
+    assert.ok(AUDIO_CUES.includes(cue), `AUDIO_CUES must include ${cue}`);
+  }
+
+  // 4. Living Wall anti-softlock when deck has only unremovable non-upgradable curses
+  const openEvt = (run, evId) => {
+    run.screen = 'event';
+    run.eventState = {
+      eventId: evId,
+      resolved: false,
+      outcomeText: '',
+      pendingPurge: false,
+      purgeHpCost: 0,
+      purgeGoldCost: 0,
+      pendingCardAction: null,
+      cardActionHpCost: 0,
+      libraryChoices: null,
+    };
+  };
+  const wallRun = createNewRun({ seed: 97201, characterId: 'ironclad', skipNeow: true });
+  wallRun.player.deck = [createCardInstance(wallRun, 'ascenders_bane', false)];
+  openEvt(wallRun, 'living_wall');
+  const wallRes = chooseEventOption(wallRun, 'wall_change');
+  assert.equal(wallRes.ok, true, 'Living Wall must gracefully resolve instead of softlocking when no card can be removed/transformed/upgraded');
+  assert.equal(wallRun.eventState.resolved, true);
+
+  // 5. Max HP % loss clamp NEVER increases Max HP when player already has low Max HP
+  const lowMaxRun = createNewRun({ seed: 97202, characterId: 'ironclad', skipNeow: true });
+  lowMaxRun.player.maxHp = 18;
+  lowMaxRun.player.hp = 18;
+  openEvt(lowMaxRun, 'mind_bloom');
+  assert.equal(chooseEventOption(lowMaxRun, 'awake_memory').ok, true);
+  assert.equal(lowMaxRun.player.maxHp, 18, 'Mind Bloom awake_memory must NOT increase Max HP from 18 up to 25');
+  openEvt(lowMaxRun, 'council_of_ghosts');
+  assert.equal(chooseEventOption(lowMaxRun, 'accept_ghosts').ok, true);
+  assert.equal(lowMaxRun.player.maxHp, 18, 'Council of Ghosts must NOT increase Max HP from 18 up to 20');
+  openEvt(lowMaxRun, 'moai_head');
+  assert.equal(chooseEventOption(lowMaxRun, 'jump_into_moai').ok, true);
+  assert.equal(lowMaxRun.player.maxHp, 18, 'Moai Head must NOT increase Max HP from 18 up to 25');
+
+  // 6. Tungsten Rod reduces event HP loss by 1
+  const rodRun = createNewRun({ seed: 97203, characterId: 'ironclad', skipNeow: true });
+  rodRun.player.relics.push('tungsten_rod');
+  rodRun.player.hp = 50;
+  openEvt(rodRun, 'shining_light');
+  assert.equal(chooseEventOption(rodRun, 'enter_light').ok, true);
+  assert.equal(rodRun.player.hp, 39, 'Tungsten Rod reduces Shining Light 12 HP loss to 11 (50 -> 39)');
+
+  // 7. STS1 Event Curses: Mind Bloom -> 2x Normality; Mausoleum -> Writhe (100% on A8+)
+  const mbRun = createNewRun({ seed: 97204, characterId: 'ironclad', skipNeow: true });
+  openEvt(mbRun, 'mind_bloom');
+  assert.equal(chooseEventOption(mbRun, 'rich_memory').ok, true);
+  assert.equal(mbRun.player.deck.filter((c) => c.cardId === 'normality').length, 2, 'Mind Bloom rich_memory adds 2 Normality');
+
+  const mauA8 = createNewRun({ seed: 97205, characterId: 'ironclad', ascension: 8, skipNeow: true });
+  openEvt(mauA8, 'the_mausoleum');
+  const mauRes = chooseEventOption(mauA8, 'open_coffin');
+  assert.equal(mauRes.ok, true);
+  assert.equal(mauRes.cursed, true, 'The Mausoleum A8+ open_coffin always curses (100%)');
+  assert.ok(mauA8.player.deck.some((c) => c.cardId === 'writhe'), 'The Mausoleum inflicts Writhe');
+
+  // 8. Transform fidelity: Curse -> Curse + Parasite (-3 Max HP) + Ceramic Fish (+9g) + Darkstone Periapt (+6 Max HP); Colorless -> Colorless
+  const tfRun = createNewRun({ seed: 97206, characterId: 'ironclad', skipNeow: true });
+  tfRun.player.relics.push('ceramic_fish', 'darkstone_periapt');
+  tfRun.player.gold = 100;
+  tfRun.player.maxHp = 80;
+  tfRun.player.hp = 80;
+  const para = createCardInstance(tfRun, 'parasite', false);
+  const apo = createCardInstance(tfRun, 'apotheosis', false);
+  tfRun.player.deck.push(para, apo);
+  openEvt(tfRun, 'living_wall');
+  assert.equal(chooseEventOption(tfRun, 'wall_change').ok, true);
+  const tfParaRes = completeEventCardAction(tfRun, para.instanceId);
+  assert.equal(tfParaRes.ok, true);
+  assert.equal(CARD_LIBRARY[tfParaRes.card.cardId].type, 'curse', 'Transforming a Curse produces another Curse');
+  assert.notEqual(tfParaRes.card.cardId, 'parasite');
+  assert.equal(tfRun.player.gold, 109, 'Transforming triggers Ceramic Fish +9g');
+  assert.equal(tfRun.player.maxHp, 83, 'Transforming Parasite loses 3 Max HP then Darkstone Periapt adds +6 Max HP (80 - 3 + 6 = 83)');
+  openEvt(tfRun, 'living_wall');
+  assert.equal(chooseEventOption(tfRun, 'wall_change').ok, true);
+  const tfColorlessRes = completeEventCardAction(tfRun, apo.instanceId);
+  assert.equal(tfColorlessRes.ok, true);
+  assert.equal(getCardCharacter(CARD_LIBRARY[tfColorlessRes.card.cardId]), 'colorless', 'Transforming a Colorless card produces another Colorless card');
+
+  // 9. Boss Singing Bowl: skipping Boss rare card reward grants +2 Max HP
+  const bowlRun = createNewRun({ seed: 97207, characterId: 'ironclad', skipNeow: true });
+  bowlRun.player.relics.push('singing_bowl');
+  bowlRun.screen = 'boss_reward';
+  bowlRun.bossReward = {
+    relicChoices: ['black_blood'],
+    pickedRelicId: 'black_blood',
+    cardChoices: [createCardInstance(bowlRun, 'demon_form', false)],
+    cardClaimed: false,
+    goldClaimed: true,
+    gold: 0,
+  };
+  const maxHpPreBossSkip = bowlRun.player.maxHp;
+  assert.equal(proceedToNextAct(bowlRun).ok, true);
+  assert.equal(bowlRun.player.maxHp, maxHpPreBossSkip + 2, 'Singing Bowl grants +2 Max HP when skipping Boss rare card reward');
+  assert.equal(bowlRun.potionDropChance, 40, 'New Act resets potionDropChance back to 40%');
+
+  // 10. Potion 40% ±10% pity & weighted rarity (65% Common / 25% Uncommon / 10% Rare)
+  const pityRun = createNewRun({ seed: 97208, characterId: 'ironclad', skipNeow: true });
+  assert.equal(pityRun.potionDropChance, 40, 'Run initializes potionDropChance to 40%');
+  const prevChance = pityRun.potionDropChance;
+  startCombat(pityRun, ENCOUNTERS.floor1[0], 'normal');
+  transitionCombatVictory(pityRun);
+  if (pityRun.reward.potionId) {
+    assert.equal(pityRun.potionDropChance, prevChance - 10, 'Potion drop lowers potionDropChance by 10%');
+  } else {
+    assert.equal(pityRun.potionDropChance, prevChance + 10, 'No potion drop raises potionDropChance by 10%');
+  }
+  // Verify weighted potion distribution skews heavily toward common over 600 samples
+  const rarityCounts = { common: 0, uncommon: 0, rare: 0 };
+  let s = 12345;
+  const detRng = () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+  for (let i = 0; i < 600; i += 1) {
+    const pid = rollWeightedPotionId('ironclad', detRng);
+    const rar = POTION_LIBRARY[pid]?.rarity || 'common';
+    rarityCounts[rar] = (rarityCounts[rar] ?? 0) + 1;
+  }
+  assert.ok(rarityCounts.common > rarityCounts.uncommon && rarityCounts.uncommon > rarityCounts.rare, `Expected common > uncommon > rare, got ${JSON.stringify(rarityCounts)}`);
 });

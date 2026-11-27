@@ -21,6 +21,7 @@ import {
 } from '../../engine/game.js';
 import {
   ASCENSION_DEFS,
+  computeCardWinRateRows,
   ensureCompendium,
   getCharacterProgress,
   getMaxAscensionForCharacter,
@@ -197,12 +198,58 @@ function renderMetaModal({ state, meta, ui }) {
   }).join('');
 
   const historyList = Array.isArray(meta.runHistory) ? meta.runHistory : [];
+  const histCharFilter = ui.historyCharFilter || 'all';
+  const histOutcomeFilter = ui.historyOutcomeFilter || 'all';
+  const indexedHistory = historyList
+    .map((rec, idx) => ({ rec, idx }))
+    .filter(({ rec }) => {
+      if (histCharFilter !== 'all' && (rec.characterId || 'ironclad') !== histCharFilter) return false;
+      if (histOutcomeFilter === 'victory' && rec.outcome !== 'victory') return false;
+      if (histOutcomeFilter === 'defeat' && rec.outcome === 'victory') return false;
+      return true;
+    });
+
+  const historyCharFiltersHtml = [
+    { id: 'all', label: '全部职业' },
+    ...CHARACTER_IDS.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
+  ]
+    .map(
+      (opt) => `
+        <button
+          type="button"
+          class="btn-stone btn-compact ${histCharFilter === opt.id ? 'btn-active-choice' : ''}"
+          data-action="set-history-char"
+          data-char-filter="${escapeHtml(opt.id)}"
+        >${escapeHtml(opt.label)}</button>
+      `
+    )
+    .join('');
+
+  const historyOutcomeFiltersHtml = [
+    { id: 'all', label: '全部战果' },
+    { id: 'victory', label: '仅凯旋' },
+    { id: 'defeat', label: '仅折戟' },
+  ]
+    .map(
+      (opt) => `
+        <button
+          type="button"
+          class="btn-stone btn-compact ${histOutcomeFilter === opt.id ? 'btn-active-choice' : ''}"
+          data-action="set-history-outcome"
+          data-outcome-filter="${escapeHtml(opt.id)}"
+        >${escapeHtml(opt.label)}</button>
+      `
+    )
+    .join('');
+
   const historyHtml =
     historyList.length === 0
       ? '<p class="stage-subtitle" style="margin:4px 0 0;">尚无已完成战绩记录。完成或折戟任意一局后，战绩、评分、遗物与完整牌组将自动保存在此供复盘。</p>'
-      : `<div class="history-list" id="run-history-list">
-          ${historyList
-            .map((rec, idx) => {
+      : indexedHistory.length === 0
+        ? '<p class="stage-subtitle" style="margin:4px 0 0;">当前筛选条件下暂无战绩记录。</p>'
+        : `<div class="history-list" id="run-history-list">
+          ${indexedHistory
+            .map(({ rec, idx }) => {
               const isWin = rec.outcome === 'victory';
               const sCode = rec.seedCode || formatSeedCode(rec.seed);
               const dateLabel = formatRunDate(rec.timestamp);
@@ -224,6 +271,7 @@ function renderMetaModal({ state, meta, ui }) {
                     }
                     <span class="history-floor">第 ${escapeHtml(rec.act ?? 1)} 幕 · F${escapeHtml(rec.floor ?? 1)}</span>
                     ${(rec.ascension ?? 0) > 0 ? `<span class="ascension-pill">进阶 ${escapeHtml(rec.ascension)}</span>` : ''}
+                    ${!isWin && rec.defeatedBy ? `<span class="history-defeat-cause">败于 ${escapeHtml(rec.defeatedBy)}</span>` : ''}
                     ${(rec.combatRestarts ?? 0) > 0 ? `<span class="history-badge restart">🔄 重启 ${escapeHtml(rec.combatRestarts)}次</span>` : ''}
                     <span class="history-meta">牌组 ${escapeHtml(rec.deckSize ?? 0)} · 遗物 ${escapeHtml(rec.relicCount ?? 0)} · 斩敌 ${escapeHtml(rec.enemiesSlain ?? 0)}</span>
                     ${dateLabel ? `<span class="history-date">${escapeHtml(dateLabel)}</span>` : ''}
@@ -254,6 +302,74 @@ function renderMetaModal({ state, meta, ui }) {
                       data-ascension="${escapeHtml(Math.min(maxAscAllowed, rec.ascension ?? 0))}"
                       data-character-id="${escapeHtml(recCharId)}"
                     >${isDaily ? '再战每日' : '重玩种子'}</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>`;
+
+  const cardStatsCharFilter = ui.cardStatsCharFilter || 'all';
+  const cardStatsSort = ui.cardStatsSort || 'winRate';
+  const cardStatsIncludeStarters = Boolean(ui.cardStatsIncludeStarters);
+  const cardStatsRows = computeCardWinRateRows(meta, {
+    characterFilter: cardStatsCharFilter,
+    sortBy: cardStatsSort,
+    includeStarters: cardStatsIncludeStarters,
+  });
+  const cardStatsCharFiltersHtml = [
+    { id: 'all', label: '全部' },
+    ...CHARACTER_IDS.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
+    { id: 'colorless', label: '无色' },
+  ]
+    .map(
+      (opt) => `
+        <button
+          type="button"
+          class="btn-stone btn-compact ${cardStatsCharFilter === opt.id ? 'btn-active-choice' : ''}"
+          data-action="set-card-stats-char"
+          data-char-filter="${escapeHtml(opt.id)}"
+        >${escapeHtml(opt.label)}</button>
+      `
+    )
+    .join('');
+  const cardStatsSortHtml = [
+    { id: 'winRate', label: '按胜率' },
+    { id: 'runs', label: '按登场场次' },
+    { id: 'upgradeRate', label: '按升级率' },
+  ]
+    .map(
+      (opt) => `
+        <button
+          type="button"
+          class="btn-stone btn-compact ${cardStatsSort === opt.id ? 'btn-active-choice' : ''}"
+          data-action="set-card-stats-sort"
+          data-sort-by="${escapeHtml(opt.id)}"
+        >${escapeHtml(opt.label)}</button>
+      `
+    )
+    .join('');
+
+  const cardStatsHtml =
+    cardStatsRows.length === 0
+      ? '<p class="stage-subtitle" style="margin:4px 0 0;">尚无卡牌胜率统计数据。完成任意一局后将自动累计每张卡牌的登场率、胜率与升级率。</p>'
+      : `<div class="card-stats-grid" id="meta-card-stats-grid">
+          ${cardStatsRows
+            .slice(0, 24)
+            .map((row) => {
+              const tierCls = row.winRate >= 60 ? '' : row.winRate >= 35 ? 'mid' : 'low';
+              return `
+                <div class="card-stat-row" data-stat-card-id="${escapeHtml(row.cardId)}">
+                  <div class="card-stat-head">
+                    <span class="card-stat-name rarity-${escapeHtml(row.rarity)}">${escapeHtml(row.name)}</span>
+                    <span class="card-stat-winrate ${tierCls}">${escapeHtml(row.winRate)}%</span>
+                  </div>
+                  <div class="card-stat-bar-track">
+                    <div class="card-stat-bar-fill ${tierCls}" style="width: ${escapeHtml(row.winRate)}%;"></div>
+                  </div>
+                  <div class="card-stat-meta">
+                    <span>胜/场：${escapeHtml(row.wins)}/${escapeHtml(row.runs)}</span>
+                    <span>均持 ${escapeHtml(row.avgCopies)} 张 · 升级 ${escapeHtml(row.upgradeRate)}%</span>
                   </div>
                 </div>
               `;
@@ -387,8 +503,33 @@ function renderMetaModal({ state, meta, ui }) {
             <div class="unlock-tier-list">${unlockTiersHtml}</div>
           </div>
 
-          <div class="meta-section">
-            <h3>历史战绩编年史（最近 ${escapeHtml(historyList.length)} 场 · 点击“复盘”查看完整构筑）</h3>
+          <div class="meta-section" id="meta-card-stats-section">
+            <h3>卡牌胜率与使用统计（已追踪 ${escapeHtml(cardStatsRows.length)} 种卡牌）</h3>
+            <div class="meta-filter-row">
+              ${cardStatsCharFiltersHtml}
+              <span class="meta-filter-sep" aria-hidden="true"></span>
+              ${cardStatsSortHtml}
+              <button
+                type="button"
+                id="btn-toggle-card-stats-starters"
+                class="btn-stone btn-compact ${cardStatsIncludeStarters ? 'btn-active-choice' : ''}"
+                data-action="toggle-card-stats-starters"
+              >${cardStatsIncludeStarters ? '✓ 含打击/防御' : '含打击/防御'}</button>
+            </div>
+            ${cardStatsHtml}
+          </div>
+
+          <div class="meta-section" id="meta-history-section">
+            <h3>历史战绩编年史（已筛选 ${escapeHtml(indexedHistory.length)} / ${escapeHtml(historyList.length)} 场 · 点击“复盘”查看完整构筑）</h3>
+            ${
+              historyList.length > 0
+                ? `<div class="meta-filter-row">
+                    ${historyCharFiltersHtml}
+                    <span class="meta-filter-sep" aria-hidden="true"></span>
+                    ${historyOutcomeFiltersHtml}
+                  </div>`
+                : ''
+            }
             ${historyHtml}
           </div>
         </div>
@@ -744,8 +885,23 @@ function renderSettingsModal({ settings, ui, state }) {
 
             <div class="settings-row">
               <div>
-                <div class="settings-label">地图顶部新手提示条</div>
-                <div class="settings-desc">恢复第 1 层出发前的新手快捷引导横幅。</div>
+                <div class="settings-label">新机制首次战斗提示</div>
+                <div class="settings-desc">首次遇到观者姿态、充能球、真言、剧毒/小刀、消耗或状态/诅咒牌时弹出简短浮动指引（不遮挡出牌）。</div>
+              </div>
+              <button
+                type="button"
+                id="btn-toggle-mechanic-tips"
+                class="${settings.showMechanicTips !== false ? 'btn-brass' : 'btn-stone'}"
+                data-action="toggle-mechanic-tips"
+              >
+                ${settings.showMechanicTips !== false ? '机制提示：已开启' : '机制提示：已关闭'}
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">新手引导与机制提示重置</div>
+                <div class="settings-desc">恢复第 1 层地图新手提示条，并重置所有首次机制浮动提示。</div>
               </div>
               <button type="button" id="btn-reset-tutorial" class="btn-stone" data-action="reset-tutorial">
                 重新开启新手提示

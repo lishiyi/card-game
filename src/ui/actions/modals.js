@@ -39,6 +39,47 @@ export const MODAL_ACTIONS = {
     ctx.render();
   },
 
+  'set-history-char'(ctx, target) {
+    const { ui, soundEngine } = ctx;
+    ui.historyCharFilter = target.dataset.charFilter || 'all';
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
+  'set-history-outcome'(ctx, target) {
+    const { ui, soundEngine } = ctx;
+    const next = target.dataset.outcomeFilter || 'all';
+    if (next === 'all' || next === 'victory' || next === 'defeat') {
+      ui.historyOutcomeFilter = next;
+      soundEngine.play('ui_click');
+      ctx.render();
+    }
+  },
+
+  'set-card-stats-char'(ctx, target) {
+    const { ui, soundEngine } = ctx;
+    ui.cardStatsCharFilter = target.dataset.charFilter || 'all';
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
+  'set-card-stats-sort'(ctx, target) {
+    const { ui, soundEngine } = ctx;
+    const next = target.dataset.sortBy || 'winRate';
+    if (next === 'winRate' || next === 'runs' || next === 'upgradeRate') {
+      ui.cardStatsSort = next;
+      soundEngine.play('ui_click');
+      ctx.render();
+    }
+  },
+
+  'toggle-card-stats-starters'(ctx) {
+    const { ui, soundEngine } = ctx;
+    ui.cardStatsIncludeStarters = !ui.cardStatsIncludeStarters;
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
   'toggle-sound'(ctx) {
     const { settings, soundEngine } = ctx;
     settings.soundEnabled = !settings.soundEnabled;
@@ -98,9 +139,59 @@ export const MODAL_ACTIONS = {
   'reset-tutorial'(ctx) {
     const { ui, settings, soundEngine } = ctx;
     settings.tutorialDismissed = false;
+    settings.showMechanicTips = true;
+    settings.seenMechanicTips = [];
     saveSettings(settings);
     soundEngine.play('ui_click');
     ui.modal = null;
+    ctx.render();
+  },
+
+  'toggle-mechanic-tips'(ctx) {
+    const { settings, soundEngine } = ctx;
+    settings.showMechanicTips = settings.showMechanicTips === false;
+    saveSettings(settings);
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
+  'dismiss-mechanic-tip'(ctx, target) {
+    const { settings, soundEngine } = ctx;
+    const tipId = target.dataset.tipId;
+    if (tipId) {
+      if (!Array.isArray(settings.seenMechanicTips)) settings.seenMechanicTips = [];
+      if (!settings.seenMechanicTips.includes(tipId)) {
+        settings.seenMechanicTips.push(tipId);
+      }
+      saveSettings(settings);
+    }
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
+  'disable-mechanic-tips'(ctx) {
+    const { settings, soundEngine } = ctx;
+    settings.showMechanicTips = false;
+    saveSettings(settings);
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
+  'open-tip-glossary'(ctx, target) {
+    const { ui, settings, soundEngine } = ctx;
+    const tipId = target.dataset.tipId;
+    if (tipId) {
+      if (!Array.isArray(settings.seenMechanicTips)) settings.seenMechanicTips = [];
+      if (!settings.seenMechanicTips.includes(tipId)) {
+        settings.seenMechanicTips.push(tipId);
+      }
+      saveSettings(settings);
+    }
+    ui.helpTab = 'glossary';
+    ui.glossaryCategory = 'all';
+    ui.glossaryQuery = target.dataset.glossaryQuery || '';
+    ui.modal = 'help';
+    soundEngine.play('ui_click');
     ctx.render();
   },
 

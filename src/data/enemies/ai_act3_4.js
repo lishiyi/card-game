@@ -60,8 +60,10 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
             type: 'attack',
             damage: 30,
             hits: 1,
+            isNonAttack: true,
+            skipGenericAscScaling: true,
             selfDestruct: true,
-            summary: '意图：引爆能量核心，造成 30 点伤害后自我毁灭！',
+            summary: '意图：引爆能量核心，造成 30 点固定爆炸伤害后自我毁灭！',
           },
         },
       ];
@@ -411,7 +413,7 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
             type: 'attack_debuff',
             damage: 15,
             hits: 1,
-            addDiscardCards: [{ cardId: 'burn', count: 1 }, { cardId: 'dazed', count: 1 }],
+            addDrawCards: [{ cardId: 'void', count: 1 }],
           },
         },
       ];
@@ -455,10 +457,9 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
           intent: {
             id: 'deca_beam',
             name: '脉冲双击',
-            type: 'attack_debuff',
+            type: 'attack',
             damage: 9,
             hits: 2,
-            addDiscardCards: [{ cardId: 'dazed', count: 2 }],
           },
         },
       ];
@@ -469,10 +470,11 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
         intent: {
           id: 'square_of_protection',
           name: '守护方阵',
-          type: 'defend',
+          type: 'defend_debuff',
           allEnemiesBlock: 14,
           block: 14,
-          summary: '意图：使全体友方单位获得 14 点格挡！',
+          addDiscardCards: [{ cardId: 'dazed', count: 2 }],
+          summary: '意图：使全体友方单位获得 14 点格挡，并将 2 张【晕眩】洗入你的弃牌堆！',
         },
       },
     ];
@@ -640,8 +642,12 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
         },
       });
     }
-    const totalProb = pool.reduce((sum, item) => sum + item.probability, 0);
-    return pool.map((item) => ({
+    const filtered = enemy.lastMoveId
+      ? pool.filter((item) => item.intent.id !== enemy.lastMoveId)
+      : pool;
+    const activePool = filtered.length > 0 ? filtered : pool;
+    const totalProb = activePool.reduce((sum, item) => sum + item.probability, 0);
+    return activePool.map((item) => ({
       ...item,
       probability: Number((item.probability / totalProb).toFixed(6)),
     }));
@@ -649,14 +655,17 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
 
   spire_shield(enemy, player, combat) {
     const cyclePos = (enemy.turnIndex ?? 0) % 3;
+    const targetsFocus = (player?.maxOrbSlots ?? 0) > 0;
     const bashIntent = {
       id: 'shield_bash',
       name: '重盾猛击',
       type: 'attack_debuff',
       damage: 12,
       hits: 1,
-      applyPlayerStatuses: { strength: -1 },
-      summary: '意图：造成 12 点伤害，并使你永久失去 1 点【力量】',
+      applyPlayerStatuses: targetsFocus ? { focus: -1 } : { strength: -1 },
+      summary: targetsFocus
+        ? '意图：造成 12 点伤害，并使你永久失去 1 点【集中】'
+        : '意图：造成 12 点伤害，并使你永久失去 1 点【力量】',
     };
     const fortifyIntent = {
       id: 'shield_fortify',
@@ -701,11 +710,11 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
           id: 'spear_burn_strike',
           name: '灼烧突刺',
           type: 'attack_debuff',
-          damage: 5,
+          damage: 6,
           hits: 2,
           skipGenericAscScaling: true,
           addDrawCards: [{ cardId: 'burn', count: 2 }],
-          summary: '意图：造成 5×2 点伤害，并将 2 张【灼伤】洗入你的抽牌堆（高阶强化）',
+          summary: '意图：造成 6×2 点伤害，并将 2 张【灼伤】洗入你的抽牌堆（高阶强化）',
         }
       : {
           id: 'spear_burn_strike',
@@ -812,7 +821,7 @@ export const ACT3_4_ENEMY_AI_HANDLERS = {
         : buffIdx === 1
           ? '【死亡律动】+1'
           : buffIdx === 2
-            ? '获得【痛苦刺击】（未格挡攻击塞入伤口）'
+            ? '获得【痛刺】（未格挡攻击塞入伤口）'
             : buffIdx === 3
               ? '额外获得 10 点【力量】'
               : '额外获得 50 点【力量】！';

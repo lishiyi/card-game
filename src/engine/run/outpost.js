@@ -253,12 +253,25 @@ export function proceedToNextAct(state) {
   if (nextAct === 4 && !hasAllAct4Keys(state)) {
     return { ok: false, reason: '需要集齐红、绿、蓝三把钥匙才能开启第四幕终末之门' };
   }
+  let singingBowlGain = 0;
+  if (
+    !state.bossReward.cardClaimed &&
+    Array.isArray(state.bossReward.cardChoices) &&
+    state.bossReward.cardChoices.length > 0 &&
+    hasRelic(state, 'singing_bowl')
+  ) {
+    state.player.maxHp += 2;
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + 2);
+    singingBowlGain = 2;
+  }
+
   const missingHp = Math.max(0, state.player.maxHp - state.player.hp);
   const healRatio = (state.ascension ?? 0) >= 4 ? 0.65 : 0.75;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + Math.round(missingHp * healRatio));
 
   state.act = nextAct;
   state.floor = 0;
+  state.potionDropChance = 40;
   state.currentNodeId = null;
   state.visitedEdges = [];
   state.lastEncounterId = null;
@@ -278,7 +291,7 @@ export function proceedToNextAct(state) {
   state.act3BossRushStage = 1;
   state.act3FirstBossId = null;
   state.screen = 'map';
-  return { ok: true, act: nextAct };
+  return { ok: true, act: nextAct, singingBowlGain };
 }
 
 export function settleVictory(state) {

@@ -76,6 +76,15 @@ const IMPACT_SVG_TEMPLATES = Object.freeze({
     <circle cx="60" cy="60" r="32" fill="none" stroke="hsl(292, 96%, 76%)" stroke-width="3" stroke-dasharray="10 5"/>
     <path d="M60 10 L66 48 L110 60 L66 72 L60 110 L54 72 L10 60 L54 48 Z" fill="hsla(50, 100%, 88%, 0.55)"/>
   </svg>`,
+  stance_exit: `<svg viewBox="0 0 120 120" class="fx-impact-svg-el" aria-hidden="true">
+    <circle class="fx-shock-ring" cx="60" cy="60" r="40" fill="none" stroke="hsl(198, 92%, 78%)" stroke-width="3.6" stroke-dasharray="12 6"/>
+    <circle cx="60" cy="60" r="24" fill="hsla(204, 86%, 70%, 0.16)" stroke="hsl(46, 94%, 76%)" stroke-width="2.2"/>
+  </svg>`,
+  electric: `<svg viewBox="0 0 120 120" class="fx-impact-svg-el" aria-hidden="true">
+    <circle class="fx-shock-ring" cx="60" cy="60" r="38" fill="hsla(198, 96%, 60%, 0.16)" stroke="hsl(196, 100%, 74%)" stroke-width="3.2"/>
+    <polyline class="fx-slash-arc" points="22,88 52,58 44,52 78,24 68,48 98,36 62,74 70,78 40,100" fill="none" stroke="hsl(50, 100%, 80%)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <polyline class="fx-slash-arc-inner" points="26,86 54,58 76,28 66,50 94,38" fill="none" stroke="hsl(194, 100%, 88%)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`,
 });
 
 const POSITIVE_BUFF_KEYS = new Set([
@@ -200,6 +209,7 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
       hp: state.player.hp,
       block: state.player.block,
       stance: state.combat.stance || state.player.stance || 'neutral',
+      maxOrbSlots: state.player.maxOrbSlots ?? 0,
       statuses: { ...(state.player.statuses || {}) },
       rect: pRects.rect,
       figRect: pRects.figRect,
@@ -365,6 +375,9 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     ) {
       return 'poison';
     }
+    if (charId === 'defect' || stats?.channelOrb || stats?.channelOrbs || stats?.evokeFront) {
+      return damageAbs >= 18 ? 'heavy' : 'electric';
+    }
     if (
       charId === 'watcher' ||
       stats?.enterStance ||
@@ -380,6 +393,7 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     if (!prevSnap || !nextState) return;
 
     let playedHit = false;
+    let playedShiv = false;
     let maxDamageDealt = 0;
     let hitEnemyCount = 0;
     let playedKill = false;
@@ -388,6 +402,9 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     let playedHeal = false;
     let playedPoison = false;
     let playedBuff = false;
+    let playedStrengthUp = false;
+    let playedMantra = false;
+    let playedOrbSlot = false;
     let playedDebuff = false;
     let playedExhaust = false;
     let newStanceCue = null;
@@ -431,14 +448,40 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
       playedBlock = true;
     }
 
-    // Stance transition FX
-    if (nextStance !== prevSnap.player.stance && nextStance !== 'neutral') {
-      const stanceLabels = { calm: '进入平静', wrath: '进入愤怒!', divinity: '神格降临!' };
-      const fxKey = `stance_${nextStance}`;
-      spawnImpactSvg(playerFigRect, fxKey);
-      spawnFloatingPopup(playerRect, stanceLabels[nextStance] || nextStance, fxKey, pStack++);
-      triggerUnitClass('#player-unit', 'fx-buff-pulse', 440);
-      newStanceCue = fxKey;
+    // Stance transition FX (including exiting Calm / Wrath / Divinity back to Neutral)
+    if (nextStance !== prevSnap.player.stance) {
+      if (nextStance !== 'neutral') {
+        const stanceLabels = { calm: '进入平静', wrath: '进入愤怒!', divinity: '神格降临!' };
+        const fxKey = `stance_${nextStance}`;
+        spawnImpactSvg(playerFigRect, fxKey);
+        spawnFloatingPopup(playerRect, stanceLabels[nextStance] || nextStance, fxKey, pStack++);
+        triggerUnitClass('#player-unit', 'fx-buff-pulse', 440);
+        newStanceCue = fxKey;
+      } else if (prevSnap.player.stance !== 'neutral') {
+        const exitLabel =
+          prevSnap.player.stance === 'calm'
+            ? '脱离平静 +能量'
+            : prevSnap.player.stance === 'wrath'
+              ? '脱离愤怒'
+              : '退出姿态';
+        spawnImpactSvg(playerFigRect, 'stance_exit');
+        spawnFloatingPopup(playerRect, exitLabel, 'stance_calm', pStack++, {
+          ignoreDamageSetting: true,
+        });
+        triggerUnitClass('#player-unit', 'fx-buff-pulse', 360);
+        newStanceCue = 'stance_exit';
+      }
+    }
+
+    // Orb slot growth FX (Capacitor / Runic Capacitor / Potion)
+    const nextOrbSlots = nextState.player.maxOrbSlots ?? 0;
+    const orbSlotDelta = nextOrbSlots - (prevSnap.player.maxOrbSlots ?? 0);
+    if (orbSlotDelta > 0) {
+      spawnFloatingPopup(playerRect, `+${orbSlotDelta} 球槽`, 'stance_calm', pStack++, {
+        ignoreDamageSetting: true,
+      });
+      triggerUnitClass('#player-unit', 'fx-buff-pulse', 380);
+      playedOrbSlot = true;
     }
 
     // Player buff / debuff diffs
@@ -447,6 +490,20 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
       spawnFloatingPopup(playerRect, '免疫!', 'artifact', pStack++);
       triggerUnitClass('#player-unit', 'fx-buff-pulse', 340);
       playedBlock = true;
+    }
+    const mantraDelta = (nextPlayerStatuses.mantra ?? 0) - (prevSnap.player.statuses?.mantra ?? 0);
+    if (mantraDelta > 0 && nextStance !== 'divinity') {
+      spawnFloatingPopup(playerRect, `+${mantraDelta} 真言`, 'stance_divinity', pStack++, {
+        ignoreDamageSetting: true,
+      });
+      playedMantra = true;
+    }
+    const strDelta = (nextPlayerStatuses.strength ?? 0) - (prevSnap.player.statuses?.strength ?? 0);
+    if ((kind === 'card' || kind === 'potion') && strDelta > 0) {
+      spawnFloatingPopup(playerRect, `+${strDelta} 力量`, 'heavy', pStack++, {
+        ignoreDamageSetting: true,
+      });
+      playedStrengthUp = true;
     }
     for (const [sKey, sVal] of Object.entries(nextPlayerStatuses)) {
       const prevVal = prevSnap.player.statuses?.[sKey] ?? 0;
@@ -507,7 +564,9 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         playerStruckAnyEnemy = true;
       } else if ((kind === 'card' || kind === 'potion') && blockDelta < 0 && hpDelta === 0) {
         spawnFloatingPopup(rect, `格挡 ${blockDelta}`, 'block', eStack++);
-        spawnImpactSvg(figRect, pickAttackImpactKind(meta, Math.abs(blockDelta), nextState.characterId));
+        const blockImpact = pickAttackImpactKind(meta, Math.abs(blockDelta), nextState.characterId);
+        if (blockImpact === 'shiv') playedShiv = true;
+        spawnImpactSvg(figRect, blockImpact);
         triggerUnitClass(domSelector, 'fx-hit-shake', 320);
         triggerUnitClass(domSelector, 'fx-hit-flash', 220);
         playedBlock = true;
@@ -531,6 +590,7 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
             : isKo
               ? 'ko'
               : pickAttackImpactKind(meta, dmgAbs, nextState.characterId);
+        if (impactType === 'shiv') playedShiv = true;
         spawnFloatingPopup(rect, `${hpDelta}`, dmgAbs >= 15 ? 'heavy' : 'damage', eStack++);
         spawnImpactSvg(figRect, impactType);
         triggerUnitClass(domSelector, dmgAbs >= 15 ? 'fx-hit-heavy' : 'fx-hit-shake', 440);
@@ -603,6 +663,10 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         soundEngine.play('shield_break');
       } else if (newStanceCue) {
         soundEngine.play(newStanceCue);
+      } else if (playedMantra) {
+        soundEngine.play('mantra');
+      } else if (playedShiv) {
+        soundEngine.play('shiv');
       } else if (playedHit) {
         if (maxDamageDealt >= 15) {
           soundEngine.play('hit_heavy');
@@ -615,6 +679,10 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         soundEngine.play('poison');
       } else if (playedHeal) {
         soundEngine.play('heal');
+      } else if (playedOrbSlot) {
+        soundEngine.play('orb_slot');
+      } else if (playedStrengthUp) {
+        soundEngine.play('strength_up');
       } else if (playedBlock) {
         soundEngine.play('block');
       } else if (playedExhaust) {
@@ -1003,6 +1071,13 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
   function spawnOrbFxEvents(orbFxEvents, soundEngine) {
     if (!Array.isArray(orbFxEvents) || orbFxEvents.length === 0) return;
 
+    const ORB_LABELS = {
+      lightning: '⚡ 闪电',
+      frost: '❄️ 冰霜',
+      dark: '🌑 黑暗',
+      plasma: '☀️ 等离子',
+    };
+
     // Play audio even when animSpeed is instant (audio has its own mute/volume setting)
     if (soundEngine) {
       const hasEvoke = orbFxEvents.some((ev) => ev?.kind === 'evoke');
@@ -1019,6 +1094,7 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
         soundEngine.play(orbCue);
       } else {
         soundEngine.play('orb_channel');
+        soundEngine.play(orbCue);
       }
     }
 
@@ -1029,6 +1105,23 @@ export function createFxManager(rootEl, fxLayerEl, getSettings) {
     if (!originRect || (originRect.width === 0 && originRect.height === 0)) return;
     const ox = Math.round(originRect.left + originRect.width / 2);
     const oy = Math.round(originRect.top + originRect.height / 2);
+
+    const leadEv = orbFxEvents.find((ev) => ev?.kind === 'evoke') || orbFxEvents[0];
+    if (leadEv?.orbType && (leadEv.kind === 'evoke' || leadEv.kind === 'channel')) {
+      const label = ORB_LABELS[leadEv.orbType] || leadEv.orbType;
+      const prefix = leadEv.kind === 'evoke' ? '激发 ' : '充能 ';
+      const tone =
+        leadEv.orbType === 'frost'
+          ? 'stance_calm'
+          : leadEv.orbType === 'dark'
+            ? 'stance_divinity'
+            : 'artifact';
+      spawnFloatingPopup(originRect, `${prefix}${label}`, tone, -1, {
+        ignoreDamageSetting: true,
+        noJitter: true,
+        baseMs: 760,
+      });
+    }
 
     // Cap concurrent animations per batch so 10-orb turns stay crisp and clutter-free
     const batch = orbFxEvents.slice(0, 5);

@@ -33,6 +33,8 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   let curlUpAvailable = isAttack ? (enemy.statuses?.curlUp ?? 0) : 0;
   let flightRemaining = isAttack ? (enemy.statuses?.flight ?? 0) : 0;
   let malleableStacks = isAttack ? (enemy.statuses?.malleable ?? 0) : 0;
+  const hasInvincible = (enemy.invincibleMax ?? 0) > 0 || enemy.statuses?.invincible !== undefined;
+  let invincibleRemaining = hasInvincible ? Math.max(0, enemy.statuses?.invincible ?? 0) : Infinity;
   let totalDealt = 0;
   let initialBlockRemaining = initialBlock;
   let unblockedHits = 0;
@@ -58,7 +60,11 @@ function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
       initialBlockRemaining = Math.max(0, initialBlockRemaining - blocked);
     }
 
-    const hpLoss = dmg - blocked;
+    const rawHpLoss = dmg - blocked;
+    const hpLoss = hasInvincible ? Math.min(rawHpLoss, invincibleRemaining) : rawHpLoss;
+    if (hasInvincible) {
+      invincibleRemaining = Math.max(0, invincibleRemaining - hpLoss);
+    }
     if (hpLoss > 0) {
       unblockedHits += 1;
       remHp = Math.max(0, remHp - hpLoss);
@@ -184,8 +190,13 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
 
   const hasSkull = hasRelic(state, 'snecko_skull');
   const skullBonus = hasSkull ? 1 : 0;
-  const burstPasses =
-    stats.type === 'skill' && !stats.noBurst && (state.player?.statuses?.burst ?? 0) > 0 ? 2 : 1;
+  const dupActive = (state.player?.statuses?.duplication ?? 0) > 0;
+  const echoStacks = state.player?.statuses?.echoForm ?? 0;
+  const echoActive = !stats.noBurst && echoStacks > 0 && (combat.echoFormUsedThisTurn ?? 0) < echoStacks;
+  const burstActive = stats.type === 'skill' && !stats.noBurst && (state.player?.statuses?.burst ?? 0) > 0;
+  const doubleTapActive = stats.type === 'attack' && (state.player?.statuses?.doubleTap ?? 0) > 0;
+  const totalPasses =
+    1 + (burstActive ? 1 : 0) + (doubleTapActive ? 1 : 0) + (dupActive ? 1 : 0) + (echoActive ? 1 : 0);
 
   let basePerHit = null;
   let hits = 1;
@@ -199,7 +210,7 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
         return null;
       }
     } else if (typeof stats.applyMarkAndTrigger === 'number') {
-      const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * burstPasses;
+      const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * totalPasses;
       directHpLossOverride = Math.min(enemy.hp, projectedMark);
     } else if (stats.useBlockAsDamage) {
       basePerHit = Math.max(0, state.player?.block ?? 0);
@@ -246,13 +257,17 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
 
   let sim = null;
   if (directHpLossOverride !== null) {
-    const remHp = Math.max(0, enemy.hp - directHpLossOverride);
+    const hasInv = (enemy.invincibleMax ?? 0) > 0 || enemy.statuses?.invincible !== undefined;
+    const cappedDirect = hasInv
+      ? Math.min(directHpLossOverride, Math.max(0, enemy.statuses?.invincible ?? 0))
+      : directHpLossOverride;
+    const remHp = Math.max(0, enemy.hp - cappedDirect);
     sim = {
       hits: 1,
-      perHitDamage: directHpLossOverride,
-      totalDamage: directHpLossOverride,
-      hpLoss: directHpLossOverride,
-      unblockedHits: directHpLossOverride > 0 ? 1 : 0,
+      perHitDamage: cappedDirect,
+      totalDamage: cappedDirect,
+      hpLoss: cappedDirect,
+      unblockedHits: cappedDirect > 0 ? 1 : 0,
       initialBlock: Math.max(0, enemy.block ?? 0),
       remainingBlock: Math.max(0, enemy.block ?? 0),
       remainingHp: remHp,
@@ -270,7 +285,8 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
       ignoreFlight: true,
     });
     const simEnemy = stats.removeEnemyBlockBeforeDamage ? { ...enemy, block: 0 } : enemy;
-    sim = simulateSequentialHits(simEnemy, perHitDamage, hits, { isAttack: true });
+    const effectiveHits = stats.exhaustAllHandDamageEach ? hits : hits * totalPasses;
+    sim = simulateSequentialHits(simEnemy, perHitDamage, effectiveHits, { isAttack: true });
     if (stats.removeEnemyBlockBeforeDamage && (enemy.block ?? 0) > 0) {
       sim.initialBlock = enemy.block;
       sim.isShieldBreak = true;
@@ -282,6 +298,10 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     let remBlock = sim ? sim.remainingBlock : Math.max(0, enemy.block ?? 0);
     let remHp = sim ? sim.remainingHp : Math.max(0, enemy.hp ?? 0);
     const initialBlock = Math.max(0, enemy.block ?? 0);
+    const hasInv = (enemy.invincibleMax ?? 0) > 0 || enemy.statuses?.invincible !== undefined;
+    let invRem = hasInv
+      ? Math.max(0, (enemy.statuses?.invincible ?? 0) - (sim ? sim.hpLoss : 0))
+      : Infinity;
     let orbTotal = 0;
     let orbHpLoss = 0;
     for (const oDmg of orbEvokeHits) {
@@ -290,7 +310,9 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
       if ((enemy.statuses?.intangible ?? 0) > 0 && eff > 1) eff = 1;
       const blocked = Math.min(remBlock, eff);
       remBlock -= blocked;
-      const through = Math.min(remHp, eff - blocked);
+      const rawThrough = Math.min(remHp, eff - blocked);
+      const through = hasInv ? Math.min(rawThrough, invRem) : rawThrough;
+      if (hasInv) invRem = Math.max(0, invRem - through);
       remHp -= through;
       orbTotal += eff;
       orbHpLoss += through;
@@ -318,23 +340,40 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     }
   }
 
-  // Deterministic poison projection (direct poison statuses, Catalyst, Burst, and Envenom)
+  // Deterministic poison projection (direct poison statuses, Catalyst, Burst/Duplication, Envenom, Artifact)
   const currentPoison = enemy.statuses?.poison ?? 0;
+  let remArtifact = Math.max(0, enemy.statuses?.artifact ?? 0);
   let poisonAdded = 0;
 
   if (sim && !sim.isLethal && sim.unblockedHits > 0 && (state.player?.statuses?.envenom ?? 0) > 0) {
-    poisonAdded += sim.unblockedHits * (state.player.statuses.envenom + skullBonus);
+    for (let h = 0; h < sim.unblockedHits; h += 1) {
+      if (remArtifact > 0) {
+        remArtifact -= 1;
+      } else {
+        poisonAdded += state.player.statuses.envenom + skullBonus;
+      }
+    }
   }
 
   if (stats.applyEnemyStatuses?.poison) {
-    poisonAdded += (stats.applyEnemyStatuses.poison + skullBonus) * burstPasses;
+    for (let p = 0; p < totalPasses; p += 1) {
+      if (remArtifact > 0) {
+        remArtifact -= 1;
+      } else {
+        poisonAdded += stats.applyEnemyStatuses.poison + skullBonus;
+      }
+    }
   }
 
   if (stats.multiplyPoison) {
-    for (let p = 0; p < burstPasses; p += 1) {
+    for (let p = 0; p < totalPasses; p += 1) {
       const preCatPoison = currentPoison + poisonAdded;
       if (preCatPoison > 0) {
-        poisonAdded += preCatPoison * (stats.multiplyPoison - 1) + skullBonus;
+        if (remArtifact > 0) {
+          remArtifact -= 1;
+        } else {
+          poisonAdded += preCatPoison * (stats.multiplyPoison - 1) + skullBonus;
+        }
       }
     }
   }
@@ -392,7 +431,7 @@ export function previewPotionDamageOnEnemy(state, potionId, enemy) {
   if (!state?.combat || !potionId || !enemy || enemy.hp <= 0) return null;
   const pot = POTION_LIBRARY[potionId];
   if (!pot) return null;
-  const mult = hasRelic(state, 'sacred_bark') ? 2 : 1;
+  const mult = hasRelic(state, 'sacred_bark') && !pot.noSacredBark ? 2 : 1;
 
   if (typeof pot.damage === 'number' || typeof pot.aoeDamage === 'number') {
     const raw = typeof pot.damage === 'number' ? pot.damage : pot.aoeDamage;
@@ -400,8 +439,9 @@ export function previewPotionDamageOnEnemy(state, potionId, enemy) {
   }
 
   if (pot.applyEnemyStatuses?.poison) {
+    const blockedByArtifact = (enemy.statuses?.artifact ?? 0) > 0;
     const skullBonus = hasRelic(state, 'snecko_skull') ? 1 : 0;
-    const poisonAdded = pot.applyEnemyStatuses.poison * mult + skullBonus;
+    const poisonAdded = blockedByArtifact ? 0 : pot.applyEnemyStatuses.poison * mult + skullBonus;
     const projectedPoison = (enemy.statuses?.poison ?? 0) + poisonAdded;
     const remainingHp = Math.max(0, enemy.hp ?? 0);
     return {
@@ -976,9 +1016,17 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     if (remaining <= 1) {
       result.callouts.push({
         tone: 'warn',
-        text: `⚠ 【天鹅绒颈圈】提醒：本回合仅剩最后 ${remaining} 张出牌额度`,
+        text: `⚠ 【天鹅绒项圈】提醒：本回合仅剩最后 ${remaining} 张出牌额度`,
       });
     }
+  }
+
+  if ((player.statuses?.duplication ?? 0) > 0) {
+    pushPlayerStatus('duplication', 'buff');
+    result.callouts.push({
+      tone: 'buff',
+      text: `✦ 【复制】生效：【${stats.name}】将额外再打出一次！`,
+    });
   }
 
   // Watcher: Stances, Mantra, Scry, Mark, Talk to the Hand, Duality & Oath warnings
@@ -1039,10 +1087,36 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
         return sum + (preview.isAttack ? preview.totalDamage : 0);
       }, 0);
       if (doubledIncoming > 0) {
-        result.callouts.push({
-          tone: 'warn',
-          text: `⚠ 进入【愤怒】：攻击伤害 ×2，但若未退出姿态，本回合将承受 ${doubledIncoming} 点双倍敌方伤害！`,
+        const cardCost = stats.isXCost ? (player.energy ?? 0) : (getEffectiveCardCost(stats, player, combat) ?? 0);
+        const calmExitBonus = curStance === 'calm' ? (hasRelic(state, 'violet_lotus') ? 3 : 2) : 0;
+        const energyAfterCard = Math.max(0, (player.energy ?? 0) - cardCost) + calmExitBonus + (stats.gainEnergy ?? 0);
+        const anyAttacking = aliveEnemies.some((e) => isEnemyIntendingAttack(e));
+        const hasAffordableExit = (combat.hand || []).some((hc) => {
+          if (hc.instanceId === cardInstance.instanceId) return false;
+          const hStats = getCardStats(hc);
+          if (hStats.unplayable) return false;
+          const canExitWrath = Boolean(
+            hStats.exitStance ||
+              hStats.enterStance === 'calm' ||
+              hStats.ifInCalmDrawElseCalm ||
+              (hStats.ifTargetAttackingEnterStance === 'calm' && anyAttacking) ||
+              hStats.extraTurn
+          );
+          if (!canExitWrath) return false;
+          const hCost = hStats.isXCost ? 0 : (getEffectiveCardCost(hStats, player, combat) ?? 0);
+          return hCost <= energyAfterCard;
         });
+        result.callouts.push(
+          hasAffordableExit
+            ? {
+                tone: 'warn',
+                text: `⚠ 进入【愤怒】（2× 伤害）：若未离怒将承受 ${doubledIncoming} 点双倍伤害（手牌有可打出的退姿/平静牌可安全退出）`,
+              }
+            : {
+                tone: 'warn',
+                text: `⚠ 进入【愤怒】：攻击伤害 ×2，手牌当前无可用离怒牌，本回合将承受 ${doubledIncoming} 点双倍敌方伤害！`,
+              }
+        );
       } else {
         result.callouts.push({
           tone: 'buff',

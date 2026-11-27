@@ -182,7 +182,7 @@ export const EVENT_LIBRARY = deepFreeze({
         id: 'read_final_chapter',
         label: '强读终章秘奥',
         detail:
-          '失去 16 点生命，获得事件专属遗物【英雄宝典】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！',
+          '失去 16 点生命，获得事件专属遗物【手册】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！',
       },
       {
         id: 'skim_preface',
@@ -372,7 +372,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'desecrate_altar',
         label: '亵渎祭坛掠金',
-        detail: '搜刮 105 金币，但将 1 张诅咒【悔恨】加入你的牌组。',
+        detail: '搜刮 105 金币，但将 1 张诅咒【腐朽】加入你的牌组。',
       },
     ],
   },
@@ -427,7 +427,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'rich_memory',
         label: '「我即富足」：索取贪婪宝库',
-        detail: '获得 450 金币，但将 2 张【疑虑】诅咒加入你的牌组。',
+        detail: '获得 450 金币，但将 2 张【凡庸】诅咒加入你的牌组。',
       },
     ],
   },
@@ -467,12 +467,12 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'embrace_madness',
         label: '拥抱疯狂灵感',
-        detail: '失去 12 点生命，获得 2 张随机 0 费【无色罕见牌】加入牌组！',
+        detail: '失去 12 点生命，获得 2 张【疯狂】加入牌组！',
       },
       {
         id: 'retrace_steps',
         label: '驻足回溯心神',
-        detail: '回复 25% 最大生命值，但将 1 张诅咒【疑虑】加入牌组。',
+        detail: '回复 25% 最大生命值，但将 1 张诅咒【苦恼】加入牌组。',
       },
       {
         id: 'push_through_halls',
@@ -636,7 +636,7 @@ export const EVENT_LIBRARY = deepFreeze({
       {
         id: 'open_coffin',
         label: '推开石棺',
-        detail: '必定获得 1 件随机遗物，但有 50% 概率沾染 1 张诅咒【疑虑】。',
+        detail: '必定获得 1 件随机遗物，但有 50% 概率沾染 1 张诅咒【苦恼】。',
       },
       {
         id: 'ring_cursed_bell',
@@ -984,6 +984,12 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     return rawList.map((ch) => ({ ...ch }));
   }
 
+  const labelOverrides = {
+    beggar_shrine: {
+      give_beggar_gold: `施舍 ${t.beggarPurifyGold} 金币`,
+    },
+  }[eventId];
+
   const detailOverrides = {
     shining_light: {
       enter_light: `失去 ${t.shiningLightHpLoss} 点生命，随机升级牌组中的 2 张卡牌。`,
@@ -1005,7 +1011,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
       accept_curse_gold: `获得 ${t.idolCurseGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
     },
     cursed_tome: {
-      read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，获得事件专属遗物【英雄宝典】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！`,
+      read_final_chapter: `失去 ${t.tomeFinalHpLoss} 点生命，获得事件专属遗物【手册】（每场战斗第 1 回合随机获得 1 张 0 费能力牌；若已持有则改为获得 1 张稀有卡牌）！`,
       skim_preface: `失去 ${t.tomeSkimHpLoss} 点生命，随机获得 1 张【罕见】卡牌加入牌组。`,
       embrace_necronomicurse: `失去 ${t.tomeNecroHpLoss} 点生命，获得 1 件【稀有】遗物与 1 张【稀有】卡牌，但承受不可移除的诅咒【死灵诅咒】！`,
     },
@@ -1036,7 +1042,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     },
     forgotten_altar: {
       shed_blood_altar: `失去 ${t.altarShedHpPct}% 最大生命的当前生命，永久获得 +${t.altarShedMaxHpGain} 最大生命并随机升级 1 张卡牌。`,
-      desecrate_altar: `搜刮 ${t.altarDesecrateGold} 金币，但将 1 张诅咒【悔恨】加入你的牌组。`,
+      desecrate_altar: `搜刮 ${t.altarDesecrateGold} 金币，但将 1 张诅咒【腐朽】加入你的牌组。`,
     },
     augmenter: {
       augment_serum: `失去 ${t.augmentSerumHpLoss} 点生命，永久提升 ${t.augmentSerumMaxHpGain} 点最大生命，并随机获得 1 张罕见/稀有职业卡牌。`,
@@ -1044,15 +1050,15 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     mind_bloom: {
       war_memory: `立即与一位第 1 幕首领展开死斗，获胜固定奖励 ${t.mindBloomWarGold} 金币与 1 件稀有遗物。`,
       awake_memory: `升级牌组中全部可升级的卡牌，但永久失去 ${t.mindBloomAwakeMaxHpPct}% 最大生命（最低保留 25 点）。`,
-      rich_memory: `获得 ${t.mindBloomRichGold} 金币，但将 2 张【疑虑】诅咒加入你的牌组。`,
+      rich_memory: `获得 ${t.mindBloomRichGold} 金币，但将 2 张【凡庸】诅咒加入你的牌组。`,
     },
     sensory_stone: {
       recall_2: `失去 ${t.sensoryRecall2HpLoss} 点生命：从 3 张已升级的【无色牌+】中任选 1 张加入牌组！`,
       recall_3: `失去 ${t.sensoryRecall3HpLoss} 点生命：直接获得 1 张金色【无色稀有牌+】与 1 件随机遗物！`,
     },
     winding_halls: {
-      embrace_madness: `失去 ${t.windingMadnessHpLoss} 点生命，获得 2 张随机 0 费【无色罕见牌】加入牌组！`,
-      retrace_steps: `回复 ${t.windingRetraceHealPct}% 最大生命值，但将 1 张诅咒【疑虑】加入牌组。`,
+      embrace_madness: `失去 ${t.windingMadnessHpLoss} 点生命，获得 2 张【疯狂】加入牌组！`,
+      retrace_steps: `回复 ${t.windingRetraceHealPct}% 最大生命值，但将 1 张诅咒【苦恼】加入牌组。`,
       push_through_halls: `永久失去 ${t.windingPushMaxHpPct}% 最大生命（最低保留 25 点），不带任何诅咒安全脱身。`,
     },
     big_fish: {
@@ -1073,6 +1079,9 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
     world_of_goop: {
       gather_goop_gold: `失去 ${t.goopHpLoss} 点生命，捞出 75 金币。`,
       leave_goop: `慌乱避让中滑落 ${t.goopLeaveGoldLoss} 金币（若金币不足则全部滑落），不受任何伤害。`,
+    },
+    the_mausoleum: {
+      open_coffin: `必定获得 1 件随机遗物，但 100% 沾染 1 张诅咒【苦恼】（高阶诅咒必触发）。`,
     },
     vampires_den: {
       accept_vampire_pact: `永久失去 ${t.vampMaxHpLossPct}% 最大生命（最低保留 25 点），但立即回满生命并随机升级 2 张攻击牌！`,
@@ -1108,6 +1117,7 @@ export function getEventChoicesForAscension(eventId, ascension = 0) {
 
   return rawList.map((ch) => ({
     ...ch,
+    label: labelOverrides?.[ch.id] ?? ch.label,
     detail: detailOverrides?.[ch.id] ?? ch.detail,
   }));
 }

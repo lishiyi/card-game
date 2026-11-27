@@ -565,8 +565,8 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
   assert.equal(Object.keys(RELIC_LIBRARY).length, 113);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 4);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 26);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 26);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 27);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 24);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 10);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
@@ -866,7 +866,7 @@ test('Curses (Clumsy, Doubt, Regret), Burn status, Relics (Paper Phrog, Torii, T
   }
   const seventhRes = playCard(state, state.combat.hand[0].instanceId, hexa.id);
   assert.equal(seventhRes.ok, false);
-  assert.ok(seventhRes.reason.includes('天鹅绒颈圈'));
+  assert.ok(seventhRes.reason.includes('天鹅绒项圈'));
 
   // Put Burn (2 non-attack dmg -> Tungsten Rod reduces to 1), Regret (3 HP loss -> Tungsten Rod reduces to 2), Doubt (1 Weak), Clumsy (Ethereal) in hand
   state.combat.hand = [
@@ -2538,8 +2538,8 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   en1.hp = 120;
   assert.equal(s1.player.statuses.artifact, 1, 'Clockwork Souvenir grants 1 Artifact');
   assert.equal(s1.player.statuses.thorns, 3, 'Bronze Scales grants 3 Thorns');
-  assert.equal(s1.player.statuses.platedArmor, 3, 'Thread and Needle grants 3 Plated Armor');
-  assert.equal(en1.statuses.poison, 3, 'Twisted Funnel poisons all enemies for 3');
+  assert.equal(s1.player.statuses.platedArmor, 4, 'Thread and Needle grants 4 Plated Armor');
+  assert.equal(en1.statuses.poison, 4, 'Twisted Funnel poisons all enemies for 4');
   assert.equal(s1.player.penNibActive, true, 'Pen Nib arms at counter 9/10');
 
   // Artifact blocks incoming Vulnerable cleanly
@@ -2547,9 +2547,9 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   assert.equal(s1.player.statuses.vulnerable ?? 0, 0);
   assert.equal(s1.player.statuses.artifact ?? 0, 0);
 
-  // Paper Krane Weak multiplier (0.65x instead of 0.75x)
+  // Paper Krane Weak multiplier (0.60x instead of 0.75x)
   en1.statuses.weak = 2;
-  assert.equal(calculateAttackDamage(20, en1, s1.player), 13, 'Paper Krane reduces 20 dmg Weak attack to 13 (65%)');
+  assert.equal(calculateAttackDamage(20, en1, s1.player), 12, 'Paper Krane reduces 20 dmg Weak attack to 12 (60%)');
 
   // Strike Dummy (+3) + Pen Nib (2x) + Nunchaku (+1 energy) on 10th attack!
   const strike = createCardInstance(s1, 'strike', false); // 6 + 3 = 9, *2 Pen Nib = 18
@@ -2563,7 +2563,7 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   assert.equal(s1.relicCounters.pen_nib, 0);
   assert.equal(s1.player.penNibActive, false);
 
-  // 2. Lizard Tail 30% revive once + restartCombat restores unused state; Self-Forming Clay (max 2/turn) & Runic Cube (max 1/phase) & Magic Flower (+50% combat heal) & Champion Belt & Dead Branch
+  // 2. Lizard Tail 50% revive once + restartCombat restores unused state; Self-Forming Clay & Runic Cube & Magic Flower (+50% combat heal) & Champion Belt & Dead Branch
   const s2 = createNewRun({ seed: 20002, characterId: 'ironclad', skipNeow: true });
   s2.player.maxHp = 80;
   s2.player.hp = 10;
@@ -2583,10 +2583,10 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   assert.equal(en2.statuses.vulnerable, 2);
   assert.equal(en2.statuses.weak, 1, 'Champion Belt adds 1 Weak alongside Vulnerable');
 
-  // Toy Ornithopter + Magic Flower (+50% heal): Blood Surge (8 heal -> 12) + Ornithopter (5 heal -> 7) = +19 HP!
+  // Toy Ornithopter + Magic Flower (+50% heal, STS1 rounds 5*1.5 -> 8): Blood Surge (8->12) + Ornithopter (5->8) = +20 HP!
   const hpBeforePot = s2.player.hp;
   usePotion(s2, 0);
-  assert.equal(s2.player.hp - hpBeforePot, 19, 'Magic Flower boosts both Blood Surge (8->12) and Ornithopter (5->7)');
+  assert.equal(s2.player.hp - hpBeforePot, 20, 'Magic Flower boosts both Blood Surge (8->12) and Ornithopter (5->8)');
 
   // Dead Branch adds a card to hand on Exhaust
   const seeingRed = createCardInstance(s2, 'seeing_red', false);
@@ -2595,18 +2595,18 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   playCard(s2, seeingRed.instanceId);
   assert.equal(s2.combat.hand.length, 1, 'Dead Branch generated 1 card into hand on Exhaust');
 
-  // Lizard Tail triggers on fatal enemy attack -> revives to 30% maxHp (24 HP) once
+  // Lizard Tail triggers on fatal enemy attack -> 50% maxHp (40 HP), boosted +50% by Magic Flower -> 60 HP (STS1 faithful)
   s2.player.hp = 5;
   s2.player.block = 0;
   en2.intent = { id: 'fatal', name: '致命斩', type: 'attack', damage: 50, hits: 1 };
   endPlayerTurn(s2);
   assert.equal(s2.combat.status, 'ongoing', 'Lizard Tail prevented defeat');
-  assert.equal(s2.player.hp, 24, 'Lizard Tail revived player to 30% of 80 Max HP = 24');
+  assert.equal(s2.player.hp, 60, 'Lizard Tail (50% = 40) × Magic Flower (+50%) revived player to 60 HP');
   assert.equal(s2.relicFlags.lizardTailUsed, true);
   assert.equal(restartCombat(s2).ok, true);
   assert.equal(Boolean(s2.relicFlags.lizardTailUsed), false, 'restartCombat restores Lizard Tail unused state');
 
-  // 3. Hovering Kite, Pocketwatch (+2 draw if <=3 cards), Art of War (+1E if 0 attacks), Sundial, Melange, Cloak Clasp (pre-discard *2 capped at 10)
+  // 3. Hovering Kite, Pocketwatch (+3 draw if <=3 cards), Art of War (+1E if 0 attacks), Sundial, Melange (Scry 3 on shuffle), Cloak Clasp (1 Block/card in hand)
   const s3 = createNewRun({ seed: 20003, characterId: 'watcher', skipNeow: true });
   s3.player.relics = ['hovering_kite', 'pocketwatch', 'art_of_war', 'cloak_clasp', 'melange', 'sundial'];
   s3.relicCounters = { sundial: 2 };
@@ -2625,12 +2625,13 @@ test('P1 Relics & Potions: Artifact, Nunchaku, Pen Nib, Paper Krane, Strike Dumm
   assert.equal(s3.player.statuses.mantra, 8);
   assert.equal(usePotion(s3, 2).ok, true);
   assert.equal(s3.player.statuses.platedArmor, 4);
-  // End turn with 0 cards played -> Art of War (+1E) + Pocketwatch (+2 draw triggers reshuffle -> Sundial +2E & Melange +2 Mantra => Divinity +3E! Total 3+1+2+3=9!)
+  // End turn with 0 cards played -> Art of War (+1E) + Pocketwatch (+3 draw triggers reshuffle -> Sundial +2E & Melange Scry 3, no extra Mantra)
   endPlayerTurn(s3);
-  if (s3.combat.pendingCardChoice?.mode === 'scry') confirmScryChoice(s3);
-  assert.equal(s3.combat.stance, 'divinity', 'Melange (+2 Mantra) + 8 Mantra reached 10 Mantra -> Divinity!');
-  assert.equal(s3.player.energy, 9, 'Base 3 + Art of War (1) + Sundial (2) + Divinity (3) = 9 energy');
-  assert.equal(s3.combat.hand.length, 7, 'Pocketwatch granted +2 extra draw (5 + 2 = 7) after <=3 cards played');
+  assert.equal(s3.combat.pendingCardChoice?.mode, 'scry', 'Melange triggers Scry 3 on deck shuffle');
+  confirmScryChoice(s3);
+  assert.equal(s3.combat.stance, 'wrath', 'Melange no longer grants extra Mantra (stays at 8)');
+  assert.equal(s3.player.energy, 6, 'Base 3 + Art of War (1) + Sundial (2) = 6 energy');
+  assert.equal(s3.combat.hand.length, 8, 'Pocketwatch granted +3 extra draw (5 + 3 = 8) after <=3 cards played');
 
   // 4. Preserved Insect (-25% Elite HP), Pantograph (+25 Boss HP), Slaver's Collar (+1E in Elite/Boss), Ghost in a Jar, Gambler's Brew, Elixir Potion
   const s4Base = createNewRun({ seed: 20004, characterId: 'silent', skipNeow: true });
@@ -3748,22 +3749,22 @@ test('Act 4 Combat: Void energy drain, Spire Shield & Spear (Artifact + Surround
   assert.equal(shield.statuses.artifact, 1);
   assert.equal(spear.statuses.artifact, 1);
   assert.equal(ssRun.player.statuses.surrounded, 1, 'Shield & Spear must inflict Surrounded');
-  assert.equal(shield.backAttack, false, 'Player faces Spire Shield initially');
-  assert.equal(spear.backAttack, true, 'Spire Spear starts behind player');
+  assert.equal(spear.backAttack, false, 'Player faces Spire Spear initially (STS1 faithful)');
+  assert.equal(shield.backAttack, true, 'Spire Shield starts behind player');
   assert.equal(spear.intent.id, 'spear_burn_strike');
-  // Spear base 5 dmg with +50% back-attack = floor(5 * 1.5) = 7 per hit!
-  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 7, 'Back-attack enemy deals +50% damage');
-  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 12, 'Faced enemy deals normal damage');
+  // Shield base 12 dmg with +50% back-attack = 18; Faced Spear deals normal 5 dmg!
+  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 5, 'Faced Spear deals normal damage');
+  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 18, 'Behind Shield deals +50% back-attack damage');
 
-  // Attacking Spire Spear flips facing so Spear is faced and Shield is behind!
-  const atkSpear = createCardInstance(ssRun, 'strike', false);
-  ssRun.combat.hand = [atkSpear];
+  // Targeting Spire Shield flips facing so Shield is faced and Spear is behind!
+  const atkShield = createCardInstance(ssRun, 'strike', false);
+  ssRun.combat.hand = [atkShield];
   ssRun.player.energy = 3;
-  assert.equal(playCard(ssRun, atkSpear.instanceId, spear.id).ok, true);
-  assert.equal(spear.backAttack, false, 'Attacking Spear turns player to face Spear');
-  assert.equal(shield.backAttack, true, 'Shield is now behind player');
-  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 5, 'Faced Spear no longer gets +50%');
-  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 18, 'Behind Shield now deals +50%');
+  assert.equal(playCard(ssRun, atkShield.instanceId, shield.id).ok, true);
+  assert.equal(shield.backAttack, false, 'Targeting Shield turns player to face Shield');
+  assert.equal(spear.backAttack, true, 'Spear is now behind player');
+  assert.equal(calculateAttackDamage(5, spear, ssRun.player), 7, 'Behind Spear now gets +50% (floor(5*1.5)=7)');
+  assert.equal(calculateAttackDamage(12, shield, ssRun.player), 12, 'Faced Shield now deals normal damage');
 
   // Killing Spire Shield clears Surrounded and backAttack immediately
   shield.hp = 1;
@@ -4846,8 +4847,8 @@ test('Defect Relics (all 9 + Orichalcum/Frozen Core synergy) & Potions (all 4 + 
   state.combat.hand = [];
   const hpPreEmotion = enemy.hp;
   endPlayerTurn(state);
-  // End of Turn 2: Lightning ×2 (8 dmg); enemy hits player for 5 -> Start of Turn 3: Emotion Chip triggers Lightning passive (+4 dmg) -> total 12
-  assert.equal(hpPreEmotion - enemy.hp, 12, 'Emotion Chip must trigger front Lightning passive on next turn after HP loss');
+  // End of Turn 2: Lightning ×2 (8 dmg); enemy hits player for 5 -> Start of Turn 3: Emotion Chip + Gold-Plated Cables triggers front Lightning passive twice (+8 dmg) -> total 16
+  assert.equal(hpPreEmotion - enemy.hp, 16, 'Emotion Chip + Gold-Plated Cables must trigger front Lightning passive twice on next turn after HP loss');
 
   // 2. Frozen Core + Orichalcum synergy: Orichalcum triggers at 0 block BEFORE Frozen Core channels Frost
   const fcState = createNewRun({ seed: 91006, characterId: 'defect', skipNeow: true });
@@ -5754,4 +5755,265 @@ test('P1/P2 & 361-Card Official STS1 Fidelity: Bird-Faced Urn, Thinking Ahead ha
   startCombat(a9Run, normalEnc100, 'normal');
   assert.equal(a0Run.combat.enemies[0].maxHp, 100);
   assert.equal(a9Run.combat.enemies[0].maxHp, 109, 'A9 normal enemy HP scales by 1.09x (+9%)');
+});
+
+test('Part A STS1 Combat Fidelity: Snecko/Clockwork, Orange Pellets, Pen Nib/Akabeko repeat, Wrist Blade forceFree, Runic Pyramid + Establishment, Ethereal Exhaust, Heart Invincible/Vault, Incense/Blasphemer, Awakened One rebirth & Sludge, Time Warp #12 deferral, Shield/Spear Skill/Potion flip & Defect Focus, Lagavulin Poison/wake, Exploder fixed dmg, Deca Dazed, and Ambrosia/Gambler/Dup Potions', () => {
+  // 1. Snecko Eye bypasses Clockwork Souvenir Artifact (STS1 faithful)
+  const snRun = createNewRun({ seed: 96001, characterId: 'ironclad', skipNeow: true });
+  snRun.player.relics = ['clockwork_souvenir', 'snecko_eye'];
+  startCombat(snRun, ENCOUNTERS.floor1[0], 'normal');
+  assert.equal(snRun.player.statuses.confused, 1, 'Snecko Eye applies Confused bypassing Artifact');
+  assert.equal(snRun.player.statuses.artifact, 1, 'Clockwork Souvenir Artifact is preserved when Snecko Eye applies Confused');
+
+  // 2. Orange Pellets cleanses negative Strength/Dexterity/Focus AND skips unclearable Blasphemer/Surrounded
+  const opRun = createNewRun({ seed: 96002, characterId: 'watcher', skipNeow: true });
+  opRun.player.relics = ['orange_pellets'];
+  startCombat(opRun, ENCOUNTERS.floor1[0], 'normal');
+  const opEnemy = opRun.combat.enemies[0];
+  opEnemy.hp = 200;
+  opRun.player.statuses.weak = 2;
+  opRun.player.statuses.strength = -3;
+  opRun.player.statuses.dexterity = -2;
+  opRun.player.statuses.focus = -4;
+  opRun.player.statuses.blasphemer = 1;
+  opRun.player.statuses.surrounded = 1;
+  const opAtk = createCardInstance(opRun, 'strike', false);
+  const opSkl = createCardInstance(opRun, 'defend', false);
+  const opPwr = createCardInstance(opRun, 'rushdown', false);
+  opRun.combat.hand = [opAtk, opSkl, opPwr];
+  opRun.player.energy = 6;
+  assert.equal(playCard(opRun, opAtk.instanceId, opEnemy.id).ok, true);
+  assert.equal(playCard(opRun, opSkl.instanceId).ok, true);
+  assert.equal(playCard(opRun, opPwr.instanceId).ok, true);
+  assert.equal(opRun.player.statuses.weak ?? 0, 0, 'Orange Pellets removes standard debuffs');
+  assert.equal(opRun.player.statuses.strength ?? 0, 0, 'Orange Pellets cleanses negative Strength');
+  assert.equal(opRun.player.statuses.dexterity ?? 0, 0, 'Orange Pellets cleanses negative Dexterity');
+  assert.equal(opRun.player.statuses.focus ?? 0, 0, 'Orange Pellets cleanses negative Focus');
+  assert.equal(opRun.player.statuses.blasphemer, 1, 'Orange Pellets must NOT cleanse unclearable Blasphemer');
+  assert.equal(opRun.player.statuses.surrounded, 1, 'Orange Pellets must NOT cleanse unclearable Surrounded');
+
+  // 3. Pen Nib & Akabeko + Double Tap: Akabeko only boosts first cast; Pen Nib advances per cast & does not double both casts
+  const pnRun = createNewRun({ seed: 96003, characterId: 'ironclad', skipNeow: true });
+  pnRun.player.relics = ['pen_nib', 'akabeko'];
+  pnRun.relicCounters = { pen_nib: 9 };
+  startCombat(pnRun, ENCOUNTERS.floor1[0], 'normal');
+  const pnEnemy = pnRun.combat.enemies[0];
+  pnEnemy.hp = 200;
+  pnRun.player.statuses.doubleTap = 1;
+  const pnStrike = createCardInstance(pnRun, 'strike', false); // base 6
+  pnRun.combat.hand = [pnStrike];
+  pnRun.player.energy = 3;
+  // Pass 0: (6 + 8 Akabeko) * 2 Pen Nib = 28; Pass 1: 6 (Akabeko consumed, Pen Nib reset to 0 and increments to 1) -> total 34!
+  playCard(pnRun, pnStrike.instanceId, pnEnemy.id);
+  assert.equal(200 - pnEnemy.hp, 34, 'Akabeko + Pen Nib only boost pass 0 of Double Tap (28 + 6 = 34)');
+  assert.equal(pnRun.relicCounters.pen_nib, 1, 'Pen Nib counter increments for pass 1 copy');
+
+  // 4. Wrist Blade +4 on forceFree attacks (Havoc)
+  const wbRun = createNewRun({ seed: 96004, characterId: 'ironclad', skipNeow: true });
+  wbRun.player.relics = ['wrist_blade'];
+  startCombat(wbRun, ENCOUNTERS.floor1[0], 'normal');
+  const wbEnemy = wbRun.combat.enemies[0];
+  wbEnemy.hp = 200;
+  const havoc = createCardInstance(wbRun, 'havoc', false);
+  const topBash = createCardInstance(wbRun, 'bash', false); // normally 2-cost 8 dmg; forceFree -> +4 Wrist Blade = 12 dmg!
+  wbRun.combat.hand = [havoc];
+  wbRun.combat.drawPile = [topBash];
+  wbRun.player.energy = 3;
+  playCard(wbRun, havoc.instanceId);
+  assert.equal(200 - wbEnemy.hp, 12, 'Wrist Blade adds +4 damage to forceFree attack played via Havoc (8 + 4 = 12)');
+
+  // 5. Runic Pyramid does NOT trigger Establishment discount (only true Retain cards do)
+  const rpRun = createNewRun({ seed: 96005, characterId: 'watcher', skipNeow: true });
+  rpRun.player.relics = ['runic_pyramid'];
+  startCombat(rpRun, ENCOUNTERS.floor1[0], 'normal');
+  rpRun.combat.enemies[0].hp = 200;
+  rpRun.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  rpRun.player.statuses.establishment = 1;
+  const nonRetainStrike = createCardInstance(rpRun, 'strike', false);
+  const trueRetainWindmill = createCardInstance(rpRun, 'windmill_strike', false);
+  rpRun.combat.hand = [nonRetainStrike, trueRetainWindmill];
+  endPlayerTurn(rpRun);
+  assert.equal(nonRetainStrike.retainedCostDiscount ?? 0, 0, 'Runic Pyramid must NOT trigger Establishment on non-Retain card');
+  assert.equal(trueRetainWindmill.retainedCostDiscount, 1, 'Establishment still discounts true Retain card');
+
+  // 6. Ethereal end-of-turn exhaust triggers Dark Embrace / Dead Branch
+  const ethRun = createNewRun({ seed: 96006, characterId: 'ironclad', skipNeow: true });
+  ethRun.player.relics = ['dead_branch'];
+  startCombat(ethRun, ENCOUNTERS.floor1[0], 'normal');
+  ethRun.combat.enemies[0].hp = 200;
+  ethRun.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  const dazed = createCardInstance(ethRun, 'dazed', false);
+  ethRun.combat.hand = [dazed];
+  ethRun.combat.drawPile = [];
+  ethRun.combat.discardPile = [];
+  endPlayerTurn(ethRun);
+  assert.equal(ethRun.combat.exhaustPile.some((c) => c.cardId === 'dazed'), true);
+  assert.equal(ethRun.combat.hand.length >= 1, true, 'Dead Branch must generate a card when Ethereal exhausts at end of turn');
+
+  // 7. Heart Invincible does NOT reset when Vault skips enemy turn, and resets at enemy phase start
+  const hvRun = createNewRun({ seed: 96007, characterId: 'watcher', skipNeow: true });
+  startCombat(hvRun, ENCOUNTERS.act4Boss[0], 'boss');
+  const hvHeart = hvRun.combat.enemies[0];
+  hvRun.player.statuses.strength = 200;
+  const hvStrike = createCardInstance(hvRun, 'strike', false);
+  const hvVault = createCardInstance(hvRun, 'vault', true);
+  hvRun.combat.hand = [hvStrike, hvVault];
+  hvRun.player.energy = 5;
+  playCard(hvRun, hvStrike.instanceId, hvHeart.id);
+  assert.equal(hvHeart.statuses.invincible, 0, 'Invincible reached 0 before Vault');
+  playCard(hvRun, hvVault.instanceId);
+  assert.equal(hvHeart.statuses.invincible, 0, 'Vault skips enemy turn so Heart Invincible must NOT reset!');
+
+  // 8. Incense Burner triggers BEFORE Blasphemer lethal tick (saving the player with Intangible -> 1 dmg!)
+  const ibRun = createNewRun({ seed: 96008, characterId: 'watcher', skipNeow: true });
+  ibRun.player.relics = ['incense_burner'];
+  ibRun.relicCounters = { incense_burner: 4 }; // Start of turn 1 sets 5 -> start of turn 2 hits 6 -> 1 Intangible!
+  startCombat(ibRun, ENCOUNTERS.floor1[0], 'normal');
+  ibRun.combat.enemies[0].hp = 200;
+  ibRun.combat.enemies[0].intent = { id: 'idle', name: '待机', type: 'buff', summary: '待机' };
+  ibRun.player.hp = 50;
+  ibRun.player.statuses.blasphemer = 1;
+  endPlayerTurn(ibRun);
+  assert.equal(ibRun.combat.status, 'ongoing', 'Incense Burner Intangible must save player from Blasphemer');
+  assert.equal(ibRun.player.hp, 49, 'Blasphemer deals 1 damage through Incense Burner Intangible');
+
+  // 9. Awakened One: Phase 1 kill -> Rebirth intent (does not attack same turn) -> Turn 2 revives & prepares Dark Echo; Sludge adds Void to draw pile
+  const awRun = createNewRun({ seed: 96009, characterId: 'ironclad', skipNeow: true });
+  startCombat(awRun, ENCOUNTERS.act3Boss.find((e) => e.id === 'awakened_one_boss'), 'boss');
+  const aw = awRun.combat.enemies.find((e) => e.templateId === 'awakened_one');
+  aw.hp = 5;
+  aw.block = 0;
+  // Kill cultists too so only Awakened One acts
+  for (const e of awRun.combat.enemies) {
+    if (e.id !== aw.id) e.hp = 0;
+  }
+  const killP1 = createCardInstance(awRun, 'strike', false);
+  awRun.combat.hand = [killP1];
+  awRun.player.energy = 3;
+  awRun.player.hp = 70;
+  playCard(awRun, killP1.instanceId, aw.id);
+  assert.equal(aw.awakenedPhase, 2);
+  assert.equal(aw.awakenedRebirthing, true);
+  assert.equal(aw.intent.id, 'awakened_rebirth', 'Phase 1 death sets awakened_rebirth intent');
+  endPlayerTurn(awRun);
+  assert.equal(aw.awakenedRebirthing, false, 'Rebirth completes on enemy turn');
+  assert.equal(aw.hp, aw.maxHp, 'Awakened One heals to full on rebirth turn');
+  assert.equal(awRun.player.hp, 70, 'Awakened One does not deal damage during rebirth turn');
+  assert.equal(aw.intent.id, 'dark_echo', 'First attack after rebirth is Dark Echo');
+  // Test awakened_sludge adds 1 Void to draw pile
+  aw.intent = { id: 'awakened_sludge', name: '黑暗淤泥', type: 'attack_debuff', damage: 18, hits: 1, addDrawCards: [{ cardId: 'void', count: 1 }] };
+  awRun.combat.drawPile = [];
+  awRun.combat.discardPile = [];
+  awRun.player.block = 30;
+  endPlayerTurn(awRun);
+  const allAwCards = [...awRun.combat.hand, ...awRun.combat.drawPile, ...awRun.combat.discardPile];
+  assert.ok(allAwCards.some((c) => c.cardId === 'void'), 'Awakened One Sludge must shuffle Void into draw pile');
+
+  // 10. Time Warp on 12th card: blocks 13th copy from Double Tap & defers end-turn until pending choice resolves
+  const twRun = createNewRun({ seed: 96010, characterId: 'ironclad', skipNeow: true });
+  startCombat(twRun, ENCOUNTERS.act3Boss.find((e) => e.id === 'time_eater_boss'), 'boss');
+  const te = twRun.combat.enemies[0];
+  te.hp = 400;
+  te.statuses.timeWarp = 1; // 1 card remaining before Time Warp triggers!
+  twRun.player.statuses.doubleTap = 1;
+  const twStrike = createCardInstance(twRun, 'strike', false);
+  twRun.combat.hand = [twStrike];
+  twRun.player.energy = 3;
+  playCard(twRun, twStrike.instanceId, te.id);
+  assert.equal(400 - te.hp, 6, 'Time Warp on 12th card must cancel 13th Double Tap repeat copy');
+  assert.equal(te.statuses.timeWarp, 12, 'Time Warp resets countdown to 12 after triggering');
+  assert.equal(twRun.combat.turn, 2, 'Time Warp ended turn immediately when no pending choice opened');
+  // Now verify deferral when 12th card opens a pending choice (e.g. True Grit+ with 2 other cards in hand)
+  te.statuses.timeWarp = 1;
+  const tgPlus = createCardInstance(twRun, 'true_grit', true);
+  const dummyCard = createCardInstance(twRun, 'defend', false);
+  const dummyCard2 = createCardInstance(twRun, 'strike', false);
+  twRun.combat.hand = [tgPlus, dummyCard, dummyCard2];
+  twRun.player.energy = 3;
+  const turnBeforeChoice = twRun.combat.turn;
+  playCard(twRun, tgPlus.instanceId);
+  assert.ok(twRun.combat.pendingCardChoice, '12th card pending choice must stay open before Time Warp ends turn');
+  assert.equal(twRun.combat.turn, turnBeforeChoice, 'Turn must not advance before pending choice resolves');
+  resolveCardChoice(twRun, dummyCard.instanceId);
+  assert.equal(twRun.combat.turn, turnBeforeChoice + 1, 'Resolving 12th card pending choice triggers deferred Time Warp end-turn');
+
+  // 11. Spire Shield & Spear: targeted Skill/Potion flips Surrounded facing; Shield Bash applies -1 Focus to Defect
+  const ssDef = createNewRun({ seed: 96011, characterId: 'defect', skipNeow: true });
+  ssDef.player.potions = ['fire_potion'];
+  startCombat(ssDef, ENCOUNTERS.act4Elite[0], 'elite');
+  const [sh, sp] = ssDef.combat.enemies;
+  assert.equal(sp.backAttack, false, 'Starts facing Spear');
+  assert.equal(sh.backAttack, true, 'Shield starts behind');
+  // Targeted Potion on Shield flips facing to Shield
+  assert.equal(usePotion(ssDef, 0, sh.id).ok, true);
+  assert.equal(sh.backAttack, false, 'Targeted Potion on Shield flips facing to Shield');
+  assert.equal(sp.backAttack, true, 'Spear is now behind');
+  // Test Shield Bash applies -1 Focus when player has orb slots
+  sh.intent = { id: 'shield_bash', name: '盾牌猛击', type: 'attack_debuff', damage: 12, hits: 1, applyPlayerStatuses: { focus: -1 } };
+  ssDef.player.block = 30;
+  endPlayerTurn(ssDef);
+  assert.equal(ssDef.player.statuses.focus, -1, 'Spire Shield Bash applies -1 Focus to Defect (orb slots > 0)');
+
+  // 12. Lagavulin: Poison does NOT wake sleeping Lagavulin; natural Turn-3 wake happens BEFORE Metallicize
+  const lagRun = createNewRun({ seed: 96012, characterId: 'silent', skipNeow: true });
+  startCombat(lagRun, ENCOUNTERS.elite.find((e) => e.id === 'lagavulin_elite'), 'elite');
+  const lag = lagRun.combat.enemies[0];
+  assert.equal(lag.statuses.asleep, 3);
+  lag.statuses.poison = 4;
+  endPlayerTurn(lagRun); // Turn 1 -> 2 (asleep becomes 2)
+  assert.equal(lag.statuses.asleep, 2, 'Poison tick must NOT wake sleeping Lagavulin');
+  endPlayerTurn(lagRun); // Turn 2 -> 3 (asleep becomes 1)
+  assert.equal(lag.statuses.asleep, 1);
+  lag.block = 0;
+  endPlayerTurn(lagRun); // Turn 3 -> 4 (natural wake clears Metallicize BEFORE Metallicize block gain)
+  assert.equal(lag.statuses.asleep ?? 0, 0, 'Lagavulin naturally wakes after 3 turns');
+  assert.equal(lag.statuses.metallicize ?? 0, 0, 'Natural wake clears Metallicize');
+  assert.equal(lag.block, 0, 'Natural wake happens BEFORE Metallicize grants Block');
+
+  // 13. Exploder deals fixed 30 non-attack damage (unaffected by Weak or Wrath!) & Deca gives 2 Dazed on Square of Protection
+  const expRun = createNewRun({ seed: 96013, characterId: 'watcher', skipNeow: true });
+  startCombat(expRun, { id: 'exp_test', name: '测试', enemies: [{ templateId: 'exploder' }] }, 'normal');
+  const exp = expRun.combat.enemies[0];
+  exp.statuses.weak = 3;
+  expRun.combat.stance = 'wrath';
+  expRun.player.hp = 60;
+  expRun.player.block = 0;
+  exp.intent = { id: 'explosive_detonate', name: '自爆引爆', type: 'attack', damage: 30, hits: 1, selfDestruct: true, isNonAttack: true };
+  endPlayerTurn(expRun);
+  assert.equal(expRun.player.hp, 30, 'Exploder detonation deals fixed 30 damage ignoring Weak & Wrath');
+
+  const decaRun = createNewRun({ seed: 96014, characterId: 'ironclad', skipNeow: true });
+  startCombat(decaRun, ENCOUNTERS.act3Boss.find((e) => e.id === 'donu_deca_boss'), 'boss');
+  const deca = decaRun.combat.enemies.find((e) => e.templateId === 'deca');
+  assert.equal(deca.intent.id, 'deca_beam');
+  assert.equal(deca.intent.addDiscardCards, undefined, 'Deca Beam must NOT add Dazed');
+  decaRun.player.block = 50;
+  endPlayerTurn(decaRun);
+  assert.equal(deca.intent.id, 'square_of_protection');
+  assert.equal(deca.intent.type, 'defend_debuff');
+  assert.equal(deca.intent.addDiscardCards?.[0]?.cardId, 'dazed', 'Deca Square of Protection adds 2 Dazed');
+
+  // 14. Potions: Ambrosia & Gambler's Brew respect noSacredBark; Duplication Potion works on noBurst cards (e.g. Vault/Omniscience)
+  const potRun = createNewRun({ seed: 96015, characterId: 'watcher', skipNeow: true });
+  potRun.player.relics = ['sacred_bark'];
+  potRun.player.potions = ['ambrosia', 'gamblers_brew', 'duplication_potion'];
+  startCombat(potRun, ENCOUNTERS.floor1[0], 'normal');
+  potRun.player.energy = 3;
+  assert.equal(usePotion(potRun, 0).ok, true);
+  assert.equal(potRun.combat.stance, 'divinity');
+  assert.equal(potRun.player.energy, 6, 'Ambrosia + Sacred Bark only grants normal Divinity +3E (no extra +3E)');
+  potRun.combat.hand = [createCardInstance(potRun, 'strike', false), createCardInstance(potRun, 'defend', false)];
+  potRun.combat.drawPile = Array.from({ length: 8 }, () => createCardInstance(potRun, 'strike', false));
+  assert.equal(usePotion(potRun, 1).ok, true);
+  assert.equal(potRun.combat.hand.length, 2, 'Gambler\'s Brew + Sacred Bark draws exact discarded count (no 2x draw)');
+  assert.equal(usePotion(potRun, 2).ok, true);
+  assert.equal(potRun.player.statuses.duplication, 2, 'Duplication Potion + Sacred Bark grants 2 stacks');
+  const omni = createCardInstance(potRun, 'omniscience', false);
+  potRun.combat.hand = [omni];
+  potRun.combat.drawPile = [createCardInstance(potRun, 'strike', false), createCardInstance(potRun, 'defend', false)];
+  potRun.player.energy = 5;
+  assert.equal(playCard(potRun, omni.instanceId).ok, true);
+  assert.equal(potRun.player.statuses.duplication, 1, 'Duplication Potion triggers even on noBurst card (Omniscience)');
+  assert.equal(potRun.combat.pendingCardChoice?.mode, 'omniscience');
+  assert.equal(potRun.combat.pendingCardChoice?.remaining, 2, 'Duplication Potion grants 2 Omniscience draw-pile picks cleanly');
 });

@@ -429,7 +429,7 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     assert.equal(silentSelectedAudit.shellChar, 'silent');
     assert.ok(silentSelectedAudit.startBtnText.includes('静默猎手'));
     assert.ok(silentSelectedAudit.cardText.includes('蛇之戒指'));
-    assert.ok(silentSelectedAudit.cardText.includes('剧毒药水'));
+    assert.ok(silentSelectedAudit.cardText.includes('毒药水'));
     assert.ok(silentSelectedAudit.cardText.includes('12 张'));
 
     if (process.env.SCRATCH_SCREENSHOT_DIR) {
@@ -471,7 +471,7 @@ test('Real Chromium E2E: Character Select screen (Desktop & Mobile), The Silent 
     assert.equal(silentHudAudit.heroBadgeText, '静默猎手');
     assert.equal(silentHudAudit.relicText, '蛇之戒指');
     assert.equal(silentHudAudit.relicSvgKey, 'ring_of_the_snake');
-    assert.equal(silentHudAudit.potionTitle, '剧毒药水');
+    assert.equal(silentHudAudit.potionTitle, '毒药水');
     assert.ok(silentHudAudit.neowBossSwap.includes('蛇之戒指'), `Expected Silent Boss Swap text, got: ${silentHudAudit.neowBossSwap}`);
 
     // Click HUD "新的一局" -> opens confirmation modal -> Cancel keeps active run -> Confirm opens Character Select with "继续当前对局"
@@ -1154,7 +1154,7 @@ test('Real Chromium E2E: Daily Challenge + ?daily= invite + Shop Colorless shelf
       const hudRect = document.querySelector('.top-hud')?.getBoundingClientRect();
       const gearScroll = document.querySelector('.hud-gear-scroll');
       const potionStrip = document.querySelector('.potion-strip');
-      const potionSlots = [...document.querySelectorAll('.potion-strip .potion-slot')];
+      const potionSlots = [...document.querySelectorAll('.potion-strip .potion-slot:not(.potion-discard-inline)')];
       const allPotionsVisibleInViewport =
         potionSlots.length >= 2 &&
         potionSlots.every((btn) => {
@@ -1670,14 +1670,14 @@ test('Real Chromium E2E: Ascension 6-10 progression (11 pills/buttons, damaged s
       maxHp: window.__SPIRE_APP__.getState().player.maxHp,
       potionSlots: document.querySelectorAll('.potion-slot').length,
       ascPill: document.getElementById('hud-ascension-pill')?.textContent?.trim() || '',
-      hasClumsy: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'clumsy'),
+      hasAscendersBane: window.__SPIRE_APP__.getState().player.deck.some((c) => c.cardId === 'ascenders_bane'),
     })`);
     assert.equal(a10StartAudit.asc, 10);
     assert.equal(a10StartAudit.hp, 68);
     assert.equal(a10StartAudit.maxHp, 75);
     assert.equal(a10StartAudit.potionSlots, 2);
     assert.equal(a10StartAudit.ascPill, '进阶 10');
-    assert.equal(a10StartAudit.hasClumsy, true);
+    assert.equal(a10StartAudit.hasAscendersBane, true);
 
     // 3. Verify A8 Event screen shows scaled 16 HP penalty & enforces it in UI
     const a8EventAudit = await cdp.evaluate(`(() => {

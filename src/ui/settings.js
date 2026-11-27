@@ -18,6 +18,8 @@ export function createDefaultSettings() {
     showDamageNumbers: true,
     tutorialDismissed: false,
     mobileTapConfirm: false,
+    showMechanicTips: true,
+    seenMechanicTips: [],
   };
 }
 
@@ -35,6 +37,9 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
     const volume = Number.isFinite(parsed.volume)
       ? Math.max(0, Math.min(100, Math.round(parsed.volume)))
       : base.volume;
+    const seenMechanicTips = Array.isArray(parsed.seenMechanicTips)
+      ? [...new Set(parsed.seenMechanicTips.filter((id) => typeof id === 'string' && id.length > 0))]
+      : [];
     return {
       soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : base.soundEnabled,
       volume,
@@ -45,6 +50,11 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
           : base.showDamageNumbers,
       tutorialDismissed: Boolean(parsed.tutorialDismissed),
       mobileTapConfirm: Boolean(parsed.mobileTapConfirm),
+      showMechanicTips:
+        typeof parsed.showMechanicTips === 'boolean'
+          ? parsed.showMechanicTips
+          : base.showMechanicTips,
+      seenMechanicTips,
     };
   } catch {
     return base;
