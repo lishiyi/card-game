@@ -74,7 +74,7 @@ export function addPlayerBlock(state, amount) {
         try {
           pushCombatLog(
             combat,
-            `【势不可挡】触发：获得格挡并对【${recipient.name}】造成 ${juggDmg} 点伤害！`,
+            `【势不可当】触发：获得格挡并对【${recipient.name}】造成 ${juggDmg} 点伤害！`,
             'attack'
           );
           dealDamageToEnemy(state, recipient, juggDmg, { isAttack: false });
@@ -1467,7 +1467,7 @@ export function exhaustCardsBatch(state, cardInstances) {
 
   if (sentinelEnergy > 0 && combat.status === 'ongoing') {
     state.player.energy += sentinelEnergy;
-    pushCombatLog(combat, `【哨位】被消耗，立即获得 ${sentinelEnergy} 点能量！`, 'info');
+    pushCombatLog(combat, `【哨卫】被消耗，立即获得 ${sentinelEnergy} 点能量！`, 'info');
   }
 
   const count = valid.length;

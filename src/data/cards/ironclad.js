@@ -584,7 +584,7 @@ export const IRONCLAD_CARDS = {
   },
   juggernaut: {
     id: 'juggernaut',
-    name: '势不可挡',
+    name: '势不可当',
     type: 'power',
     rarity: 'rare',
     target: 'self',
@@ -628,7 +628,7 @@ export const IRONCLAD_CARDS = {
   },
   blood_for_blood: {
     id: 'blood_for_blood',
-    name: '以血换血',
+    name: '以血还血',
     character: 'ironclad',
     type: 'attack',
     rarity: 'uncommon',
@@ -650,7 +650,7 @@ export const IRONCLAD_CARDS = {
   },
   sentinel: {
     id: 'sentinel',
-    name: '哨位',
+    name: '哨卫',
     character: 'ironclad',
     type: 'skill',
     rarity: 'uncommon',

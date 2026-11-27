@@ -1772,7 +1772,7 @@ export function playCard(
       delete state.player.statuses.rebound;
     }
     combat.drawPile.unshift(cardInstance);
-    pushCombatLog(combat, `【反弹】生效：【${stats.name}】已置于抽牌堆顶！`, 'info');
+    pushCombatLog(combat, `【弹回】生效：【${stats.name}】已置于抽牌堆顶！`, 'info');
   } else if (stats.shuffleSelfToDraw) {
     const insertIdx = randomInt(state, 0, combat.drawPile.length);
     combat.drawPile.splice(insertIdx, 0, cardInstance);
@@ -1789,7 +1789,7 @@ export function playCard(
     if (stormBefore > 0) {
       for (let st = 0; st < stormBefore; st += 1) {
         if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
-        channelOrb(state, 'lightning', { sourceName: '暴风雨' });
+        channelOrb(state, 'lightning', { sourceName: '雷暴' });
       }
     }
   }

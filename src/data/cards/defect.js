@@ -83,7 +83,7 @@ export const DEFECT_CARDS = {
   },
   compile_driver: {
     id: 'compile_driver',
-    name: '编译驱动',
+    name: '编译冲击',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -94,7 +94,7 @@ export const DEFECT_CARDS = {
   },
   ftl: {
     id: 'ftl',
-    name: '超光速',
+    name: '超越光速',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -105,7 +105,7 @@ export const DEFECT_CARDS = {
   },
   go_for_the_eyes: {
     id: 'go_for_the_eyes',
-    name: '直击要害',
+    name: '眼部攻击',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -116,7 +116,7 @@ export const DEFECT_CARDS = {
   },
   rebound: {
     id: 'rebound',
-    name: '反弹',
+    name: '弹回',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -127,7 +127,7 @@ export const DEFECT_CARDS = {
   },
   streamline: {
     id: 'streamline',
-    name: '精简',
+    name: '精简改良',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -138,7 +138,7 @@ export const DEFECT_CARDS = {
   },
   sweeping_beam: {
     id: 'sweeping_beam',
-    name: '横扫光束',
+    name: '扫荡射线',
     character: 'defect',
     type: 'attack',
     rarity: 'common',
@@ -149,7 +149,7 @@ export const DEFECT_CARDS = {
   },
   charge_battery: {
     id: 'charge_battery',
-    name: '充电电池',
+    name: '充电',
     character: 'defect',
     type: 'skill',
     rarity: 'common',
@@ -226,7 +226,7 @@ export const DEFECT_CARDS = {
   },
   steam_barrier: {
     id: 'steam_barrier',
-    name: '蒸汽屏障',
+    name: '蒸汽护壁',
     character: 'defect',
     type: 'skill',
     rarity: 'common',
@@ -237,7 +237,7 @@ export const DEFECT_CARDS = {
   },
   turbo: {
     id: 'turbo',
-    name: '涡轮增压',
+    name: '内核加速',
     character: 'defect',
     type: 'skill',
     rarity: 'common',
@@ -250,7 +250,7 @@ export const DEFECT_CARDS = {
   // === Uncommon (34) ===
   blizzard: {
     id: 'blizzard',
-    name: '暴风雪',
+    name: '暴雪',
     character: 'defect',
     type: 'attack',
     rarity: 'uncommon',
@@ -261,7 +261,7 @@ export const DEFECT_CARDS = {
   },
   bullseye: {
     id: 'bullseye',
-    name: '靶心',
+    name: '瞄准靶心',
     character: 'defect',
     type: 'attack',
     rarity: 'uncommon',
@@ -272,7 +272,7 @@ export const DEFECT_CARDS = {
   },
   doom_and_gloom: {
     id: 'doom_and_gloom',
-    name: '末日与晦暗',
+    name: '愁云惨淡',
     character: 'defect',
     type: 'attack',
     rarity: 'uncommon',
@@ -294,7 +294,7 @@ export const DEFECT_CARDS = {
   },
   rip_and_tear: {
     id: 'rip_and_tear',
-    name: '撕扯',
+    name: '狂乱撕扯',
     character: 'defect',
     type: 'attack',
     rarity: 'uncommon',
@@ -316,7 +316,7 @@ export const DEFECT_CARDS = {
   },
   sunder: {
     id: 'sunder',
-    name: '裂解',
+    name: '分离',
     character: 'defect',
     type: 'attack',
     rarity: 'uncommon',
@@ -327,7 +327,7 @@ export const DEFECT_CARDS = {
   },
   aggregate: {
     id: 'aggregate',
-    name: '聚合',
+    name: '汇集',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -349,7 +349,7 @@ export const DEFECT_CARDS = {
   },
   boot_sequence: {
     id: 'boot_sequence',
-    name: '启动序列',
+    name: '启动流程',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -382,7 +382,7 @@ export const DEFECT_CARDS = {
   },
   consume: {
     id: 'consume',
-    name: '吞噬',
+    name: '耗尽',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -393,7 +393,7 @@ export const DEFECT_CARDS = {
   },
   darkness: {
     id: 'darkness',
-    name: '黑暗',
+    name: '漆黑',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -481,7 +481,7 @@ export const DEFECT_CARDS = {
   },
   reinforced_body: {
     id: 'reinforced_body',
-    name: '强化机身',
+    name: '硬化机体',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -503,7 +503,7 @@ export const DEFECT_CARDS = {
   },
   skim: {
     id: 'skim',
-    name: '掠过',
+    name: '快速检索',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -514,7 +514,7 @@ export const DEFECT_CARDS = {
   },
   tempest: {
     id: 'tempest',
-    name: '雷暴',
+    name: '暴风雨',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -525,7 +525,7 @@ export const DEFECT_CARDS = {
   },
   white_noise: {
     id: 'white_noise',
-    name: '白噪音',
+    name: '白噪声',
     character: 'defect',
     type: 'skill',
     rarity: 'uncommon',
@@ -536,7 +536,7 @@ export const DEFECT_CARDS = {
   },
   capacitor: {
     id: 'capacitor',
-    name: '电容器',
+    name: '扩容',
     character: 'defect',
     type: 'power',
     rarity: 'uncommon',
@@ -569,7 +569,7 @@ export const DEFECT_CARDS = {
   },
   hello_world: {
     id: 'hello_world',
-    name: '你好世界',
+    name: '你好，世界',
     character: 'defect',
     type: 'power',
     rarity: 'uncommon',
@@ -613,7 +613,7 @@ export const DEFECT_CARDS = {
   },
   storm: {
     id: 'storm',
-    name: '暴风雨',
+    name: '雷暴',
     character: 'defect',
     type: 'power',
     rarity: 'uncommon',
@@ -626,7 +626,7 @@ export const DEFECT_CARDS = {
   // === Rare (17) ===
   all_for_one: {
     id: 'all_for_one',
-    name: '全力以赴',
+    name: '万物一心',
     character: 'defect',
     type: 'attack',
     rarity: 'rare',
@@ -637,7 +637,7 @@ export const DEFECT_CARDS = {
   },
   core_surge: {
     id: 'core_surge',
-    name: '核心过载',
+    name: '核心电涌',
     character: 'defect',
     type: 'attack',
     rarity: 'rare',
@@ -769,7 +769,7 @@ export const DEFECT_CARDS = {
   },
   creative_ai: {
     id: 'creative_ai',
-    name: '创意 AI',
+    name: '创造性AI',
     character: 'defect',
     type: 'power',
     rarity: 'rare',

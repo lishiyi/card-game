@@ -883,7 +883,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       pushPlayerStatus('juggernaut', 'buff');
       result.callouts.push({
         tone: 'buff',
-        text: `✦ 【势不可挡】触发：获得格挡时对随机敌人造成 ${player.statuses.juggernaut} 点伤害`,
+        text: `✦ 【势不可当】触发：获得格挡时对随机敌人造成 ${player.statuses.juggernaut} 点伤害`,
       });
     }
   }
@@ -1183,15 +1183,15 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     pushCallout('散热片', `打出能力牌额外抽 ${player.statuses.heatsinks} 张牌`, 'buff');
   }
   if (stats.type === 'power' && (player.statuses?.storm ?? 0) > 0) {
-    pushCallout('暴风雨', `打出能力牌充能 ${player.statuses.storm} 个闪电球`, 'buff');
+    pushCallout('雷暴', `打出能力牌充能 ${player.statuses.storm} 个闪电球`, 'buff');
   }
   if (stats.type !== 'power' && !stats.exhaust && (player.statuses?.rebound ?? 0) > 0) {
-    pushCallout('反弹', `打出后将置于抽牌堆顶`, 'buff');
+    pushCallout('弹回', `打出后将置于抽牌堆顶`, 'buff');
   }
   if (stats.drawPerUniqueOrb) {
     const uniq = countUniqueOrbs(player);
     if (uniq > 0) {
-      pushCallout('编译驱动', `当前 ${uniq} 种不同充能球，额外抽 ${uniq * stats.drawPerUniqueOrb} 张牌`, 'buff');
+      pushCallout('编译冲击', `当前 ${uniq} 种不同充能球，额外抽 ${uniq * stats.drawPerUniqueOrb} 张牌`, 'buff');
     }
   }
   if (stats.retrieveAllZeroCostFromDiscard) {
@@ -1199,7 +1199,7 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
       (c) => getEffectiveCardCost(getCardStats(c), player, combat) === 0
     ).length;
     if (zeroCount > 0) {
-      pushCallout('全力以赴', `将从弃牌堆取回 ${zeroCount} 张 0 费牌！`, 'buff');
+      pushCallout('万物一心', `将从弃牌堆取回 ${zeroCount} 张 0 费牌！`, 'buff');
     }
   }
   const orbs = Array.isArray(player.orbs) ? player.orbs : [];

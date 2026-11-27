@@ -671,7 +671,7 @@ export const WATCHER_CARDS = {
   },
   lesson_learned: {
     id: 'lesson_learned',
-    name: '勤学奋进',
+    name: '勤学精进',
     character: 'watcher',
     type: 'attack',
     rarity: 'rare',

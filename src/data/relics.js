@@ -1630,7 +1630,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   juggernaut: {
     id: 'juggernaut',
-    name: '势不可挡',
+    name: '势不可当',
     polarity: 'buff',
     describe: (v) => `每当你获得格挡时，对随机一名敌人造成 ${v} 点固定伤害。`,
   },
@@ -2034,7 +2034,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   storm: {
     id: 'storm',
-    name: '暴风雨',
+    name: '雷暴',
     polarity: 'buff',
     describe: (v) => `每当你打出 1 张能力牌，充能 ${v} 个【闪电球】。`,
   },
@@ -2046,7 +2046,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   creativeAi: {
     id: 'creativeAi',
-    name: '创意 AI',
+    name: '创造性AI',
     polarity: 'buff',
     describe: (v) => `每回合开始时，随机将 ${v} 张故障机器人能力牌加入手牌。`,
   },
@@ -2064,7 +2064,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   helloWorld: {
     id: 'helloWorld',
-    name: '你好世界',
+    name: '你好，世界',
     polarity: 'buff',
     describe: (v) => `每回合开始时，将 ${v} 张随机普通故障机器人牌加入手牌。`,
   },
@@ -2088,7 +2088,7 @@ export const STATUS_METADATA = deepFreeze({
   },
   rebound: {
     id: 'rebound',
-    name: '反弹',
+    name: '弹回',
     polarity: 'buff',
     describe: (v) => `本回合打出的下 ${v} 张牌（非消耗/非能力）将置于抽牌堆顶而非弃牌堆。`,
   },

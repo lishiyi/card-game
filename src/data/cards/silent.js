@@ -238,7 +238,7 @@ export const SILENT_CARDS = {
   // --- Silent Uncommon (22) ---
   bouncing_flask: {
     id: 'bouncing_flask',
-    name: '弹跳毒瓶',
+    name: '弹跳药瓶',
     character: 'silent',
     type: 'skill',
     rarity: 'uncommon',
@@ -406,7 +406,7 @@ export const SILENT_CARDS = {
   },
   skewer: {
     id: 'skewer',
-    name: '穿刺',
+    name: '串刺',
     character: 'silent',
     type: 'attack',
     rarity: 'uncommon',
