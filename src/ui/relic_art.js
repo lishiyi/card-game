@@ -1184,6 +1184,30 @@ export const RELIC_SVG_ART = Object.freeze({
      <polygon points="18,19.5 20.5,22.5 18,24.5 15.5,22.5" fill="hsl(44, 98%, 62%)" stroke="hsl(28, 70%, 26%)" stroke-width="0.9"/>
      <path d="M14.5 11 H21.5" stroke="hsl(152, 92%, 74%)" stroke-width="1.3" stroke-linecap="round"/>`
   ),
+  memento: wrapRelicSvg(
+    'memento',
+    'hsl(34, 58%, 24%)',
+    'hsl(20, 52%, 10%)',
+    'hsl(42, 92%, 64%)',
+    `<path d="M12.5 7.5 Q18 11.5 23.5 7.5" fill="none" stroke="hsl(40, 74%, 64%)" stroke-width="1.5" stroke-linecap="round"/>
+     <circle cx="18" cy="11.2" r="2" fill="none" stroke="hsl(42, 86%, 68%)" stroke-width="1.3"/>
+     <ellipse cx="18" cy="20.6" rx="7.6" ry="8.4" fill="hsl(28, 44%, 24%)" stroke="hsl(42, 92%, 66%)" stroke-width="1.7"/>
+     <ellipse cx="18" cy="20.6" rx="5.1" ry="5.9" fill="hsl(16, 48%, 16%)" stroke="hsl(36, 70%, 52%)" stroke-width="1"/>
+     <path d="M15.6 19.6 C15.6 17.8 18 17.2 18 19.1 C18 17.2 20.4 17.8 20.4 19.6 C20.4 21.8 18 23.6 18 24.4 C18 23.6 15.6 21.8 15.6 19.6 Z" fill="hsl(36, 98%, 66%)" opacity="0.92"/>
+     <path d="M15 15.6 L21 25.4" stroke="hsl(280, 64%, 64%)" stroke-width="1" opacity="0.65"/>`
+  ),
+  clasped_locket: wrapRelicSvg(
+    'clasped_locket',
+    'hsl(276, 52%, 22%)',
+    'hsl(26, 56%, 10%)',
+    'hsl(46, 98%, 68%)',
+    `<path d="M11.5 7 Q18 11 24.5 7" fill="none" stroke="hsl(46, 92%, 72%)" stroke-width="1.6" stroke-linecap="round"/>
+     <path d="M18 12.2 L25.8 17 L24.2 26.8 L18 29.4 L11.8 26.8 L10.2 17 Z" fill="hsl(28, 46%, 22%)" stroke="hsl(46, 98%, 70%)" stroke-width="1.7" stroke-linejoin="round"/>
+     <line x1="18" y1="12.6" x2="18" y2="29" stroke="hsl(44, 88%, 66%)" stroke-width="1.3"/>
+     <circle cx="18" cy="20.6" r="3.6" fill="hsl(284, 78%, 54%)" stroke="hsl(48, 100%, 82%)" stroke-width="1.3"/>
+     <circle cx="18" cy="20.6" r="1.4" fill="hsl(48, 100%, 92%)"/>
+     <path d="M12.6 20.6 H14.4 M21.6 20.6 H23.4" stroke="hsl(46, 96%, 72%)" stroke-width="1.5" stroke-linecap="round"/>`
+  ),
 });
 
 const FALLBACK_RELIC_SVG = wrapRelicSvg(

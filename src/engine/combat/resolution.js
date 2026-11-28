@@ -49,6 +49,10 @@ import {
   handleCombatDefeat,
   finalizeCombatVictory,
 } from './state.js';
+import {
+  handleHermitCurseDrawn,
+  handleHermitCurseExhausted,
+} from './hermit_mechanics.js';
 
 export function addPlayerBlock(state, amount) {
   const gain = Math.floor(amount);
@@ -425,6 +429,16 @@ export function drawCards(state, count, options = {}) {
         );
       }
     }
+
+    if (drawnStats.type === 'curse') {
+      const hermitCurseRes = handleHermitCurseDrawn(state, nextCard, drawnStats, {
+        addPlayerBlockFn: addPlayerBlock,
+        exhaustCardsBatchFn: exhaustCardsBatch,
+      });
+      if (hermitCurseRes.bonusDraw > 0) {
+        remaining += hermitCurseRes.bonusDraw;
+      }
+    }
   }
 
   flushQueuedMelangeScry(state);
@@ -722,6 +736,19 @@ export function dealDamageToPlayer(state, rawAmount, sourceLabel = '敌人', opt
   state.player.block -= blocked;
   let hpLoss = amount - blocked;
 
+  if (options.isAttack !== false && hpLoss > 0 && (state.player.statuses?.rugged ?? 0) > 0) {
+    state.player.statuses.rugged -= 1;
+    if (state.player.statuses.rugged <= 0) {
+      delete state.player.statuses.rugged;
+    }
+    if (hpLoss > 2) {
+      hpLoss = 2;
+      pushCombatLog(combat, '【坚固】生效：未格挡攻击伤害降至 2 点（消耗 1 层）。', 'block');
+    } else {
+      pushCombatLog(combat, '【坚固】触发并消耗 1 层。', 'block');
+    }
+  }
+
   if (options.isAttack !== false && hpLoss > 1 && hpLoss <= 5 && hasRelic(state, 'torii')) {
     hpLoss = 1;
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.torii.name}】将未格挡攻击伤害降低至 1 点。`, 'block');
@@ -924,11 +951,40 @@ export function requestHandCardChoice(
   }
 
   if (mode === 'discard') {
-    if (combat.hand.length === 0) return;
+    const exhaustCurses = Boolean(options.exhaustCurses);
+    const drawAfterDiscard = Math.max(0, options.drawAfterDiscard ?? 0);
+    const bonusBlockIfNonAttack = Math.max(0, options.bonusBlockIfNonAttack ?? 0);
+    if (combat.hand.length === 0) {
+      if (drawAfterDiscard > 0) drawCards(state, drawAfterDiscard);
+      return;
+    }
     if (combat.hand.length <= count) {
       const allHand = [...combat.hand];
       combat.hand = [];
-      discardCardsBatch(state, allHand, { manual: true });
+      const toExhaust = [];
+      const toDiscard = [];
+      let nonAttackBonusCount = 0;
+      for (const c of allHand) {
+        const cStats = getCardStats(c);
+        if (bonusBlockIfNonAttack > 0 && cStats.type !== 'attack') {
+          nonAttackBonusCount += 1;
+        }
+        if (exhaustCurses && cStats.type === 'curse') {
+          toExhaust.push(c);
+        } else {
+          toDiscard.push(c);
+        }
+      }
+      if (toDiscard.length > 0) discardCardsBatch(state, toDiscard, { manual: true });
+      if (toExhaust.length > 0) exhaustCardsBatch(state, toExhaust);
+      if (nonAttackBonusCount > 0 && bonusBlockIfNonAttack > 0) {
+        const bonus = bonusBlockIfNonAttack * nonAttackBonusCount;
+        addPlayerBlock(state, bonus);
+        pushCombatLog(combat, `【${sourceName}】弃置非攻击牌，额外获得 ${bonus} 点格挡！`, 'block');
+      }
+      if (drawAfterDiscard > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+        drawCards(state, drawAfterDiscard);
+      }
       if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
         setPendingCardChoice(combat, null);
         finalizeCombatVictory(state, onVictoryCallback);
@@ -943,6 +999,9 @@ export function requestHandCardChoice(
       optional: false,
       candidates: null,
       selectedIds: [],
+      exhaustCurses,
+      drawAfterDiscard,
+      bonusBlockIfNonAttack,
     });
     return;
   }
@@ -1904,12 +1963,26 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
 
   // Default: mode === 'discard'
   const [card] = combat.hand.splice(idx, 1);
+  const exhaustCurses = Boolean(pending.exhaustCurses);
+  const drawAfterDiscard = Math.max(0, pending.drawAfterDiscard ?? 0);
+  const bonusBlockIfNonAttack = Math.max(0, pending.bonusBlockIfNonAttack ?? 0);
+  const sourceName = pending.sourceName || '弃牌';
   pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
-  if (pending.remaining <= 0) {
+  const finishedDiscard = pending.remaining <= 0;
+  if (finishedDiscard) {
     setPendingCardChoice(combat, null);
   }
 
-  discardCardsBatch(state, [card], { manual: true });
+  const pickedStats = getCardStats(card);
+  if (exhaustCurses && pickedStats.type === 'curse') {
+    exhaustCardsBatch(state, [card]);
+  } else {
+    discardCardsBatch(state, [card], { manual: true });
+  }
+  if (bonusBlockIfNonAttack > 0 && pickedStats.type !== 'attack') {
+    addPlayerBlock(state, bonusBlockIfNonAttack);
+    pushCombatLog(combat, `【${sourceName}】弃置非攻击牌，额外获得 ${bonusBlockIfNonAttack} 点格挡！`, 'block');
+  }
 
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
     setPendingCardChoice(combat, null);
@@ -1917,16 +1990,38 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
     return { ok: true, mode: 'discard', outcome: state.combat?.status ?? combat.status, remaining: 0 };
   }
 
+  let didCompleteNow = finishedDiscard;
   if (combat.pendingCardChoice && combat.hand.length === 0) {
     setPendingCardChoice(combat, null);
+    didCompleteNow = true;
   } else if (combat.pendingCardChoice && combat.hand.length <= combat.pendingCardChoice.remaining) {
     const rest = [...combat.hand];
     combat.hand = [];
     setPendingCardChoice(combat, null);
-    discardCardsBatch(state, rest, { manual: true });
+    didCompleteNow = true;
+    const toExh = [];
+    const toDis = [];
+    let nonAtkCount = 0;
+    for (const rc of rest) {
+      const rStats = getCardStats(rc);
+      if (bonusBlockIfNonAttack > 0 && rStats.type !== 'attack') nonAtkCount += 1;
+      if (exhaustCurses && rStats.type === 'curse') toExh.push(rc);
+      else toDis.push(rc);
+    }
+    if (toDis.length > 0) discardCardsBatch(state, toDis, { manual: true });
+    if (toExh.length > 0) exhaustCardsBatch(state, toExh);
+    if (nonAtkCount > 0 && bonusBlockIfNonAttack > 0) {
+      const bonus = bonusBlockIfNonAttack * nonAtkCount;
+      addPlayerBlock(state, bonus);
+      pushCombatLog(combat, `【${sourceName}】弃置非攻击牌，额外获得 ${bonus} 点格挡！`, 'block');
+    }
     if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
       finalizeCombatVictory(state, onVictoryCallback);
     }
+  }
+
+  if (didCompleteNow && drawAfterDiscard > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+    drawCards(state, drawAfterDiscard);
   }
 
   return {
@@ -1964,6 +2059,9 @@ export function exhaustCardsBatch(state, cardInstances, options = {}) {
     }
     if (cStats.returnOnExhaust) {
       returnToHandAfter.push(c.cardId);
+    }
+    if (cStats.type === 'curse') {
+      handleHermitCurseExhausted(state, cStats, { addPlayerBlockFn: addPlayerBlock });
     }
   }
 

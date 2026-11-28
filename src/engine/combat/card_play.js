@@ -81,6 +81,14 @@ import {
   triggerAllDarkPassives,
 } from './orbs.js';
 import { endPlayerTurn } from './turn_flow.js';
+import {
+  consumeConcentrationOnDeadOnCard,
+  countEntityDebuffs,
+  createHighCaliberStrikeInHand,
+  getDeadOnRepeatCount,
+  isHandIndexDeadOn,
+  onHermitDeadOnTriggered,
+} from './hermit_mechanics.js';
 
 function turnTowardTargetIfSurrounded(state, targetEnemy) {
   const combat = state?.combat;
@@ -283,6 +291,15 @@ export function playCard(
       (amplifyActive ? 1 : 0) +
       (echoActive ? 1 : 0);
 
+  const prevCardTriggeredDeadOn = Boolean(combat.lastCardTriggeredDeadOn);
+  const deadOnPosActive =
+    Boolean(stats.deadOn) &&
+    (isHandIndexDeadOn(handIndex, combat.hand.length) ||
+      (state.player.statuses?.concentration ?? 0) > 0);
+  if (!internalOpts.fromHavoc && !internalOpts.fromDup) {
+    combat.lastCardTriggeredDeadOn = false;
+  }
+
   // 1. Remove from hand before resolving effects (prevents self-draw and frees hand slot)
   combat.hand.splice(handIndex, 1);
   if (cardInstance.zeroCostUntilPlayed) {
@@ -347,6 +364,10 @@ export function playCard(
   }
 
   let totalManualDiscard = 0;
+  let manualDiscardExhaustCurses = false;
+  let totalDrawAfterDiscard = 0;
+  let manualDiscardBonusBlockIfNonAttack = 0;
+  let returnToHandByCombo = false;
   let totalManualExhaust = 0;
   let totalDrawAfterExhaust = 0;
   let totalExhaustMulti = 0;
@@ -473,6 +494,7 @@ export function playCard(
     }
 
     // 4. Block gain, Halt Wrath bonus, Spirit Shield, Dodge and Roll next-turn block, & Entrench double block
+    let gainedCardBlockThisPass = 0;
     if (typeof stats.blockPerX === 'number') {
       let totalXBlock = 0;
       for (let bx = 0; bx < effectiveX; bx += 1) {
@@ -480,6 +502,7 @@ export function playCard(
         addPlayerBlock(state, gained);
         totalXBlock += gained;
       }
+      gainedCardBlockThisPass = totalXBlock;
       if (totalXBlock > 0) {
         pushCombatLog(
           combat,
@@ -490,6 +513,7 @@ export function playCard(
     } else if (stats.blockFromDiscardSize) {
       const rawStackBlock = (stats.block ?? 0) + (combat.discardPile?.length ?? 0);
       const gainedBlock = calculateCardBlock(rawStackBlock, state.player);
+      gainedCardBlockThisPass = gainedBlock;
       addPlayerBlock(state, gainedBlock);
       if (gainedBlock > 0) {
         pushCombatLog(
@@ -498,11 +522,25 @@ export function playCard(
           'block'
         );
       }
+    } else if (typeof stats.blockPerPlayerDebuff === 'number') {
+      const debuffCount = countEntityDebuffs(state.player);
+      const rawDebuffBlock = (stats.block ?? 0) + debuffCount * stats.blockPerPlayerDebuff;
+      const gainedBlock = calculateCardBlock(rawDebuffBlock, state.player);
+      gainedCardBlockThisPass = gainedBlock;
+      addPlayerBlock(state, gainedBlock);
+      if (gainedBlock > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】生效${debuffCount > 0 ? `（${debuffCount} 种负面状态加成）` : ''}，获得 ${gainedBlock} 点格挡。`,
+          'block'
+        );
+      }
     } else if (typeof stats.block === 'number') {
       if (stats.onlyBlockIfNoBlock && state.player.block > 0) {
         pushCombatLog(combat, `你当前已有格挡，【${stats.name}】未生效。`, 'info');
       } else {
         const gainedBlock = calculateCardBlock(stats.block, state.player);
+        gainedCardBlockThisPass = gainedBlock;
         addPlayerBlock(state, gainedBlock);
         if (gainedBlock > 0) {
           pushCombatLog(combat, `获得 ${gainedBlock} 点格挡。`, 'block');
@@ -817,6 +855,10 @@ export function playCard(
         );
         let totalUnblocked = 0;
 
+        const deadOnTimesNow = deadOnPosActive ? getDeadOnRepeatCount(state.player) : 0;
+        const deadOnMultiplier =
+          deadOnPosActive && stats.deadOnDoubleDamage ? 1 + deadOnTimesNow : 1;
+
         if (stats.randomEnemyHits) {
           for (let h = 0; h < hits; h += 1) {
             if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
@@ -827,6 +869,7 @@ export function playCard(
             const dmg = calculateAttackDamage(baseDmg, state.player, recipient, {
               strengthMultiplier: strMult,
               flatBonus,
+              deadOnMultiplier,
             });
             totalUnblocked += dealDamageToEnemy(state, recipient, dmg, { isAttack: true });
           }
@@ -840,6 +883,7 @@ export function playCard(
               const dmg = calculateAttackDamage(baseDmg, state.player, enemy, {
                 strengthMultiplier: strMult,
                 flatBonus,
+                deadOnMultiplier,
               });
               totalUnblocked += dealDamageToEnemy(state, enemy, dmg, { isAttack: true });
             }
@@ -850,6 +894,7 @@ export function playCard(
             const dmg = calculateAttackDamage(baseDmg, state.player, targetEnemy, {
               strengthMultiplier: strMult,
               flatBonus,
+              deadOnMultiplier,
             });
             totalUnblocked += dealDamageToEnemy(state, targetEnemy, dmg, { isAttack: true });
           }
@@ -857,6 +902,16 @@ export function playCard(
 
         if (state.player.hp <= 0 || combat.status !== 'ongoing') {
           return buildPlayResult();
+        }
+
+        if (deadOnPosActive && stats.deadOnBlockFromUnblockedDamage && totalUnblocked > 0) {
+          const snapBlock = totalUnblocked * deadOnTimesNow;
+          addPlayerBlock(state, snapBlock);
+          pushCombatLog(
+            combat,
+            `【${stats.name}】触发【精准】：根据未格挡伤害获得 ${snapBlock} 点格挡！`,
+            'block'
+          );
         }
 
         if (stats.gainEnergyOnKill && targetAliveBefore && targetEnemy && targetEnemy.hp <= 0) {
@@ -1573,6 +1628,11 @@ export function playCard(
     // 7. Self status application, Limit Break, Stances, Mantra & Orbs
     if (stats.applySelfStatuses) {
       for (const [statusKey, val] of Object.entries(stats.applySelfStatuses)) {
+        if (statusKey === 'concentration') {
+          state.player.statuses.concentration = 1;
+          pushCombatLog(combat, '玩家获得【专注】（本回合下张精准牌无视位置触发）！', 'status');
+          continue;
+        }
         const applied = applyStatus(state.player, statusKey, val);
         const statusName = STATUS_METADATA[statusKey]?.name ?? statusKey;
         if (!applied) {
@@ -1582,6 +1642,109 @@ export function playCard(
         } else {
           pushCombatLog(combat, `玩家获得 ${val} 层【${statusName}】。`, 'status');
         }
+      }
+    }
+
+    // 7a. Downfall — The Hermit mechanics (Dead On triggers, Memento, Called Shot, High-Caliber, Roulette)
+    if (stats.applyAllEveryoneVulnerable) {
+      const amt = stats.applyAllEveryoneVulnerable;
+      for (const enemy of getAliveEnemies(combat)) {
+        if (applyStatus(enemy, 'vulnerable', amt)) {
+          pushCombatLog(combat, `【${stats.name}】给予【${enemy.name}】${amt} 层【易伤】。`, 'status');
+          triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', amt);
+          triggerSadisticNature(state, enemy);
+        } else {
+          pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【易伤】！`, 'status');
+        }
+      }
+      if (applyStatus(state.player, 'vulnerable', amt)) {
+        pushCombatLog(combat, `【${stats.name}】使玩家获得 ${amt} 层【易伤】。`, 'status');
+      } else {
+        pushCombatLog(combat, '【人工制品】抵消了【易伤】！', 'status');
+      }
+    }
+
+    if (stats.deadOn && deadOnPosActive && state.player.hp > 0 && combat.status === 'ongoing') {
+      const deadOnTimes = getDeadOnRepeatCount(state.player);
+      const hookRes = onHermitDeadOnTriggered(state, cardInstance, stats, deadOnTimes, {
+        dealDamageToEnemyFn: dealDamageToEnemy,
+      });
+      if (hookRes.returnToHandByCombo) {
+        returnToHandByCombo = true;
+      }
+
+      if (stats.deadOnPlatedArmor && state.player.hp > 0) {
+        const gain = stats.deadOnPlatedArmor * deadOnTimes;
+        applyStatus(state.player, 'platedArmor', gain);
+        pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${gain} 层【多层护甲】！`, 'block');
+      }
+
+      if (stats.deadOnReduceRandomHandCost && state.player.hp > 0) {
+        for (let t = 0; t < deadOnTimes; t += 1) {
+          const candidates = combat.hand.filter((hc) => {
+            const cStats = getCardStats(hc);
+            if (cStats.unplayable || cStats.isXCost) return false;
+            return (getEffectiveCardCost(cStats, state.player, combat) ?? 0) > 0;
+          });
+          const chosen = pickRandom(state, candidates);
+          if (chosen) {
+            const cStats = getCardStats(chosen);
+            const curCost = getEffectiveCardCost(cStats, state.player, combat) ?? 0;
+            const nextCost = Math.max(0, curCost - stats.deadOnReduceRandomHandCost);
+            if (!chosen.tempZeroCostTurn) {
+              chosen.prevCombatCost = chosen.combatCost ?? null;
+            }
+            chosen.combatCost = nextCost;
+            chosen.tempZeroCostTurn = true;
+            pushCombatLog(
+              combat,
+              `【${stats.name}】触发【精准】：手牌【${cStats.name}】本回合费用降至 ${nextCost}！`,
+              'info'
+            );
+          }
+        }
+      }
+
+      if (stats.deadOnDrawAndUpgrade && state.player.hp > 0 && getAliveEnemies(combat).length > 0) {
+        const drawnCards = [];
+        drawCards(state, stats.deadOnDrawAndUpgrade * deadOnTimes, { outDrawnCards: drawnCards });
+        const upgNames = [];
+        for (const dc of drawnCards) {
+          if (canUpgradeCard(dc)) {
+            upgradeCardInstance(dc);
+            upgNames.push(`【${getCardStats(dc).name}】`);
+          }
+        }
+        if (upgNames.length > 0) {
+          pushCombatLog(
+            combat,
+            `【${stats.name}】触发【精准】：抽取并升级了 ${upgNames.join('、')}！`,
+            'info'
+          );
+        }
+      }
+    }
+
+    if (stats.drawIfLastCardDeadOn && prevCardTriggeredDeadOn && getAliveEnemies(combat).length > 0) {
+      drawCards(state, stats.drawIfLastCardDeadOn);
+      pushCombatLog(
+        combat,
+        `【${stats.name}】连携【精准】：抽 ${stats.drawIfLastCardDeadOn} 张牌！`,
+        'info'
+      );
+    }
+
+    if (stats.addUpgradedStrikeLevel && state.player.hp > 0) {
+      createHighCaliberStrikeInHand(state, stats.addUpgradedStrikeLevel);
+    }
+
+    if (stats.rouletteDiscardDraw && combat.hand.length > 0 && state.player.hp > 0 && getAliveEnemies(combat).length > 0) {
+      const toDiscard = [...combat.hand];
+      combat.hand = [];
+      const discardedCount = discardCardsBatch(state, toDiscard, { manual: true });
+      if (discardedCount > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+        pushCombatLog(combat, `【${stats.name}】轮转换牌：弃置 ${discardedCount} 张并重抽 ${discardedCount} 张！`, 'info');
+        drawCards(state, discardedCount);
       }
     }
     if (stats.doubleStrength) {
@@ -2148,6 +2311,14 @@ export function playCard(
     if (stats.discardHand) {
       totalManualDiscard += stats.discardHand;
     }
+    if (stats.discardChoose) {
+      totalManualDiscard += stats.discardChoose;
+      if (stats.discardExhaustCurses) manualDiscardExhaustCurses = true;
+      if (stats.drawAfterDiscard) totalDrawAfterDiscard += stats.drawAfterDiscard;
+      if (stats.discardBonusBlockIfNonAttack && gainedCardBlockThisPass > 0) {
+        manualDiscardBonusBlockIfNonAttack = gainedCardBlockThisPass;
+      }
+    }
     if (stats.exhaustHandChoice) {
       totalManualExhaust += stats.exhaustHandChoice;
     }
@@ -2340,6 +2511,8 @@ export function playCard(
     combat.lastCardTypePlayed = stats.type;
   }
 
+  consumeConcentrationOnDeadOnCard(state, stats);
+
   // 11. Move card to final destination (before pendingCardChoice so deck cycle stays exact)
   if (stats.type === 'power') {
     // Powers stay active on character and leave deck cycle for combat (never exhausted even via Havoc)
@@ -2350,6 +2523,9 @@ export function playCard(
     (stats.type === 'status' && stats.unplayable && hasRelic(state, 'medical_kit'))
   ) {
     exhaustCardsBatch(state, [cardInstance]);
+  } else if (returnToHandByCombo && combat.hand.length < MAX_HAND_SIZE) {
+    combat.hand.push(cardInstance);
+    pushCombatLog(combat, `【连击】触发：【${stats.name}】返回手牌！`, 'info');
   } else if (reboundWasActive && (state.player.statuses?.rebound ?? 0) > 0) {
     state.player.statuses.rebound -= 1;
     if (state.player.statuses.rebound <= 0) {
@@ -2379,7 +2555,11 @@ export function playCard(
   // 11b. Request interactive hand/draw/discard/exhaust/discover/wish card choices
   if (getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
     if (totalManualDiscard > 0) {
-      requestHandCardChoice(state, 'discard', totalManualDiscard, stats.name, onVictoryCallback);
+      requestHandCardChoice(state, 'discard', totalManualDiscard, stats.name, onVictoryCallback, {
+        exhaustCurses: manualDiscardExhaustCurses,
+        drawAfterDiscard: totalDrawAfterDiscard,
+        bonusBlockIfNonAttack: manualDiscardBonusBlockIfNonAttack,
+      });
     } else if (totalExhaustForEnergy > 0) {
       requestHandCardChoice(state, 'exhaust', totalExhaustForEnergy, stats.name, onVictoryCallback, {
         grantEnergyFromCost: true,

@@ -76,10 +76,18 @@ export const CARD_KEYWORD_DEFS = Object.freeze({
   以暴易暴: '衍生攻击（0费）：保留，造成 20 点伤害，消耗。',
   贝塔: '衍生技能（2费）：将 1 张【欧米伽】洗入抽牌堆，消耗。',
   欧米伽: '衍生能力（3费）：每回合结束时对所有敌人造成 50 点伤害。',
+  精准: '亡命之徒机制：当此牌位于手牌正中央（奇数张为正中 1 张，偶数张为正中 2 张）或玩家处于【专注】状态时打出，触发额外【精准】特效！',
+  专注: '本回合打出的下 1 张【精准】牌无视手牌位置直接触发精准效果（回合结束消退）。',
+  瘀伤: '敌人本回合受到的攻击伤害额外增加等同于层数的点数（计入易伤前；敌方回合开始时清除，受【恐惧】影响时保留）。',
+  坚固: '使你下 1 次受到的未格挡攻击伤害至多降至 2 点（每挡一次消耗 1 层）。',
+  赏金: '亡命之徒的悬赏赏金层数，可通过悬赏卡牌或击杀转化为金币收益。',
+  狙击: '本回合接下来对应次数的【精准】效果额外再触发 1 次。',
+  恐惧: '在剩余回合内，目标身上的【瘀伤】不会在敌方回合开始时清除。',
+  愈合: '本回合结束时，保留手中至多对应张数的手牌。',
 });
 
 const INLINE_KW_REGEX =
-  /(不能被打出|人工制品|等离子球|闪电球|冰霜球|黑暗球|无实体|固有|保留|虚无|消耗|斩杀|预见|真言|愤怒|平静|神格|印记|充能|激发|集中|锁定|中毒|易伤|虚弱|力量|敏捷)/g;
+  /(不能被打出|人工制品|等离子球|闪电球|冰霜球|黑暗球|无实体|固有|保留|虚无|消耗|斩杀|预见|真言|愤怒|平静|神格|印记|充能|激发|集中|锁定|精准|专注|瘀伤|坚固|赏金|狙击|恐惧|愈合|中毒|易伤|虚弱|力量|敏捷)/g;
 
 export function formatCardDescHtml(text) {
   return escapeHtml(text).replace(
@@ -101,6 +109,7 @@ export function extractCardKeywords(stats, descText = '') {
   if (stats?.retain) add('保留', true);
   if (stats?.ethereal) add('虚无', true);
   if (stats?.exhaust || descText.includes('消耗。')) add('消耗', true);
+  if (stats?.deadOn) add('精准', true);
   if (
     stats?.fatal ||
     stats?.maxHpOnKill ||
@@ -127,6 +136,14 @@ export function extractCardKeywords(stats, descText = '') {
     ['激发', () => descText.includes('激发')],
     ['集中', () => descText.includes('集中')],
     ['锁定', () => descText.includes('锁定')],
+    ['精准', () => descText.includes('【精准】')],
+    ['专注', () => descText.includes('【专注】')],
+    ['瘀伤', () => descText.includes('【瘀伤】')],
+    ['坚固', () => descText.includes('【坚固】')],
+    ['赏金', () => descText.includes('【赏金】')],
+    ['狙击', () => descText.includes('【狙击】')],
+    ['恐惧', () => descText.includes('【恐惧】')],
+    ['愈合', () => descText.includes('【愈合】')],
     ['无实体', () => descText.includes('无实体')],
     ['人工制品', () => descText.includes('人工制品')],
     ['中毒', () => descText.includes('中毒')],

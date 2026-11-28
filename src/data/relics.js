@@ -44,6 +44,14 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 150,
     description: '每场战斗第 1 回合开始时，将 1 张【奇迹】（0 费保留消耗，获得 1 点能量）加入手牌。',
   },
+  memento: {
+    id: 'memento',
+    name: '老旧小盒',
+    tier: 'starter',
+    character: 'hermit',
+    price: 150,
+    description: '每场战斗开始时，将 1 张【纪念品】（0 费保留诅咒：给予所有单位 1 层易伤）加入手牌。',
+  },
 
   // === Common ===
   vajra: {
@@ -431,6 +439,17 @@ export const RELIC_LIBRARY = deepFreeze({
     requiresRelic: 'pure_water',
     replacesRelic: 'pure_water',
     description: '替换【至纯之水】：每场战斗第 1 回合开始时，将 3 张【奇迹】加入手牌。',
+  },
+  clasped_locket: {
+    id: 'clasped_locket',
+    name: '破损的吊坠',
+    tier: 'boss',
+    character: 'hermit',
+    price: 320,
+    requiresRelic: 'memento',
+    replacesRelic: 'memento',
+    addCursesOnPickup: { cardId: 'injury', count: 2 },
+    description: '替换【老旧小盒】：拾取时获得 2 张【受伤】诅咒；每回合首次抽到诅咒牌时，将其消耗并抽 2 张牌。',
   },
   violet_lotus: {
     id: 'violet_lotus',
@@ -906,6 +925,8 @@ export const RELIC_ICONS = deepFreeze({
   ring_of_the_snake: '🐍',
   pure_water: '💧',
   cracked_core: '⚡',
+  memento: '🪙',
+  clasped_locket: '📿',
   // Common
   vajra: '⚡',
   oddly_smooth_stone: '🪨',
@@ -2228,6 +2249,55 @@ export const STATUS_METADATA = deepFreeze({
     name: '乱战',
     polarity: 'buff',
     describe: (v) => `每回合开始时，自动打出抽牌堆顶的 ${v} 张牌！`,
+  },
+  // === Downfall: The Hermit Core Statuses ===
+  concentration: {
+    id: 'concentration',
+    name: '专注',
+    polarity: 'buff',
+    describe: () => '本回合你打出的下 1 张【精准】牌无视手牌位置直接触发【精准】效果（回合结束消退）。',
+  },
+  bruise: {
+    id: 'bruise',
+    name: '瘀伤',
+    polarity: 'debuff',
+    describe: (v) => `本回合受到的攻击伤害额外 +${v}（敌方回合开始时清除，受【恐惧】影响时保留）。`,
+  },
+  rugged: {
+    id: 'rugged',
+    name: '坚固',
+    polarity: 'buff',
+    describe: (v) => `接下来 ${v} 次受到未格挡的攻击伤害时，伤害降至 2 点并消耗 1 层。`,
+  },
+  bounty: {
+    id: 'bounty',
+    name: '赏金',
+    polarity: 'buff',
+    describe: (v) => `当前累计赏金层数 ${v}（配合悬赏卡牌与击杀转化为丰厚金币）。`,
+  },
+  coalescence: {
+    id: 'coalescence',
+    name: '愈合',
+    polarity: 'buff',
+    describe: (v) => `本回合结束时，可额外选择保留最多 ${v} 张手牌。`,
+  },
+  drawReduction: {
+    id: 'drawReduction',
+    name: '抽牌减少',
+    polarity: 'debuff',
+    describe: (v) => `接下来 ${v} 个回合开始时，少抽 1 张牌。`,
+  },
+  horror: {
+    id: 'horror',
+    name: '恐惧',
+    polarity: 'debuff',
+    describe: (v) => `接下来 ${v} 个回合内，目标身上的【瘀伤】不会在回合开始时消退。`,
+  },
+  snipe: {
+    id: 'snipe',
+    name: '狙击',
+    polarity: 'buff',
+    describe: (v) => `本回合接下来 ${v} 次触发【精准】效果时，额外再触发一次。`,
   },
 });
 

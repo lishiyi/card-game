@@ -372,6 +372,94 @@ function renderCharacterSvgRaw(artKey, mode = 'normal') {
         </svg>
       `;
 
+    case 'hermit':
+      return `
+        <svg viewBox="0 0 120 120" class="unit-svg hero-svg" aria-hidden="true">
+          <defs>
+            <radialGradient id="hm-aura" cx="50%" cy="54%" r="48%">
+              <stop offset="0%" stop-color="hsla(36, 94%, 56%, 0.30)" />
+              <stop offset="65%" stop-color="hsla(24, 76%, 30%, 0.12)" />
+              <stop offset="100%" stop-color="hsla(0, 0%, 0%, 0)" />
+            </radialGradient>
+            <linearGradient id="hm-poncho" x1="0.1" y1="0" x2="0.9" y2="1">
+              <stop offset="0%" stop-color="hsl(22, 54%, 38%)" />
+              <stop offset="52%" stop-color="hsl(14, 48%, 23%)" />
+              <stop offset="100%" stop-color="hsl(8, 44%, 11%)" />
+            </linearGradient>
+            <linearGradient id="hm-hat" x1="0.15" y1="0" x2="0.85" y2="1">
+              <stop offset="0%" stop-color="hsl(28, 36%, 32%)" />
+              <stop offset="55%" stop-color="hsl(22, 34%, 18%)" />
+              <stop offset="100%" stop-color="hsl(16, 36%, 9%)" />
+            </linearGradient>
+            <linearGradient id="hm-brass" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(48, 96%, 78%)" />
+              <stop offset="55%" stop-color="hsl(36, 84%, 52%)" />
+              <stop offset="100%" stop-color="hsl(26, 68%, 26%)" />
+            </linearGradient>
+            <linearGradient id="hm-steel" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="hsl(212, 24%, 82%)" />
+              <stop offset="52%" stop-color="hsl(214, 16%, 48%)" />
+              <stop offset="100%" stop-color="hsl(218, 20%, 20%)" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="52" fill="url(#hm-aura)" class="svg-pulse" />
+          <ellipse cx="60" cy="109" rx="40" ry="7" fill="hsla(0,0%,0%,0.56)" />
+          <ellipse cx="60" cy="109" rx="45" ry="8.5" fill="none" stroke="hsla(38, 96%, 60%, 0.44)" stroke-width="1.2" stroke-dasharray="6 5" />
+          <!-- Faint Dead On golden crosshair halo behind gunslinger -->
+          <g class="svg-spin-slow" opacity="0.46">
+            <circle cx="60" cy="40" r="29" fill="none" stroke="hsl(42, 96%, 68%)" stroke-width="1.1" stroke-dasharray="6 5" />
+            <line x1="60" y1="6" x2="60" y2="15" stroke="hsl(44, 100%, 74%)" stroke-width="1.4" />
+            <line x1="60" y1="65" x2="60" y2="74" stroke="hsl(44, 100%, 74%)" stroke-width="1.4" />
+            <line x1="26" y1="40" x2="35" y2="40" stroke="hsl(44, 100%, 74%)" stroke-width="1.4" />
+            <line x1="85" y1="40" x2="94" y2="40" stroke="hsl(44, 100%, 74%)" stroke-width="1.4" />
+          </g>
+          <!-- Windswept crimson outlaw scarf -->
+          <path d="M73 43 Q96 42 108 55 Q95 57 90 66 Q80 56 71 54 Z" fill="hsl(4, 62%, 34%)" stroke="hsl(32, 76%, 56%)" stroke-width="1.2" class="svg-float" />
+          <!-- Boots & long duster coattails -->
+          <path d="M43 86 L54 86 L52 106 L40 105 Z" fill="hsl(22, 34%, 18%)" stroke="hsl(32, 44%, 42%)" stroke-width="1.3" />
+          <path d="M66 86 L77 86 L80 105 L68 106 Z" fill="hsl(22, 34%, 18%)" stroke="hsl(32, 44%, 42%)" stroke-width="1.3" />
+          <path d="M35 50 Q18 74 22 104 L41 98 L49 103 L58 96 L46 50 Z" fill="hsl(20, 36%, 15%)" stroke="hsl(32, 48%, 38%)" stroke-width="1.2" />
+          <path d="M85 50 Q98 72 95 103 L79 98 L72 103 L64 96 L74 50 Z" fill="hsl(20, 36%, 15%)" stroke="hsl(32, 48%, 38%)" stroke-width="1.2" />
+          <g class="svg-breathe">
+            <!-- Rugged frontier poncho & woven trim -->
+            <path d="M30 48 Q60 36 90 48 L84 84 Q60 95 36 84 Z" fill="url(#hm-poncho)" stroke="hsl(36, 72%, 58%)" stroke-width="1.8" />
+            <path d="M36 74 L44 79 L52 74 L60 79 L68 74 L76 79 L84 74" fill="none" stroke="url(#hm-brass)" stroke-width="1.7" stroke-linejoin="round" />
+            <!-- Cross-chest cartridge bandolier & glowing locket -->
+            <path d="M41 47 L79 78" stroke="hsl(24, 36%, 18%)" stroke-width="5.2" stroke-linecap="round" />
+            <rect x="46" y="49" width="3.2" height="6.8" rx="1" transform="rotate(-40 48 52)" fill="url(#hm-brass)" />
+            <rect x="53" y="55" width="3.2" height="6.8" rx="1" transform="rotate(-40 55 58)" fill="url(#hm-brass)" />
+            <rect x="60" y="61" width="3.2" height="6.8" rx="1" transform="rotate(-40 62 64)" fill="url(#hm-brass)" />
+            <rect x="67" y="67" width="3.2" height="6.8" rx="1" transform="rotate(-40 69 70)" fill="url(#hm-brass)" />
+            <circle cx="52" cy="67" r="4.2" fill="hsl(280, 36%, 18%)" stroke="url(#hm-brass)" stroke-width="1.4" />
+            <circle cx="52" cy="67" r="1.8" fill="hsl(44, 100%, 74%)" class="svg-pulse" />
+            <!-- Shadowed face & crimson outlaw bandana -->
+            <path d="M46 31 L74 31 L71 48 Q60 54 49 48 Z" fill="hsl(24, 32%, 10%)" stroke="hsl(30, 42%, 34%)" stroke-width="1.2" />
+            <path d="M47 40 Q60 44 73 40 L71 50 Q60 55 49 50 Z" fill="hsl(4, 58%, 30%)" stroke="hsl(34, 72%, 52%)" stroke-width="1.1" />
+            <!-- Piercing amber gunslinger eyes beneath hat brim -->
+            <path d="M51 35 L58 36.6 L52 38.2 Z" fill="hsl(44, 100%, 72%)" class="svg-pulse" />
+            <path d="M69 35 L62 36.6 L68 38.2 Z" fill="hsl(44, 100%, 72%)" class="svg-pulse" />
+            <!-- Wide-brimmed weathered frontier hat with brass band -->
+            <path d="M24 31 Q60 21 96 31 Q60 39 24 31 Z" fill="url(#hm-hat)" stroke="hsl(36, 62%, 52%)" stroke-width="1.6" />
+            <path d="M41 29 L45 14 Q60 9 75 14 L79 29 Q60 33 41 29 Z" fill="url(#hm-hat)" stroke="hsl(36, 56%, 48%)" stroke-width="1.5" />
+            <path d="M42 26 Q60 30 78 26" fill="none" stroke="url(#hm-brass)" stroke-width="2.6" stroke-linecap="round" />
+            <path d="M46 16 Q60 12 74 16" fill="none" stroke="hsla(44, 86%, 84%, 0.45)" stroke-width="1.2" />
+          </g>
+          <!-- Raised six-shooter revolver with smoking amber barrel -->
+          <g>
+            <path d="M84 57 L110 51 L111 56 L92 61 L88 69 L82 67 Z" fill="url(#hm-steel)" stroke="hsl(214, 24%, 20%)" stroke-width="1.3" stroke-linejoin="round" />
+            <circle cx="91" cy="59" r="3.4" fill="hsl(216, 20%, 30%)" stroke="url(#hm-brass)" stroke-width="1.1" />
+            <path d="M84 65 L79 75 L84 77 L89 67 Z" fill="hsl(22, 48%, 26%)" stroke="hsl(36, 64%, 48%)" stroke-width="1" />
+            <!-- Muzzle spark & drifting gunsmoke wisps -->
+            <circle cx="112" cy="53" r="3.2" fill="hsl(44, 100%, 76%)" opacity="0.88" class="svg-pulse" />
+            <path d="M113 49 Q116 40 109 35 Q115 31 112 24" fill="none" stroke="hsla(36, 36%, 82%, 0.52)" stroke-width="1.8" stroke-linecap="round" class="svg-float" />
+          </g>
+          <!-- Left gloved hand poised on holster + amber dust sparks -->
+          <path d="M15 62 L33 56 L36 62 L23 68 Z" fill="url(#hm-steel)" stroke="hsl(214, 24%, 20%)" stroke-width="1.2" />
+          <circle cx="17" cy="46" r="1.9" fill="hsl(40, 100%, 72%)" opacity="0.82" class="svg-float" />
+          <circle cx="104" cy="76" r="1.8" fill="hsl(32, 100%, 66%)" opacity="0.78" class="svg-float" />
+        </svg>
+      `;
+
     default: {
       const enemySvg = getEnemySvg(artKey, mode);
       if (enemySvg) return enemySvg;

@@ -33,6 +33,9 @@ const DEFAULT_DEBUFF_KEYS = new Set([
   'lockOn',
   'biasedCognition',
   'noBlock',
+  'bruise',
+  'horror',
+  'drawReduction',
   'fallback_debuff',
 ]);
 
@@ -1139,6 +1142,82 @@ export const STATUS_SVG_ART = Object.freeze({
      <path d="M17 7.6 C17 13.4 13.6 17.4 7.4 17.2" fill="none" stroke="hsl(12, 96%, 62%)" stroke-width="1.7" stroke-linecap="round"/>
      <polygon points="12,8.4 13.4,11 16.2,12 13.4,13 12,15.6 10.6,13 7.8,12 10.6,11" fill="hsl(50, 100%, 84%)"/>`
   ),
+  // === THE HERMIT (DOWNFALL) ===
+  concentration: wrapStatusSvg(
+    'concentration',
+    'hsl(38, 68%, 24%)',
+    'hsl(24, 62%, 10%)',
+    'hsl(46, 98%, 66%)',
+    `<circle cx="12" cy="12" r="5.8" fill="none" stroke="hsl(46, 100%, 74%)" stroke-width="1.5"/>
+     <line x1="12" y1="4.4" x2="12" y2="8.2" stroke="hsl(44, 100%, 80%)" stroke-width="1.5" stroke-linecap="round"/>
+     <line x1="12" y1="15.8" x2="12" y2="19.6" stroke="hsl(44, 100%, 80%)" stroke-width="1.5" stroke-linecap="round"/>
+     <line x1="4.4" y1="12" x2="8.2" y2="12" stroke="hsl(44, 100%, 80%)" stroke-width="1.5" stroke-linecap="round"/>
+     <line x1="15.8" y1="12" x2="19.6" y2="12" stroke="hsl(44, 100%, 80%)" stroke-width="1.5" stroke-linecap="round"/>
+     <circle cx="12" cy="12" r="2.2" fill="hsl(36, 100%, 66%)" stroke="hsl(52, 100%, 92%)" stroke-width="0.9"/>`
+  ),
+  bruise: wrapStatusSvg(
+    'bruise',
+    'hsl(296, 56%, 22%)',
+    'hsl(344, 64%, 10%)',
+    'hsl(324, 92%, 64%)',
+    `<polygon points="12,4.8 14.2,9.2 19,8.4 15.8,12.2 18.8,16.4 13.8,15.6 12,19.6 10.2,15.6 5.2,16.4 8.2,12.2 5,8.4 9.8,9.2" fill="hsl(312, 72%, 44%)" stroke="hsl(338, 96%, 76%)" stroke-width="1.15" stroke-linejoin="round"/>
+     <circle cx="12" cy="12" r="2.4" fill="hsl(48, 100%, 86%)"/>`
+  ),
+  rugged: wrapStatusSvg(
+    'rugged',
+    'hsl(34, 52%, 22%)',
+    'hsl(22, 54%, 10%)',
+    'hsl(42, 88%, 64%)',
+    `<path d="M7.2 6.4 L10.2 5.4 L12 7.2 L13.8 5.4 L16.8 6.4 L18.2 10.4 L16.8 18.2 H7.2 L5.8 10.4 Z" fill="hsl(28, 46%, 34%)" stroke="hsl(42, 92%, 70%)" stroke-width="1.25" stroke-linejoin="round"/>
+     <line x1="12" y1="7.4" x2="12" y2="18" stroke="hsl(42, 86%, 68%)" stroke-width="1.1"/>
+     <circle cx="9.6" cy="11.2" r="1" fill="hsl(48, 100%, 84%)"/><circle cx="14.4" cy="11.2" r="1" fill="hsl(48, 100%, 84%)"/>
+     <circle cx="9.6" cy="15.2" r="1" fill="hsl(48, 100%, 84%)"/><circle cx="14.4" cy="15.2" r="1" fill="hsl(48, 100%, 84%)"/>`
+  ),
+  bounty: wrapStatusSvg(
+    'bounty',
+    'hsl(42, 68%, 24%)',
+    'hsl(26, 62%, 10%)',
+    'hsl(48, 100%, 68%)',
+    `<circle cx="12" cy="12" r="6.8" fill="hsl(38, 84%, 44%)" stroke="hsl(48, 100%, 78%)" stroke-width="1.35"/>
+     <polygon points="12,7 13.4,10.2 16.8,10.6 14.2,12.8 15,16.2 12,14.4 9,16.2 9.8,12.8 7.2,10.6 10.6,10.2" fill="hsl(52, 100%, 88%)" stroke="hsl(28, 66%, 26%)" stroke-width="0.7" stroke-linejoin="round"/>`
+  ),
+  coalescence: wrapStatusSvg(
+    'coalescence',
+    'hsl(152, 54%, 22%)',
+    'hsl(178, 56%, 10%)',
+    'hsl(46, 94%, 68%)',
+    `<rect x="6.2" y="6.8" width="7.2" height="10.2" rx="1.4" transform="rotate(-10 9.8 11.9)" fill="hsl(166, 48%, 34%)" stroke="hsl(48, 96%, 76%)" stroke-width="1.1"/>
+     <rect x="10.6" y="7" width="7.2" height="10.2" rx="1.4" transform="rotate(10 14.2 12.1)" fill="hsl(154, 62%, 44%)" stroke="hsl(50, 100%, 86%)" stroke-width="1.2"/>
+     <path d="M12 10.2 V14.2 M10 12.2 H14" stroke="hsl(52, 100%, 92%)" stroke-width="1.5" stroke-linecap="round"/>`
+  ),
+  drawReduction: wrapStatusSvg(
+    'drawReduction',
+    'hsl(354, 60%, 22%)',
+    'hsl(342, 62%, 10%)',
+    'hsl(6, 94%, 62%)',
+    `<rect x="7" y="5.6" width="8.6" height="11.4" rx="1.5" fill="hsl(224, 24%, 24%)" stroke="hsl(12, 86%, 72%)" stroke-width="1.2"/>
+     <path d="M6.4 6.6 L16.4 16.4" stroke="hsl(4, 98%, 64%)" stroke-width="1.8" stroke-linecap="round"/>
+     <path d="M16.8 11.2 V17.4 M14.6 15.2 L16.8 18 L19 15.2" fill="none" stroke="hsl(44, 100%, 76%)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`
+  ),
+  horror: wrapStatusSvg(
+    'horror',
+    'hsl(278, 58%, 22%)',
+    'hsl(260, 62%, 9%)',
+    'hsl(296, 92%, 68%)',
+    `<path d="M7.2 12 C7.2 8.2 9.4 5.8 12 5.8 C14.6 5.8 16.8 8.2 16.8 12 C16.8 14.4 15.6 15.8 14.8 16.6 V18.6 H9.2 V16.6 C8.4 15.8 7.2 14.4 7.2 12 Z" fill="hsl(276, 42%, 28%)" stroke="hsl(296, 92%, 76%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <circle cx="10.2" cy="11.5" r="1.4" fill="hsl(348, 100%, 66%)"/><circle cx="13.8" cy="11.5" r="1.4" fill="hsl(348, 100%, 66%)"/>
+     <path d="M10.4 16.4 V18.4 M12 16.4 V18.4 M13.6 16.4 V18.4" stroke="hsl(296, 90%, 78%)" stroke-width="1"/>`
+  ),
+  snipe: wrapStatusSvg(
+    'snipe',
+    'hsl(28, 66%, 24%)',
+    'hsl(12, 62%, 10%)',
+    'hsl(44, 100%, 68%)',
+    `<circle cx="12" cy="12" r="6.6" fill="none" stroke="hsl(44, 100%, 72%)" stroke-width="1.3"/>
+     <circle cx="12" cy="12" r="3.4" fill="none" stroke="hsl(14, 98%, 64%)" stroke-width="1.3"/>
+     <path d="M12 4.2 V7.4 M12 16.6 V19.8 M4.2 12 H7.4 M16.6 12 H19.8" stroke="hsl(50, 100%, 84%)" stroke-width="1.4" stroke-linecap="round"/>
+     <circle cx="12" cy="12" r="1.3" fill="hsl(4, 100%, 64%)"/>`
+  ),
 });
 
 export const STATUS_NEGATIVE_SVG_ART = Object.freeze({
@@ -1204,6 +1283,7 @@ export const STATUS_NO_COUNT_IF_ONE = Object.freeze(
     'surrounded',
     'electro',
     'equilibrium',
+    'concentration',
   ])
 );
 

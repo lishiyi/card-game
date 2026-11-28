@@ -446,8 +446,8 @@ function renderStandardCharacterSelectScreen({ meta, settings, ui }) {
         >
           ${
             expansionEnabled
-              ? `✨ 拓展角色：已开启 (+${expansionCount})`
-              : `✨ 开启拓展角色 (+${expansionCount} 新英雄)`
+              ? `✨ 拓展<span class="char-exp-long">角色：</span>已开启 (+${expansionCount})`
+              : `✨ <span class="char-exp-long">开启</span>拓展角色 (+${expansionCount}<span class="char-exp-long"> 新英雄</span>)`
           }
         </button>
       `

@@ -16,6 +16,7 @@ export const CARD_ART_CHUNK_IDS = Object.freeze([
   'silent',
   'watcher',
   'defect',
+  'hermit',
   'colorless',
 ]);
 
@@ -99,6 +100,10 @@ const CHUNK_LOADERS = {
     const mod = await import('./card_art/defect.js');
     registerCardArtChunk('defect', mod.DEFECT_CARD_ART);
   },
+  hermit: async () => {
+    const mod = await import('./card_art/hermit.js');
+    registerCardArtChunk('hermit', mod.HERMIT_CARD_ART);
+  },
   colorless: async () => {
     const [baseMod, expCurseMod, expWatchColorlessMod] = await Promise.all([
       import('./card_art/colorless_special.js'),
@@ -142,9 +147,10 @@ export function ensureAllCardArtLoaded() {
 }
 
 function inferChunkForCard(cardId, stats = {}, activeCharId = null) {
+  const rawChar = stats.character || activeCharId || 'ironclad';
+  if (rawChar === 'hermit') return 'hermit';
   const type = stats.type || 'attack';
   if (type === 'curse' || type === 'status') return 'colorless';
-  const rawChar = stats.character || activeCharId || 'ironclad';
   if (rawChar === 'colorless' || rawChar === 'neutral' || rawChar === 'special') return 'colorless';
   if (rawChar === 'shared') {
     return CHUNK_LOADERS[activeCharId] ? activeCharId : 'ironclad';
@@ -187,6 +193,13 @@ export function getCardArtKey(cardId, stats = {}, activeCharId = null) {
         : char === 'defect'
           ? 'defect_strike'
           : 'iron_slash';
+  }
+
+  if (char === 'hermit') {
+    if (type === 'power') return 'iron_power';
+    if (type === 'skill' && (stats.block ?? 0) > 0) return 'iron_shield';
+    if (type === 'skill') return 'colorless_tactics';
+    return 'iron_slash';
   }
 
   if (char === 'defect') {

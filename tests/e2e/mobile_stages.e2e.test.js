@@ -1703,3 +1703,150 @@ test('v2 Real Chromium E2E: Mobile icon relics, nav emojis, mobile next-intent p
     await session?.close();
   }
 });
+
+test('Phase 1 Hermit E2E: default 4-hero vanilla isolation, ✨ 拓展角色 toggle -> 5-hero 1280/390/375px layout, and Turn 1 Hermit combat', { timeout: 60000 }, async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Page.bringToFront');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 800,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 420));
+
+    // 1. Default state: expansion toggle OFF -> 4 vanilla heroes, vanilla compendium counts (361 / 113 / 32)
+    const defaultCheck = await cdp.evaluate(`(() => {
+      document.getElementById('btn-menu-standard')?.click();
+      const cards = document.querySelectorAll('.character-card');
+      const ids = [...cards].map((el) => el.dataset.characterId);
+      const toggleText = document.getElementById('btn-char-select-toggle-expansion')?.textContent?.trim() || '';
+      const desktopOverflow4 = document.documentElement.scrollWidth > window.innerWidth + 1;
+      document.getElementById('btn-open-compendium')?.click();
+      const cardTabText = document.getElementById('btn-comp-tab-cards')?.textContent?.trim() || '';
+      const relicTabText = document.getElementById('btn-comp-tab-relics')?.textContent?.trim() || '';
+      const potionTabText = document.getElementById('btn-comp-tab-potions')?.textContent?.trim() || '';
+      document.getElementById('btn-close-modal')?.click();
+      return { count: cards.length, ids, toggleText, desktopOverflow4, cardTabText, relicTabText, potionTabText };
+    })()`);
+    assert.equal(defaultCheck.count, 4, `Default Character Select must show 4 vanilla heroes, got ${defaultCheck.count}`);
+    assert.deepEqual(defaultCheck.ids, ['ironclad', 'silent', 'watcher', 'defect']);
+    assert.equal(defaultCheck.desktopOverflow4, false);
+    assert.ok(defaultCheck.toggleText.includes('拓展角色'), `Expected expansion toggle pill, got: ${defaultCheck.toggleText}`);
+    assert.ok(defaultCheck.cardTabText.includes('/361'), `Vanilla Compendium cards must stay 361, got: ${defaultCheck.cardTabText}`);
+    assert.ok(defaultCheck.relicTabText.includes('/113'), `Vanilla Compendium relics must stay 113, got: ${defaultCheck.relicTabText}`);
+    assert.ok(defaultCheck.potionTabText.includes('/32'), `Vanilla Compendium potions must stay 32, got: ${defaultCheck.potionTabText}`);
+
+    // 2. Toggle ✨ 拓展角色 ON -> 5 heroes visible on 1280px, 390px, and 375px with zero overflow
+    const enableCheck1280 = await cdp.evaluate(`(() => {
+      document.getElementById('btn-char-select-toggle-expansion')?.click();
+      const cards = document.querySelectorAll('.character-card');
+      const ids = [...cards].map((el) => el.dataset.characterId);
+      const hermitCard = document.querySelector('.character-card[data-character-id="hermit"]');
+      const hasAmberTheme = Boolean(hermitCard?.classList.contains('theme-amber'));
+      const overflow1280 = document.documentElement.scrollWidth > window.innerWidth + 1;
+      return { count: cards.length, ids, hasAmberTheme, overflow1280 };
+    })()`);
+    assert.equal(enableCheck1280.count, 5, 'Enabling expansion toggle must show 5 heroes');
+    assert.ok(enableCheck1280.ids.includes('hermit'));
+    assert.equal(enableCheck1280.hasAmberTheme, true);
+    assert.equal(enableCheck1280.overflow1280, false, '5-hero Character Select must not overflow 1280px desktop');
+
+    for (const vw of [390, 375]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: vw,
+        height: 844,
+        deviceScaleFactor: 2,
+        mobile: true,
+      });
+      await new Promise((r) => setTimeout(r, 120));
+      const mobCheck = await cdp.evaluate(`(() => ({
+        overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+        heroCount: document.querySelectorAll('.mobile-char-tab').length,
+      }))()`);
+      assert.equal(mobCheck.heroCount, 5);
+      assert.equal(mobCheck.overflow, false, `5-hero Character Select must not overflow ${vw}px mobile`);
+    }
+
+    // 3. Switch back to 1280px, select Hermit, start run, enter Floor 1 combat & verify Memento + Dead On Snapshot
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 800,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await new Promise((r) => setTimeout(r, 120));
+    const combatCheck = await cdp.evaluate(`(async () => {
+      document.querySelector('.character-card[data-character-id="hermit"]')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const { createCardInstance } = await import('./src/data/cards.js');
+      const { startCombat, playCard } = await import('./src/engine/combat.js');
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      const { ensureCharacterCardArtLoaded } = await import('./src/ui/card_art.js');
+      await ensureCharacterCardArtLoaded('hermit');
+      st.neowState = null;
+      startCombat(st, ENCOUNTERS.floor1[0], 'normal');
+      st.screen = 'combat';
+      const hasMementoInT1 = st.combat.hand.some((c) => c.cardId === 'memento_curse');
+      // Set deterministic 3-card hand with Snapshot dead-center and play it on Enemy 0
+      const enemy = st.combat.enemies[0];
+      enemy.hp = 60;
+      enemy.maxHp = 60;
+      enemy.block = 0;
+      const snap = createCardInstance(st, 'snapshot', false);
+      st.combat.hand = [
+        createCardInstance(st, 'strike', false),
+        snap,
+        createCardInstance(st, 'defend', false),
+      ];
+      st.player.energy = 3;
+      st.player.block = 0;
+      app.render();
+      const heroSvgOk = Boolean(document.querySelector('#player-unit .hero-svg #hm-aura, #player-unit .hero-svg [id^="hm-aura"]'));
+      const snapArtOk = Boolean(document.querySelector('.card-art-svg[data-card-art="snapshot"]'));
+      playCard(st, snap.instanceId, enemy.id);
+      app.render();
+      return {
+        charId: st.characterId,
+        maxHp: st.player.maxHp,
+        hasMementoRelic: st.player.relics.includes('memento'),
+        hasMementoInT1,
+        heroSvgOk,
+        snapArtOk,
+        enemyHpAfter: enemy.hp,
+        playerBlockAfter: st.player.block,
+        combatOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    })()`);
+    assert.equal(combatCheck.charId, 'hermit');
+    assert.equal(combatCheck.maxHp, 75);
+    assert.equal(combatCheck.hasMementoRelic, true);
+    assert.equal(combatCheck.hasMementoInT1, true, 'Turn 1 combat hand must contain Memento curse');
+    assert.equal(combatCheck.heroSvgOk, true, 'Hermit bespoke hero SVG must render in combat');
+    assert.equal(combatCheck.snapArtOk, true, 'Bespoke Snapshot card SVG must render in combat');
+    assert.equal(combatCheck.enemyHpAfter, 54, 'Snapshot deals 6 damage (60 -> 54)');
+    assert.equal(combatCheck.playerBlockAfter, 6, 'Dead On Snapshot grants 6 Block');
+    assert.equal(combatCheck.combatOverflow, false);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+  } finally {
+    await session?.close();
+  }
+});

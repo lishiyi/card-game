@@ -1,14 +1,16 @@
 /**
  * Core Slay-the-Spire combat math (single source of truth for execution and UI previews).
  */
+import { STATUS_METADATA } from '../data/relics.js';
 
 export function calculateAttackDamage(baseDamage, attacker, defender = null, options = {}) {
   const safeBase = Number.isFinite(baseDamage) ? baseDamage : 0;
   const strMult = options.strengthMultiplier ?? 1;
   const strength = attacker?.statuses?.strength ?? 0;
   const bonus = options.flatBonus ?? 0;
+  const bruiseBonus = defender?.statuses?.bruise ?? 0;
 
-  let raw = safeBase + strength * strMult + bonus;
+  let raw = safeBase + strength * strMult + bonus + bruiseBonus;
   if (raw <= 0) {
     return 0;
   }
@@ -59,7 +61,16 @@ export function calculateAttackDamage(baseDamage, attacker, defender = null, opt
     raw *= 0.5;
   }
 
-  return Math.max(0, Math.floor(raw));
+  let total = Math.max(0, Math.floor(raw));
+  if (
+    Number.isFinite(options.deadOnMultiplier) &&
+    options.deadOnMultiplier > 1 &&
+    (defender?.statuses?.intangible ?? 0) <= 0
+  ) {
+    total = Math.max(0, Math.floor(total * options.deadOnMultiplier));
+  }
+
+  return total;
 }
 
 export function calculateCardBlock(baseBlock, player) {
@@ -237,7 +248,7 @@ export function getEnemyIntentPreview(enemy, player) {
         hitText: '',
         block: 0,
         label:
-          intent.id === 'stunned'
+          intent.id === 'stunned' || intent.id === 'stunned_keep_intent'
             ? '眩晕'
             : intent.id === 'automaton_stunned'
               ? '冷却'
@@ -284,4 +295,52 @@ export function isFatalEnemyKill(enemy, wasAliveBefore) {
   if (enemy.isMinion || enemy.fled) return false;
   if ((enemy.darklingRegrowTurns ?? 0) > 0) return false;
   return true;
+}
+
+/**
+ * Exact Downfall Dead On positional check:
+ * - Odd hand size N: single center card index === floor(N / 2)
+ * - Even hand size N: two center cards index === N/2 - 1 or N/2
+ */
+export function isHandIndexDeadOn(handIndex, handLength) {
+  if (!Number.isInteger(handIndex) || !Number.isInteger(handLength)) return false;
+  if (handIndex < 0 || handLength <= 0 || handIndex >= handLength) return false;
+  return Math.abs(handIndex + 0.5 - handLength / 2) < 1;
+}
+
+/**
+ * Returns true if the given card instance in hand is currently Dead On (either by hand position
+ * or because the player has active Concentration).
+ */
+export function isCardDeadOnInHand(combat, player, cardInstance) {
+  if (!combat || !Array.isArray(combat.hand) || !cardInstance) return false;
+  const idx = combat.hand.findIndex((c) => c.instanceId === cardInstance.instanceId);
+  if (idx === -1) return false;
+  if ((player?.statuses?.concentration ?? 0) > 0) return true;
+  return isHandIndexDeadOn(idx, combat.hand.length);
+}
+
+/**
+ * Number of times a Dead On effect resolves (1 normally, +1 if Snipe is active).
+ */
+export function getDeadOnRepeatCount(player) {
+  return 1 + ((player?.statuses?.snipe ?? 0) > 0 ? 1 : 0);
+}
+
+/**
+ * Counts distinct debuff types currently active on an entity (used by Low Profile).
+ */
+export function countEntityDebuffs(entity) {
+  if (!entity?.statuses) return 0;
+  let count = 0;
+  for (const [key, val] of Object.entries(entity.statuses)) {
+    if (!Number.isFinite(val) || val === 0) continue;
+    const meta = STATUS_METADATA[key];
+    if (meta?.polarity === 'debuff' && val > 0) {
+      count += 1;
+    } else if ((key === 'strength' || key === 'dexterity' || key === 'focus') && val < 0) {
+      count += 1;
+    }
+  }
+  return count;
 }

@@ -452,10 +452,21 @@
   }
 
   .character-select-header {
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .character-select-header .stage-heading {
+    font-size: 1.05rem;
+    white-space: nowrap;
   }
 
   .character-select-header .stage-subtitle {
+    display: none;
+  }
+
+  .char-expansion-toggle-btn .char-exp-long {
     display: none;
   }
 

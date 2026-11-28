@@ -243,6 +243,8 @@ export function handleEnemyZeroHp(state, enemy) {
       'talkToTheHand',
       'choke',
       'lockOn',
+      'bruise',
+      'horror',
     ]) {
       delete enemy.statuses[debuffKey];
       if (enemy.skipStatusTick) delete enemy.skipStatusTick[debuffKey];

@@ -1,4 +1,10 @@
-import { calculateAttackDamage, calculateCardBlock } from '../../engine/math.js';
+import {
+  calculateAttackDamage,
+  calculateCardBlock,
+  countEntityDebuffs,
+  getDeadOnRepeatCount,
+  isCardDeadOnInHand,
+} from '../../engine/math.js';
 import { CHARACTER_LIBRARY } from '../characters.js';
 import { CARD_LIBRARY, getCardCharacter } from './library.js';
 
@@ -98,11 +104,13 @@ export function getCardStats(cardInstance) {
       rawStats.cost < def.base.cost
   );
   const displayName =
-    def.infiniteUpgrade && upgradeLevel >= 2
-      ? `${def.name}+${upgradeLevel}`
-      : isUpgraded
-        ? `${def.name}+`
-        : def.name;
+    Number.isInteger(cardInstance.displayUpgradePlus) && cardInstance.displayUpgradePlus >= 2
+      ? `${def.name}+${cardInstance.displayUpgradePlus}`
+      : def.infiniteUpgrade && upgradeLevel >= 2
+        ? `${def.name}+${upgradeLevel}`
+        : isUpgraded
+          ? `${def.name}+`
+          : def.name;
 
   return {
     instanceId: cardInstance.instanceId,
@@ -236,6 +244,10 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   let displayDamage = rawDamageBase;
   let damageState = 'normal';
 
+  const isDeadOnLive = Boolean(stats.deadOn && isCardDeadOnInHand(combat, player, cardInstance));
+  const deadOnLiveMultiplier =
+    isDeadOnLive && stats.deadOnDoubleDamage ? 1 + getDeadOnRepeatCount(player) : 1;
+
   if (stats.useBlockAsDamage) {
     const baseFromBlock = player ? player.block : 0;
     displayDamage = player
@@ -255,6 +267,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       displayDamage = calculateAttackDamage(rawDamageBase, player, targetEnemy, {
         strengthMultiplier: stats.strengthMultiplier ?? 1,
         flatBonus,
+        deadOnMultiplier: deadOnLiveMultiplier,
       });
       const baselineDamage = stats.damage ?? rawDamageBase;
       if (displayDamage > baselineDamage) damageState = 'boosted';
@@ -264,17 +277,22 @@ export function formatCardDescription(cardInstance, combatContext = null) {
 
   const discardBonusBlock =
     stats.blockFromDiscardSize && combat ? (combat.discardPile?.length ?? 0) : 0;
+  const debuffBonusBlock =
+    typeof stats.blockPerPlayerDebuff === 'number' && player
+      ? countEntityDebuffs(player) * stats.blockPerPlayerDebuff
+      : 0;
   const rawBlockBase =
     stats.blockPerX ??
-    (typeof stats.block === 'number' ? stats.block + discardBonusBlock : null) ??
+    (typeof stats.block === 'number' ? stats.block + discardBonusBlock + debuffBonusBlock : null) ??
     stats.exhaustNonAttacksBlockEach ??
     null;
   let displayBlock = rawBlockBase;
   let blockState = 'normal';
   if (typeof rawBlockBase === 'number' && player) {
     displayBlock = calculateCardBlock(rawBlockBase, player);
-    if (displayBlock > rawBlockBase) blockState = 'boosted';
-    else if (displayBlock < rawBlockBase) blockState = 'reduced';
+    const baselineBlock = stats.blockPerX ?? stats.block ?? stats.exhaustNonAttacksBlockEach ?? rawBlockBase;
+    if (displayBlock > baselineBlock) blockState = 'boosted';
+    else if (displayBlock < baselineBlock) blockState = 'reduced';
   }
   const displayWrathBonusBlock =
     typeof stats.wrathBonusBlock === 'number'
@@ -826,6 +844,12 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applyEnemyStatuses.poison) {
       parts.push(`给予${targetLabel} ${poisonDisplay(stats.applyEnemyStatuses.poison)} 层中毒。`);
     }
+    if (stats.applyEnemyStatuses.bruise) {
+      parts.push(`给予${targetLabel} ${stats.applyEnemyStatuses.bruise} 层【瘀伤】。`);
+    }
+    if (stats.applyEnemyStatuses.horror) {
+      parts.push(`给予${targetLabel} ${stats.applyEnemyStatuses.horror} 层【恐惧】。`);
+    }
     if (stats.applyEnemyStatuses.corpseExplosion) {
       parts.push('目标死亡时，对所有存活敌人造成等同于其最大生命值的伤害。');
     }
@@ -848,6 +872,48 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (typeof stats.applyEnemyStatuses.strength === 'number' && stats.applyEnemyStatuses.strength < 0) {
       parts.push(`使${targetLabel}失去 ${Math.abs(stats.applyEnemyStatuses.strength)} 点力量。`);
+    }
+  }
+  if (stats.applyAllEveryoneVulnerable) {
+    parts.push(`给予所有单位（含自身）${stats.applyAllEveryoneVulnerable} 层易伤。`);
+  }
+  if (stats.blockPerPlayerDebuff) {
+    parts.push(`你每有一种负面状态，额外获得 ${stats.blockPerPlayerDebuff} 点格挡。`);
+  }
+  if (stats.deadOnBlockFromUnblockedDamage) {
+    parts.push('【精准】：获得等同于未格挡伤害量的格挡。');
+  }
+  if (stats.deadOnDoubleDamage) {
+    parts.push(
+      isDeadOnLive ? '【精准】：伤害翻倍（已触发！）。' : '【精准】：伤害翻倍。'
+    );
+  }
+  if (stats.deadOnPlatedArmor) {
+    parts.push(`【精准】：获得 ${stats.deadOnPlatedArmor} 层多层护甲。`);
+  }
+  if (stats.deadOnReduceRandomHandCost) {
+    parts.push(`【精准】：随机使 1 张手牌本回合费用 -${stats.deadOnReduceRandomHandCost}。`);
+  }
+  if (stats.deadOnDrawAndUpgrade) {
+    parts.push(`【精准】：抽 ${stats.deadOnDrawAndUpgrade} 张牌并将它们升级。`);
+  }
+  if (stats.drawIfLastCardDeadOn) {
+    const readyNote = combat?.lastCardTriggeredDeadOn ? '（已就绪！）' : '';
+    parts.push(`若本回合打出的上一张牌触发了【精准】，抽 ${stats.drawIfLastCardDeadOn} 张牌${readyNote}。`);
+  }
+  if (stats.addUpgradedStrikeLevel) {
+    parts.push(`将 1 张【打击+${stats.addUpgradedStrikeLevel}】加入手牌。`);
+  }
+  if (stats.rouletteDiscardDraw) {
+    parts.push('弃掉所有其他手牌，并抽取等量的牌。');
+  }
+  if (stats.discardChoose) {
+    if (stats.discardExhaustCurses && stats.drawAfterDiscard) {
+      parts.push(`弃置 ${stats.discardChoose} 张手牌（若为诅咒则消耗），然后抽 ${stats.drawAfterDiscard} 张牌。`);
+    } else if (stats.discardBonusBlockIfNonAttack) {
+      parts.push(`弃置 ${stats.discardChoose} 张手牌；若为非攻击牌，再获得 ${displayBlock} 点格挡。`);
+    } else {
+      parts.push(`选择并弃置 ${stats.discardChoose} 张手牌。`);
     }
   }
   if (stats.addCardsToHand && stats.addCardsToHand.cardId !== 'wound') {
@@ -1215,6 +1281,27 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     }
     if (stats.applySelfStatuses.mayhem) {
       parts.push(`每回合开始时，自动打出抽牌堆顶的 ${stats.applySelfStatuses.mayhem} 张牌。`);
+    }
+    if (stats.applySelfStatuses.weak) {
+      parts.push(`自身获得 ${stats.applySelfStatuses.weak} 层【虚弱】。`);
+    }
+    if (stats.applySelfStatuses.concentration) {
+      parts.push('获得【专注】（本回合打出的下一张精准牌必定触发精准）。');
+    }
+    if (stats.applySelfStatuses.coalescence) {
+      parts.push(`回合结束时，保留最多 ${stats.applySelfStatuses.coalescence} 张手牌。`);
+    }
+    if (stats.applySelfStatuses.drawReduction) {
+      parts.push(`下回合抽牌数 -${stats.applySelfStatuses.drawReduction}。`);
+    }
+    if (stats.applySelfStatuses.rugged) {
+      parts.push(`获得 ${stats.applySelfStatuses.rugged} 层【坚固】（下次受到的非格挡攻击伤害至多为 2）。`);
+    }
+    if (stats.applySelfStatuses.snipe) {
+      parts.push(`获得 ${stats.applySelfStatuses.snipe} 层【狙击】（本回合下次精准效果触发 2 次）。`);
+    }
+    if (stats.applySelfStatuses.bounty) {
+      parts.push(`获得 ${stats.applySelfStatuses.bounty} 点【赏金】。`);
     }
   }
   if (stats.applySelfStatusesAfter?.noDraw) {

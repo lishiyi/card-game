@@ -162,7 +162,9 @@ export function generateNeowState(state) {
         ? '如暴怒+ 或 警惕+'
         : charDef.id === 'defect'
           ? '如电击+ 或 双重释放+'
-          : '如痛击+ 或 防御+';
+          : charDef.id === 'hermit'
+            ? '如瞬射+ 或 渴求+'
+            : '如痛击+ 或 防御+';
   const swapPoolCount = getRelicPoolsForCharacter(charDef.id).boss.filter(
     (id) => !RELIC_LIBRARY[id]?.requiresRelic
   ).length;

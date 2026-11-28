@@ -56,7 +56,10 @@ import {
   calculateAttackDamage,
   calculateCardBlock,
   getEnemyIntentPreview,
+  isCardDeadOnInHand,
+  isHandIndexDeadOn,
 } from '../src/engine/math.js';
+import { applyStunKeepIntent } from '../src/engine/combat/hermit_mechanics.js';
 import {
   computeCardSynergies,
   isCardBonusConditionMet,
@@ -563,8 +566,13 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 113);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 4);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 115);
+  assert.equal(
+    Object.values(RELIC_LIBRARY).filter((r) => r.character !== 'hermit').length,
+    113,
+    'Vanilla relic count must remain 113'
+  );
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 5);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 27);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 24);
@@ -572,13 +580,18 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    19
+    20
   );
   for (const id of Object.keys(RELIC_LIBRARY)) {
     assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
   }
   assert.equal(Object.keys(POTION_LIBRARY).length, 32);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 361);
+  assert.equal(Object.keys(CARD_LIBRARY).length, 384);
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) !== 'hermit').length,
+    361,
+    'Vanilla card count must remain 361'
+  );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'ironclad').length,
     73
@@ -594,6 +607,10 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'defect').length,
     73
+  );
+  assert.equal(
+    Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'hermit').length,
+    23
   );
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
@@ -6016,4 +6033,225 @@ test('Part A STS1 Combat Fidelity: Snecko/Clockwork, Orange Pellets, Pen Nib/Aka
   assert.equal(potRun.player.statuses.duplication, 1, 'Duplication Potion triggers even on noBurst card (Omniscience)');
   assert.equal(potRun.combat.pendingCardChoice?.mode, 'omniscience');
   assert.equal(potRun.combat.pendingCardChoice?.remaining, 2, 'Duplication Potion grants 2 Omniscience draw-pile picks cleanly');
+});
+
+test('The Hermit (Phase 1): Dead On odd/even, Concentration, Snipe, Bruise/Horror, Rugged, Stun-Keep-Intent, Memento/Clasped Locket & all 23 starter+common cards', () => {
+  // 1. Dead On exact Downfall positional math for odd & even hands (sizes 1..7)
+  assert.equal(isHandIndexDeadOn(0, 1), true);
+  assert.equal(isHandIndexDeadOn(0, 2), true);
+  assert.equal(isHandIndexDeadOn(1, 2), true);
+  assert.deepEqual([0, 1, 2].map((i) => isHandIndexDeadOn(i, 3)), [false, true, false]);
+  assert.deepEqual([0, 1, 2, 3].map((i) => isHandIndexDeadOn(i, 4)), [false, true, true, false]);
+  assert.deepEqual([0, 1, 2, 3, 4].map((i) => isHandIndexDeadOn(i, 5)), [false, false, true, false, false]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((i) => isHandIndexDeadOn(i, 6)), [false, false, true, true, false, false]);
+
+  // 2. Bruise adds flat attack damage BEFORE Vulnerable, clears at enemy turn start unless Horror > 0
+  const bruRun = createNewRun({ seed: 97001, characterId: 'hermit', skipNeow: true });
+  startCombat(bruRun, { id: 'hermit_t1', name: '测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  const enemy = bruRun.combat.enemies[0];
+  // Turn 1 Memento relic must inject Memento curse into Turn 1 hand!
+  assert.ok(
+    bruRun.combat.hand.some((c) => c.cardId === 'memento_curse'),
+    'Memento starter relic must add Memento curse to Turn 1 hand'
+  );
+  // Playing Memento applies 1 Vulnerable to everyone (player & enemy)
+  const memCard = bruRun.combat.hand.find((c) => c.cardId === 'memento_curse');
+  assert.equal(playCard(bruRun, memCard.instanceId).ok, true);
+  assert.equal(bruRun.player.statuses.vulnerable, 1, 'Memento applies 1 Vulnerable to player');
+  assert.equal(enemy.statuses.vulnerable, 1, 'Memento applies 1 Vulnerable to all enemies');
+
+  // Bruise + Vulnerable math: base 6 + 4 Bruise = 10, × 1.5 Vuln = 15
+  enemy.statuses.bruise = 4;
+  assert.equal(calculateAttackDamage(6, bruRun.player, enemy), 15);
+  // Horror keeps Bruise across enemy turn start; without Horror Bruise clears
+  enemy.statuses.horror = 1;
+  enemy.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(bruRun);
+  assert.equal(enemy.statuses.bruise, 4, 'Horror prevents Bruise from clearing at enemy turn start');
+  assert.equal(enemy.statuses.horror ?? 0, 0, 'Horror ticks down by 1');
+  enemy.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(bruRun);
+  assert.equal(enemy.statuses.bruise ?? 0, 0, 'Without Horror, Bruise clears at enemy turn start');
+
+  // 3. Snapshot Dead On (center card -> gain block equal to unblocked damage) & Headshot Dead On (2× / 3× with Snipe)
+  const snapRun = createNewRun({ seed: 97002, characterId: 'hermit', skipNeow: true });
+  startCombat(snapRun, { id: 'hermit_t2', name: '测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  const t2Enemy = snapRun.combat.enemies[0];
+  t2Enemy.hp = 100;
+  t2Enemy.maxHp = 100;
+  t2Enemy.block = 2;
+  const sLeft = createCardInstance(snapRun, 'strike', false);
+  const snapCard = createCardInstance(snapRun, 'snapshot', false);
+  const sRight = createCardInstance(snapRun, 'defend', false);
+  snapRun.combat.hand = [sLeft, snapCard, sRight];
+  snapRun.player.block = 0;
+  snapRun.player.energy = 5;
+  assert.equal(isCardDeadOnInHand(snapRun.combat, snapRun.player, snapCard), true);
+  assert.equal(playCard(snapRun, snapCard.instanceId, t2Enemy.id).ok, true);
+  // Snapshot deals 6 dmg, 2 blocked -> 4 unblocked -> Dead On grants 4 block!
+  assert.equal(t2Enemy.hp, 96);
+  assert.equal(snapRun.player.block, 4, 'Dead On Snapshot grants block equal to unblocked damage');
+  assert.equal(snapRun.combat.lastCardTriggeredDeadOn, true);
+
+  // Called Shot chains off lastCardTriggeredDeadOn!
+  const csCard = createCardInstance(snapRun, 'called_shot', false);
+  snapRun.combat.drawPile = [createCardInstance(snapRun, 'strike', false), createCardInstance(snapRun, 'defend', false)];
+  snapRun.combat.hand = [csCard];
+  const handBeforeCs = snapRun.combat.hand.length;
+  assert.equal(playCard(snapRun, csCard.instanceId, t2Enemy.id).ok, true);
+  assert.equal(snapRun.combat.hand.length, handBeforeCs - 1 + 1, 'Called Shot draws 1 when previous card triggered Dead On');
+
+  // Headshot + Concentration + Snipe -> 3× damage (7 × 3 = 21) & consumes Concentration & Snipe
+  const hsCard = createCardInstance(snapRun, 'headshot', false);
+  snapRun.combat.hand = [hsCard, createCardInstance(snapRun, 'strike', false), createCardInstance(snapRun, 'defend', false)];
+  snapRun.player.statuses.concentration = 1;
+  snapRun.player.statuses.snipe = 1;
+  const hpBeforeHs = t2Enemy.hp;
+  assert.equal(playCard(snapRun, hsCard.instanceId, t2Enemy.id).ok, true);
+  assert.equal(hpBeforeHs - t2Enemy.hp, 21, 'Headshot with Concentration + Snipe deals 3× damage (21)');
+  assert.equal(snapRun.player.statuses.concentration ?? 0, 0, 'Concentration consumed on Dead On card play');
+  assert.equal(snapRun.player.statuses.snipe ?? 0, 0, 'Snipe consumed on Dead On trigger');
+
+  // 4. Rugged clamps unblocked attack hit to 2 & Stun-Keep-Intent preserves saved intent next turn
+  const rugRun = createNewRun({ seed: 97003, characterId: 'hermit', skipNeow: true });
+  startCombat(rugRun, { id: 'hermit_t3', name: '测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  const t3Enemy = rugRun.combat.enemies[0];
+  rugRun.player.hp = 60;
+  rugRun.player.block = 0;
+  rugRun.player.statuses.rugged = 1;
+  t3Enemy.intent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 15, hits: 1 };
+  endPlayerTurn(rugRun);
+  assert.equal(rugRun.player.hp, 58, 'Rugged clamps 15 unblocked attack damage to 2');
+  assert.equal(rugRun.player.statuses.rugged ?? 0, 0, 'Rugged consumes 1 stack');
+
+  // Stun-Keep-Intent: enemy skips turn and restores exact saved intent next turn
+  const savedIntent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 12, hits: 1 };
+  t3Enemy.intent = { ...savedIntent };
+  assert.equal(applyStunKeepIntent(rugRun, t3Enemy, '测试眩晕'), true);
+  assert.equal(t3Enemy.intent.id, 'stunned_keep_intent');
+  assert.equal(getEnemyIntentPreview(t3Enemy, rugRun.player).label, '眩晕');
+  const hpBeforeStun = rugRun.player.hp;
+  endPlayerTurn(rugRun);
+  assert.equal(rugRun.player.hp, hpBeforeStun, 'Stunned enemy deals 0 damage');
+  assert.equal(t3Enemy.intent.id, 'chomp', 'Enemy restores saved intent after Stun-Keep-Intent');
+
+  // 5. Covet (exhaust curse on discard + draw), Clasped Locket (replaces Memento, adds 2 Injury, exhausts drawn curses for +4 block)
+  const covRun = createNewRun({ seed: 97004, characterId: 'hermit', skipNeow: true });
+  grantRelicToPlayer(covRun, 'clasped_locket');
+  assert.equal(covRun.player.relics.includes('memento'), false, 'Clasped Locket replaces Memento');
+  assert.equal(covRun.player.relics.includes('clasped_locket'), true);
+  assert.equal(
+    covRun.player.deck.filter((c) => c.cardId === 'injury').length,
+    2,
+    'Clasped Locket adds 2 Injury curses on pickup'
+  );
+  startCombat(covRun, { id: 'hermit_t4', name: '测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  covRun.combat.claspedLocketUsedThisTurn = false;
+  covRun.combat.hand = [];
+  covRun.combat.drawPile = [
+    createCardInstance(covRun, 'injury', false),
+    createCardInstance(covRun, 'strike', false),
+    createCardInstance(covRun, 'defend', false),
+    createCardInstance(covRun, 'strike', false),
+  ];
+  drawCards(covRun, 1);
+  assert.ok(
+    covRun.combat.exhaustPile.some((c) => c.cardId === 'injury'),
+    'Clasped Locket exhausts the first drawn Curse each turn'
+  );
+  assert.equal(covRun.combat.hand.length, 2, 'Clasped Locket draws 2 replacement cards after exhausting first Curse');
+
+  // Covet exhausts chosen curse & draws 1 (interactive choice with 2 cards remaining in hand)
+  const covCard = createCardInstance(covRun, 'covet', false);
+  const injCard = createCardInstance(covRun, 'injury', false);
+  const keepStrike = createCardInstance(covRun, 'strike', false);
+  covRun.combat.hand = [covCard, injCard, keepStrike];
+  covRun.combat.drawPile = [createCardInstance(covRun, 'defend', false)];
+  covRun.player.energy = 3;
+  assert.equal(playCard(covRun, covCard.instanceId).ok, true);
+  assert.equal(covRun.combat.pendingCardChoice?.mode, 'discard');
+  assert.equal(resolveCardChoice(covRun, injCard.instanceId).ok, true);
+  assert.ok(covRun.combat.exhaustPile.some((c) => c.instanceId === injCard.instanceId), 'Covet exhausts chosen curse');
+  assert.equal(covRun.combat.hand.length, 2, 'Covet keeps remaining Strike and draws 1 card after exhausting curse');
+
+  // 6. Common cards spot-checks: Body Armor, Dive, Low Profile, High-Caliber, Quickdraw, Coalescence, Tracking Shots, Vantage, Manifest, Misfire, Spray and Pray, Pistol Whip, Feint, Glare, Hole Up, Itchy Trigger, Roulette, Wide Open
+  const comRun = createNewRun({ seed: 97005, characterId: 'hermit', skipNeow: true });
+  startCombat(comRun, { id: 'hermit_t5', name: '测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  const t5Enemy = comRun.combat.enemies[0];
+  t5Enemy.hp = 200;
+  t5Enemy.maxHp = 200;
+  comRun.player.energy = 10;
+
+  // Body Armor: 5 Block + discard non-attack grants bonus 5 Block (interactive choice)
+  const ba = createCardInstance(comRun, 'body_armor', false);
+  const def = createCardInstance(comRun, 'defend', false);
+  const atk = createCardInstance(comRun, 'strike', false);
+  comRun.combat.hand = [ba, def, atk];
+  comRun.player.block = 0;
+  assert.equal(playCard(comRun, ba.instanceId).ok, true);
+  assert.equal(comRun.combat.pendingCardChoice?.mode, 'discard');
+  assert.equal(resolveCardChoice(comRun, def.instanceId).ok, true);
+  assert.equal(comRun.player.block, 10, 'Body Armor doubles block when discarding non-Attack');
+
+  // Low Profile: 7 base + 4 per player debuff (weak + frail -> 15)
+  comRun.player.block = 0;
+  comRun.player.statuses.weak = 2;
+  comRun.player.statuses.frail = 0;
+  comRun.player.statuses.vulnerable = 1;
+  const lp = createCardInstance(comRun, 'low_profile', false);
+  comRun.combat.hand = [lp];
+  assert.equal(playCard(comRun, lp.instanceId).ok, true);
+  assert.equal(comRun.player.block, 15, 'Low Profile gains 7 + 4×2 debuffs = 15 Block');
+  delete comRun.player.statuses.weak;
+  delete comRun.player.statuses.vulnerable;
+
+  // High-Caliber: exhausts itself and adds Strike+2 (12 base damage) to hand
+  const hc = createCardInstance(comRun, 'high_caliber', false);
+  comRun.combat.hand = [hc];
+  assert.equal(playCard(comRun, hc.instanceId, t5Enemy.id).ok, true);
+  const hcStrike = comRun.combat.hand.find((c) => c.cardId === 'strike');
+  assert.ok(hcStrike, 'High-Caliber adds Strike to hand');
+  assert.equal(getCardStats(hcStrike).damage, 12, 'High-Caliber unupgraded creates Strike+2 (12 dmg)');
+  assert.equal(getCardStats(hcStrike).name, '打击+2');
+
+  // Dive Dead On -> 8 block + 1 Plated Armor
+  comRun.player.block = 0;
+  const dive = createCardInstance(comRun, 'dive', false);
+  comRun.combat.hand = [dive];
+  assert.equal(playCard(comRun, dive.instanceId).ok, true);
+  assert.equal(comRun.player.block, 8);
+  assert.equal(comRun.player.statuses.platedArmor, 1);
+
+  // Manifest -> 16 block + Decay added to hand
+  comRun.player.block = 0;
+  const man = createCardInstance(comRun, 'manifest', false);
+  comRun.combat.hand = [man];
+  assert.equal(playCard(comRun, man.instanceId).ok, true);
+  assert.equal(comRun.player.block, 16);
+  assert.ok(comRun.combat.hand.some((c) => c.cardId === 'decay'), 'Manifest adds Decay to hand');
+
+  // Tracking Shots -> 9 dmg + Concentration (1)
+  const ts = createCardInstance(comRun, 'tracking_shot', false);
+  comRun.combat.hand = [ts];
+  assert.equal(playCard(comRun, ts.instanceId, t5Enemy.id).ok, true);
+  assert.equal(comRun.player.statuses.concentration, 1);
+
+  // Vantage Dead On (via Concentration) -> 8 block + draw 1 upgraded card (2 when upgraded)
+  comRun.combat.drawPile = [createCardInstance(comRun, 'strike', false), createCardInstance(comRun, 'defend', false)];
+  const van = createCardInstance(comRun, 'vantage', false);
+  comRun.combat.hand = [van];
+  assert.equal(playCard(comRun, van.instanceId).ok, true);
+  assert.equal(comRun.combat.hand.length, 1);
+  assert.equal(comRun.combat.hand.every((c) => c.upgraded), true, 'Dead On Vantage upgrades drawn card');
+
+  // Quickdraw -> 9 dmg, draw 2, apply drawReduction 1 -> next turn draws 4 instead of 5
+  comRun.combat.drawPile = Array.from({ length: 10 }, () => createCardInstance(comRun, 'strike', false));
+  const qd = createCardInstance(comRun, 'quickdraw', false);
+  comRun.combat.hand = [qd];
+  assert.equal(playCard(comRun, qd.instanceId, t5Enemy.id).ok, true);
+  assert.equal(comRun.combat.hand.length, 2);
+  assert.equal(comRun.player.statuses.drawReduction, 1);
+  t5Enemy.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(comRun);
+  assert.equal(comRun.combat.hand.length, 4, 'Quickdraw drawReduction causes 1 fewer card drawn next turn');
 });

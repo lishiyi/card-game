@@ -53,6 +53,7 @@ import {
 import {
   addPlayerBlock,
   triggerChampionBeltIfVulnerable,
+  triggerSadisticNature,
   applyPoisonToEnemy,
   handleEnemyDeathPassives,
   flushPostChoiceQueues,
@@ -73,6 +74,12 @@ import {
   triggerStartOfTurnOrbs,
   triggerEndOfTurnOrbs,
 } from './orbs.js';
+import {
+  handleEnemyTurnStartHermitHooks,
+  handleHermitEndOfTurnHooks,
+  handleHermitTurn1StartHooks,
+  handleHermitTurnStartHooks,
+} from './hermit_mechanics.js';
 
 export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
   const result = confirmPendingCardChoiceInner(state, explicitIds, onVictoryCallback);
@@ -720,6 +727,22 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
       ? 3
       : 0;
   const toolsDraw = state.player.statuses.toolsOfTheTrade ?? 0;
+  const hermitTurnBonus = handleHermitTurnStartHooks(state, {
+    addCardsToHandFn: addCardsToHand,
+    triggerSadisticNatureFn: triggerSadisticNature,
+  });
+  if (hermitTurnBonus.bonusEnergy !== 0) {
+    state.player.energy = Math.max(0, state.player.energy + hermitTurnBonus.bonusEnergy);
+  }
+  let drawReductionPenalty = 0;
+  if ((state.player.statuses.drawReduction ?? 0) > 0) {
+    drawReductionPenalty = 1;
+    state.player.statuses.drawReduction -= 1;
+    if (state.player.statuses.drawReduction <= 0) {
+      delete state.player.statuses.drawReduction;
+    }
+    pushCombatLog(combat, '【抽牌减少】生效：本回合少抽 1 张牌。', 'status');
+  }
   const nextTurnDraw = state.player.statuses.drawCardNextTurn ?? 0;
   if (nextTurnDraw > 0) {
     delete state.player.statuses.drawCardNextTurn;
@@ -740,19 +763,23 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     pushCombatLog(combat, `遗物【${RELIC_LIBRARY.ring_of_the_serpent.name}】生效：本回合额外抽 1 张牌。`, 'info');
   }
 
-  const totalTurnDraw =
+  const totalTurnDraw = Math.max(
+    0,
     BASE_DRAW_PER_TURN +
-    bagDraw +
-    snakeDraw +
-    dailyT1Draw +
-    serpentDraw +
-    sneckoDraw +
-    machineLearningDraw +
-    pocketwatchDraw +
-    toolsDraw +
-    nextTurnDraw +
-    simmeringDraw +
-    brutalityDraw;
+      bagDraw +
+      snakeDraw +
+      dailyT1Draw +
+      serpentDraw +
+      sneckoDraw +
+      machineLearningDraw +
+      pocketwatchDraw +
+      toolsDraw +
+      nextTurnDraw +
+      simmeringDraw +
+      brutalityDraw +
+      hermitTurnBonus.bonusDraw -
+      drawReductionPenalty
+  );
 
   const handBeforeTurnDraw = combat.hand.length;
   let pendingScryDraw = false;
@@ -793,6 +820,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
         'info'
       );
     }
+    handleHermitTurn1StartHooks(state, { addCardsToHandFn: addCardsToHand });
   }
 
   if (combat.turn === 1 && hasRelic(state, 'enchiridion') && getAliveEnemies(combat).length > 0) {
@@ -1322,16 +1350,20 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
   }
 
   const keepHandByPyramid = hasRelic(state, 'runic_pyramid');
-  const keepHandByEquilibrium = (state.player.statuses.equilibrium ?? 0) > 0;
+  const keepHandByEquilibrium =
+    (state.player.statuses.equilibrium ?? 0) > 0 || (state.player.statuses.ryeStalkRetain ?? 0) > 0;
+  const wellLaidPlansAmt = state.player.statuses.wellLaidPlans ?? 0;
+  const coalescenceAmt = state.player.statuses.coalescence ?? 0;
   const wellLaidPlansQuota =
-    keepHandByPyramid || keepHandByEquilibrium ? 0 : (state.player.statuses.wellLaidPlans ?? 0);
+    keepHandByPyramid || keepHandByEquilibrium ? 0 : wellLaidPlansAmt + coalescenceAmt;
   if (
     !options.skipWellLaidPlansPrompt &&
     wellLaidPlansQuota > 0 &&
     getAliveEnemies(combat).length > 0 &&
     state.player.hp > 0
   ) {
-    if (requestEndTurnRetainChoice(state, wellLaidPlansQuota, '计划妥当')) {
+    const retainSource = coalescenceAmt > 0 && wellLaidPlansAmt === 0 ? '愈合' : '计划妥当';
+    if (requestEndTurnRetainChoice(state, wellLaidPlansQuota, retainSource)) {
       return { ok: true, awaitingRetainChoice: true, outcome: state.combat?.status ?? combat.status };
     }
   }
@@ -1426,6 +1458,17 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       fromCard: false,
     });
   }
+
+  if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+    return { ok: true, outcome: state.combat?.status ?? combat.status };
+  }
+
+  handleHermitEndOfTurnHooks(state, {
+    dealDamageToPlayerFn: dealDamageToPlayer,
+    dealDamageToEnemyFn: dealDamageToEnemy,
+    losePlayerHpFn: losePlayerHp,
+    addPlayerBlockFn: addPlayerBlock,
+  });
 
   if (state.player.hp <= 0 || combat.status !== 'ongoing') {
     return { ok: true, outcome: state.combat?.status ?? combat.status };
@@ -1710,11 +1753,14 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
       continue;
     }
 
+    handleEnemyTurnStartHermitHooks(state, enemy);
+
     const intent = enemy.intent;
     if (intent) {
       if (
         intent.id === 'asleep_idle' ||
         intent.id === 'stunned' ||
+        intent.id === 'stunned_keep_intent' ||
         intent.id === 'automaton_stunned' ||
         intent.id === 'awakened_rebirth'
       ) {
@@ -1730,6 +1776,15 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             `【${enemy.name}】完成【黑暗重生】，以完整形态苏醒！`,
             'status'
           );
+          enemy.lastMoveId = intent.id;
+        } else if (intent.id === 'stunned_keep_intent') {
+          delete enemy.statuses.stunned;
+          enemy._restoreSavedIntent = true;
+          pushCombatLog(
+            combat,
+            `【${enemy.name}】处于眩晕状态，本回合跳过行动（下回合保留原有意图）！`,
+            'status'
+          );
         } else if (intent.id === 'stunned') {
           delete enemy.statuses.stunned;
           enemy.awakeTurnIndex = 0;
@@ -1738,12 +1793,14 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
             `【${enemy.name}】处于眩晕状态，本回合跳过行动并恢复清醒！`,
             'status'
           );
+          enemy.lastMoveId = intent.id;
         } else if (intent.id === 'automaton_stunned') {
           pushCombatLog(combat, `【${enemy.name}】核心过载冷却中，本回合跳过行动！`, 'info');
+          enemy.lastMoveId = intent.id;
         } else {
           pushCombatLog(combat, `【${enemy.name}】正在沉睡，没有采取进攻行动。`, 'info');
+          enemy.lastMoveId = intent.id;
         }
-        enemy.lastMoveId = intent.id;
       } else {
         // Generic Slime Split execution (Slime Boss -> Large Slimes -> Medium Slimes)
         if (Array.isArray(intent.splitInto) && intent.splitInto.length > 0) {
@@ -2366,7 +2423,15 @@ export function endPlayerTurn(state, onVictoryCallback = null, options = {}) {
         'status'
       );
     }
-    enemy.intent = rollEnemyIntent(state, enemy);
+    if (enemy._restoreSavedIntent && enemy.stunnedSavedIntent) {
+      enemy.intent = enemy.stunnedSavedIntent;
+      delete enemy.stunnedSavedIntent;
+      delete enemy._restoreSavedIntent;
+    } else {
+      delete enemy._restoreSavedIntent;
+      delete enemy.stunnedSavedIntent;
+      enemy.intent = rollEnemyIntent(state, enemy);
+    }
   }
 
   // 5. Start next Player turn

@@ -224,6 +224,7 @@ export function buildStandaloneHtml(repoRoot = REPO_ROOT) {
         `  ${modVar(rel)}.registerCardArtChunk('silent', { ...${modVar('src/ui/card_art/silent.js')}.SILENT_CARD_ART, ...${modVar('src/ui/card_art/exp_iron_silent.js')}.EXP_IRON_SILENT_ART });`,
         `  ${modVar(rel)}.registerCardArtChunk('watcher', { ...${modVar('src/ui/card_art/watcher.js')}.WATCHER_CARD_ART, ...${modVar('src/ui/card_art/exp_watcher_colorless.js')}.EXP_WATCHER_COLORLESS_ART });`,
         `  ${modVar(rel)}.registerCardArtChunk('defect', ${modVar('src/ui/card_art/defect.js')}.DEFECT_CARD_ART);`,
+        `  ${modVar(rel)}.registerCardArtChunk('hermit', ${modVar('src/ui/card_art/hermit.js')}.HERMIT_CARD_ART);`,
         `  ${modVar(rel)}.registerCardArtChunk('colorless', { ...${modVar('src/ui/card_art/colorless_special.js')}.COLORLESS_SPECIAL_CARD_ART, ...${modVar('src/ui/card_art/exp_colorless_curses.js')}.EXP_COLORLESS_CURSES_ART, ...${modVar('src/ui/card_art/exp_watcher_colorless.js')}.EXP_WATCHER_COLORLESS_ART });`,
       ];
       chunkCode += `\n(() => {\n${regLines.join('\n')}\n})();`;

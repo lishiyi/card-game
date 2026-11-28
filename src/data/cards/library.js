@@ -2,6 +2,7 @@ import { IRONCLAD_CARDS } from './ironclad.js';
 import { SILENT_CARDS } from './silent.js';
 import { WATCHER_CARDS } from './watcher.js';
 import { DEFECT_CARDS } from './defect.js';
+import { HERMIT_CARDS } from './hermit.js';
 import { COLORLESS_NEUTRAL_CARDS } from './colorless_neutral.js';
 
 function deepFreeze(obj) {
@@ -19,6 +20,7 @@ export const CARD_LIBRARY = deepFreeze({
   ...SILENT_CARDS,
   ...WATCHER_CARDS,
   ...DEFECT_CARDS,
+  ...HERMIT_CARDS,
   ...COLORLESS_NEUTRAL_CARDS,
 });
 
@@ -90,7 +92,7 @@ export const REWARD_CARD_POOLS = deepFreeze(getRewardCardPools('ironclad'));
 
 export const CURSE_CARD_IDS = deepFreeze(
   Object.values(CARD_LIBRARY)
-    .filter((c) => c.type === 'curse' && !c.specialCurse)
+    .filter((c) => c.type === 'curse' && !c.specialCurse && c.origin !== 'expansion')
     .map((c) => c.id)
 );
 

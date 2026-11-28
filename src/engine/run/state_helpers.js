@@ -188,6 +188,13 @@ export function grantRelicToPlayer(state, relicId) {
       });
     }
   }
+  if (def.addCursesOnPickup && Array.isArray(state.player.deck)) {
+    const curseId = def.addCursesOnPickup.cardId || 'injury';
+    const curseCount = Math.max(1, def.addCursesOnPickup.count ?? 1);
+    for (let i = 0; i < curseCount; i += 1) {
+      addCardToMasterDeck(state, createCardInstance(state, curseId, false));
+    }
+  }
   if (relicId === 'smiling_mask' && state.shop && !state.shop.purgeUsed) {
     state.shop.purgeCost = getCurrentPurgeCost(state);
   }
@@ -244,11 +251,14 @@ export function getUnlockedPools(state) {
     return unlocked.length > 0 ? unlocked : ids;
   };
   const filterRelics = (ids) => ids.filter((id) => !lockedRelicIds.has(id));
+  const commonCards = filterCards(charCards.common);
+  const uncommonCards = filterCards(charCards.uncommon);
+  const rareCards = filterCards(charCards.rare);
   return {
     cards: {
-      common: filterCards(charCards.common),
-      uncommon: filterCards(charCards.uncommon),
-      rare: filterCards(charCards.rare),
+      common: commonCards,
+      uncommon: uncommonCards.length > 0 ? uncommonCards : commonCards,
+      rare: rareCards.length > 0 ? rareCards : uncommonCards.length > 0 ? uncommonCards : commonCards,
     },
     relics: {
       common: filterRelics(charRelics.common),

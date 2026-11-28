@@ -14,6 +14,7 @@ import {
   formatCardDescription,
   getCardCharacter,
   getCardStats,
+  getRewardCardPools,
 } from '../src/data/cards.js';
 import {
   CHARACTER_IDS,
@@ -936,7 +937,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 19);
+  assert.equal(BOSS_RELIC_IDS.length, 20);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -2160,12 +2161,12 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradients & all 361 cards resolve valid, richly de-duplicated vector art', async () => {
+test('Art Integrity: all 5 heroes, orbs & 64 enemies have unique hero-tier gradients & all 384 cards resolve valid, richly de-duplicated vector art', async () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
-  // Verify 4 playable hero portraits
-  for (const heroId of ['ironclad', 'silent', 'watcher', 'defect']) {
+  // Verify 5 playable hero portraits (4 vanilla + 1 expansion Hermit)
+  for (const heroId of ['ironclad', 'silent', 'watcher', 'defect', 'hermit']) {
     const svg = getCharacterSvg(heroId);
     assert.notEqual(svg, fallbackSvg, `Hero ${heroId} must not fall back to generic SVG`);
     assert.ok(svg.includes('class="unit-svg hero-svg"'), `Hero ${heroId} must use hero-tier SVG class`);
@@ -2218,9 +2219,9 @@ test('Art Integrity: all 4 heroes, orbs & 64 enemies have unique hero-tier gradi
 
   await ensureAllCardArtLoaded();
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 361);
+  assert.equal(cardEntries.length, 384);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.equal(sigKeys.length, 359, `Expected 100% bespoke signature art for all 359 non-shared cards, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 382, `Expected 100% bespoke signature art for all 382 non-shared cards, got ${sigKeys.length}`);
   const themeKeys = Object.keys(CARD_THEME_ART);
   assert.equal(themeKeys.length, 33, `Expected 33 class/status/curse theme artworks, got ${themeKeys.length}`);
   const seenCardGradIds = new Set();
@@ -2579,11 +2580,12 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   );
 });
 
-test('Official Simplified Chinese card names (361 unique) & concise card keyword descriptions/extraction', () => {
+test('Official Simplified Chinese card names (384 unique: 361 vanilla + 23 Hermit) & concise card keyword descriptions/extraction', () => {
   const allCards = Object.values(CARD_LIBRARY);
-  assert.equal(allCards.length, 361);
+  assert.equal(allCards.length, 384);
+  assert.equal(allCards.filter((c) => c.character !== 'hermit').length, 361);
 
-  // Zero duplicate Chinese names across all 361 cards
+  // Zero duplicate Chinese names across all 384 cards
   const seenNames = new Map();
   for (const c of allCards) {
     assert.equal(
@@ -2804,11 +2806,12 @@ test('Official Simplified Chinese card names (361 unique) & concise card keyword
   assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
 });
 
-test('Official Simplified Chinese relic names (113 unique) & War Paint / Whetstone upgrade tracking', () => {
+test('Official Simplified Chinese relic names (115 unique: 113 vanilla + 2 Hermit) & War Paint / Whetstone upgrade tracking', () => {
   const allRelics = Object.values(RELIC_LIBRARY);
-  assert.equal(allRelics.length, 113);
+  assert.equal(allRelics.length, 115);
+  assert.equal(allRelics.filter((r) => r.character !== 'hermit').length, 113);
   const nameSet = new Set(allRelics.map((r) => r.name));
-  assert.equal(nameSet.size, 113, 'All 113 relics must have unique Simplified Chinese names');
+  assert.equal(nameSet.size, 115, 'All 115 relics must have unique Simplified Chinese names');
 
   const expectedOfficialRelicNames = {
     pure_water: '至纯之水',
@@ -3040,10 +3043,10 @@ test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and a
   }
 });
 
-test('Relic Art Integrity: all 113 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
+test('Relic Art Integrity: all 115 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
   const libIds = Object.keys(RELIC_LIBRARY);
   const artIds = Object.keys(RELIC_SVG_ART);
-  assert.equal(libIds.length, 113, `Expected 113 relics in RELIC_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 115, `Expected 115 relics in RELIC_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'RELIC_SVG_ART must match RELIC_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();
@@ -3089,10 +3092,10 @@ test('Relic Art Integrity: all 113 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 125 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
+test('Status Art Integrity: all 133 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 125, `Expected 125 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 133, `Expected 133 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();
@@ -3914,4 +3917,54 @@ test('Phase 0 expansion character decoupling: default-off vanilla isolation, set
     VANILLA_CHARACTER_IDS.length + EXPANSION_CHARACTER_IDS.length,
     CHARACTER_IDS.length
   );
+  assert.deepEqual([...EXPANSION_CHARACTER_IDS], ['hermit']);
+  assert.equal(isExpansionCharacter('hermit'), true);
+  assert.equal(normalizeEnabledCharacterId('hermit', defaults), 'ironclad', 'Hermit blocked when expansion toggle off');
+  assert.equal(
+    normalizeEnabledCharacterId('hermit', { ...defaults, enableExpansionCharacters: true }),
+    'hermit',
+    'Hermit allowed when expansion toggle on'
+  );
+});
+
+test('Phase 1 The Hermit run setup (75/71 HP, 10 cards, Memento/Clasped Locket), Boss Swap & vanilla isolation', () => {
+  const h0 = createNewRun({ seed: 'HERMIT-P1-A0', characterId: 'hermit', ascension: 0, skipNeow: true });
+  assert.equal(h0.player.maxHp, 75);
+  assert.equal(h0.player.hp, 75);
+  assert.deepEqual(h0.player.relics, ['memento']);
+  assert.equal(h0.player.deck.length, 10);
+  assert.equal(h0.player.deck.filter((c) => c.cardId === 'strike').length, 4);
+  assert.equal(h0.player.deck.filter((c) => c.cardId === 'defend').length, 4);
+  assert.equal(h0.player.deck.filter((c) => c.cardId === 'snapshot').length, 1);
+  assert.equal(h0.player.deck.filter((c) => c.cardId === 'covet').length, 1);
+
+  const h4 = createNewRun({ seed: 'HERMIT-P1-A4', characterId: 'hermit', ascension: 4, skipNeow: true });
+  assert.equal(h4.player.maxHp, 71, 'Ascension 4 reduces Hermit Max HP by 4 (75 -> 71)');
+
+  // Boss Swap removes Memento and never rolls Clasped Locket
+  for (let s = 1; s <= 25; s += 1) {
+    const swapRun = createNewRun({ seed: 98000 + s, characterId: 'hermit', unlockAllOverride: true });
+    const res = chooseNeowOption(swapRun, 'boss_swap');
+    assert.equal(res.ok, true);
+    assert.equal(swapRun.player.relics.includes('memento'), false);
+    assert.equal(swapRun.player.relics.includes('clasped_locket'), false, 'Boss Swap must never roll clasped_locket');
+  }
+
+  // Vanilla characters never receive Hermit cards or relics
+  for (const vid of VANILLA_CHARACTER_IDS) {
+    const cardPools = getRewardCardPools(vid);
+    const allCards = [...cardPools.common, ...cardPools.uncommon, ...cardPools.rare];
+    assert.equal(
+      allCards.some((cid) => CARD_LIBRARY[cid]?.character === 'hermit'),
+      false,
+      `Vanilla hero ${vid} must never see Hermit cards in reward pools`
+    );
+    const relicPools = getRelicPoolsForCharacter(vid);
+    const allRelics = Object.values(relicPools).flat();
+    assert.equal(
+      allRelics.some((rid) => RELIC_LIBRARY[rid]?.character === 'hermit'),
+      false,
+      `Vanilla hero ${vid} must never see Hermit relics in relic pools`
+    );
+  }
 });

@@ -142,6 +142,38 @@ export const CHARACTER_LIBRARY = deepFreeze({
       'dualcast',
     ],
   },
+  hermit: {
+    id: 'hermit',
+    origin: 'expansion',
+    expansionSource: 'Downfall',
+    name: '亡命之徒',
+    englishName: 'The Hermit',
+    title: '精准枪术与诅咒驭暗的荒野孤胆枪手',
+    accentTheme: 'amber',
+    artKey: 'hermit',
+    maxHp: 75,
+    asc4MaxHp: 71,
+    startingGold: 99,
+    maxEnergy: 3,
+    starterRelic: 'memento',
+    bossStarterUpgrade: 'clasped_locket',
+    starterPotion: 'fire_potion',
+    archetypes: ['精准瞄准', '瘀伤爆发', '诅咒驭暗'],
+    summary:
+      '来自经典社区拓展 Downfall 的独行枪手。围绕手牌正中触发【精准】奇效、叠高【瘀伤】放大多段火力，或拥抱【诅咒】将其化为防御与爆发资源。',
+    starterDeck: [
+      'strike',
+      'strike',
+      'strike',
+      'strike',
+      'defend',
+      'defend',
+      'defend',
+      'defend',
+      'snapshot',
+      'covet',
+    ],
+  },
 });
 
 export const CHARACTER_IDS = deepFreeze(Object.keys(CHARACTER_LIBRARY));

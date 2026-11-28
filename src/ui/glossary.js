@@ -62,6 +62,13 @@ export const MECHANIC_TIPS = Object.freeze([
     glossaryQuery: '消耗',
   },
   {
+    id: 'hermit_deadon',
+    badge: '机制提示 · 亡命之徒精准',
+    title: '手牌正中触发【精准】· 巧用出牌顺序控位',
+    body: '手牌为奇数张时正中 1 张、偶数张时正中 2 张处于【精准】位！先打出边缘牌可把目标精准牌移入正中；【专注】可令本回合下张精准牌无视位置直接触发。',
+    glossaryQuery: '精准',
+  },
+  {
     id: 'status_curse',
     badge: '机制提示 · 状态牌与诅咒牌',
     title: '状态仅限本战 · 诅咒永久留存',
@@ -84,6 +91,9 @@ export function detectActiveMechanicTip(state, settings) {
   }
   if (charId === 'defect' && !seen.has('defect_orbs')) {
     return byId('defect_orbs');
+  }
+  if (charId === 'hermit' && !seen.has('hermit_deadon')) {
+    return byId('hermit_deadon');
   }
   if ((player.statuses?.mantra ?? 0) > 0 && !seen.has('watcher_mantra')) {
     return byId('watcher_mantra');
@@ -286,6 +296,20 @@ const CORE_MECHANIC_ENTRIES = [
     category: 'mechanics',
     tag: '故障机器人机制',
     description: '【集中】提高闪电、冰霜、黑暗充能球的被动与激发数值（可为负值，最低降至 0，不影响等离子球）；敌方身上的【锁定】使闪电球与黑暗球对其造成的伤害提高 50%（×1.5），且可被人工制品抵消。',
+  },
+  {
+    id: 'kw_hermit_deadon',
+    name: '精准（Dead On）与专注（亡命之徒）',
+    category: 'mechanics',
+    tag: '拓展英雄 · 亡命之徒',
+    description: '亡命之徒（来自 Downfall 拓展）的核心站位机制！当手牌为奇数张时，正中 1 张处于【精准】位；偶数张时，正中 2 张均处于【精准】位。打出位于精准位的牌可触发额外特效（如【瞬射】转盾、【爆头】双倍伤、【俯冲】多层护甲、【制高点】抽牌升级）。持有【专注】时，本回合下 1 张精准牌无视手牌位置必定触发！',
+  },
+  {
+    id: 'kw_hermit_bruise_curse',
+    name: '瘀伤 / 坚固 / 诅咒联动（亡命之徒）',
+    category: 'mechanics',
+    tag: '拓展英雄 · 亡命之徒',
+    description: '【瘀伤】使敌人本回合承受的每次攻击伤害固定增加对应点数（计入易伤前，敌方回合开始时清除，【恐惧】可锁定保留）；【坚固】令下次未格挡攻击伤害至多降至 2 点；亡命之徒亦可借由【纪念品】【渴求】【低调行事】等将诅咒转化为高额防御或战力。',
   },
   {
     id: 'kw_act3',
