@@ -2293,8 +2293,24 @@
     height: 62px;
   }
 
+  .character-name-row {
+    gap: 4px 5px;
+  }
+
   .character-name {
-    font-size: 1.12rem;
+    font-size: 1.04rem;
+    white-space: nowrap;
+  }
+
+  .character-en-tag {
+    font-size: 0.66rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .char-expansion-badge {
+    font-size: 0.62rem;
+    padding: 1px 5.5px;
   }
 
   .character-launch-dock {

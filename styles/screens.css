@@ -1496,41 +1496,6 @@ button.loot-reward-card.loot-kind-potion:hover {
   letter-spacing: 0.04em;
 }
 
-.character-selected-badge {
-  margin-left: auto;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  background: hsla(40, 86%, 54%, 0.2);
-  border: 1px solid var(--accent-brass);
-  color: var(--accent-brass);
-}
-
-.character-card.theme-emerald.selected .character-selected-badge {
-  background: hsla(148, 76%, 44%, 0.22);
-  border-color: hsl(146, 76%, 56%);
-  color: hsl(146, 92%, 78%);
-}
-
-.character-card.theme-amethyst.selected .character-selected-badge {
-  background: hsla(284, 72%, 52%, 0.24);
-  border-color: hsl(284, 80%, 66%);
-  color: hsl(288, 96%, 84%);
-}
-
-.character-card.theme-azure.selected .character-selected-badge {
-  background: hsla(202, 82%, 48%, 0.24);
-  border-color: hsl(198, 86%, 62%);
-  color: hsl(196, 98%, 84%);
-}
-
-.character-card.theme-amber.selected .character-selected-badge {
-  background: hsla(34, 84%, 44%, 0.26);
-  border-color: hsl(40, 92%, 62%);
-  color: hsl(44, 100%, 86%);
-}
-
 .character-title-line {
   margin: 4px 0 8px;
   font-size: 0.84rem;

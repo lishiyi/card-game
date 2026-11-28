@@ -1747,19 +1747,25 @@ test('Phase 1 Hermit E2E: default 4-hero vanilla isolation, ✨ 拓展角色 tog
     assert.ok(defaultCheck.relicTabText.includes('/113'), `Vanilla Compendium relics must stay 113, got: ${defaultCheck.relicTabText}`);
     assert.ok(defaultCheck.potionTabText.includes('/32'), `Vanilla Compendium potions must stay 32, got: ${defaultCheck.potionTabText}`);
 
-    // 2. Toggle ✨ 拓展角色 ON -> 5 heroes visible on 1280px, 390px, and 375px with zero overflow
+    // 2. Toggle ✨ 拓展角色 ON -> 5 heroes visible on 1280px, 390px, and 375px with zero overflow & single-row Hermit header (no redundant 已选择 badge)
     const enableCheck1280 = await cdp.evaluate(`(() => {
       document.getElementById('btn-char-select-toggle-expansion')?.click();
       const cards = document.querySelectorAll('.character-card');
       const ids = [...cards].map((el) => el.dataset.characterId);
       const hermitCard = document.querySelector('.character-card[data-character-id="hermit"]');
       const hasAmberTheme = Boolean(hermitCard?.classList.contains('theme-amber'));
+      const selectedBadgeCount = document.querySelectorAll('.character-selected-badge').length;
+      const hNameRect = hermitCard?.querySelector('.character-name')?.getBoundingClientRect();
+      const hExpRect = hermitCard?.querySelector('.char-expansion-badge')?.getBoundingClientRect();
+      const hermitHeaderSingleRow = Boolean(hNameRect && hExpRect && Math.abs(hNameRect.top - hExpRect.top) <= 8);
       const overflow1280 = document.documentElement.scrollWidth > window.innerWidth + 1;
-      return { count: cards.length, ids, hasAmberTheme, overflow1280 };
+      return { count: cards.length, ids, hasAmberTheme, selectedBadgeCount, hermitHeaderSingleRow, overflow1280 };
     })()`);
     assert.equal(enableCheck1280.count, 5, 'Enabling expansion toggle must show 5 heroes');
     assert.ok(enableCheck1280.ids.includes('hermit'));
     assert.equal(enableCheck1280.hasAmberTheme, true);
+    assert.equal(enableCheck1280.selectedBadgeCount, 0, 'Redundant 已选择 badge must be removed from character select cards');
+    assert.equal(enableCheck1280.hermitHeaderSingleRow, true, 'Hermit name + Downfall badge must remain on a single row on desktop');
     assert.equal(enableCheck1280.overflow1280, false, '5-hero Character Select must not overflow 1280px desktop');
 
     for (const vw of [390, 375]) {
@@ -1770,11 +1776,21 @@ test('Phase 1 Hermit E2E: default 4-hero vanilla isolation, ✨ 拓展角色 tog
         mobile: true,
       });
       await new Promise((r) => setTimeout(r, 120));
-      const mobCheck = await cdp.evaluate(`(() => ({
-        overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
-        heroCount: document.querySelectorAll('.mobile-char-tab').length,
-      }))()`);
+      const mobCheck = await cdp.evaluate(`(() => {
+        document.querySelector('.mobile-char-tab[data-character-id="hermit"]')?.click();
+        const hermitCard = document.querySelector('.character-card[data-character-id="hermit"]');
+        const hNameRect = hermitCard?.querySelector('.character-name')?.getBoundingClientRect();
+        const hExpRect = hermitCard?.querySelector('.char-expansion-badge')?.getBoundingClientRect();
+        return {
+          overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+          heroCount: document.querySelectorAll('.mobile-char-tab').length,
+          selectedBadgeCount: document.querySelectorAll('.character-selected-badge').length,
+          hermitHeaderSingleRow: Boolean(hNameRect && hExpRect && Math.abs(hNameRect.top - hExpRect.top) <= 8),
+        };
+      })()`);
       assert.equal(mobCheck.heroCount, 5);
+      assert.equal(mobCheck.selectedBadgeCount, 0, `Mobile ${vw}px must not render redundant 已选择 badge`);
+      assert.equal(mobCheck.hermitHeaderSingleRow, true, `Hermit header + Downfall badge must stay single-row on ${vw}px mobile`);
       assert.equal(mobCheck.overflow, false, `5-hero Character Select must not overflow ${vw}px mobile`);
     }
 

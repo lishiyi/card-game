@@ -300,7 +300,6 @@ function renderStandardCharacterSelectScreen({ meta, settings, ui }) {
               <h2 class="character-name">${escapeHtml(def.name)}</h2>
               <span class="character-en-tag">${escapeHtml(def.englishName)}</span>
               ${expansionBadgeHtml}
-              ${isSelected ? '<span class="character-selected-badge">已选择</span>' : ''}
             </div>
             <p class="character-title-line">${escapeHtml(def.title)}</p>
             <div class="char-archetype-row">${archetypeHtml}</div>
