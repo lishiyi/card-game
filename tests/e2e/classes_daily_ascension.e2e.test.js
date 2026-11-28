@@ -116,18 +116,13 @@ test('Real Chromium E2E: Treasure loot plaque, subdued unplayable cards, Lethal/
       ];
       app.render();
     })()`);
-    // Wait for .card-deal-in (240ms + stagger) to complete before reading settled styles
+    // Wait for .card-deal-in / .fx-card-fresh-draw to settle before reading computed opacity
     await cdp.evaluate(`(async () => {
-      const el = document.getElementById('hand-card-ux_strike');
-      if (!el) return;
-      const anims = typeof el.getAnimations === 'function' ? el.getAnimations() : [];
-      if (anims.length > 0) {
-        await Promise.race([
-          Promise.allSettled(anims.map((a) => a.finished)),
-          new Promise((r) => setTimeout(r, 1500)),
-        ]);
-      } else {
-        await new Promise((r) => setTimeout(r, 450));
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const el = document.getElementById('hand-card-ux_strike');
+        if (el && Number(getComputedStyle(el).opacity) >= 0.95) return;
+        await new Promise((r) => setTimeout(r, 40));
       }
     })()`);
     const setupAudit = await cdp.evaluate(`(() => {

@@ -26,6 +26,10 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     ? combat.hand.find((c) => c.instanceId === ui.selectedCardId)
     : null;
   const selectedCardStats = selectedCard ? getCardStats(selectedCard) : null;
+  const inspectedCard = ui.inspectedCardId
+    ? combat.hand.find((c) => c.instanceId === ui.inspectedCardId)
+    : null;
+  const inspectedCardStats = inspectedCard ? getCardStats(inspectedCard) : null;
   const isTargetingEnemy =
     (selectedCardStats && selectedCardStats.target === 'enemy') ||
     (ui.selectedPotionSlot !== null &&
@@ -231,13 +235,24 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     ? new Set((pendingChoice.candidates || []).map((c) => c.instanceId))
     : null;
   const previewTarget = getPreviewTargetEnemy();
+  const handCount = combat.hand.length;
+  const handCenter = (handCount - 1) / 2;
+  const handLayout = settings?.mobileHandLayout === 'spread' ? 'spread' : 'fan';
+  let hasAnyPlayableCard = false;
   const handHtml = combat.hand
     .map((card, idx) => {
+      const fanNorm = handCount > 1 ? (idx - handCenter) / Math.max(2, handCenter) : 0;
+      const fanProps = {
+        fanRot: handCount >= 3 ? fanNorm * 2.4 : 0,
+        fanY: handCount >= 3 ? fanNorm * fanNorm * 5 : 0,
+        fanZ: idx + 1,
+      };
       if (isHandChoiceMode) {
         if (isHandMultiSelectMode) {
           const eligible = multiEligibleSet.has(card.instanceId);
           const isPicked = multiSelectedSet.has(card.instanceId);
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: eligible ? 'toggle-retain-card' : 'noop',
             playable: eligible,
@@ -262,6 +277,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           const cStats = getCardStats(card);
           const isDiscardSynergy = Boolean(cStats.onDiscardGainEnergy || cStats.onDiscardDraw);
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: 'discard-hand-card',
             playable: true,
@@ -279,6 +295,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         }
         if (pendingMode === 'exhaust') {
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: 'resolve-card-choice',
             playable: true,
@@ -295,6 +312,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         }
         if (pendingMode === 'hand_to_draw' || pendingMode === 'hand_to_draw_bottom') {
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: 'resolve-card-choice',
             playable: true,
@@ -314,6 +332,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           const cType = getCardStats(card).type;
           const eligible = cType === 'attack' || cType === 'power';
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: eligible ? 'resolve-card-choice' : 'noop',
             playable: eligible,
@@ -331,6 +350,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         }
         if (pendingMode === 'nightmare') {
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: 'resolve-card-choice',
             playable: true,
@@ -348,6 +368,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         if (pendingMode === 'upgrade') {
           const upgradable = canUpgradeCard(card);
           return renderCardHtml(card, {
+            ...fanProps,
             idPrefix: 'hand-card',
             action: upgradable ? 'resolve-card-choice' : 'noop',
             playable: upgradable,
@@ -367,6 +388,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       }
 
       const check = canPlayCard(state, card.instanceId);
+      if (check.playable) hasAnyPlayableCard = true;
       const unplayableReason = check.playable
         ? ''
         : check.reason.includes('能量')
@@ -376,11 +398,13 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             : 'unplayable';
       const conditionMet = check.playable && isCardBonusConditionMet(state, card);
       return renderCardHtml(card, {
+        ...fanProps,
         idPrefix: 'hand-card',
         action: 'click-hand-card',
         playable: check.playable,
         conditionActive: conditionMet,
         selected: ui.selectedCardId === card.instanceId,
+        inspected: ui.inspectedCardId === card.instanceId,
         dimmed: !check.playable,
         unplayableReason,
         hotkey: idx < 9 ? idx + 1 : undefined,
@@ -407,6 +431,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   let bannerText = ui.notice;
   let bannerDesktopHint = '';
   let bannerClass = ui.noticeTone === 'warn' ? 'warn' : '';
+  let isBannerIdle = false;
   if (pendingMode === 'retain') {
     const pickedLen = (pendingChoice.selectedIds || []).length;
     bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌保留至下回合（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认保留」`;
@@ -482,22 +507,26 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       ? selectedCardStats.name
       : POTION_LIBRARY[state.player.potions[ui.selectedPotionSlot]]?.name;
     bannerText =
-      selectedCardStats && aliveEnemies.length === 1 && settings?.mobileTapConfirm
+      selectedCardStats && aliveEnemies.length === 1 && (settings?.mobileTapConfirm || handLayout === 'fan')
         ? `已选中【${itemName}】，再次点击该牌或点击敌人即可打出`
         : `请点击一名敌人作为【${itemName}】的目标`;
-    if (!(selectedCardStats && aliveEnemies.length === 1 && settings?.mobileTapConfirm)) {
+    if (!(selectedCardStats && aliveEnemies.length === 1 && (settings?.mobileTapConfirm || handLayout === 'fan'))) {
       bannerDesktopHint = '（再次点击卡牌或按 Esc 取消）';
     }
     bannerClass = 'targeting';
   } else if (isConfirmingSelfCard) {
     bannerText = `已选中【${selectedCardStats.name}】，再次点击该牌或上滑至战场即可打出（点击别处取消）`;
     bannerClass = 'targeting';
+  } else if (inspectedCardStats && !bannerText) {
+    bannerText = `正在查看【${inspectedCardStats.name}】（当前不可打出，点击别处收起）`;
+    bannerClass = 'warn';
   } else if (!bannerText) {
     bannerText = `第 ${combat.turn} 回合 · ${combat.encounterName}`;
     bannerDesktopHint = '（可点击或拖拽出牌，数字键 1-9 快速出牌，E 键结束回合）';
+    isBannerIdle = true;
   }
 
-  const enemyDensity = Math.min(3, Math.max(1, combat.enemies.length));
+  const enemyDensity = Math.min(4, Math.max(1, visibleEnemies.length));
   const playerArtKey = state.player.artKey || state.characterId || 'ironclad';
   const mobileLogExpanded = Boolean(ui.mobileLogExpanded);
   const currentStance = combat.stance || state.player.stance || 'neutral';
@@ -510,15 +539,59 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           calmExitEnergy === 3 ? '（紫色莲花已生效）' : '（持有【紫色莲花】时为 3 点）'
         }。`
       : stanceMeta.description;
-  const totalEnemyAttackIncoming = aliveEnemies.reduce((sum, enemy) => {
+  const incomingBreakdownLines = [];
+  let totalEnemyAttackIncoming = 0;
+  for (const enemy of aliveEnemies) {
     const preview = getEnemyIntentPreview(enemy, state.player);
-    return sum + (preview.isAttack ? preview.totalDamage : 0);
-  }, 0);
+    if (preview.isAttack && preview.totalDamage > 0) {
+      totalEnemyAttackIncoming += preview.totalDamage;
+      incomingBreakdownLines.push(
+        `${enemy.name}：${preview.hitText}${preview.hits > 1 ? `（共 ${preview.totalDamage}）` : ''}`
+      );
+    }
+  }
+  const playerBlock = state.player.block ?? 0;
+  const unblockedIncoming = Math.max(0, totalEnemyAttackIncoming - playerBlock);
+  const incomingState =
+    unblockedIncoming <= 0
+      ? 'safe'
+      : unblockedIncoming >= state.player.hp
+        ? 'lethal'
+        : 'danger';
+  const incomingBadgeLabel =
+    incomingState === 'safe'
+      ? `🛡 来袭 ${totalEnemyAttackIncoming} · 全挡`
+      : incomingState === 'lethal'
+        ? `☠ 致命 ${totalEnemyAttackIncoming} · -${unblockedIncoming}`
+        : `⚔ 来袭 ${totalEnemyAttackIncoming} · -${unblockedIncoming}`;
+  const incomingTooltipDesc =
+    totalEnemyAttackIncoming > 0
+      ? `${incomingBreakdownLines.join('\n')}\n────────────\n本回合敌方合计伤害：${totalEnemyAttackIncoming}\n你当前格挡：${playerBlock}\n预计穿透扣血：${unblockedIncoming}${
+          incomingState === 'lethal' ? '（致命威胁！）' : unblockedIncoming === 0 ? '（已完全格挡）' : ''
+        }`
+      : '';
+  const incomingBadgeHtml =
+    combat.status === 'ongoing' && totalEnemyAttackIncoming > 0
+      ? `<div
+          id="incoming-damage-badge"
+          class="incoming-damage-badge incoming-${incomingState}"
+          data-total-incoming="${escapeHtml(totalEnemyAttackIncoming)}"
+          data-unblocked="${escapeHtml(unblockedIncoming)}"
+          data-incoming-state="${incomingState}"
+          tabindex="0"
+          role="status"
+          aria-label="${escapeHtml(`敌方合计来袭 ${totalEnemyAttackIncoming} 点伤害，预计穿透 ${unblockedIncoming} 点`)}"
+          data-tooltip-title="本回合敌方来袭总伤害"
+          data-tooltip-tag="${incomingState === 'safe' ? '已全额格挡' : incomingState === 'lethal' ? '致命预警' : `还差 ${unblockedIncoming} 格挡`}"
+          data-tooltip-desc="${escapeHtml(incomingTooltipDesc)}"
+          data-tooltip-tone="${incomingState === 'safe' ? 'buff' : 'debuff'}"
+        >${escapeHtml(incomingBadgeLabel)}</div>`
+      : '';
   const wrathUnblockedDanger =
     currentStance === 'wrath' &&
     combat.status === 'ongoing' &&
-    totalEnemyAttackIncoming > (state.player.block ?? 0)
-      ? totalEnemyAttackIncoming - (state.player.block ?? 0)
+    unblockedIncoming > 0
+      ? unblockedIncoming
       : 0;
 
   const maxOrbSlots = Math.max(0, state.player.maxOrbSlots ?? 0);
@@ -625,9 +698,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                                   ? '请在弹窗 3 选 1 入手'
                                   : pendingMode === 'wish'
                                     ? '请在弹窗选择愿望'
-                                    : settings?.mobileTapConfirm
-                                      ? '点选预览 · 再点/上滑出牌'
-                                      : '左右滑选牌 · 上滑拖出牌';
+                                    : handLayout === 'fan' && handCount >= 4
+                                      ? '点选/横滑预览 · 再点/上滑出牌'
+                                      : settings?.mobileTapConfirm
+                                        ? '点选预览 · 再点/上滑出牌'
+                                        : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
     pendingMode === 'retain'
@@ -646,6 +721,8 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
               : '';
 
   const restartsSoFar = state.stats?.combatRestarts ?? 0;
+  const canEndTurnNow = combat.phase === 'player' && aliveEnemies.length > 0 && !isAnyPendingChoice;
+  const endTurnReady = canEndTurnNow && !hasAnyPlayableCard;
 
   const playerAuraClasses = [
     currentStance !== 'neutral' ? `stance-${escapeHtml(currentStance)}` : '',
@@ -669,6 +746,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     }
 
     <section class="combat-arena" id="combat-arena" data-enemy-count="${enemyDensity}" aria-label="战斗舞台">
+      ${incomingBadgeHtml}
       <div class="synergy-callout-bar" id="synergy-callout-bar" aria-live="polite" hidden></div>
       <div class="fighters-group player-side ${hasOrbRail ? 'has-defect-orbs' : ''}">
         <div class="fighter-unit ${playerAuraClasses}" id="player-unit" data-stance="${escapeHtml(currentStance)}">
@@ -713,7 +791,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     </section>
 
     <section class="combat-dock" aria-label="手牌与能量控制区">
-      <div class="dock-controls">
+      <div class="dock-controls${isHandMultiSelectMode ? ' is-multi-select' : ''}">
         <div class="dock-piles-row pile-group">
           ${
             combat.status === 'ongoing'
@@ -733,14 +811,35 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
               : ''
           }
           <div class="pile-group dock-piles-right">
-            <button type="button" id="btn-draw-pile" class="btn-stone" data-action="open-modal" data-modal="draw">
-              抽牌堆 (${escapeHtml(combat.drawPile.length)})
+            <button
+              type="button"
+              id="btn-draw-pile"
+              class="btn-stone pile-btn${combat.drawPile.length === 0 ? ' pile-empty' : ''}"
+              data-action="open-modal"
+              data-modal="draw"
+              aria-label="${escapeHtml(`抽牌堆 (${combat.drawPile.length})`)}"
+            >
+              <span class="pile-label-full">抽牌堆</span><span class="pile-label-short" aria-hidden="true">抽</span><span class="pile-count-wrap"><span class="pile-paren"> (</span><span class="pile-count">${escapeHtml(combat.drawPile.length)}</span><span class="pile-paren">)</span></span>
             </button>
-            <button type="button" id="btn-discard-pile" class="btn-stone" data-action="open-modal" data-modal="discard">
-              弃牌堆 (${escapeHtml(combat.discardPile.length)})
+            <button
+              type="button"
+              id="btn-discard-pile"
+              class="btn-stone pile-btn${combat.discardPile.length === 0 ? ' pile-empty' : ''}"
+              data-action="open-modal"
+              data-modal="discard"
+              aria-label="${escapeHtml(`弃牌堆 (${combat.discardPile.length})`)}"
+            >
+              <span class="pile-label-full">弃牌堆</span><span class="pile-label-short" aria-hidden="true">弃</span><span class="pile-count-wrap"><span class="pile-paren"> (</span><span class="pile-count">${escapeHtml(combat.discardPile.length)}</span><span class="pile-paren">)</span></span>
             </button>
-            <button type="button" id="btn-exhaust-pile" class="btn-stone" data-action="open-modal" data-modal="exhaust">
-              消耗堆 (${escapeHtml(combat.exhaustPile.length)})
+            <button
+              type="button"
+              id="btn-exhaust-pile"
+              class="btn-stone pile-btn${combat.exhaustPile.length === 0 ? ' pile-empty' : ''}"
+              data-action="open-modal"
+              data-modal="exhaust"
+              aria-label="${escapeHtml(`消耗堆 (${combat.exhaustPile.length})`)}"
+            >
+              <span class="pile-label-full">消耗堆</span><span class="pile-label-short" aria-hidden="true">耗</span><span class="pile-count-wrap"><span class="pile-paren"> (</span><span class="pile-count">${escapeHtml(combat.exhaustPile.length)}</span><span class="pile-paren">)</span></span>
             </button>
           </div>
         </div>
@@ -750,7 +849,11 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             ${escapeHtml(state.player.energy)}/${escapeHtml(state.player.maxEnergy)}
             <span>能量</span>
           </div>
-          <div class="toast-banner combat-inline-banner ${bannerClass}" id="combat-banner"><span class="combat-banner-main">${escapeHtml(bannerText)}</span>${
+          <div
+            class="toast-banner combat-inline-banner ${bannerClass}"
+            id="combat-banner"
+            data-banner-idle="${isBannerIdle ? 'true' : 'false'}"
+          ><span class="combat-banner-main">${escapeHtml(bannerText)}</span>${
             bannerDesktopHint ? `<span class="desktop-only-hint">${escapeHtml(bannerDesktopHint)}</span>` : ''
           }</div>
           ${
@@ -772,9 +875,10 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
               : `<button
                   type="button"
                   id="btn-end-turn"
-                  class="btn-brass"
+                  class="btn-brass${endTurnReady ? ' end-turn-ready' : ''}"
                   data-action="end-turn"
-                  ${combat.phase !== 'player' || aliveEnemies.length === 0 || isAnyPendingChoice ? 'disabled' : ''}
+                  ${endTurnReady ? 'data-turn-ready="true"' : ''}
+                  ${canEndTurnNow ? '' : 'disabled'}
                 >
                   结束回合<span class="hotkey-hint"> (E)</span>
                 </button>`
@@ -788,15 +892,21 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         <button
           type="button"
           id="btn-toggle-mobile-log"
-          class="mobile-log-toggle"
+          class="mobile-log-toggle${mobileLogExpanded ? ' active' : ''}"
           data-action="toggle-mobile-log"
           aria-expanded="${mobileLogExpanded ? 'true' : 'false'}"
         >
-          ${mobileLogExpanded ? '收起日志 ▲' : '战斗日志 ▼'}
+          ${mobileLogExpanded ? '收起 ▲' : '日志 ▼'}
         </button>
       </div>
 
-      <div class="hand-tray ${handTrayChoiceClass}" id="hand-tray">
+      <div
+        class="hand-tray ${handTrayChoiceClass}${ui.selectedCardId || ui.inspectedCardId ? ' has-focused-card' : ''}"
+        id="hand-tray"
+        data-hand-layout="${handLayout}"
+        data-hand-count="${handCount}"
+        style="--hand-count: ${handCount}; --fan-divisor: ${Math.max(1, handCount - 1)};"
+      >
         ${handHtml || '<p class="stage-subtitle">当前无手牌，请点击“结束回合”。</p>'}
       </div>
 

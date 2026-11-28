@@ -427,7 +427,7 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       );
     }
 
-    // === 5. Mobile 390x844 Combat: Horizontal hand-tray touch swipe scrolls cards cleanly without panning page & preserves scrollLeft ===
+    // === 5. Mobile 390x844 Combat: Fan mode fits 5 cards without scrolling; Spread & 8-card hand touch swipe scrolls cleanly without panning page & preserves scrollLeft ===
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
     const mobileSwipeSetup = await cdp.evaluate(`(() => {
       const app = window.__SPIRE_APP__;
@@ -436,6 +436,24 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       st.map[0].forEach((n) => { n.visited = false; });
       app.render();
       document.querySelector('.map-node-btn.available').click();
+      // First verify default 'fan' mode fits 5 cards on 1 screen with 0px scroll
+      st.combat.hand = Array.from({ length: 5 }, (_, i) => ({
+        instanceId: 'mf_' + i,
+        cardId: i % 2 === 0 ? 'sash_whip' : 'defend',
+        upgraded: false,
+      }));
+      st.player.energy = 3;
+      app.render();
+      const fanTray5 = document.getElementById('hand-tray');
+      const fanLayoutAttr = fanTray5.dataset.handLayout;
+      const fan5MaxScroll = Math.max(0, fanTray5.scrollWidth - fanTray5.clientWidth);
+
+      // Now switch to 'spread' mode via Settings toggle to test wide 8-card horizontal swipe scrolling
+      document.getElementById('btn-hud-more')?.click();
+      document.getElementById('btn-open-settings')?.click();
+      document.getElementById('btn-toggle-mobile-hand-layout')?.click();
+      document.getElementById('btn-close-modal')?.click();
+
       st.combat.hand = Array.from({ length: 8 }, (_, i) => ({
         instanceId: 'ms_' + i,
         cardId: i % 2 === 0 ? 'sash_whip' : 'defend',
@@ -454,6 +472,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       const cardStyle = getComputedStyle(cardEl);
       const endTurnStyle = getComputedStyle(document.getElementById('btn-end-turn'));
       return {
+        fanLayoutAttr,
+        fan5MaxScroll,
+        spreadLayoutAttr: tray.dataset.handLayout,
         xStart: Math.round(rect.right - 30),
         xEnd: Math.round(rect.left + 30),
         yMid: Math.round(rect.top + rect.height / 2),
@@ -469,6 +490,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       };
     })()`);
 
+    assert.equal(mobileSwipeSetup.fanLayoutAttr, 'fan', 'Mobile hand must default to stacked fan layout');
+    assert.ok(mobileSwipeSetup.fan5MaxScroll <= 2, `5-card mobile fan must fit on 1 screen without scrolling, got maxScroll=${mobileSwipeSetup.fan5MaxScroll}`);
+    assert.equal(mobileSwipeSetup.spreadLayoutAttr, 'spread', 'Settings toggle must switch hand tray to spread layout');
     assert.equal(mobileSwipeSetup.docOverflowX, 'clip', 'html must clip horizontal page overflow without breaking sticky');
     assert.equal(mobileSwipeSetup.docOverscrollX, 'none', 'html must disable horizontal page overscroll');
     assert.equal(mobileSwipeSetup.docTouchAction, 'manipulation', 'html must disable double-tap zoom via touch-action: manipulation');
@@ -477,7 +501,7 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(mobileSwipeSetup.trayTouchAction, 'pan-x', '#hand-tray must allow pan-x');
     assert.equal(mobileSwipeSetup.cardTouchAction, 'pan-x', 'Cards inside #hand-tray must explicitly set touch-action: pan-x');
     assert.equal(mobileSwipeSetup.traySnap, 'none', '#hand-tray must not fight horizontal swipes with scroll-snap');
-    assert.ok(mobileSwipeSetup.trayMaxScroll > 300, '8-card mobile hand must be horizontally scrollable');
+    assert.ok(mobileSwipeSetup.trayMaxScroll > 300, '8-card mobile spread hand must be horizontally scrollable');
 
     // Perform real touch swipe (slightly diagonal, starting on a card) across #hand-tray -> scrolls cards, NOT the page!
     const swipeSteps = 10;
@@ -514,6 +538,12 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
       const moveRightAtLeftEdge = new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [mkTouch(r0.left + 55, r0.top + 32)] });
       card0.dispatchEvent(moveRightAtLeftEdge);
       card0.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, touches: [] }));
+
+      // Toggle hand layout back to default 'fan'
+      document.getElementById('btn-hud-more')?.click();
+      document.getElementById('btn-open-settings')?.click();
+      document.getElementById('btn-toggle-mobile-hand-layout')?.click();
+      document.getElementById('btn-close-modal')?.click();
 
       return {
         scrollAfterSwipe,
@@ -707,8 +737,9 @@ test('Real Chromium E2E: Concise card keyword tooltips (no card play), Map click
     assert.equal(hudAcAudit.shopDrinkDisabled, true, 'Drink button inside popover is disabled outside combat');
     assert.equal(hudAcAudit.slot1Discarded, true, 'Discard button inside popover discards potion cleanly');
     assert.equal(hudAcAudit.menuOpen, true, 'Tapping ☰ opens More menu drawer');
-    assert.equal(hudAcAudit.menuLabels.length, 6, 'More menu holds all 6 secondary navigation items including Seed');
+    assert.equal(hudAcAudit.menuLabels.length, 7, 'Combat More menu holds all 7 secondary navigation items including Seed and Restart Combat');
     assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('种子')), `Expected Seed item inside More menu, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
+    assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('重启本场战斗')), `Expected Restart Combat item inside More menu, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
     assert.ok(hudAcAudit.menuLabels.some((t) => t.includes('新的一局')), `Expected unbroken '新的一局' label, got ${JSON.stringify(hudAcAudit.menuLabels)}`);
     assert.equal(hudAcAudit.menuClosedAfterOutsideTap, true, 'Tapping outside dismisses More menu drawer');
 
@@ -2567,6 +2598,250 @@ test('E2E Part A: Run History Filters & Card Win-Rate Table, First-Time Mechanic
     assert.ok(settingsAudit.beforeText.includes('已开启'), `Expected 机制提示：已开启, got: ${settingsAudit.beforeText}`);
     assert.ok(settingsAudit.afterText.includes('已关闭'), `Expected 机制提示：已关闭, got: ${settingsAudit.afterText}`);
     assert.ok(settingsAudit.overflow <= 1, `390px mobile must have zero overflow, got ${settingsAudit.overflow}px`);
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+  } finally {
+    await session?.close();
+  }
+});
+
+test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque dim, tap focus/inspect, single-finger scrub), 100dvh one-screen lock, single-row 3-enemy stagger, incoming total damage badge, End Turn ready glow & HUD More restart', async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 700,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 400));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    const fanAndCombatAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      if (st.neowState) st.neowState.resolved = true;
+      st.player.relics = ['burning_blood', 'vajra', 'anchor', 'lantern'];
+      app.render();
+      document.querySelector('.map-node-btn.available').click();
+
+      // Normalize 3 enemies + 6-card hand (with 1 unplayable 3-cost Bludgeon at energy=2)
+      const baseEnemy = JSON.parse(JSON.stringify(st.combat.enemies[0]));
+      st.combat.enemies = [
+        { ...JSON.parse(JSON.stringify(baseEnemy)), id: 'p2e_0', name: '红虱', hp: 30, maxHp: 30, block: 0, intent: { type: 'attack', damage: 7, hits: 1, name: '啃咬' } },
+        { ...JSON.parse(JSON.stringify(baseEnemy)), id: 'p2e_1', name: '邪教徒', hp: 44, maxHp: 44, block: 0, intent: { type: 'attack', damage: 11, hits: 1, name: '暗击' } },
+        { ...JSON.parse(JSON.stringify(baseEnemy)), id: 'p2e_2', name: '哨卫', hp: 38, maxHp: 38, block: 4, intent: { type: 'attack', damage: 9, hits: 1, name: '激光' } },
+      ];
+      st.combat.hand = [
+        { instanceId: 'p2_d1', cardId: 'defend', upgraded: false },
+        { instanceId: 'p2_s1', cardId: 'strike', upgraded: false },
+        { instanceId: 'p2_d2', cardId: 'defend', upgraded: false },
+        { instanceId: 'p2_s2', cardId: 'strike', upgraded: false },
+        { instanceId: 'p2_shrug', cardId: 'shrug_it_off', upgraded: false },
+        { instanceId: 'p2_blud', cardId: 'bludgeon', upgraded: false },
+      ];
+      st.player.energy = 2;
+      st.player.block = 5;
+      st.player.hp = 60;
+      app.render();
+
+      const tray = document.getElementById('hand-tray');
+      const fan6MaxScroll = Math.max(0, tray.scrollWidth - tray.clientWidth);
+      const bludOpacity = Number(getComputedStyle(document.getElementById('hand-card-p2_blud')).opacity);
+      const docScrollH390 = document.documentElement.scrollHeight;
+      const winH390 = window.innerHeight;
+      const docScrollW390 = document.documentElement.scrollWidth;
+
+      // 3-enemy single horizontal row & middle stagger check
+      const enemyRects = [...document.querySelectorAll('.enemy-side .fighter-unit')].map((el) => el.getBoundingClientRect());
+      const enemyTopSpan = Math.max(...enemyRects.map((r) => r.top)) - Math.min(...enemyRects.map((r) => r.top));
+      const enemySingleRow =
+        enemyRects.length === 3 &&
+        enemyTopSpan <= 14 &&
+        enemyRects[0].right <= enemyRects[1].left + 2 &&
+        enemyRects[1].right <= enemyRects[2].left + 2;
+      const middleStaggerHigher = enemyRects[1].top < enemyRects[0].top && enemyRects[1].top < enemyRects[2].top;
+
+      // Incoming damage badge initial state: total 27, block 5 -> danger (-22)
+      const incomingInitial = {
+        text: document.getElementById('incoming-damage-badge')?.textContent?.trim() || '',
+        state: document.getElementById('incoming-damage-badge')?.dataset?.incomingState || '',
+        total: Number(document.getElementById('incoming-damage-badge')?.dataset?.totalIncoming || 0),
+        unblocked: Number(document.getElementById('incoming-damage-badge')?.dataset?.unblocked || 0),
+      };
+
+      // Overlapped fan card (card #0 Defend): 1st tap pops up selected without playing, 2nd tap plays it
+      const blockBeforeTap = st.player.block;
+      document.getElementById('hand-card-p2_d1').click();
+      const selectedAfterTap1 = document.getElementById('hand-card-p2_d1')?.classList.contains('selected-card') ?? false;
+      const blockAfterTap1 = st.player.block;
+      document.getElementById('hand-card-p2_d1').click();
+      const blockAfterTap2 = st.player.block;
+
+      // Tapping unplayable Bludgeon pops up .inspected-card, empty combat arena tap dismisses it
+      document.getElementById('hand-card-p2_blud').click();
+      const inspectedAfterTap = document.getElementById('hand-card-p2_blud')?.classList.contains('inspected-card') ?? false;
+      document.getElementById('combat-arena').click();
+      const inspectedAfterEmptyTap = document.getElementById('hand-card-p2_blud')?.classList.contains('inspected-card') ?? false;
+
+      // Single-finger horizontal touch scrub across 5-card fan highlights card under finger & focuses on release without playing
+      const trayNow = document.getElementById('hand-tray');
+      const card0 = trayNow.querySelector('.game-card[data-instance-id]');
+      const card2 = trayNow.querySelectorAll('.game-card[data-instance-id]')[2];
+      const r0 = card0.getBoundingClientRect();
+      const r2 = card2.getBoundingClientRect();
+      const handLenBeforeScrub = st.combat.hand.length;
+      card0.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, pointerId: 41, pointerType: 'touch', clientX: r0.left + 16, clientY: r0.top + 60,
+      }));
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true, pointerId: 41, pointerType: 'touch', clientX: r2.left + 20, clientY: r2.top + 60,
+      }));
+      const scrubbedClassLive = Boolean(trayNow.querySelector('.game-card.scrub-focused'));
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        bubbles: true, pointerId: 41, pointerType: 'touch', clientX: r2.left + 20, clientY: r2.top + 60,
+      }));
+      const handLenAfterScrub = st.combat.hand.length;
+      const focusedAfterScrub = Boolean(document.querySelector('#hand-tray .game-card.selected-card, #hand-tray .game-card.inspected-card'));
+
+      // Incoming badge updates to safe (全挡) when block >= 27, and lethal when hp <= unblocked
+      st.player.block = 30;
+      st.player.energy = 0;
+      app.render();
+      const incomingSafeState = document.getElementById('incoming-damage-badge')?.dataset?.incomingState || '';
+      const endTurnReadyAtZeroEnergy = document.getElementById('btn-end-turn')?.classList.contains('end-turn-ready') ?? false;
+
+      st.player.block = 0;
+      st.player.hp = 20;
+      app.render();
+      const incomingLethalState = document.getElementById('incoming-damage-badge')?.dataset?.incomingState || '';
+
+      // Mobile floating log expands without increasing document scrollHeight and dismisses on outside tap
+      document.getElementById('btn-toggle-mobile-log')?.click();
+      const logExpandedVisible = getComputedStyle(document.getElementById('combat-log')).display !== 'none';
+      const docScrollHWithLog = document.documentElement.scrollHeight;
+      document.getElementById('combat-arena')?.click();
+      const logClosedAfterOutsideTap = getComputedStyle(document.getElementById('combat-log')).display === 'none';
+
+      // HUD More drawer Restart Combat works on 390px phone and closes menu
+      const restartsBefore = st.stats.combatRestarts || 0;
+      document.getElementById('btn-hud-more')?.click();
+      document.getElementById('btn-hud-restart-combat')?.click();
+      const restartsAfter = st.stats.combatRestarts || 0;
+      const moreMenuClosedAfterRestart = !document.getElementById('hud-more-menu')?.classList.contains('open');
+
+      return {
+        fan6MaxScroll,
+        bludOpacity,
+        docScrollH390,
+        winH390,
+        docScrollW390,
+        enemySingleRow,
+        middleStaggerHigher,
+        incomingInitial,
+        blockBeforeTap,
+        selectedAfterTap1,
+        blockAfterTap1,
+        blockAfterTap2,
+        inspectedAfterTap,
+        inspectedAfterEmptyTap,
+        scrubbedClassLive,
+        handLenBeforeScrub,
+        handLenAfterScrub,
+        focusedAfterScrub,
+        incomingSafeState,
+        endTurnReadyAtZeroEnergy,
+        incomingLethalState,
+        logExpandedVisible,
+        docScrollHWithLog,
+        logClosedAfterOutsideTap,
+        restartsBefore,
+        restartsAfter,
+        moreMenuClosedAfterRestart,
+      };
+    })()`);
+
+    assert.ok(fanAndCombatAudit.fan6MaxScroll <= 2, `6-card fan must fit in 1 screen without scroll, got maxScroll=${fanAndCombatAudit.fan6MaxScroll}`);
+    assert.equal(fanAndCombatAudit.bludOpacity, 1, 'Stacked unplayable fan card must stay opaque (opacity=1) so cards underneath never bleed through');
+    assert.ok(fanAndCombatAudit.docScrollH390 <= fanAndCombatAudit.winH390 + 1, `390x700 combat must fit in one screen (${fanAndCombatAudit.docScrollH390} <= ${fanAndCombatAudit.winH390})`);
+    assert.ok(fanAndCombatAudit.docScrollW390 <= 390, `390px combat must have zero horizontal overflow (${fanAndCombatAudit.docScrollW390})`);
+    assert.equal(fanAndCombatAudit.enemySingleRow, true, '3 enemies must render in a single horizontal row on 390px portrait');
+    assert.equal(fanAndCombatAudit.middleStaggerHigher, true, 'Middle enemy in 3-enemy row should have subtle upward depth stagger');
+    assert.equal(fanAndCombatAudit.incomingInitial.state, 'danger');
+    assert.equal(fanAndCombatAudit.incomingInitial.total, 27);
+    assert.equal(fanAndCombatAudit.incomingInitial.unblocked, 22);
+    assert.equal(fanAndCombatAudit.selectedAfterTap1, true, '1st tap on overlapped fan card must focus/pop it up without playing');
+    assert.equal(fanAndCombatAudit.blockAfterTap1, fanAndCombatAudit.blockBeforeTap);
+    assert.ok(fanAndCombatAudit.blockAfterTap2 > fanAndCombatAudit.blockBeforeTap, '2nd tap on focused fan card must play it');
+    assert.equal(fanAndCombatAudit.inspectedAfterTap, true, 'Tapping unplayable fan card must pop up .inspected-card preview');
+    assert.equal(fanAndCombatAudit.inspectedAfterEmptyTap, false, 'Tapping empty combat area must dismiss inspected card');
+    assert.equal(fanAndCombatAudit.scrubbedClassLive, true, 'Single-finger horizontal scrub across 1-screen fan must activate live .scrub-focused');
+    assert.equal(fanAndCombatAudit.handLenAfterScrub, fanAndCombatAudit.handLenBeforeScrub, 'Scrubbing and releasing in tray must not accidentally play cards');
+    assert.equal(fanAndCombatAudit.focusedAfterScrub, true, 'Releasing scrub over a card must leave it focused for preview/play');
+    assert.equal(fanAndCombatAudit.incomingSafeState, 'safe', 'Incoming badge must turn safe when fully blocked');
+    assert.equal(fanAndCombatAudit.endTurnReadyAtZeroEnergy, true, 'End Turn button must glow ready when no playable cards remain');
+    assert.equal(fanAndCombatAudit.incomingLethalState, 'lethal', 'Incoming badge must turn lethal when unblocked damage >= HP');
+    assert.equal(fanAndCombatAudit.logExpandedVisible, true, 'Tapping mobile log toggle must open floating log drawer');
+    assert.ok(fanAndCombatAudit.docScrollHWithLog <= fanAndCombatAudit.winH390 + 1, 'Floating mobile log drawer must not expand page scrollHeight');
+    assert.equal(fanAndCombatAudit.logClosedAfterOutsideTap, true, 'Tapping outside mobile log drawer must collapse it');
+    assert.equal(fanAndCombatAudit.restartsAfter, fanAndCombatAudit.restartsBefore + 1, 'HUD More menu Restart Combat must restart encounter');
+    assert.equal(fanAndCombatAudit.moreMenuClosedAfterRestart, true, 'Restarting combat from More menu must close drawer');
+
+    // Verify 375x667 (iPhone SE) one-screen fit & zero overflow with 5-card fan + 4-enemy swarm fallback
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 375,
+      height: 667,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const seAudit = await cdp.evaluate(`(() => {
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const base = JSON.parse(JSON.stringify(st.combat.enemies[0]));
+      st.combat.enemies = Array.from({ length: 4 }, (_, i) => ({
+        ...JSON.parse(JSON.stringify(base)),
+        id: 'sw_' + i,
+        name: '史莱姆' + (i + 1),
+        hp: 12,
+        maxHp: 12,
+      }));
+      st.combat.hand = Array.from({ length: 5 }, (_, i) => ({
+        instanceId: 'se_' + i,
+        cardId: i % 2 === 0 ? 'strike' : 'defend',
+        upgraded: false,
+      }));
+      app.render();
+      const tray = document.getElementById('hand-tray');
+      return {
+        winW: window.innerWidth,
+        winH: window.innerHeight,
+        scrollW: document.documentElement.scrollWidth,
+        scrollH: document.documentElement.scrollHeight,
+        enemyDensity: document.getElementById('combat-arena')?.dataset?.enemyCount,
+        trayMaxScroll: Math.max(0, tray.scrollWidth - tray.clientWidth),
+      };
+    })()`);
+    assert.ok(seAudit.scrollW <= seAudit.winW, `375px iPhone SE must have zero horizontal overflow (${seAudit.scrollW} > ${seAudit.winW})`);
+    assert.ok(seAudit.scrollH <= seAudit.winH + 1, `375x667 iPhone SE combat must fit in one screen (${seAudit.scrollH} > ${seAudit.winH})`);
+    assert.equal(seAudit.enemyDensity, '4', '4-enemy swarm must activate data-enemy-count="4" compact 2x2 fallback');
+    assert.ok(seAudit.trayMaxScroll <= 2, `5-card fan on 375px iPhone SE must fit in 1 screen without scroll, got maxScroll=${seAudit.trayMaxScroll}`);
 
     const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
     const consoleErrors = cdp.events.filter(

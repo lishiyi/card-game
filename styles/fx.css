@@ -493,7 +493,9 @@
 }
 
 #hand-tray .game-card.unplayable-dim.card-deal-in,
-#hand-tray .game-card.selected-card.card-deal-in {
+#hand-tray .game-card.selected-card.card-deal-in,
+#hand-tray .game-card.inspected-card.card-deal-in,
+#hand-tray .game-card.scrub-focused.card-deal-in {
   animation: none;
 }
 
@@ -1271,8 +1273,26 @@
 }
 
 #hand-tray .game-card.unplayable-dim.fx-card-fresh-draw,
-#hand-tray .game-card.selected-card.fx-card-fresh-draw {
+#hand-tray .game-card.selected-card.fx-card-fresh-draw,
+#hand-tray .game-card.inspected-card.fx-card-fresh-draw,
+#hand-tray .game-card.scrub-focused.fx-card-fresh-draw {
   animation: none;
+}
+
+@keyframes endTurnReadyPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px hsla(44, 96%, 64%, 0.52),
+      0 0 14px hsla(40, 96%, 54%, 0.42),
+      var(--shadow-soft);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px hsla(46, 100%, 72%, 0.85),
+      0 0 24px hsla(42, 100%, 58%, 0.72),
+      var(--shadow-soft);
+  }
 }
 
 @media (max-width: 520px) {

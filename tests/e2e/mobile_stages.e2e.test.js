@@ -59,24 +59,30 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
       const relicScrollRect = document.querySelector('.hud-gear-scroll').getBoundingClientRect();
       const menuClosedInitially = getComputedStyle(document.getElementById('hud-more-menu')).display === 'none';
 
-      // Open More menu and confirm New Run & secondary actions are visibly inside viewport
+      // Open More menu and confirm New Run & Restart Combat are visibly inside viewport on 390px phones
       document.getElementById('btn-hud-more').click();
       const menuOpen = document.getElementById('hud-more-menu').classList.contains('open');
       const newRunBtn = document.getElementById('btn-new-run')?.getBoundingClientRect();
       const newRunVisibleInMenu = Boolean(newRunBtn) && newRunBtn.width > 0 && newRunBtn.right <= window.innerWidth && newRunBtn.left >= 0;
+      const hudRestartBtn = document.getElementById('btn-hud-restart-combat')?.getBoundingClientRect();
+      const hudRestartVisibleInMenu = Boolean(hudRestartBtn) && hudRestartBtn.width > 0 && hudRestartBtn.right <= window.innerWidth && hudRestartBtn.left >= 0;
       document.getElementById('btn-hud-more').click();
 
       const dock = document.querySelector('.dock-controls').getBoundingClientRect();
-      const restartBtn = document.getElementById('btn-restart-combat')?.getBoundingClientRect();
+      const dockRestartEl = document.querySelector('.combat-dock #btn-restart-combat');
+      const dockRestartHiddenOnPhone = dockRestartEl ? getComputedStyle(dockRestartEl).display === 'none' : true;
       const endTurn = document.getElementById('btn-end-turn').getBoundingClientRect();
       const energy = document.getElementById('energy-orb').getBoundingClientRect();
-      const banner = document.getElementById('combat-banner').getBoundingClientRect();
+      const bannerEl = document.getElementById('combat-banner');
+      const idleBannerHiddenOnPhone = bannerEl ? getComputedStyle(bannerEl).display === 'none' : false;
       const drawBtn = document.getElementById('btn-draw-pile').getBoundingClientRect();
       const discardBtn = document.getElementById('btn-discard-pile').getBoundingClientRect();
       const exhaustBtn = document.getElementById('btn-exhaust-pile').getBoundingClientRect();
       return {
         docScrollWidth: document.documentElement.scrollWidth,
         innerWidth: window.innerWidth,
+        docScrollHeight: document.documentElement.scrollHeight,
+        innerHeight: window.innerHeight,
         hudHeight: Math.round(hud.height),
         potionCount: potions.length,
         potionStripOnlyPotions: [...potionStripEl.children].every(
@@ -96,31 +102,25 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
         menuClosedInitially,
         menuOpen,
         newRunVisibleInMenu,
-        restartInCombatDock: Boolean(document.querySelector('.combat-dock #btn-restart-combat')),
-        restartNotInHud: !document.querySelector('.top-hud #btn-restart-combat'),
-        restartLeftAlignedDock: Boolean(restartBtn) && Math.abs(restartBtn.left - dock.left) <= 2,
-        restartAboveEnergy: Boolean(restartBtn) && restartBtn.bottom <= energy.top + 1 && Math.abs(restartBtn.left - energy.left) <= 2,
-        restartLeftOfDraw: Boolean(restartBtn) && restartBtn.right <= drawBtn.left,
-        pilesSameRowAsRestart:
-          Boolean(restartBtn) &&
-          Math.abs((drawBtn.top + drawBtn.height / 2) - (restartBtn.top + restartBtn.height / 2)) <= 3 &&
+        hudRestartVisibleInMenu,
+        dockRestartHiddenOnPhone,
+        idleBannerHiddenOnPhone,
+        unifiedDockSingleRow:
+          Math.abs((drawBtn.top + drawBtn.height / 2) - (energy.top + energy.height / 2)) <= 4 &&
           Math.abs(drawBtn.top - discardBtn.top) <= 2 &&
-          Math.abs(discardBtn.top - exhaustBtn.top) <= 2,
-        pilesRightAligned:
-          Math.abs(exhaustBtn.right - dock.right) <= 2 &&
+          Math.abs(discardBtn.top - exhaustBtn.top) <= 2 &&
+          Math.abs((endTurn.top + endTurn.height / 2) - (energy.top + energy.height / 2)) <= 4 &&
+          energy.right <= drawBtn.left &&
           drawBtn.right <= discardBtn.left &&
-          discardBtn.right <= exhaustBtn.left,
+          discardBtn.right <= exhaustBtn.left &&
+          exhaustBtn.right <= endTurn.left,
         endTurnRightAligned: Math.abs(dock.right - endTurn.right) <= 2,
         endTurnRightOfEnergy: endTurn.left > energy.right,
-        bannerInlineBetweenEnergyAndEndTurn:
-          Boolean(document.querySelector('.dock-controls #combat-banner')) &&
-          banner.left >= energy.right - 1 &&
-          banner.right <= endTurn.left + 1 &&
-          Math.abs((banner.top + banner.height / 2) - (energy.top + energy.height / 2)) <= 4,
       };
     })()`);
     assert.ok(combat390.docScrollWidth <= combat390.innerWidth, `390px combat overflowed: ${combat390.docScrollWidth} > ${combat390.innerWidth}`);
-    assert.ok(combat390.hudHeight <= 125, `390px 3-row HUD should stay ultra-compact (<=125px), got ${combat390.hudHeight}px`);
+    assert.ok(combat390.docScrollHeight <= combat390.innerHeight + 1, `390x700 Plan 2 combat must fit in one screen without vertical scroll: ${combat390.docScrollHeight} > ${combat390.innerHeight}`);
+    assert.ok(combat390.hudHeight <= 115, `390px 3-row combat HUD should stay ultra-compact (<=115px), got ${combat390.hudHeight}px`);
     assert.equal(combat390.potionCount, 3);
     assert.equal(combat390.potionStripOnlyPotions, true, 'Potion strip must contain only potion slots');
     assert.equal(combat390.allPotionsFitStrip, true, 'All 3 icon potion slots must fit inside potion strip at 390px');
@@ -131,16 +131,12 @@ test('Real Chromium E2E: Mobile portrait (<=768px) modal top-row clearance & ove
     assert.equal(combat390.menuClosedInitially, true, 'Mobile More menu starts collapsed');
     assert.equal(combat390.menuOpen, true, 'Tapping ☰ opens mobile More menu');
     assert.equal(combat390.newRunVisibleInMenu, true, 'New run button must be visible inside open More menu at 390px');
-    assert.equal(combat390.restartInCombatDock, true, 'Restart combat button must live inside .combat-dock');
-    assert.equal(combat390.restartNotInHud, true, 'Restart combat button must not be inside .top-hud');
-    assert.equal(combat390.restartLeftAlignedDock, true, 'Restart combat button must align to far left of combat dock');
-    assert.equal(combat390.restartAboveEnergy, true, 'Restart combat button must sit above the Energy orb');
-    assert.equal(combat390.restartLeftOfDraw, true, 'Restart combat button must sit to the left of Draw Pile');
-    assert.equal(combat390.pilesSameRowAsRestart, true, 'Draw/Discard/Exhaust pile buttons should share Row 1 with Restart Combat');
-    assert.equal(combat390.pilesRightAligned, true, 'Draw/Discard/Exhaust pile buttons must align to the right edge at 390px');
+    assert.equal(combat390.hudRestartVisibleInMenu, true, 'Restart combat action must be accessible inside mobile More menu at 390px');
+    assert.equal(combat390.dockRestartHiddenOnPhone, true, 'Dock restart button must be hidden on <=520px phones to free dock row');
+    assert.equal(combat390.idleBannerHiddenOnPhone, true, 'Idle combat banner must be hidden on <=520px phones to save vertical space');
+    assert.equal(combat390.unifiedDockSingleRow, true, 'Energy, compact pile pills, and End Turn must share one unified row at 390px');
     assert.equal(combat390.endTurnRightAligned, true, 'End Turn button must be aligned to the right edge at 390px');
     assert.equal(combat390.endTurnRightOfEnergy, true, 'End Turn button must sit to the right of Energy orb');
-    assert.equal(combat390.bannerInlineBetweenEnergyAndEndTurn, true, 'Combat banner must sit inline between Energy orb and End Turn button at 390px');
 
     // 2. Deck & Map Modals during combat: top-row clearance, non-scrolling header, body scroll lock, and overscroll touch guard
     const deckModalAudit = await cdp.evaluate(`(() => {
@@ -839,7 +835,9 @@ test('Stage 1.1 & Stage 2 Real Chromium E2E: 3-hero Character Select, Watcher St
       const artSvgs = document.querySelectorAll('#hand-tray .card-art-svg').length;
       const firstCardW = Math.round(handCards[0]?.getBoundingClientRect().width || 999);
       const endTurnText = document.getElementById('btn-end-turn')?.innerText?.trim() || '';
-      const bannerText = document.getElementById('combat-banner')?.innerText?.trim() || '';
+      const bannerEl = document.getElementById('combat-banner');
+      const bannerVisible = bannerEl ? getComputedStyle(bannerEl).display !== 'none' : false;
+      const bannerText = bannerVisible ? (bannerEl?.innerText?.trim() || '') : '';
       const enemyGrad = Boolean(document.querySelector('.enemy-side .unit-svg linearGradient, .enemy-side .unit-svg radialGradient'));
 
       // Switch to Shop to verify #btn-reset-shop-bottom & #btn-leave-shop-bottom work cleanly on 390px mobile

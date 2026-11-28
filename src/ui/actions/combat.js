@@ -9,6 +9,7 @@ import { discardPotion, runRestartCombat } from '../../engine/game.js';
 export const COMBAT_ACTIONS = {
   'restart-combat'(ctx) {
     const { ui, state, soundEngine } = ctx;
+    ui.hudMenuOpen = false;
     const res = runRestartCombat(state);
     if (res.ok) {
       ui.modal = null;

@@ -121,6 +121,15 @@ export const MODAL_ACTIONS = {
     ctx.render();
   },
 
+  'toggle-mobile-hand-layout'(ctx) {
+    const { settings, soundEngine } = ctx;
+    settings.mobileHandLayout = settings.mobileHandLayout === 'spread' ? 'fan' : 'spread';
+    saveSettings(settings);
+    ctx.clearCombatSelection();
+    soundEngine.play('ui_click');
+    ctx.render();
+  },
+
   'toggle-mobile-log'(ctx) {
     const { ui, soundEngine } = ctx;
     ui.mobileLogExpanded = !ui.mobileLogExpanded;

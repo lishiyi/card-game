@@ -18,6 +18,7 @@ export function createDefaultSettings() {
     showDamageNumbers: true,
     tutorialDismissed: false,
     mobileTapConfirm: false,
+    mobileHandLayout: 'fan',
     showMechanicTips: true,
     seenMechanicTips: [],
   };
@@ -40,6 +41,10 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
     const seenMechanicTips = Array.isArray(parsed.seenMechanicTips)
       ? [...new Set(parsed.seenMechanicTips.filter((id) => typeof id === 'string' && id.length > 0))]
       : [];
+    const mobileHandLayout =
+      parsed.mobileHandLayout === 'spread' || parsed.mobileHandLayout === 'fan'
+        ? parsed.mobileHandLayout
+        : base.mobileHandLayout;
     return {
       soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : base.soundEnabled,
       volume,
@@ -50,6 +55,7 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
           : base.showDamageNumbers,
       tutorialDismissed: Boolean(parsed.tutorialDismissed),
       mobileTapConfirm: Boolean(parsed.mobileTapConfirm),
+      mobileHandLayout,
       showMechanicTips:
         typeof parsed.showMechanicTips === 'boolean'
           ? parsed.showMechanicTips

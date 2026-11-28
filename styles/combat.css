@@ -55,8 +55,58 @@
   grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.58fr);
 }
 
-.combat-arena[data-enemy-count='3'] {
+.combat-arena[data-enemy-count='3'],
+.combat-arena[data-enemy-count='4'] {
   grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.98fr);
+}
+
+/* === Real-Time Total Enemy Incoming Damage Summary Badge === */
+
+.incoming-damage-badge {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: calc(100% - 20px);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+  box-shadow: 0 3px 10px hsla(0, 0%, 0%, 0.56);
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.incoming-damage-badge.incoming-safe {
+  background: hsla(188, 44%, 15%, 0.92);
+  border: 1px solid hsla(176, 68%, 52%, 0.72);
+  color: hsl(172, 92%, 82%);
+}
+
+.incoming-damage-badge.incoming-danger {
+  background: hsla(10, 52%, 17%, 0.94);
+  border: 1px solid hsla(12, 82%, 58%, 0.78);
+  color: hsl(16, 98%, 84%);
+}
+
+.incoming-damage-badge.incoming-lethal {
+  background: linear-gradient(180deg, hsla(5, 78%, 34%, 0.96), hsla(3, 76%, 22%, 0.98));
+  border: 1px solid hsl(40, 96%, 68%);
+  color: hsl(44, 100%, 92%);
+  box-shadow: 0 0 14px hsla(6, 92%, 52%, 0.62);
+  animation: previewLethalPulse calc(1100ms * var(--anim-scale, 1)) ease-in-out infinite;
+}
+
+.combat-arena:has(.synergy-callout-bar:not([hidden])) .incoming-damage-badge {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .fighters-group {
@@ -93,7 +143,8 @@
   transition: transform 0.16s ease, background-color 0.16s ease;
 }
 
-.combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit {
+.combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit,
+.combat-arena[data-enemy-count='4'] .enemy-side .fighter-unit {
   flex: 1 1 0;
   max-width: 184px;
 }
@@ -500,6 +551,17 @@
 .dock-controls #btn-confirm-retain {
   order: 5;
   flex-shrink: 0;
+}
+
+#btn-end-turn.end-turn-ready:not(:disabled) {
+  border-color: hsl(44, 96%, 68%);
+  background: linear-gradient(180deg, hsl(40, 82%, 48%), hsl(32, 72%, 31%));
+  color: hsl(48, 100%, 96%);
+  box-shadow:
+    0 0 0 2px hsla(44, 96%, 64%, 0.58),
+    0 0 18px hsla(40, 96%, 54%, 0.48),
+    var(--shadow-soft);
+  animation: endTurnReadyPulse calc(1600ms * var(--anim-scale, 1)) ease-in-out infinite;
 }
 
 .dock-controls #btn-discard-pile {
@@ -1251,10 +1313,10 @@ body.spire-dragging {
 
 @media (max-width: 768px) {
   .mechanic-tip-toast {
-    top: auto;
+    top: 96px;
     left: 10px;
     right: 10px;
-    bottom: 8px;
+    bottom: auto;
     width: auto;
     padding: 8px 10px;
   }

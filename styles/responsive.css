@@ -51,14 +51,16 @@
     height: 84px;
   }
 
-  .combat-arena[data-enemy-count='3'] .fighter-unit {
+  .combat-arena[data-enemy-count='3'] .fighter-unit,
+  .combat-arena[data-enemy-count='4'] .fighter-unit {
     flex: 1 1 0;
     width: auto;
     max-width: 158px;
     padding: 8px 8px 10px;
   }
 
-  .combat-arena[data-enemy-count='3'] .unit-figure {
+  .combat-arena[data-enemy-count='3'] .unit-figure,
+  .combat-arena[data-enemy-count='4'] .unit-figure {
     width: 72px;
     height: 72px;
   }
@@ -470,7 +472,8 @@
     grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.65fr);
   }
 
-  .combat-arena[data-enemy-count='3'] {
+  .combat-arena[data-enemy-count='3'],
+  .combat-arena[data-enemy-count='4'] {
     grid-template-columns: minmax(0, 0.68fr) minmax(0, 2.02fr);
   }
 
@@ -527,29 +530,34 @@
     max-width: 154px;
   }
 
-  .combat-arena[data-enemy-count='3'] .fighter-unit {
+  .combat-arena[data-enemy-count='3'] .fighter-unit,
+  .combat-arena[data-enemy-count='4'] .fighter-unit {
     flex: 1 1 0;
     width: auto;
     max-width: 146px;
     padding: 7px 6px 9px;
   }
 
-  .combat-arena[data-enemy-count='3'] .unit-figure {
+  .combat-arena[data-enemy-count='3'] .unit-figure,
+  .combat-arena[data-enemy-count='4'] .unit-figure {
     width: 62px;
     height: 62px;
   }
 
-  .combat-arena[data-enemy-count='3'] .intent-badge {
+  .combat-arena[data-enemy-count='3'] .intent-badge,
+  .combat-arena[data-enemy-count='4'] .intent-badge {
     padding: 2px 5px;
     font-size: 0.7rem;
   }
 
-  .combat-arena[data-enemy-count='3'] .intent-badge.icon-only {
+  .combat-arena[data-enemy-count='3'] .intent-badge.icon-only,
+  .combat-arena[data-enemy-count='4'] .intent-badge.icon-only {
     min-width: 26px;
     padding: 2px 6px;
   }
 
-  .combat-arena[data-enemy-count='3'] .next-intent-hint {
+  .combat-arena[data-enemy-count='3'] .next-intent-hint,
+  .combat-arena[data-enemy-count='4'] .next-intent-hint {
     padding: 1px 5px;
     font-size: 0.65rem;
   }
@@ -615,7 +623,16 @@
     color: var(--text-sand);
   }
 
+  .mobile-log-toggle.active {
+    border-color: hsla(40, 74%, 56%, 0.78);
+    color: hsl(44, 96%, 82%);
+  }
+
   .hand-tray {
+    --fan-card-w: 142px;
+    --fan-min-step: 58px;
+    --fan-gap-max: 10px;
+    --fan-avail: calc(100vw - 48px);
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -628,7 +645,7 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(30, 14%, 28%) transparent;
     -webkit-overflow-scrolling: touch;
-    padding: 16px 8px 10px;
+    padding: 28px 10px 10px;
     gap: 10px;
     touch-action: pan-x;
   }
@@ -646,6 +663,96 @@
 
   .hand-tray .game-card:last-child {
     margin-right: auto;
+  }
+
+  /* Adaptive Stacked Fan Hand Layout on Portrait / Compact Screens */
+  .hand-tray[data-hand-layout='fan'] {
+    gap: 0;
+  }
+
+  .hand-tray[data-hand-layout='fan'].retain-selecting,
+  .hand-tray[data-hand-layout='fan'].discard-selecting,
+  .hand-tray[data-hand-layout='fan'].exhaust-selecting,
+  .hand-tray[data-hand-layout='fan'].upgrade-selecting,
+  .hand-tray[data-hand-layout='fan'].draw-top-selecting {
+    --fan-min-step: 68px;
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card {
+    position: relative;
+    z-index: var(--fan-z, 1);
+    transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
+    transform-origin: center bottom;
+    border-left-width: 3px;
+    box-shadow:
+      -5px 4px 12px hsla(0, 0%, 0%, 0.56),
+      var(--shadow-card);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='attack'] {
+    border-left-color: hsl(8, 78%, 54%);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='skill'] {
+    border-left-color: hsl(200, 78%, 56%);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='power'] {
+    border-left-color: hsl(42, 88%, 56%);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='status'] {
+    border-left-color: hsl(24, 14%, 46%);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='curse'] {
+    border-left-color: hsl(282, 70%, 58%);
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card + .game-card {
+    margin-left: calc(
+      clamp(
+          var(--fan-min-step),
+          (var(--fan-avail) - var(--fan-card-w)) / var(--fan-divisor, 1),
+          var(--fan-card-w) + var(--fan-gap-max)
+        ) -
+        var(--fan-card-w)
+    );
+  }
+
+  /* Keep stacked unplayable cards 100% opaque so cards underneath never bleed through */
+  #hand-tray[data-hand-layout='fan'] .game-card.unplayable-dim,
+  #hand-tray[data-hand-layout='fan'] .game-card.unplayable-dim:hover {
+    opacity: 1;
+    filter: saturate(0.28) brightness(0.56);
+    transform: translateY(calc(var(--fan-y, 0px) + 5px)) rotate(var(--fan-rot, 0deg)) scale(0.97);
+    border-color: hsla(26, 12%, 28%, 0.92);
+    cursor: pointer;
+  }
+
+  #hand-tray[data-hand-layout='fan'] .game-card.selected-card,
+  #hand-tray[data-hand-layout='fan'] .game-card.inspected-card,
+  #hand-tray[data-hand-layout='fan'] .game-card.scrub-focused {
+    transform: translateY(-13px) rotate(0deg) scale(1.05);
+    z-index: 25;
+  }
+
+  #hand-tray[data-hand-layout='fan'] .game-card.scrub-focused {
+    box-shadow:
+      0 14px 28px hsla(20, 35%, 3%, 0.86),
+      0 0 0 2px var(--accent-brass);
+  }
+
+  #hand-tray[data-hand-layout='fan'] .game-card.unplayable-dim.inspected-card,
+  #hand-tray[data-hand-layout='fan'] .game-card.unplayable-dim.scrub-focused {
+    opacity: 1;
+    filter: saturate(0.78) brightness(0.96);
+    transform: translateY(-13px) rotate(0deg) scale(1.05);
+  }
+
+  #hand-tray[data-hand-layout='fan'] .game-card.is-aiming-source {
+    transform: translateY(-13px) rotate(0deg) scale(1.05);
+    z-index: 30;
   }
 
   .modal-backdrop {
@@ -1397,16 +1504,22 @@
   }
 
   .combat-arena {
-    gap: 8px;
-    padding: 26px 8px 8px;
+    gap: 6px;
+    padding: 24px 6px 8px;
+  }
+
+  .incoming-damage-badge {
+    top: 4px;
+    padding: 1.5px 8px;
+    font-size: 0.67rem;
   }
 
   .fighters-group {
-    gap: 6px;
+    gap: 5px;
   }
 
   .fighters-group.player-side {
-    padding-right: 6px;
+    padding-right: 5px;
   }
 
   .combat-arena[data-enemy-count='1'] {
@@ -1417,17 +1530,17 @@
     flex: 0 1 156px;
     width: 100%;
     min-width: 0;
-    padding: 7px 8px 9px;
-    gap: 4px;
+    padding: 6px 7px 7px;
+    gap: 3px;
   }
 
   .combat-arena[data-enemy-count='1'] .unit-figure {
-    width: 60px;
-    height: 60px;
+    width: 54px;
+    height: 54px;
   }
 
   .combat-arena[data-enemy-count='2'] {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.88fr);
+    grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.92fr);
   }
 
   .combat-arena[data-enemy-count='2'] .fighter-unit,
@@ -1436,24 +1549,25 @@
     width: 100%;
     max-width: none;
     min-width: 0;
-    padding: 6px 5px 8px;
-    gap: 4px;
+    padding: 5px 4px 6px;
+    gap: 3px;
   }
 
   .combat-arena[data-enemy-count='2'] .unit-figure {
-    width: 50px;
-    height: 50px;
+    width: 46px;
+    height: 46px;
   }
 
+  /* Plan 2: 3 enemies stay in a single compact horizontal row with subtle staggered depth */
   .combat-arena[data-enemy-count='3'] {
-    grid-template-columns: minmax(96px, 0.84fr) minmax(0, 1.96fr);
-    align-items: center;
+    grid-template-columns: minmax(76px, 0.86fr) minmax(0, 2.34fr);
+    align-items: stretch;
   }
 
   .combat-arena[data-enemy-count='3'] .fighters-group.enemy-side {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
     align-items: stretch;
   }
 
@@ -1462,48 +1576,176 @@
     width: 100%;
     max-width: none;
     min-width: 0;
-    padding: 6px 5px 8px;
-    gap: 4px;
+    padding: 5px 3px 6px;
+    gap: 3px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit:nth-child(1),
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit:nth-child(3) {
+    transform: translateY(2px);
+  }
+
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit:nth-child(2) {
+    transform: translateY(-4px);
+  }
+
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit.enemy-targetable:hover,
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit.enemy-selected,
+  .combat-arena[data-enemy-count='3'] .enemy-side .fighter-unit.drag-target-hover {
+    transform: translateY(-6px) scale(1.03);
   }
 
   .combat-arena[data-enemy-count='3'] .unit-figure {
-    width: 48px;
-    height: 48px;
+    width: 38px;
+    height: 38px;
   }
 
-  .intent-stack {
-    min-height: 22px;
+  .combat-arena[data-enemy-count='3'] .intent-badge {
+    min-height: 20px;
+    padding: 1.5px 4px;
+    font-size: 0.63rem;
+    gap: 2px;
   }
 
-  .combat-arena[data-enemy-count='2'] .orb-rail-inline .orb-slot,
-  .combat-arena[data-enemy-count='3'] .orb-rail-inline .orb-slot {
+  .combat-arena[data-enemy-count='3'] .intent-badge.icon-only {
+    min-width: 22px;
+    padding: 1.5px 4px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .unit-name-row {
+    min-height: 17px;
+    font-size: 0.64rem;
+    gap: 2px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .block-pill {
+    padding: 0 4px;
+    font-size: 0.6rem;
+  }
+
+  .combat-arena[data-enemy-count='3'] .hp-track {
+    height: 13px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .hp-label {
+    font-size: 0.59rem;
+  }
+
+  .combat-arena[data-enemy-count='3'] .status-row {
+    min-height: 20px;
+    gap: 2px 3px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .status-chip {
+    height: 19px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .status-icon {
     width: 19px;
     height: 19px;
   }
 
-  .combat-arena[data-enemy-count='2'] .orb-rail-inline,
-  .combat-arena[data-enemy-count='3'] .orb-rail-inline {
-    gap: 2.5px;
+  .combat-arena[data-enemy-count='3'] .status-val {
+    font-size: 0.62rem;
   }
 
-  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact .orb-slot {
+  .combat-arena[data-enemy-count='3'] .preview-pill {
+    padding: 1px 4px;
+    font-size: 0.54rem;
+    letter-spacing: 0;
+  }
+
+  /* 4+ enemy swarms (e.g. 4 Slimes / Reptomancer daggers): ultra-compact 2x2 fallback */
+  .combat-arena[data-enemy-count='4'] {
+    grid-template-columns: minmax(82px, 0.82fr) minmax(0, 2.18fr);
+    align-items: center;
+  }
+
+  .combat-arena[data-enemy-count='4'] .fighters-group.enemy-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    align-items: stretch;
+  }
+
+  .combat-arena[data-enemy-count='4'] .fighter-unit {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: 4px 4px 5px;
+    gap: 2px;
+  }
+
+  .combat-arena[data-enemy-count='4'] .unit-figure {
+    width: 34px;
+    height: 34px;
+  }
+
+  .combat-arena[data-enemy-count='4'] .unit-name-row {
+    min-height: 16px;
+    font-size: 0.64rem;
+  }
+
+  .combat-arena[data-enemy-count='4'] .hp-track {
+    height: 13px;
+  }
+
+  .combat-arena[data-enemy-count='4'] .hp-label {
+    font-size: 0.6rem;
+  }
+
+  .combat-arena[data-enemy-count='4'] .status-row {
+    min-height: 19px;
+    gap: 2px 3px;
+  }
+
+  .combat-arena[data-enemy-count='4'] .status-chip {
+    height: 18px;
+  }
+
+  .combat-arena[data-enemy-count='4'] .status-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .intent-stack {
+    min-height: 20px;
+  }
+
+  .combat-arena[data-enemy-count='2'] .orb-rail-inline .orb-slot,
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline .orb-slot,
+  .combat-arena[data-enemy-count='4'] .orb-rail-inline .orb-slot {
     width: 17px;
     height: 17px;
   }
 
-  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact {
+  .combat-arena[data-enemy-count='2'] .orb-rail-inline,
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline,
+  .combat-arena[data-enemy-count='4'] .orb-rail-inline {
     gap: 2px;
   }
 
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact .orb-slot,
+  .combat-arena[data-enemy-count='4'] .orb-rail-inline.is-compact .orb-slot {
+    width: 15px;
+    height: 15px;
+  }
+
+  .combat-arena[data-enemy-count='3'] .orb-rail-inline.is-compact,
+  .combat-arena[data-enemy-count='4'] .orb-rail-inline.is-compact {
+    gap: 1.5px;
+  }
+
   .intent-badge {
-    min-height: 22px;
+    min-height: 21px;
     padding: 2px 5px;
     font-size: 0.68rem;
     gap: 3px;
   }
 
   .intent-badge.icon-only {
-    min-width: 26px;
+    min-width: 24px;
     padding: 2px 5px;
   }
 
@@ -1520,8 +1762,8 @@
   }
 
   .unit-name-row {
-    min-height: 20px;
-    font-size: 0.74rem;
+    min-height: 19px;
+    font-size: 0.72rem;
   }
 
   .preview-pill {
@@ -1530,20 +1772,20 @@
   }
 
   .hp-track {
-    height: 15px;
+    height: 14px;
   }
 
   .hp-label {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
   }
 
   .status-row {
-    min-height: 25px;
-    gap: 4px 6px;
+    min-height: 23px;
+    gap: 3px 5px;
   }
 
   .status-chip {
-    height: 23px;
+    height: 22px;
     padding: 0;
     gap: 0;
     border-radius: 5px;
@@ -1554,14 +1796,14 @@
   }
 
   .status-icon {
-    width: 23px;
-    height: 23px;
+    width: 22px;
+    height: 22px;
   }
 
   .status-val {
     margin-left: -4px;
     margin-bottom: -1px;
-    font-size: 0.72rem;
+    font-size: 0.69rem;
   }
 
   .next-intent-hint {
@@ -1573,58 +1815,139 @@
     text-align: center;
   }
 
+  /* Plan 2: Slimmed Unified Single-Row Combat Dock (Restart moved into HUD More drawer) */
   .combat-dock {
-    padding: 8px 8px;
-    gap: 6px;
-  }
-
-  .dock-controls {
-    gap: 6px;
-  }
-
-  .dock-piles-row,
-  .dock-piles-right {
+    position: relative;
+    padding: 5px 6px 4px;
     gap: 4px;
   }
 
+  .combat-dock #btn-restart-combat {
+    display: none;
+  }
+
+  .dock-controls {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+  }
+
+  .dock-piles-row,
+  .dock-piles-right,
   .dock-main-row {
-    gap: 6px;
+    display: contents;
   }
 
   .dock-controls .combat-inline-banner {
-    min-height: 36px;
-    padding: 4px 7px;
-    font-size: 0.72rem;
+    order: 0;
+    flex: 1 0 100%;
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 0.7rem;
     line-height: 1.24;
   }
 
+  .dock-controls .combat-inline-banner[data-banner-idle='true'] {
+    display: none;
+  }
+
+  .dock-controls #energy-orb {
+    order: 1;
+    flex-shrink: 0;
+  }
+
+  .dock-controls #btn-draw-pile {
+    order: 2;
+  }
+
+  .dock-controls #btn-discard-pile {
+    order: 3;
+  }
+
+  .dock-controls #btn-exhaust-pile {
+    order: 4;
+  }
+
+  .dock-controls #btn-end-turn,
+  .dock-controls #btn-confirm-retain {
+    order: 5;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
   .energy-orb {
-    width: 44px;
-    height: 44px;
-    font-size: 0.86rem;
+    width: 40px;
+    height: 40px;
+    font-size: 0.82rem;
+  }
+
+  .energy-orb span {
+    font-size: 0.56rem;
   }
 
   .pile-group {
     gap: 4px;
   }
 
-  .pile-group button {
-    min-height: 34px;
-    padding: 4px 6px;
-    font-size: 0.69rem;
+  .pile-btn .pile-label-full,
+  .pile-btn .pile-paren {
+    display: none;
+  }
+
+  .pile-btn .pile-label-short {
+    display: inline;
+  }
+
+  .dock-controls .pile-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 32px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
+  .dock-controls .pile-btn.pile-empty {
+    opacity: 0.68;
+  }
+
+  .dock-controls.is-multi-select .pile-btn {
+    padding: 3px 5px;
+    font-size: 0.66rem;
+  }
+
   #btn-end-turn {
-    min-height: 40px;
-    padding: 7px 12px;
-    font-size: 0.82rem;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+
+  .retain-confirm-btn {
+    padding: 4px 8px;
+    font-size: 0.68rem;
+    max-width: 132px;
+  }
+
+  .mobile-hand-bar {
+    padding: 0 2px;
+    gap: 6px;
+    font-size: 0.67rem;
+    min-height: 18px;
   }
 
   .mobile-log-toggle {
     display: inline-flex;
     align-items: center;
     flex-shrink: 0;
+    padding: 1px 6px;
+    font-size: 0.65rem;
   }
 
   .combat-log {
@@ -1632,34 +1955,49 @@
   }
 
   .combat-log.mobile-expanded {
-    display: block;
-    max-height: 112px;
+    display: flex;
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    bottom: calc(100% + 5px);
+    z-index: 40;
+    max-height: 152px;
+    padding: 8px 10px;
+    background: hsla(24, 18%, 9%, 0.96);
+    border: 1px solid hsla(40, 56%, 52%, 0.62);
+    box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.76);
   }
 
   .mobile-log-peek {
-    display: block;
-    padding: 5px 9px;
-    font-size: 0.72rem;
-    color: var(--text-ash);
-    background: var(--bg-cavern);
-    border: 1px solid var(--border-muted);
-    border-radius: var(--radius-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    cursor: pointer;
+    display: none;
   }
 
   .hand-tray {
-    padding: 14px 8px 10px;
+    --fan-card-w: 116px;
+    --fan-min-step: 46px;
+    --fan-gap-max: 6px;
+    --fan-avail: calc(100vw - 44px);
+    padding: 25px 8px 8px;
     gap: 8px;
+  }
+
+  .hand-tray[data-hand-layout='fan'] {
+    gap: 0;
+  }
+
+  .hand-tray[data-hand-layout='fan'].retain-selecting,
+  .hand-tray[data-hand-layout='fan'].discard-selecting,
+  .hand-tray[data-hand-layout='fan'].exhaust-selecting,
+  .hand-tray[data-hand-layout='fan'].upgrade-selecting,
+  .hand-tray[data-hand-layout='fan'].draw-top-selecting {
+    --fan-min-step: 54px;
   }
 
   .hand-tray .game-card {
     flex: 0 0 116px;
     width: 116px;
-    min-height: 178px;
-    padding: 7px 6px;
+    min-height: 168px;
+    padding: 6px 6px 5px;
   }
 
   .hand-tray .game-card .card-top {
@@ -1716,20 +2054,20 @@
   }
 
   .hand-tray .game-card .card-art-frame {
-    height: 56px;
-    margin-bottom: 4px;
+    height: 52px;
+    margin-bottom: 3px;
   }
 
   .hand-tray .game-card .card-desc {
-    font-size: 0.71rem;
-    line-height: 1.32;
+    font-size: 0.7rem;
+    line-height: 1.28;
   }
 
   .hand-tray .game-card .card-footer {
     font-size: 0.56rem;
     gap: 3px;
-    margin-top: 5px;
-    padding-top: 4px;
+    margin-top: 3px;
+    padding-top: 3px;
   }
 
   .hand-tray .game-card .card-kw-trigger {
@@ -2124,6 +2462,53 @@
   .fx-card-reveal-card-wrap .card-desc {
     font-size: 0.68rem;
   }
+
+  /* Plan 2: Tighter Combat HUD on phones to preserve viewport for arena + hand fan */
+  .spire-shell[data-screen='combat'] .top-hud.run-hud {
+    gap: 3px 4px;
+    padding: 4px 6px;
+  }
+
+  .spire-shell[data-screen='combat'] .top-hud .relic-badge {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+  }
+
+  .spire-shell[data-screen='combat'] .top-hud .relic-badge .relic-icon {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Plan 2: One-Screen Portrait Combat Viewport Lock (bottom-pinned thumb zone, zero vertical scroll drift) */
+@media (max-width: 520px) and (min-height: 580px) {
+  .spire-shell[data-screen='combat'] {
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding: max(4px, env(safe-area-inset-top)) 6px max(6px, env(safe-area-inset-bottom));
+    gap: 5px;
+  }
+
+  .spire-shell[data-screen='combat'] .stage-viewport {
+    flex: 1 1 0;
+    min-height: 0;
+    gap: 5px;
+    overflow: hidden;
+  }
+
+  .spire-shell[data-screen='combat'] .combat-arena {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-content: center;
+  }
+
+  .spire-shell[data-screen='combat'] .combat-dock {
+    flex: 0 0 auto;
+    margin-top: auto;
+  }
 }
 
 @media (max-width: 375px) {
@@ -2200,11 +2585,40 @@
   .top-hud.run-hud .hud-more-btn {
     font-size: 0.98rem;
   }
+
+  .energy-orb {
+    width: 38px;
+    height: 38px;
+    font-size: 0.78rem;
+  }
+
+  .dock-controls .pile-btn {
+    padding: 3px 6px;
+    font-size: 0.69rem;
+  }
+
+  #btn-end-turn {
+    padding: 5px 10px;
+    font-size: 0.76rem;
+  }
+
+  .combat-arena[data-enemy-count='3'] {
+    grid-template-columns: minmax(70px, 0.84fr) minmax(0, 2.36fr);
+  }
+
+  .combat-arena[data-enemy-count='3'] .unit-figure {
+    width: 34px;
+    height: 34px;
+  }
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .game-card.playable:not(.selected-card):hover {
+  .game-card.playable:not(.selected-card):not(.scrub-focused):hover {
     transform: none;
+  }
+
+  .hand-tray[data-hand-layout='fan'] .game-card.playable:not(.selected-card):not(.scrub-focused):hover {
+    transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
   }
 
   .map-node-btn.available:hover {

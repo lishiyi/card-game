@@ -162,6 +162,7 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.playable ? 'playable' : '',
     options.conditionActive ? 'condition-active' : '',
     options.selected ? 'selected-card' : '',
+    options.inspected ? 'inspected-card' : '',
     options.dimmed ? 'unplayable-dim' : '',
     options.discardSelectable ? 'discard-selectable' : '',
     options.discardSynergy ? 'discard-synergy-card' : '',
@@ -296,8 +297,20 @@ export function renderCardHtml(cardInstance, options = {}) {
                                   ? '单体目标'
                                   : '自身';
 
-  const styleAttr =
-    typeof options.dealIndex === 'number' ? `style="--card-idx: ${options.dealIndex};"` : '';
+  const styleVars = [];
+  if (typeof options.dealIndex === 'number') {
+    styleVars.push(`--card-idx: ${options.dealIndex}`);
+  }
+  if (typeof options.fanRot === 'number') {
+    styleVars.push(`--fan-rot: ${options.fanRot.toFixed(2)}deg`);
+  }
+  if (typeof options.fanY === 'number') {
+    styleVars.push(`--fan-y: ${options.fanY.toFixed(1)}px`);
+  }
+  if (typeof options.fanZ === 'number') {
+    styleVars.push(`--fan-z: ${options.fanZ}`);
+  }
+  const styleAttr = styleVars.length > 0 ? `style="${styleVars.join('; ')};"` : '';
 
   const costBadgeClass = desc.costIncreasedNow
     ? 'cost-increased'
@@ -326,6 +339,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       id="${escapeHtml(`${idPrefix}-${cardInstance.instanceId}`)}"
       class="${extraClasses}${isPassiveCard ? ' card-passive' : ''}"
       ${styleAttr}
+      data-card-type="${escapeHtml(stats.type)}"
       data-rarity="${escapeHtml(stats.rarity)}"
       data-character="${escapeHtml(stats.character)}"
       data-action="${escapeHtml(actionName)}"

@@ -392,6 +392,10 @@ export function mountSpireApp(rootEl) {
     return typeof window !== 'undefined' && window.innerWidth <= 768;
   }
 
+  function isMobileFanOverlapped(handCount) {
+    return isCompactHudViewport() && settings.mobileHandLayout !== 'spread' && handCount >= 4;
+  }
+
   const ui = {
     debugMode: initialDebugMode,
     showCharacterSelect: initialShowCharacterSelect,
@@ -399,6 +403,7 @@ export function mountSpireApp(rootEl) {
     seedDrawerOpen: false,
     selectedCharacterId: state?.characterId || meta.selectedCharacterId || 'ironclad',
     selectedCardId: null,
+    inspectedCardId: null,
     selectedPotionSlot: null,
     activePotionPopoverSlot: null,
     hudMenuOpen: false,
@@ -519,6 +524,7 @@ export function mountSpireApp(rootEl) {
 
   function clearCombatSelection() {
     ui.selectedCardId = null;
+    ui.inspectedCardId = null;
     ui.selectedPotionSlot = null;
     ui.hoveredCardId = null;
     ui.hoveredPotionSlot = null;
@@ -562,8 +568,15 @@ export function mountSpireApp(rootEl) {
       clearCombatSelection();
       return;
     }
-    if (ui.selectedCardId && !state.combat.hand.some((c) => c.instanceId === ui.selectedCardId)) {
+    if (
+      ui.selectedCardId &&
+      (!state.combat.hand.some((c) => c.instanceId === ui.selectedCardId) ||
+        !canPlayCard(state, ui.selectedCardId).playable)
+    ) {
       ui.selectedCardId = null;
+    }
+    if (ui.inspectedCardId && !state.combat.hand.some((c) => c.instanceId === ui.inspectedCardId)) {
+      ui.inspectedCardId = null;
     }
     if (ui.hoveredCardId && !state.combat.hand.some((c) => c.instanceId === ui.hoveredCardId)) {
       ui.hoveredCardId = null;
@@ -764,7 +777,7 @@ export function mountSpireApp(rootEl) {
 
     const shellCharId = normalizeCharacterId(state.characterId);
     stageRoot.innerHTML = `
-      <div class="spire-shell" data-character="${escapeHtml(shellCharId)}">
+      <div class="spire-shell" data-character="${escapeHtml(shellCharId)}" data-screen="${escapeHtml(state.screen)}">
         ${renderTopHud({ state, ui })}
         <main class="stage-viewport">
           ${mainHtml}
@@ -1114,18 +1127,31 @@ export function mountSpireApp(rootEl) {
       executeResolveCardChoiceWithFx(instanceId);
       return;
     }
-    const card = state.combat.hand.find((c) => c.instanceId === instanceId);
+    const cardIdx = state.combat.hand.findIndex((c) => c.instanceId === instanceId);
+    const card = cardIdx >= 0 ? state.combat.hand[cardIdx] : null;
     if (!card) return;
 
     ui.selectedPotionSlot = null;
+    const isOverlappedFanCard =
+      isMobileFanOverlapped(state.combat.hand.length) && cardIdx < state.combat.hand.length - 1;
     const check = canPlayCard(state, instanceId);
     if (!check.playable) {
+      if (isCompactHudViewport() && settings.mobileHandLayout !== 'spread') {
+        const nextInspect = ui.inspectedCardId === instanceId ? null : instanceId;
+        ui.inspectedCardId = nextInspect;
+        ui.selectedCardId = null;
+        soundEngine.play(nextInspect ? 'card_select' : 'ui_click');
+        setNotice(nextInspect ? check.reason : '', nextInspect ? 'warn' : 'normal');
+        render();
+        return;
+      }
       soundEngine.play('error');
       setNotice(check.reason, 'warn');
       render();
       return;
     }
 
+    ui.inspectedCardId = null;
     const stats = getCardStats(card);
     const alive = getAliveEnemies(state.combat);
 
@@ -1137,8 +1163,8 @@ export function mountSpireApp(rootEl) {
       return;
     }
 
-    // Optional two-tap confirmation mode for mobile anti-misclick
-    if (settings.mobileTapConfirm && ui.selectedCardId !== instanceId) {
+    // Two-tap preview when explicit mobile tap-confirm is enabled OR tapping an overlapped fan card
+    if ((settings.mobileTapConfirm || isOverlappedFanCard) && ui.selectedCardId !== instanceId) {
       ui.selectedCardId = instanceId;
       soundEngine.play('card_select');
       setNotice('');
@@ -1148,6 +1174,27 @@ export function mountSpireApp(rootEl) {
 
     const targetId = stats.target === 'enemy' ? alive[0]?.id ?? null : null;
     executeCardPlayWithFx(instanceId, targetId);
+  }
+
+  function focusHandCard(instanceId) {
+    if (!state || state.screen !== 'combat' || !state.combat || hasPendingCardChoice(state.combat)) {
+      return;
+    }
+    const card = state.combat.hand.find((c) => c.instanceId === instanceId);
+    if (!card) return;
+    ui.selectedPotionSlot = null;
+    const check = canPlayCard(state, instanceId);
+    if (check.playable) {
+      ui.selectedCardId = instanceId;
+      ui.inspectedCardId = null;
+      setNotice('');
+    } else {
+      ui.selectedCardId = null;
+      ui.inspectedCardId = instanceId;
+      setNotice(check.reason, 'warn');
+    }
+    soundEngine.play('card_select');
+    render();
   }
 
   function handleEnemyClick(enemyId) {
@@ -1403,6 +1450,7 @@ export function mountSpireApp(rootEl) {
     getUi: () => ui,
     hideTooltip,
     onPlayCard: (instanceId, targetEnemyId) => executeCardPlayWithFx(instanceId, targetEnemyId),
+    onFocusCard: (instanceId) => focusHandCard(instanceId),
     onSyncTactics: (override) => syncCombatTactics(override),
   });
 
@@ -1485,7 +1533,7 @@ export function mountSpireApp(rootEl) {
   };
 
   rootEl.addEventListener('click', (event) => {
-    if (dragController.shouldSuppressClick()) return;
+    if (dragController.shouldSuppressClick(event.target)) return;
     const targetEl = event.target instanceof Element ? event.target : null;
     const rawTarget = targetEl ? targetEl.closest('[data-action]') : null;
     const isBackdropInnerClick =
@@ -1558,6 +1606,18 @@ export function mountSpireApp(rootEl) {
           ui.inspectedMapNodeId = null;
           hoveredMapNodeId = null;
           syncMapHighlights();
+        }
+        const clickedInsideCombatLog = Boolean(targetEl?.closest('#combat-log, #btn-toggle-mobile-log'));
+        const hadCombatFocus =
+          state?.screen === 'combat' &&
+          (ui.selectedCardId || ui.inspectedCardId || (ui.mobileLogExpanded && !clickedInsideCombatLog));
+        if (hadCombatFocus) {
+          ui.selectedCardId = null;
+          ui.inspectedCardId = null;
+          if (ui.mobileLogExpanded && !clickedInsideCombatLog) {
+            ui.mobileLogExpanded = false;
+          }
+          render();
         }
       }
       return;
@@ -1890,8 +1950,9 @@ export function mountSpireApp(rootEl) {
         ui.hudMenuOpen = false;
         ui.activePotionPopoverSlot = null;
         render();
-      } else if (ui.selectedCardId || ui.selectedPotionSlot !== null) {
+      } else if (ui.selectedCardId || ui.inspectedCardId || ui.selectedPotionSlot !== null || ui.mobileLogExpanded) {
         clearCombatSelection();
+        ui.mobileLogExpanded = false;
         render();
       } else if ((ui.showCharacterSelect || !state) && ui.menuView && ui.menuView !== 'home') {
         ui.menuView = 'home';

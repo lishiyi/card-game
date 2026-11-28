@@ -293,10 +293,41 @@ export function createCombatDragController({
   getUi,
   hideTooltip,
   onPlayCard,
+  onFocusCard,
   onSyncTactics,
 }) {
   let drag = null;
   let suppressNextClickUntil = 0;
+  let suppressScope = 'all';
+
+  function findFanCardAtX(tray, clientX) {
+    if (!tray) return null;
+    const cards = [...tray.querySelectorAll('.game-card[data-instance-id]')];
+    if (cards.length === 0) return null;
+    for (let i = cards.length - 1; i >= 0; i -= 1) {
+      const r = cards[i].getBoundingClientRect();
+      if (clientX >= r.left && clientX <= r.right) {
+        return cards[i];
+      }
+    }
+    let best = cards[0];
+    let bestDist = Infinity;
+    for (const c of cards) {
+      const r = c.getBoundingClientRect();
+      const dist = Math.abs(clientX - (r.left + r.width / 2));
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  function clearScrubHighlight() {
+    rootEl.querySelectorAll('#hand-tray .game-card.scrub-focused').forEach((el) => {
+      el.classList.remove('scrub-focused');
+    });
+  }
 
   function findHoveredEnemyId(clientX, clientY, isTouch = false) {
     const enemyEls = rootEl.querySelectorAll('[id^="enemy-unit-"][data-enemy-id]:not(.dead)');
@@ -373,6 +404,7 @@ export function createCombatDragController({
 
   function cleanupDrag({ restoreTactics = true } = {}) {
     if (!drag) return;
+    clearScrubHighlight();
     if (drag.cardEl) {
       drag.cardEl.classList.remove('is-dragging-source', 'is-aiming-source');
     }
@@ -393,7 +425,9 @@ export function createCombatDragController({
   }
 
   function activateDrag(event) {
-    if (!drag || drag.active) return;
+    if (!drag || drag.active || !drag.playable || !drag.stats || !drag.cardEl) return;
+    clearScrubHighlight();
+    drag.scrubbing = false;
     drag.active = true;
     hideTooltip();
     document.body.classList.add('spire-dragging');
@@ -407,8 +441,16 @@ export function createCombatDragController({
       drag.cardEl.classList.add('is-dragging-source');
       const ghost = drag.cardEl.cloneNode(true);
       ghost.removeAttribute('id');
-      ghost.classList.remove('is-dragging-source', 'selected-card', 'card-deal-in');
+      ghost.classList.remove(
+        'is-dragging-source',
+        'selected-card',
+        'inspected-card',
+        'scrub-focused',
+        'card-deal-in'
+      );
       ghost.classList.add('drag-card-ghost');
+      ghost.style.removeProperty('--fan-rot');
+      ghost.style.removeProperty('--fan-y');
       ghost.style.width = `${Math.round(drag.originRect.width)}px`;
       dragLayerEl.innerHTML = '';
       dragLayerEl.appendChild(ghost);
@@ -492,6 +534,34 @@ export function createCombatDragController({
     drag.lastY = clientY;
   }
 
+  function updateScrubTarget(clientX) {
+    if (!drag || !drag.trayEl) return;
+    const state = getState();
+    if (!state?.combat) return;
+    const hitCardEl = findFanCardAtX(drag.trayEl, clientX);
+    if (!hitCardEl) return;
+    const hitId = hitCardEl.dataset.instanceId;
+    if (!hitId || hitId === drag.scrubInstanceId) return;
+
+    clearScrubHighlight();
+    hitCardEl.classList.add('scrub-focused');
+    drag.scrubInstanceId = hitId;
+    drag.cardEl = hitCardEl;
+    drag.instanceId = hitId;
+    drag.originRect = hitCardEl.getBoundingClientRect();
+
+    const cardObj = state.combat.hand.find((c) => c.instanceId === hitId);
+    const playable = Boolean(cardObj && canPlayCard(state, hitId).playable);
+    drag.playable = playable;
+    drag.stats = cardObj ? getCardStats(cardObj) : null;
+
+    if (playable) {
+      onSyncTactics({ activeCardId: hitId, hoveredEnemyId: null });
+    } else {
+      onSyncTactics({ activeCardId: null, hoveredEnemyId: null });
+    }
+  }
+
   rootEl.addEventListener('pointerdown', (event) => {
     const isTouch = event.pointerType === 'touch';
     if (!isTouch && event.button !== 0) return;
@@ -510,17 +580,30 @@ export function createCombatDragController({
 
     const targetEl = event.target instanceof Element ? event.target : null;
     if (targetEl?.closest('.card-kw-trigger')) return;
-    const cardEl = targetEl ? targetEl.closest('#hand-tray .game-card.playable[data-instance-id]') : null;
-    if (!cardEl) return;
+    const trayEl = targetEl ? targetEl.closest('#hand-tray') : null;
+    const cardEl = targetEl ? targetEl.closest('#hand-tray .game-card[data-instance-id]') : null;
+    if (!cardEl || !trayEl) return;
 
     const instanceId = cardEl.dataset.instanceId;
-    if (!canPlayCard(state, instanceId).playable) return;
     const cardObj = state.combat.hand.find((c) => c.instanceId === instanceId);
     if (!cardObj) return;
+
+    const playable = canPlayCard(state, instanceId).playable;
+    const canScrub =
+      isTouch &&
+      trayEl.dataset.handLayout === 'fan' &&
+      trayEl.scrollWidth <= trayEl.clientWidth + 2 &&
+      state.combat.hand.length >= 4;
+    if (!playable && !canScrub) return;
 
     drag = {
       pointerId: event.pointerId,
       isTouch,
+      trayEl,
+      canScrub,
+      scrubbing: false,
+      scrubInstanceId: null,
+      playable,
       instanceId,
       cardEl,
       stats: getCardStats(cardObj),
@@ -570,19 +653,34 @@ export function createCombatDragController({
       const dx = event.clientX - drag.startX;
       const dy = event.clientY - drag.startY;
       if (drag.isTouch) {
+        if (drag.scrubbing) {
+          updateScrubTarget(event.clientX);
+          const trayTop = drag.trayEl ? drag.trayEl.getBoundingClientRect().top : drag.startY;
+          if (drag.playable && (drag.startY - event.clientY >= 30 || event.clientY < trayTop - 10)) {
+            activateDrag(event);
+          }
+          return;
+        }
         const absDx = Math.abs(dx);
         const absDy = Math.abs(dy);
-        // Horizontal swipe -> hand-out immediately to native horizontal hand-tray scrolling!
         if (absDx >= 7 && absDx >= absDy * 0.75) {
+          if (drag.canScrub) {
+            drag.scrubbing = true;
+            hideTooltip();
+            updateScrubTarget(event.clientX);
+            return;
+          }
+          // Horizontal swipe on scrollable tray -> hand off immediately to native scroll
           drag = null;
           return;
         }
         // Clear upward swipe -> lift & drag-play card!
-        if (drag.startY - event.clientY >= 24 && drag.startY - event.clientY > absDx * 1.25) {
+        if (drag.playable && drag.startY - event.clientY >= 24 && drag.startY - event.clientY > absDx * 1.25) {
           activateDrag(event);
         }
         return;
       }
+      if (!drag.playable) return;
       const dist = Math.hypot(dx, dy);
       if (dist < DRAG_THRESHOLD_PX) return;
       activateDrag(event);
@@ -591,12 +689,12 @@ export function createCombatDragController({
     updateDragPosition(event.clientX, event.clientY);
   });
 
-  // 1) Prevent browser pull-to-refresh / vertical scroll while actively dragging a card by touch
+  // 1) Prevent browser pull-to-refresh / vertical scroll while actively dragging or fan-scrubbing by touch
   // 2) Prevent horizontal page panning / iOS Safari rubber-band overscroll when swiping #hand-tray past its edges
   window.addEventListener(
     'touchmove',
     (event) => {
-      if (drag && drag.active && drag.isTouch) {
+      if (drag && drag.isTouch && (drag.active || drag.scrubbing)) {
         event.preventDefault();
         return;
       }
@@ -636,17 +734,30 @@ export function createCombatDragController({
     if (event && event.pointerId !== undefined && event.pointerId !== drag.pointerId) return;
 
     const wasActive = drag.active;
+    const wasScrubbing = drag.scrubbing;
+    const scrubId = drag.scrubInstanceId;
     const instanceId = drag.instanceId;
-    const targetType = drag.stats.target;
+    const targetType = drag.stats?.target;
     const hoveredEnemyId = drag.hoveredEnemyId;
     const dropReady = drag.dropReady;
 
     if (!wasActive) {
+      clearScrubHighlight();
       drag = null;
+      if (wasScrubbing) {
+        suppressNextClickUntil = Date.now() + 260;
+        suppressScope = 'hand';
+        if (!cancelled && scrubId && typeof onFocusCard === 'function') {
+          onFocusCard(scrubId);
+        } else {
+          onSyncTactics();
+        }
+      }
       return;
     }
 
     suppressNextClickUntil = Date.now() + 260;
+    suppressScope = 'all';
     cleanupDrag({ restoreTactics: false });
 
     if (cancelled) {
@@ -673,6 +784,13 @@ export function createCombatDragController({
   return {
     isDragging: () => Boolean(drag && drag.active),
     cancel: () => finishDrag(null, true),
-    shouldSuppressClick: () => Date.now() < suppressNextClickUntil,
+    shouldSuppressClick: (targetEl = null) => {
+      if (Date.now() >= suppressNextClickUntil) return false;
+      if (suppressScope === 'hand') {
+        const el = targetEl instanceof Element ? targetEl : null;
+        return Boolean(el?.closest('#hand-tray'));
+      }
+      return true;
+    },
   };
 }

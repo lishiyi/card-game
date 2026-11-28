@@ -387,6 +387,19 @@ export function renderTopHud({ state, ui }) {
               <span class="nav-btn-emoji" aria-hidden="true">🌱</span><span class="nav-btn-text"> 种子 ${escapeHtml(seedCode)}</span>
             </button>
             <span class="hud-menu-divider" aria-hidden="true"></span>
+            ${
+              state.screen === 'combat' && state.combat?.status === 'ongoing'
+                ? `<button
+                    type="button"
+                    id="btn-hud-restart-combat"
+                    class="btn-stone hud-menu-restart-btn"
+                    data-action="restart-combat"
+                    ${state.combatSnapshot ? '' : 'disabled'}
+                  >
+                    <span class="nav-btn-emoji" aria-hidden="true">↺</span><span class="nav-btn-text"> 重启本场战斗${(state.stats?.combatRestarts ?? 0) > 0 ? ` (${escapeHtml(state.stats.combatRestarts)})` : ''}</span>
+                  </button>`
+                : ''
+            }
             <button type="button" id="btn-new-run" class="btn-stone" data-action="new-run">
               <span class="nav-btn-emoji" aria-hidden="true">🔄</span><span class="nav-btn-text"> 新<span class="hud-btn-long">的一</span>局</span>
             </button>

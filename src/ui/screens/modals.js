@@ -885,6 +885,21 @@ function renderSettingsModal({ settings, ui, state }) {
 
             <div class="settings-row">
               <div>
+                <div class="settings-label">手机端手牌排布</div>
+                <div class="settings-desc">「扇形堆叠」按手牌张数自适应轻度重叠，单屏可看 5–7 张牌，轻点或单指横滑可弹出完整卡面预览；「平铺横滑」保持无遮挡逐张平铺。</div>
+              </div>
+              <button
+                type="button"
+                id="btn-toggle-mobile-hand-layout"
+                class="${settings.mobileHandLayout !== 'spread' ? 'btn-brass' : 'btn-stone'}"
+                data-action="toggle-mobile-hand-layout"
+              >
+                ${settings.mobileHandLayout !== 'spread' ? '手牌排布：扇形堆叠' : '手牌排布：平铺横滑'}
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div>
                 <div class="settings-label">新机制首次战斗提示</div>
                 <div class="settings-desc">首次遇到观者姿态、充能球、真言、剧毒/小刀、消耗或状态/诅咒牌时弹出简短浮动指引（不遮挡出牌）。</div>
               </div>

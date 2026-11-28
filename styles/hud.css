@@ -310,7 +310,9 @@
 
 .hud-more-btn,
 .hud-menu-divider,
-.hud-menu-seed-btn {
+.hud-menu-seed-btn,
+.hud-menu-restart-btn,
+.pile-label-short {
   display: none;
 }
 

@@ -111,6 +111,20 @@
   z-index: 6;
 }
 
+.game-card.inspected-card {
+  transform: translateY(-14px) scale(1.04);
+  box-shadow: 0 14px 28px hsla(20, 35%, 3%, 0.86), 0 0 0 2px hsl(212, 34%, 70%);
+  z-index: 6;
+}
+
+#hand-tray .game-card.unplayable-dim.inspected-card,
+#hand-tray .game-card.unplayable-dim.scrub-focused {
+  opacity: 0.96;
+  filter: saturate(0.72) brightness(0.95);
+  border-color: hsl(212, 34%, 66%);
+  cursor: pointer;
+}
+
 .game-card:disabled:not(.unplayable-dim) {
   opacity: 1;
   cursor: default;
