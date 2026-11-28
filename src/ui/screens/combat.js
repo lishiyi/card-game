@@ -13,7 +13,7 @@ import {
   hasPendingCardChoice,
   hasRelic,
 } from '../../engine/combat.js';
-import { getEnemyIntentPreview } from '../../engine/math.js';
+import { getDeadOnRepeatCount, getEnemyIntentPreview, isCardDeadOnInHand } from '../../engine/math.js';
 import { isCardBonusConditionMet } from '../../engine/tactics.js';
 import { detectActiveMechanicTip } from '../glossary.js';
 import { escapeHtml, renderCardHtml, renderStatusesHtml } from '../helpers.js';
@@ -419,6 +419,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
           : check.reason.includes('天鹅绒项圈') || check.reason.includes('天鹅绒颈圈') || check.reason.includes('凡庸')
             ? 'choker'
             : 'unplayable';
+      const cStats = getCardStats(card);
+      const deadOnActive = Boolean(cStats.deadOn && isCardDeadOnInHand(combat, state.player, card));
+      const deadOnRepeat = deadOnActive ? getDeadOnRepeatCount(state.player) : 1;
       const conditionMet = check.playable && isCardBonusConditionMet(state, card);
       return renderCardHtml(card, {
         ...fanProps,
@@ -426,6 +429,8 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
         action: 'click-hand-card',
         playable: check.playable,
         conditionActive: conditionMet,
+        deadOnActive,
+        deadOnRepeat,
         selected: ui.selectedCardId === card.instanceId,
         inspected: ui.inspectedCardId === card.instanceId,
         dimmed: !check.playable,

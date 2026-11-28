@@ -6874,3 +6874,98 @@ test('Phase 2 The Hermit Full Roster: 34 Uncommon, 17 Rare, Impending Doom, 10 C
   assert.equal(relRun.player.hp, 5, 'Pet Ghost kept HP intact on first lethal prevention');
   assert.equal(relRun.combat.petGhostUsed, true);
 });
+
+test('Phase 3 Hermit Tactical Previews & Dead On Condition Highlights: Headshot ×2/×3, Grudge, Black Wind, Final Canter, Ricochet, From Beyond, Dead or Alive Bounty & Synergies', () => {
+  const run = createNewRun({ seed: 97301, characterId: 'hermit', skipNeow: true, unlockAllOverride: true });
+  run.player.relics = ['black_powder', 'red_scarf'];
+  startCombat(run, { id: 'hermit_p3', name: '战术测试', enemies: [{ templateId: 'jaw_worm' }] }, 'elite');
+  const enemy = run.combat.enemies[0];
+  enemy.hp = 14;
+  enemy.maxHp = 80;
+  enemy.block = 0;
+  enemy.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  run.player.hp = 55;
+  run.player.maxHp = 75;
+  run.player.energy = 3;
+
+  // 1. Headshot non-centered (7 dmg, NOT lethal) vs centered (14 dmg, LETHAL!) vs Snipe (21 dmg)
+  const hs = createCardInstance(run, 'headshot', false);
+  const s1 = createCardInstance(run, 'strike', false);
+  const d1 = createCardInstance(run, 'defend', false);
+  run.combat.hand = [hs, s1, d1]; // index 0 of 3 -> NOT Dead On
+  assert.equal(isCardBonusConditionMet(run, hs), false);
+  const pOff = previewCardDamageOnEnemy(run, hs, enemy);
+  assert.equal(pOff.totalDamage, 7);
+  assert.equal(pOff.isLethal, false);
+  assert.equal(pOff.deadOnActive, false);
+
+  run.combat.hand = [s1, hs, d1]; // index 1 of 3 -> Dead On!
+  assert.equal(isCardBonusConditionMet(run, hs), true);
+  const pOn = previewCardDamageOnEnemy(run, hs, enemy);
+  assert.equal(pOn.totalDamage, 14, 'Centered Headshot previews 2× (14) damage');
+  assert.equal(pOn.isLethal, true, 'Centered Headshot previews Lethal on 14 HP enemy');
+  assert.equal(pOn.deadOnActive, true);
+  assert.equal(pOn.deadOnMultiplier, 2);
+
+  run.player.statuses.snipe = 1;
+  const pSnipe = previewCardDamageOnEnemy(run, hs, enemy);
+  assert.equal(pSnipe.totalDamage, 21, 'Centered Headshot + Snipe previews 3× (21) damage');
+  assert.equal(pSnipe.deadOnMultiplier, 3);
+  const synHs = computeCardSynergies(run, hs, enemy.id);
+  assert.ok(synHs.callouts.some((c) => c.text.includes('精准就绪') && c.text.includes('狙击') && c.text.includes('黑火药')));
+  assert.ok(synHs.relicHighlights.some((r) => r.relicId === 'black_powder'));
+  delete run.player.statuses.snipe;
+
+  // 2. Bruise enemy trigger & additive preview
+  enemy.hp = 80;
+  enemy.statuses.bruise = 5;
+  const pBruise = previewCardDamageOnEnemy(run, s1, enemy);
+  assert.equal(pBruise.totalDamage, 6 + 5, 'Strike preview includes +5 Bruise damage');
+  const synBruise = computeCardSynergies(run, s1, enemy.id);
+  assert.ok(synBruise.enemyTriggers.some((t) => t.statusKey === 'bruise'));
+  delete enemy.statuses.bruise;
+
+  // 3. Dynamic Hermit damage previews: Black Wind, Grudge, Final Canter, Ricochet, From Beyond, Dead or Alive
+  const bw = createCardInstance(run, 'black_wind', false);
+  assert.equal(previewCardDamageOnEnemy(run, bw, enemy).totalDamage, 20, 'Black Wind previews 75 - 55 = 20 damage');
+
+  const gr = createCardInstance(run, 'grudge', false);
+  run.combat.hand = [gr, createCardInstance(run, 'injury', false)];
+  run.combat.drawPile = [createCardInstance(run, 'decay', false)];
+  run.combat.discardPile = [];
+  assert.equal(previewCardDamageOnEnemy(run, gr, enemy).totalDamage, 9 + 4, 'Grudge previews 9 + 2×2 curses = 13');
+
+  const fc = createCardInstance(run, 'final_canter', false);
+  run.combat.hand = [fc, createCardInstance(run, 'injury', false), createCardInstance(run, 'decay', false)];
+  assert.equal(previewCardDamageOnEnemy(run, fc, enemy).totalDamage, 20, 'Final Canter previews 10 × 2 hand curses = 20');
+
+  const ric = createCardInstance(run, 'ricochet', false);
+  run.combat.deadOnTriggeredThisTurn = 3;
+  assert.equal(isCardBonusConditionMet(run, ric), true);
+  assert.equal(previewCardDamageOnEnemy(run, ric, enemy).totalDamage, 7 * 4, 'Ricochet previews 1 + 3 hits on sole enemy');
+
+  const fb = createCardInstance(run, 'from_beyond', false);
+  run.combat.exhaustPile = [createCardInstance(run, 'strike', false), createCardInstance(run, 'defend', false)];
+  enemy.block = 30;
+  const pFb = previewCardDamageOnEnemy(run, fb, enemy);
+  assert.equal(pFb.hpLoss, 10, 'From Beyond previews 5 × 2 direct HP loss bypassing Block');
+  enemy.block = 0;
+
+  const doa = createCardInstance(run, 'dead_or_alive', false);
+  const pDoa = previewCardDamageOnEnemy(run, doa, enemy);
+  assert.equal(pDoa.hasFatalEffect, true);
+  assert.equal(pDoa.goldOnKill, 40, 'Dead or Alive previews +40 Elite Bounty Gold');
+
+  // 4. Called Shot, Roundhouse Kick, Malice condition highlights & Red Scarf synergy
+  const cs = createCardInstance(run, 'called_shot', false);
+  run.combat.lastCardTriggeredDeadOn = true;
+  assert.equal(isCardBonusConditionMet(run, cs), true);
+  const rhk = createCardInstance(run, 'roundhouse_kick', false);
+  assert.equal(isCardBonusConditionMet(run, rhk), true, 'Roundhouse Kick glows when non-attacking enemy present');
+  const mal = createCardInstance(run, 'malice', false);
+  run.combat.hand = [mal, createCardInstance(run, 'injury', false)];
+  assert.equal(isCardBonusConditionMet(run, mal), true, 'Malice glows when Curse is in hand');
+  const hor = createCardInstance(run, 'horror', false);
+  const synHor = computeCardSynergies(run, hor, enemy.id);
+  assert.ok(synHor.relicHighlights.some((r) => r.relicId === 'red_scarf'), 'Horror triggers Red Scarf highlight');
+});

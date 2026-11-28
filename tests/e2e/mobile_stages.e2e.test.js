@@ -1850,3 +1850,197 @@ test('Phase 1 Hermit E2E: default 4-hero vanilla isolation, ✨ 拓展角色 tog
     await session?.close();
   }
 });
+
+test('Phase 3 Hermit E2E: Dead On golden crosshair badge live shift, Headshot lethal preview, 390/375px mobile fan reticle visibility & 361 vs 436 Compendium isolation', { timeout: 60000 }, async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 820,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+
+    // 1. Enable ✨ 拓展角色, verify Compendium expands from 361/113/32 -> 436/127/35 with zero duplicate SVG IDs
+    const compAudit = await cdp.evaluate(`(async () => {
+      document.getElementById('btn-menu-standard')?.click();
+      document.getElementById('btn-char-select-toggle-expansion')?.click();
+      document.getElementById('btn-open-compendium')?.click();
+      const { ensureCharacterCardArtLoaded } = await import('./src/ui/card_art.js');
+      await ensureCharacterCardArtLoaded('hermit');
+      window.__SPIRE_APP__.render();
+      const cardTabOn = document.getElementById('btn-comp-tab-cards')?.textContent?.trim() || '';
+      const relicTabOn = document.getElementById('btn-comp-tab-relics')?.textContent?.trim() || '';
+      const potionTabOn = document.getElementById('btn-comp-tab-potions')?.textContent?.trim() || '';
+      document.querySelector('[data-action="set-compendium-char"][data-char-filter="hermit"]')?.click();
+      const hermitCardsRendered = document.querySelectorAll('#compendium-cards-grid > *').length;
+      document.getElementById('btn-comp-tab-relics')?.click();
+      const allRelicDefIds = [...document.querySelectorAll('#compendium-relics-grid svg defs [id]')].map((el) => el.id);
+      const relicDupIds = allRelicDefIds.length - new Set(allRelicDefIds).size;
+      document.getElementById('btn-comp-tab-potions')?.click();
+      const potionItems = document.querySelectorAll('#compendium-potions-grid article').length;
+      document.getElementById('btn-close-modal')?.click();
+      return {
+        cardTabOn,
+        relicTabOn,
+        potionTabOn,
+        hermitCardsRendered,
+        relicDupIds,
+        potionItems,
+        overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    })()`);
+    assert.ok(compAudit.cardTabOn.includes('/436'), `Expected /436 cards with expansion ON, got: ${compAudit.cardTabOn}`);
+    assert.ok(compAudit.relicTabOn.includes('/127'), `Expected /127 relics with expansion ON, got: ${compAudit.relicTabOn}`);
+    assert.ok(compAudit.potionTabOn.includes('/35'), `Expected /35 potions with expansion ON, got: ${compAudit.potionTabOn}`);
+    assert.equal(compAudit.hermitCardsRendered, 73, `Expected 73 Hermit class cards in Compendium filter (2 starter + 20C + 34U + 17R; 2 curses in special tab), got ${compAudit.hermitCardsRendered}`);
+    assert.equal(compAudit.relicDupIds, 0, 'Compendium relics must have zero duplicate SVG gradient IDs');
+    assert.equal(compAudit.potionItems, 35, 'Compendium potions must render all 35 potions when expansion ON');
+    assert.equal(compAudit.overflow, false);
+
+    // 2. Desktop Hermit Combat: Dead On crosshair live position shift + Snipe ×2 badge + Headshot Lethal tactical preview
+    const desktopDeadOn = await cdp.evaluate(`(async () => {
+      document.querySelector('.character-card[data-character-id="hermit"]')?.click();
+      document.getElementById('btn-start-character-run')?.click();
+      const app = window.__SPIRE_APP__;
+      const st = app.getState();
+      const { createCardInstance } = await import('./src/data/cards.js');
+      const { startCombat, playCard } = await import('./src/engine/combat.js');
+      const { ENCOUNTERS } = await import('./src/data/enemies.js');
+      st.neowState = null;
+      startCombat(st, ENCOUNTERS.floor1[0], 'normal');
+      st.screen = 'combat';
+      const enemy = st.combat.enemies[0];
+      enemy.hp = 14;
+      enemy.maxHp = 60;
+      enemy.block = 0;
+
+      // 5-card hand: [strike(0), headshot(1), strike(2-center), defend(3), defend(4)] -> headshot NOT centered!
+      const s0 = createCardInstance(st, 'strike', false);
+      const hs = createCardInstance(st, 'headshot', false);
+      const s2 = createCardInstance(st, 'strike', false);
+      const d3 = createCardInstance(st, 'defend', false);
+      const d4 = createCardInstance(st, 'defend', false);
+      st.combat.hand = [s0, hs, s2, d3, d4];
+      st.player.energy = 5;
+      app.render();
+
+      const hsElBefore = document.getElementById('hand-card-' + hs.instanceId);
+      const beforeActive = hsElBefore?.dataset?.deadOnActive === 'true';
+      const beforeBadgeCount = hsElBefore?.querySelectorAll('[data-dead-on-badge="true"]').length ?? 0;
+      const beforeDesc = hsElBefore?.querySelector('.card-desc')?.textContent || '';
+
+      // Play rightmost Defend (d4) -> 4-card hand [s0(0), hs(1-CENTER), s2(2-CENTER), d3(3)] -> Headshot IMMEDIATELY lights up!
+      playCard(st, d4.instanceId);
+      app.render();
+
+      const hsElAfter = document.getElementById('hand-card-' + hs.instanceId);
+      const afterActive = hsElAfter?.dataset?.deadOnActive === 'true';
+      const afterBadge = hsElAfter?.querySelector('[data-dead-on-badge="true"]');
+      const afterBadgeText = afterBadge?.textContent?.trim() || '';
+      const afterBadgeRect = afterBadge ? afterBadge.getBoundingClientRect() : null;
+      const afterDesc = hsElAfter?.querySelector('.card-desc')?.textContent || '';
+
+      // Hover Headshot -> verify live Lethal tactical badge appears on 14 HP enemy!
+      hsElAfter?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      const lethalVisible = Boolean(
+        document.querySelector('#enemy-unit-' + enemy.id + '.preview-lethal')
+      );
+
+      // Apply Snipe (1) -> verify badge updates to 精准×2 and desc shows 21!
+      st.player.statuses.snipe = 1;
+      app.render();
+      const snipeBadgeText = document.querySelector('#hand-card-' + hs.instanceId + ' [data-dead-on-badge="true"]')?.textContent?.trim() || '';
+      const snipeDesc = document.querySelector('#hand-card-' + hs.instanceId + ' .card-desc')?.textContent || '';
+      delete st.player.statuses.snipe;
+
+      return {
+        beforeActive,
+        beforeBadgeCount,
+        beforeDesc,
+        afterActive,
+        afterBadgeText,
+        afterBadgeW: afterBadgeRect ? Math.round(afterBadgeRect.width) : 0,
+        afterBadgeH: afterBadgeRect ? Math.round(afterBadgeRect.height) : 0,
+        afterDesc,
+        lethalVisible,
+        snipeBadgeText,
+        snipeDesc,
+      };
+    })()`);
+    assert.equal(desktopDeadOn.beforeActive, false, 'Off-center Headshot must NOT be dead-on-active');
+    assert.equal(desktopDeadOn.beforeBadgeCount, 0);
+    assert.ok(desktopDeadOn.beforeDesc.includes('7'), `Off-center Headshot must display 7 dmg, got: ${desktopDeadOn.beforeDesc}`);
+    assert.equal(desktopDeadOn.afterActive, true, 'Playing side card must shift Headshot into live dead-on-active state');
+    assert.equal(desktopDeadOn.afterBadgeText, '精准');
+    assert.ok(desktopDeadOn.afterBadgeW >= 24 && desktopDeadOn.afterBadgeH >= 12, 'Golden Dead On reticle badge must render visibly');
+    assert.ok(desktopDeadOn.afterDesc.includes('14'), `Centered Headshot must update live damage to 14, got: ${desktopDeadOn.afterDesc}`);
+    assert.equal(desktopDeadOn.lethalVisible, true, 'Selecting centered Headshot on 14 HP enemy must show Lethal tactical preview');
+    assert.equal(desktopDeadOn.snipeBadgeText, '精准×2', 'Snipe must upgrade reticle badge text to 精准×2');
+    assert.ok(desktopDeadOn.snipeDesc.includes('21'), `Snipe Headshot must show 21 damage, got: ${desktopDeadOn.snipeDesc}`);
+
+    // 3. Mobile 390px & 375px Stacked Fan Hand: verify centered Dead On badge stays uncovered in left exposed slice with zero overflow
+    for (const vw of [390, 375]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: vw,
+        height: 844,
+        deviceScaleFactor: 2,
+        mobile: true,
+      });
+      await new Promise((r) => setTimeout(r, 120));
+      const mobFan = await cdp.evaluate(`(async () => {
+        const app = window.__SPIRE_APP__;
+        const st = app.getState();
+        const { createCardInstance } = await import('./src/data/cards.js');
+        const c0 = createCardInstance(st, 'strike', false);
+        const c1 = createCardInstance(st, 'defend', false);
+        const hsMid = createCardInstance(st, 'headshot', false);
+        const c3 = createCardInstance(st, 'defend', false);
+        const c4 = createCardInstance(st, 'strike', false);
+        st.combat.hand = [c0, c1, hsMid, c3, c4];
+        app.render();
+
+        const tray = document.getElementById('hand-tray');
+        const midEl = document.getElementById('hand-card-' + hsMid.instanceId);
+        const nextEl = document.getElementById('hand-card-' + c3.instanceId);
+        const badge = midEl?.querySelector('[data-dead-on-badge="true"]');
+        const bRect = badge ? badge.getBoundingClientRect() : null;
+        const nRect = nextEl ? nextEl.getBoundingClientRect() : null;
+        return {
+          layout: tray?.dataset?.handLayout || '',
+          midActive: midEl?.dataset?.deadOnActive === 'true',
+          badgeW: bRect ? Math.round(bRect.width) : 0,
+          badgeRight: bRect ? Math.round(bRect.right) : 0,
+          nextCardLeft: nRect ? Math.round(nRect.left) : 0,
+          overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+        };
+      })()`);
+      assert.equal(mobFan.layout, 'fan', `Mobile ${vw}px should use stacked fan hand`);
+      assert.equal(mobFan.midActive, true, `Center Headshot in 5-card ${vw}px fan hand must be dead-on-active`);
+      assert.ok(mobFan.badgeW >= 20, `Mobile ${vw}px Dead On reticle badge must be visible`);
+      assert.ok(
+        mobFan.badgeRight <= mobFan.nextCardLeft + 6,
+        `Mobile ${vw}px top-left reticle badge (right=${mobFan.badgeRight}) must remain uncovered by next fanned card (left=${mobFan.nextCardLeft})`
+      );
+      assert.equal(mobFan.overflow, false, `Mobile ${vw}px combat must have zero horizontal overflow`);
+    }
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+  } finally {
+    await session?.close();
+  }
+});

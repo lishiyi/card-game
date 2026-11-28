@@ -2089,6 +2089,19 @@
     margin-bottom: 3px;
   }
 
+  .hand-tray .game-card .dead-on-reticle-badge {
+    top: 3px;
+    left: 3px;
+    padding: 1px 4px 1px 3px;
+    gap: 2px;
+    font-size: 0.54rem;
+  }
+
+  .hand-tray .game-card .dead-on-reticle-svg {
+    width: 9px;
+    height: 9px;
+  }
+
   .hand-tray .game-card .card-desc {
     font-size: 0.7rem;
     line-height: 1.28;

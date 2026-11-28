@@ -178,6 +178,7 @@ export function renderCardHtml(cardInstance, options = {}) {
     isColorless ? 'card-colorless' : '',
     options.playable ? 'playable' : '',
     options.conditionActive ? 'condition-active' : '',
+    options.deadOnActive ? 'dead-on-active' : '',
     options.selected ? 'selected-card' : '',
     options.inspected ? 'inspected-card' : '',
     options.dimmed ? 'unplayable-dim' : '',
@@ -362,6 +363,10 @@ export function renderCardHtml(cardInstance, options = {}) {
   const nameLenClass =
     stats.name.length >= 6 ? 'name-xcompact' : stats.name.length >= 5 ? 'name-compact' : '';
 
+  const deadOnBadgeHtml = options.deadOnActive
+    ? `<span class="dead-on-reticle-badge" data-dead-on-badge="true" aria-label="精准就绪"><svg class="dead-on-reticle-svg" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><line x1="8" y1="0.8" x2="8" y2="4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="12" x2="8" y2="15.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="0.8" y1="8" x2="4" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="8" x2="15.2" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>${options.deadOnRepeat > 1 ? `精准×${options.deadOnRepeat}` : '精准'}</span></span>`
+    : '';
+
   return `
     <button
       type="button"
@@ -374,6 +379,7 @@ export function renderCardHtml(cardInstance, options = {}) {
       data-action="${escapeHtml(actionName)}"
       data-instance-id="${escapeHtml(cardInstance.instanceId)}"
       ${options.conditionActive ? 'data-condition-active="true"' : ''}
+      ${options.deadOnActive ? 'data-dead-on-active="true"' : ''}
       ${options.unplayableReason ? `data-unplayable-reason="${escapeHtml(options.unplayableReason)}"` : ''}
       ${options.offerIndex !== undefined ? `data-offer-index="${options.offerIndex}"` : ''}
       ${disabledAttr}
@@ -397,7 +403,7 @@ export function renderCardHtml(cardInstance, options = {}) {
           </span>
           <span class="rarity-badge rarity-${escapeHtml(stats.rarity)} ${isColorless ? 'badge-colorless' : ''}">${escapeHtml(rarityText)}</span>
         </div>
-        <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" data-card-art-id="${escapeHtml(cardInstance.cardId)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}</div>
+        <div class="card-art-frame char-${escapeHtml(stats.character)} type-${escapeHtml(stats.type)}" data-card-art-id="${escapeHtml(cardInstance.cardId)}" aria-hidden="true">${getCardArtSvg(cardInstance.cardId, stats, combatCtx?.player?.artKey || options.characterId || null)}${deadOnBadgeHtml}</div>
         <div class="card-desc ${descToneClass}">${formatCardDescHtml(desc.text)}</div>
       </div>
       ${upgradePreviewNote}

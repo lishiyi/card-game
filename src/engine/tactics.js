@@ -22,7 +22,13 @@ import {
   RUSHDOWN_MAX_TRIGGERS_PER_TURN,
   VELVET_CHOKER_CARD_LIMIT,
 } from './combat.js';
-import { calculateAttackDamage, canTriggerFatalOnEnemy, getEnemyIntentPreview } from './math.js';
+import {
+  calculateAttackDamage,
+  canTriggerFatalOnEnemy,
+  getDeadOnRepeatCount,
+  getEnemyIntentPreview,
+  isCardDeadOnInHand,
+} from './math.js';
 
 function simulateSequentialHits(enemy, perHitDamage, hits, options = {}) {
   const initialBlock = Math.max(0, enemy.block ?? 0);
@@ -212,11 +218,24 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     } else if (typeof stats.applyMarkAndTrigger === 'number') {
       const projectedMark = (enemy.statuses?.mark ?? 0) + stats.applyMarkAndTrigger * totalPasses;
       directHpLossOverride = Math.min(enemy.hp, projectedMark);
+    } else if (typeof stats.fromBeyondHpLossPerExhaust === 'number') {
+      if (getAliveEnemies(combat).length === 1) {
+        const exhaustCount = combat.exhaustPile?.length ?? 0;
+        directHpLossOverride = Math.min(
+          enemy.hp,
+          stats.fromBeyondHpLossPerExhaust * exhaustCount * totalPasses
+        );
+      } else if (orbEvokeHits.length === 0) {
+        return null;
+      }
     } else if (stats.useBlockAsDamage) {
       basePerHit = Math.max(0, state.player?.block ?? 0);
       hits = 1;
     } else if (stats.damageFromDrawPileSize) {
       basePerHit = Math.max(0, combat.drawPile?.length ?? 0);
+      hits = 1;
+    } else if (stats.damageFromMissingHp) {
+      basePerHit = Math.max(0, (state.player?.maxHp ?? 0) - (state.player?.hp ?? 0));
       hits = 1;
     } else if (typeof stats.exhaustAllHandDamageEach === 'number') {
       basePerHit = stats.exhaustAllHandDamageEach;
@@ -224,6 +243,12 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
         (c) => c.instanceId !== cardInstance.instanceId
       ).length;
       hits = Math.max(0, otherHandCount);
+    } else if (typeof stats.magnumDiscardCount === 'number') {
+      basePerHit = stats.damage ?? 0;
+      const otherHandCount = combat.hand.filter(
+        (c) => c.instanceId !== cardInstance.instanceId
+      ).length;
+      hits = Math.min(stats.magnumDiscardCount, Math.max(0, otherHandCount));
     } else if (stats.hitsPerAttackPlayedThisTurn) {
       basePerHit = stats.damage ?? 0;
       hits = Math.max(0, combat.attacksPlayedThisTurn ?? 0);
@@ -236,14 +261,31 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     } else if (stats.hitsPerHandSkill) {
       basePerHit = stats.damage ?? 0;
       hits = combat.hand.filter((c) => getCardStats(c).type === 'skill').length;
+    } else if (stats.hitsPerHandCurse) {
+      basePerHit = stats.damage ?? 0;
+      hits = combat.hand.filter((c) => getCardStats(c).type === 'curse').length;
     } else if (stats.hitsPerAliveEnemy) {
       basePerHit = stats.damage ?? 0;
       hits = Math.max(1, getAliveEnemies(combat).length);
+    } else if (stats.ricochetPerDeadOnThisTurn) {
+      basePerHit = stats.damage ?? 0;
+      const extra = combat.deadOnTriggeredThisTurn ?? 0;
+      hits = getAliveEnemies(combat).length === 1 ? 1 + extra : 1;
     } else if (typeof stats.damage === 'number') {
       const strikeBonus = stats.bonusDamagePerStrike
         ? stats.bonusDamagePerStrike * countCombatStrikeCards(combat)
         : 0;
-      basePerHit = stats.damage + strikeBonus;
+      const curseBonus =
+        typeof stats.damagePerDeckCurse === 'number'
+          ? stats.damagePerDeckCurse *
+            [...(combat.hand || []), ...(combat.drawPile || []), ...(combat.discardPile || [])].filter(
+              (c) => getCardStats(c).type === 'curse'
+            ).length
+          : 0;
+      const cursedWeaponBonus = stats.cursedWeaponScale
+        ? Math.max(0, state.player?.cursedWeaponBonus ?? 0)
+        : 0;
+      basePerHit = stats.damage + strikeBonus + curseBonus + cursedWeaponBonus;
       if (stats.isXCost) {
         hits = Math.max(0, (state.player?.energy ?? 0) + (hasRelic(state, 'chemical_x') ? 2 : 0));
       } else {
@@ -254,6 +296,10 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
       }
     }
   }
+
+  const isDeadOnLive = Boolean(stats.deadOn && isCardDeadOnInHand(combat, state.player, cardInstance));
+  const deadOnMultiplier =
+    isDeadOnLive && stats.deadOnDoubleDamage ? 1 + getDeadOnRepeatCount(state.player) : 1;
 
   let sim = null;
   if (directHpLossOverride !== null) {
@@ -282,10 +328,12 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
     const perHitDamage = calculateAttackDamage(basePerHit, state.player, enemy, {
       strengthMultiplier: stats.strengthMultiplier ?? 1,
       flatBonus,
+      deadOnMultiplier,
       ignoreFlight: true,
     });
     const simEnemy = stats.removeEnemyBlockBeforeDamage ? { ...enemy, block: 0 } : enemy;
-    const effectiveHits = stats.exhaustAllHandDamageEach ? hits : hits * totalPasses;
+    const effectiveHits =
+      stats.exhaustAllHandDamageEach || stats.magnumDiscardCount ? hits : hits * totalPasses;
     sim = simulateSequentialHits(simEnemy, perHitDamage, effectiveHits, { isAttack: true });
     if (stats.removeEnemyBlockBeforeDamage && (enemy.block ?? 0) > 0) {
       sim.initialBlock = enemy.block;
@@ -404,16 +452,32 @@ export function previewCardDamageOnEnemy(state, cardInstance, enemy) {
 
   const fatalEligible = canTriggerFatalOnEnemy(state.combat, enemy);
   const hasFatalEffect = Boolean(
-    stats.fatal || stats.goldOnKill || stats.maxHpOnKill || stats.fatalPermanentUpgrade
+    stats.fatal ||
+      stats.goldOnKill ||
+      stats.maxHpOnKill ||
+      stats.fatalPermanentUpgrade ||
+      stats.fatalBountyGold ||
+      stats.fatalPermanentCostReduction
   );
   const isFatalBlockedByMinion = Boolean(hasFatalEffect && enemy.isMinion);
   const isFatalBlockedNonFinal = Boolean(hasFatalEffect && !fatalEligible && !enemy.isMinion);
+  const bountyGold =
+    fatalEligible && stats.fatalBountyGold
+      ? combat.role === 'boss'
+        ? 100
+        : combat.role === 'elite'
+          ? 40
+          : 15
+      : 0;
 
   return {
     ...baseResult,
-    goldOnKill: fatalEligible ? (stats.goldOnKill ?? 0) : 0,
+    deadOnActive: isDeadOnLive,
+    deadOnMultiplier,
+    goldOnKill: fatalEligible ? (stats.goldOnKill ?? 0) + bountyGold : 0,
     maxHpOnKill: fatalEligible ? (stats.maxHpOnKill ?? 0) : 0,
     fatalPermanentUpgrade: fatalEligible && Boolean(stats.fatalPermanentUpgrade),
+    fatalPermanentCostReduction: fatalEligible ? (stats.fatalPermanentCostReduction ?? 0) : 0,
     hasFatalEffect,
     fatalEligible,
     isFatalBlockedByMinion,
@@ -1340,6 +1404,83 @@ export function computeCardSynergies(state, cardInstance, targetEnemyId = null) 
     }
   }
 
+  // Hermit synergies: Dead On center-card live check, Bruise, Called Shot, Roundhouse Kick, Malice, Red Scarf
+  if (stats.deadOn) {
+    const deadOnLive = isCardDeadOnInHand(combat, player, cardInstance);
+    const repeatCnt = getDeadOnRepeatCount(player);
+    if (deadOnLive) {
+      if ((player.statuses?.concentration ?? 0) > 0) pushPlayerStatus('concentration', 'buff');
+      if ((player.statuses?.snipe ?? 0) > 0) pushPlayerStatus('snipe', 'buff');
+      if ((player.statuses?.smokingBarrel ?? 0) > 0) pushPlayerStatus('smokingBarrel', 'buff');
+      if ((player.statuses?.combo ?? 0) > 0 && (combat.comboUsedThisTurn ?? 0) < player.statuses.combo) {
+        pushPlayerStatus('combo', 'buff');
+      }
+      if (hasRelic(state, 'black_powder')) pushRelic('black_powder', 'buff');
+      const extras = [];
+      if (repeatCnt > 1) extras.push(`狙击 ×${repeatCnt}`);
+      if ((player.statuses?.smokingBarrel ?? 0) > 0) {
+        extras.push(`冒烟枪管 +${player.statuses.smokingBarrel * repeatCnt} 活力`);
+      }
+      if (hasRelic(state, 'black_powder')) extras.push(`黑火药 ${2 * repeatCnt} 群伤`);
+      if ((player.statuses?.combo ?? 0) > 0 && (combat.comboUsedThisTurn ?? 0) < player.statuses.combo) {
+        extras.push('连击回手');
+      }
+      const suffix = extras.length > 0 ? `（${extras.join(' · ')}）` : '';
+      result.callouts.push({
+        tone: 'buff',
+        text: `⊕ 【精准就绪】位于手牌正中${(player.statuses?.concentration ?? 0) > 0 ? ' / 专注生效' : ''}，将触发精准特效${suffix}！`,
+      });
+    } else {
+      result.callouts.push({
+        tone: 'warn',
+        text: '◎ 【精准未就绪】需位于手牌正中（或拥有【专注】）方可触发精准特效',
+      });
+    }
+  }
+  if (isAttack) {
+    const bruisedTargets = targetedEnemies.filter((e) => (e.statuses?.bruise ?? 0) > 0);
+    if (bruisedTargets.length > 0) {
+      for (const e of bruisedTargets) {
+        result.enemyTriggers.push({ enemyId: e.id, statusKey: 'bruise', tone: 'buff' });
+      }
+      const maxBruise = Math.max(...bruisedTargets.map((e) => e.statuses.bruise ?? 0));
+      result.callouts.push({
+        tone: 'buff',
+        text: `✦ 目标带有【瘀伤】：本次攻击基础伤害额外 +${maxBruise}！`,
+      });
+    }
+  }
+  if (stats.drawIfLastCardDeadOn && combat.lastCardTriggeredDeadOn) {
+    pushCallout('点名射击', `上一张牌触发了【精准】，本牌将额外抽 ${stats.drawIfLastCardDeadOn} 张牌！`, 'buff');
+  }
+  if (stats.stunNonAttackingEnemies) {
+    const nonAtkCount = aliveEnemies.filter((e) => !isEnemyIntendingAttack(e)).length;
+    if (nonAtkCount > 0) {
+      pushCallout('回旋踢', `将眩晕 ${nonAtkCount} 名非攻击意图敌人（保留其当前意图）！`, 'buff');
+    }
+  }
+  if (stats.maliceExhaustToAoeIfCurse) {
+    const handCurses = (combat.hand || []).filter(
+      (c) => c.instanceId !== cardInstance.instanceId && getCardStats(c).type === 'curse'
+    );
+    if (handCurses.length > 0) {
+      pushCallout('歹念', `手牌中有 ${handCurses.length} 张诅咒牌，选择消耗诅咒将对全体敌人造成伤害！`, 'buff');
+    }
+  }
+  if (hasRelic(state, 'red_scarf') && stats.applyEnemyStatuses && targetedEnemies.length > 0) {
+    const newDebuffPossible = targetedEnemies.some((e) => {
+      if ((e.statuses?.artifact ?? 0) > 0) return false;
+      return Object.entries(stats.applyEnemyStatuses).some(([k, v]) => {
+        if (k === 'strength') return v < 0 && (e.statuses?.strength ?? 0) >= 0;
+        return v > 0 && (e.statuses?.[k] ?? 0) <= 0;
+      });
+    });
+    if (newDebuffPossible) {
+      pushRelic('red_scarf', 'buff');
+      pushCallout('红色围巾', '对目标施加新负面状态，将额外获得 +3 格挡！', 'buff');
+    }
+  }
+
   return result;
 }
 
@@ -1363,6 +1504,25 @@ export function isCardBonusConditionMet(state, cardInstance) {
   if (!stats) return false;
 
   const aliveEnemies = getAliveEnemies(combat);
+
+  // Hermit Dead On & conditional combos
+  if (stats.deadOn) {
+    return isCardDeadOnInHand(combat, state.player, cardInstance);
+  }
+  if (stats.drawIfLastCardDeadOn) {
+    return Boolean(combat.lastCardTriggeredDeadOn);
+  }
+  if (stats.stunNonAttackingEnemies) {
+    return aliveEnemies.some((e) => !isEnemyIntendingAttack(e));
+  }
+  if (stats.maliceExhaustToAoeIfCurse) {
+    return (combat.hand || []).some(
+      (c) => c.instanceId !== cardInstance.instanceId && getCardStats(c).type === 'curse'
+    );
+  }
+  if (stats.ricochetPerDeadOnThisTurn) {
+    return (combat.deadOnTriggeredThisTurn ?? 0) > 0;
+  }
 
   // Last-card-type combos: Sash Whip (腰带抽打), Crush Joints (粉碎关节), Follow-Up (追击), Sanctity (圣洁)
   if (stats.ifLastCardType) {
