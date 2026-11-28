@@ -2878,6 +2878,7 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
     const { cdp, port } = session;
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
+    await cdp.send('Page.bringToFront');
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
     await new Promise((r) => setTimeout(r, 400));
     await launchHeroFromCharacterSelect(cdp, 'ironclad');
@@ -2889,10 +2890,36 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         deviceScaleFactor: viewport.mobile ? 2 : 1,
         mobile: viewport.mobile,
       });
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 60));
 
       return await cdp.evaluate(`(async () => {
+        const waitForModalAnimations = async () => {
+          const sheet = document.querySelector('#modal-backdrop .modal-sheet');
+          if (!sheet) return;
+          if (typeof sheet.getAnimations === 'function') {
+            const anims = sheet.getAnimations();
+            for (const anim of anims) {
+              try {
+                anim.finish();
+              } catch {}
+            }
+            await Promise.race([
+              Promise.all(anims.map((a) => a.finished.catch(() => {}))),
+              new Promise((r) => setTimeout(r, 80)),
+            ]);
+          }
+          await new Promise((r) => setTimeout(r, 20));
+          const backdrop = document.getElementById('modal-backdrop');
+          if (backdrop && backdrop.dataset.modalEnter !== 'false') {
+            sheet.dispatchEvent(new AnimationEvent('animationend', { animationName: 'modalSheetIn', bubbles: true }));
+          }
+        };
+
         document.getElementById('btn-open-settings')?.click();
+        const settingsModalInitialNode = document.getElementById('settings-modal');
+        const settingsOpenAnimName = getComputedStyle(settingsModalInitialNode).animationName;
+        await waitForModalAnimations();
+        const settingsSettledAttr = document.getElementById('modal-backdrop')?.dataset?.modalEnter || '';
 
         const settingsToggleIds = [
           'btn-toggle-sound',
@@ -2920,6 +2947,8 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
           const rectAfter = btnAfter.getBoundingClientRect();
           const topsAfter = measureRowTops();
           const testSoundAfter = document.getElementById('btn-test-sound')?.getBoundingClientRect();
+          const animAfterToggle = getComputedStyle(document.getElementById('settings-modal')).animationName;
+          const sameNodeAfterToggle = document.getElementById('settings-modal') === settingsModalInitialNode;
 
           // Toggle back to verify reverse transition too
           btnAfter.click();
@@ -2945,6 +2974,8 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
             hAfter: rectAfter.height,
             hBack: rectBack.height,
             maxRowShift: Math.max(maxRowShift1, maxRowShift2),
+            animAfterToggle,
+            sameNodeAfterToggle,
             soundPairHeightDiff:
               id === 'btn-toggle-sound' && testSoundBefore
                 ? Math.max(
@@ -2969,12 +3000,15 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         const scrollAfterToggle = document.querySelector('#settings-modal .modal-body').scrollTop;
         document.getElementById('btn-toggle-mechanic-tips')?.click();
 
-        // Test animation speed buttons too
+        // Test animation speed buttons including off -> normal (must NOT replay modalSheetIn!)
         const speedBefore = document.getElementById('btn-anim-speed-fast').getBoundingClientRect();
         const topsSpeedBefore = measureRowTops();
+        document.getElementById('btn-anim-speed-off')?.click();
         document.getElementById('btn-anim-speed-fast')?.click();
         const speedAfter = document.getElementById('btn-anim-speed-fast').getBoundingClientRect();
         const topsSpeedAfter = measureRowTops();
+        const settingsAnimAfterOffToFast = getComputedStyle(document.getElementById('settings-modal')).animationName;
+        const settingsSameNodeAfterSpeed = document.getElementById('settings-modal') === settingsModalInitialNode;
         document.getElementById('btn-anim-speed-normal')?.click();
         const speedShift = Math.max(
           Math.abs(speedAfter.width - speedBefore.width),
@@ -2984,8 +3018,9 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
 
         document.getElementById('btn-close-modal')?.click();
 
-        // Compendium upgrade toggle stability + scroll preservation
+        // Compendium upgrade toggle stability + scroll preservation + zero modalSheetIn replay
         document.getElementById('btn-open-compendium')?.click();
+        await waitForModalAnimations();
         const compBody = document.querySelector('#compendium-modal .modal-body');
         compBody.scrollTop = Math.min(120, Math.max(0, compBody.scrollHeight - compBody.clientHeight));
         const compScrollBefore = compBody.scrollTop;
@@ -2993,17 +3028,21 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         document.getElementById('btn-compendium-toggle-upgrade')?.click();
         const compBtnAfter = document.getElementById('btn-compendium-toggle-upgrade').getBoundingClientRect();
         const compScrollAfter = document.querySelector('#compendium-modal .modal-body').scrollTop;
+        const compAnimAfterToggle = getComputedStyle(document.getElementById('compendium-modal')).animationName;
         document.getElementById('btn-close-modal')?.click();
 
-        // Deck stack toggle stability
+        // Deck stack toggle stability + zero modalSheetIn replay
         document.getElementById('btn-open-deck')?.click();
+        await waitForModalAnimations();
         const deckBtnBefore = document.getElementById('btn-toggle-deck-stack').getBoundingClientRect();
         document.getElementById('btn-toggle-deck-stack')?.click();
         const deckBtnAfter = document.getElementById('btn-toggle-deck-stack').getBoundingClientRect();
+        const deckAnimAfterToggle = getComputedStyle(document.querySelector('#modal-backdrop .modal-sheet')).animationName;
         document.getElementById('btn-close-modal')?.click();
 
-        // Meta card-stats starter toggle stability + scroll preservation
+        // Meta card-stats starter toggle stability + scroll preservation + zero modalSheetIn replay
         document.getElementById('btn-open-meta')?.click();
+        await waitForModalAnimations();
         const metaBody = document.querySelector('#meta-progression-modal .modal-body');
         metaBody.scrollTop = Math.min(200, Math.max(0, metaBody.scrollHeight - metaBody.clientHeight));
         const metaScrollBefore = metaBody.scrollTop;
@@ -3011,29 +3050,37 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         document.getElementById('btn-toggle-card-stats-starters')?.click();
         const metaBtnAfter = document.getElementById('btn-toggle-card-stats-starters').getBoundingClientRect();
         const metaScrollAfter = document.querySelector('#meta-progression-modal .modal-body').scrollTop;
+        const metaAnimAfterToggle = getComputedStyle(document.getElementById('meta-progression-modal')).animationName;
         document.getElementById('btn-close-modal')?.click();
 
         return {
+          settingsOpenAnimName,
+          settingsSettledAttr,
           settingsResults,
           maxScroll,
           scrollBeforeToggle,
           scrollAfterToggle,
           speedShift,
+          settingsAnimAfterOffToFast,
+          settingsSameNodeAfterSpeed,
           compDelta: {
             w: Math.abs(compBtnAfter.width - compBtnBefore.width),
             h: Math.abs(compBtnAfter.height - compBtnBefore.height),
             scrollDiff: Math.abs(compScrollAfter - compScrollBefore),
             scrollBefore: compScrollBefore,
+            animAfterToggle: compAnimAfterToggle,
           },
           deckDelta: {
             w: Math.abs(deckBtnAfter.width - deckBtnBefore.width),
             h: Math.abs(deckBtnAfter.height - deckBtnBefore.height),
+            animAfterToggle: deckAnimAfterToggle,
           },
           metaDelta: {
             w: Math.abs(metaBtnAfter.width - metaBtnBefore.width),
             h: Math.abs(metaBtnAfter.height - metaBtnBefore.height),
             scrollDiff: Math.abs(metaScrollAfter - metaScrollBefore),
             scrollBefore: metaScrollBefore,
+            animAfterToggle: metaAnimAfterToggle,
           },
         };
       })()`);
@@ -3044,6 +3091,8 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
       { label: 'mobile 390x844', width: 390, height: 844, mobile: true },
     ]) {
       const audit = await runToggleStabilityAudit(vp);
+      assert.equal(audit.settingsOpenAnimName, 'modalSheetIn', `[${vp.label}] initial Settings open should animate cleanly`);
+      assert.equal(audit.settingsSettledAttr, 'false', `[${vp.label}] animationend should auto-settle data-modal-enter="false"`);
       for (const r of audit.settingsResults) {
         assert.ok(
           Math.abs(r.hAfter - r.hBefore) <= 0.5 && Math.abs(r.hBack - r.hBefore) <= 0.5,
@@ -3057,6 +3106,16 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
           r.maxRowShift <= 0.5,
           `[${vp.label}] toggling ${r.id} shifted settings rows vertically by ${r.maxRowShift}px`
         );
+        assert.equal(
+          r.sameNodeAfterToggle,
+          true,
+          `[${vp.label}] toggling ${r.id} must update Settings modal in-place without recreating DOM`
+        );
+        assert.equal(
+          r.animAfterToggle,
+          'none',
+          `[${vp.label}] toggling ${r.id} must not replay modalSheetIn flash (got ${r.animAfterToggle})`
+        );
         assert.ok(
           r.soundPairHeightDiff <= 0.5,
           `[${vp.label}] #btn-toggle-sound and #btn-test-sound height mismatch: ${r.soundPairHeightDiff}px`
@@ -3067,6 +3126,12 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         );
       }
       assert.ok(audit.speedShift <= 0.5, `[${vp.label}] anim speed toggle shifted layout by ${audit.speedShift}px`);
+      assert.equal(audit.settingsSameNodeAfterSpeed, true, `[${vp.label}] switching animSpeed must update Settings in-place`);
+      assert.equal(
+        audit.settingsAnimAfterOffToFast,
+        'none',
+        `[${vp.label}] switching animSpeed off -> fast must not replay modalSheetIn flash`
+      );
       if (audit.scrollBeforeToggle > 0) {
         assert.ok(
           Math.abs(audit.scrollAfterToggle - audit.scrollBeforeToggle) <= 1,
@@ -3077,6 +3142,7 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         audit.compDelta.w <= 1.5 && audit.compDelta.h <= 0.5,
         `[${vp.label}] Compendium upgrade toggle shifted size: w=${audit.compDelta.w}, h=${audit.compDelta.h}`
       );
+      assert.equal(audit.compDelta.animAfterToggle, 'none', `[${vp.label}] Compendium toggle must not replay modalSheetIn`);
       if (audit.compDelta.scrollBefore > 0) {
         assert.ok(
           audit.compDelta.scrollDiff <= 1,
@@ -3087,10 +3153,12 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
         audit.deckDelta.w <= 1.5 && audit.deckDelta.h <= 0.5,
         `[${vp.label}] Deck stack toggle shifted size: w=${audit.deckDelta.w}, h=${audit.deckDelta.h}`
       );
+      assert.equal(audit.deckDelta.animAfterToggle, 'none', `[${vp.label}] Deck stack toggle must not replay modalSheetIn`);
       assert.ok(
         audit.metaDelta.w <= 1.5 && audit.metaDelta.h <= 0.5,
         `[${vp.label}] Meta starter toggle shifted size: w=${audit.metaDelta.w}, h=${audit.metaDelta.h}`
       );
+      assert.equal(audit.metaDelta.animAfterToggle, 'none', `[${vp.label}] Meta starter toggle must not replay modalSheetIn`);
       if (audit.metaDelta.scrollBefore > 0) {
         assert.ok(
           audit.metaDelta.scrollDiff <= 1,

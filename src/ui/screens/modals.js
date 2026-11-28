@@ -1618,7 +1618,13 @@ function renderCompendiumModal({ meta, ui }) {
   `;
 }
 
-export function renderModal({ state, meta, settings, ui }) {
+export function renderModal({ state, meta, settings, ui, animateEnter = true }) {
+  const html = renderModalContent({ state, meta, settings, ui });
+  if (!html || animateEnter) return html;
+  return html.replace('<div class="modal-backdrop"', '<div class="modal-backdrop" data-modal-enter="false"');
+}
+
+function renderModalContent({ state, meta, settings, ui }) {
   if (!ui.modal) {
     if (state?.screen === 'combat' && state?.combat?.status === 'ongoing') {
       const pendingMode = state?.combat?.pendingCardChoice?.mode;

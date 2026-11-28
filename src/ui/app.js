@@ -442,6 +442,7 @@ export function mountSpireApp(rootEl) {
 
   let lastRenderedScreen = null;
   let lastRenderedModal = null;
+  let lastRenderedModalKey = '';
   let lastRenderedModalScrollKey = '';
   let hoveredMapNodeId = null;
   let hoveredMapTypeFilter = null;
@@ -677,6 +678,12 @@ export function mountSpireApp(rootEl) {
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
     const prevModal = lastRenderedModal;
+    const activeModalKey = ui.modal
+      ? String(ui.modal)
+      : state?.screen === 'combat' && state?.combat?.status === 'ongoing' && state?.combat?.pendingCardChoice?.mode
+        ? `pending:${state.combat.pendingCardChoice.mode}`
+        : '';
+    const animateModalEnter = Boolean(activeModalKey && activeModalKey !== lastRenderedModalKey);
     const nextModalScrollKey = !ui.modal
       ? ''
       : ui.modal === 'compendium'
@@ -691,6 +698,7 @@ export function mountSpireApp(rootEl) {
     const savedModalScrollTop = prevModalBody ? prevModalBody.scrollTop : 0;
 
     function restoreModalBodyScroll() {
+      lastRenderedModalKey = activeModalKey;
       lastRenderedModalScrollKey = nextModalScrollKey;
       if (savedModalScrollTop > 0) {
         const nextModalBody = rootEl.querySelector('#modal-backdrop .modal-body');
@@ -726,7 +734,7 @@ export function mountSpireApp(rootEl) {
             ${renderCharacterSelectScreen({ state, meta, ui, hasActiveRun })}
           </main>
         </div>
-        ${renderModal({ state, meta, settings, ui })}
+        ${renderModal({ state, meta, settings, ui, animateEnter: animateModalEnter })}
       `;
       lastRenderedModal = ui.modal;
       syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
@@ -808,7 +816,7 @@ export function mountSpireApp(rootEl) {
           ${mainHtml}
         </main>
       </div>
-      ${renderModal({ state, meta, settings, ui })}
+      ${renderModal({ state, meta, settings, ui, animateEnter: animateModalEnter })}
     `;
     ui.lastCombatScrollKey = currentCombatKey;
     if (shouldKeepHandScroll && savedHandScrollLeft > 0) {
@@ -1496,6 +1504,54 @@ export function mountSpireApp(rootEl) {
     executePotionWithFx(slot, pot.target === 'enemy' ? alive[0]?.id : null);
   }
 
+  function syncSettingsModalDom() {
+    const settingsModal = rootEl.querySelector('#settings-modal');
+    if (!settingsModal) return false;
+    const backdrop = rootEl.querySelector('#modal-backdrop');
+    if (backdrop) backdrop.dataset.modalEnter = 'false';
+
+    const syncToggleBtn = (id, isOn, onLabel, offLabel) => {
+      const btn = settingsModal.querySelector(`#${id}`);
+      if (!btn) return;
+      btn.classList.toggle('btn-brass', isOn);
+      btn.classList.toggle('btn-stone', !isOn);
+      btn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+      btn.textContent = isOn ? onLabel : offLabel;
+    };
+
+    syncToggleBtn('btn-toggle-sound', Boolean(settings.soundEnabled), '音效：已开启', '音效：已静音');
+    const testSoundBtn = settingsModal.querySelector('#btn-test-sound');
+    if (testSoundBtn) testSoundBtn.disabled = !settings.soundEnabled;
+
+    for (const speedBtn of settingsModal.querySelectorAll('[data-action="set-anim-speed"]')) {
+      speedBtn.classList.toggle('btn-active-choice', speedBtn.dataset.speed === settings.animSpeed);
+    }
+
+    syncToggleBtn('btn-toggle-damage-numbers', Boolean(settings.showDamageNumbers), '飘字：显示', '飘字：隐藏');
+    syncToggleBtn('btn-toggle-mobile-tap-confirm', Boolean(settings.mobileTapConfirm), '二段确认：已开启', '二段确认：已关闭');
+    syncToggleBtn(
+      'btn-toggle-mobile-hand-layout',
+      settings.mobileHandLayout !== 'spread',
+      '手牌排布：扇形堆叠',
+      '手牌排布：平铺横滑'
+    );
+    syncToggleBtn('btn-toggle-mechanic-tips', settings.showMechanicTips !== false, '机制提示：已开启', '机制提示：已关闭');
+
+    const tray = rootEl.querySelector('#hand-tray');
+    if (tray) {
+      tray.dataset.handLayout = settings.mobileHandLayout === 'spread' ? 'spread' : 'fan';
+    }
+    return true;
+  }
+
+  rootEl.addEventListener('animationend', (event) => {
+    if (event.animationName !== 'modalSheetIn') return;
+    const targetEl = event.target;
+    if (!(targetEl instanceof HTMLElement)) return;
+    const backdrop = targetEl.closest('#modal-backdrop');
+    if (backdrop) backdrop.dataset.modalEnter = 'false';
+  });
+
   const actionCtx = {
     rootEl,
     ui,
@@ -1532,6 +1588,7 @@ export function mountSpireApp(rootEl) {
     clearMapInspectState,
     syncMapHighlights,
     clearCombatSelection,
+    syncSettingsModalDom,
     setNotice,
     ensureRunRecorded,
     render,

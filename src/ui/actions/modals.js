@@ -85,7 +85,7 @@ export const MODAL_ACTIONS = {
     settings.soundEnabled = !settings.soundEnabled;
     saveSettings(settings);
     if (settings.soundEnabled) soundEngine.play('test');
-    ctx.render();
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },
 
   'test-sound'(ctx) {
@@ -98,9 +98,10 @@ export const MODAL_ACTIONS = {
     if (speed === 'normal' || speed === 'fast' || speed === 'off') {
       settings.animSpeed = speed;
       saveSettings(settings);
+      const synced = ctx.syncSettingsModalDom?.();
       fxManager.applyAnimSpeedAttr();
       soundEngine.play('ui_click');
-      ctx.render();
+      if (!synced) ctx.render();
     }
   },
 
@@ -109,7 +110,7 @@ export const MODAL_ACTIONS = {
     settings.showDamageNumbers = !settings.showDamageNumbers;
     saveSettings(settings);
     soundEngine.play('ui_click');
-    ctx.render();
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },
 
   'toggle-mobile-tap-confirm'(ctx) {
@@ -118,7 +119,7 @@ export const MODAL_ACTIONS = {
     saveSettings(settings);
     ctx.clearCombatSelection();
     soundEngine.play('ui_click');
-    ctx.render();
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },
 
   'toggle-mobile-hand-layout'(ctx) {
@@ -127,7 +128,7 @@ export const MODAL_ACTIONS = {
     saveSettings(settings);
     ctx.clearCombatSelection();
     soundEngine.play('ui_click');
-    ctx.render();
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },
 
   'toggle-mobile-log'(ctx) {
@@ -161,7 +162,7 @@ export const MODAL_ACTIONS = {
     settings.showMechanicTips = settings.showMechanicTips === false;
     saveSettings(settings);
     soundEngine.play('ui_click');
-    ctx.render();
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },
 
   'dismiss-mechanic-tip'(ctx, target) {

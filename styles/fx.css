@@ -610,6 +610,10 @@
   animation: modalSheetIn calc(180ms * var(--anim-scale, 1)) ease-out;
 }
 
+.modal-backdrop[data-modal-enter='false'] .modal-sheet {
+  animation: none;
+}
+
 [data-anim-speed='off'] *,
 [data-anim-speed='off'] *::before,
 [data-anim-speed='off'] *::after,
