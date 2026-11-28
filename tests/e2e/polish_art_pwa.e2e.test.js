@@ -2654,7 +2654,7 @@ test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque d
         { instanceId: 'p2_s1', cardId: 'strike', upgraded: false },
         { instanceId: 'p2_d2', cardId: 'defend', upgraded: false },
         { instanceId: 'p2_s2', cardId: 'strike', upgraded: false },
-        { instanceId: 'p2_shrug', cardId: 'shrug_it_off', upgraded: false },
+        { instanceId: 'p2_pwr', cardId: 'inflame', upgraded: false },
         { instanceId: 'p2_blud', cardId: 'bludgeon', upgraded: false },
       ];
       st.player.energy = 2;
@@ -2665,6 +2665,10 @@ test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque d
       const tray = document.getElementById('hand-tray');
       const fan6MaxScroll = Math.max(0, tray.scrollWidth - tray.clientWidth);
       const bludOpacity = Number(getComputedStyle(document.getElementById('hand-card-p2_blud')).opacity);
+      const powerBorderLeftW = getComputedStyle(document.getElementById('hand-card-p2_pwr')).borderLeftWidth;
+      const attackCostRadius = getComputedStyle(document.querySelector('#hand-card-p2_s1 .card-cost')).borderRadius;
+      const skillCostRadius = getComputedStyle(document.querySelector('#hand-card-p2_d1 .card-cost')).borderRadius;
+      const powerArtRadius = getComputedStyle(document.querySelector('#hand-card-p2_pwr .card-art-frame')).borderRadius;
       const docScrollH390 = document.documentElement.scrollHeight;
       const winH390 = window.innerHeight;
       const docScrollW390 = document.documentElement.scrollWidth;
@@ -2750,6 +2754,10 @@ test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque d
       return {
         fan6MaxScroll,
         bludOpacity,
+        powerBorderLeftW,
+        attackCostRadius,
+        skillCostRadius,
+        powerArtRadius,
         docScrollH390,
         winH390,
         docScrollW390,
@@ -2780,6 +2788,10 @@ test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque d
 
     assert.ok(fanAndCombatAudit.fan6MaxScroll <= 2, `6-card fan must fit in 1 screen without scroll, got maxScroll=${fanAndCombatAudit.fan6MaxScroll}`);
     assert.equal(fanAndCombatAudit.bludOpacity, 1, 'Stacked unplayable fan card must stay opaque (opacity=1) so cards underneath never bleed through');
+    assert.equal(fanAndCombatAudit.powerBorderLeftW, '1px', 'Fan cards must keep unified 1px rarity border with no conflicting left-edge type stripe');
+    assert.equal(fanAndCombatAudit.attackCostRadius, '5px', 'Attack cost emblem must use angular 5px silhouette');
+    assert.equal(fanAndCombatAudit.skillCostRadius, '50%', 'Skill cost emblem must use round 50% silhouette');
+    assert.equal(fanAndCombatAudit.powerArtRadius, '999px', 'Power art portrait must use oval medallion 999px silhouette');
     assert.ok(fanAndCombatAudit.docScrollH390 <= fanAndCombatAudit.winH390 + 1, `390x700 combat must fit in one screen (${fanAndCombatAudit.docScrollH390} <= ${fanAndCombatAudit.winH390})`);
     assert.ok(fanAndCombatAudit.docScrollW390 <= 390, `390px combat must have zero horizontal overflow (${fanAndCombatAudit.docScrollW390})`);
     assert.equal(fanAndCombatAudit.enemySingleRow, true, '3 enemies must render in a single horizontal row on 390px portrait');

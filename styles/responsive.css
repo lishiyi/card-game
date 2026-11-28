@@ -683,30 +683,10 @@
     z-index: var(--fan-z, 1);
     transform: translateY(var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
     transform-origin: center bottom;
-    border-left-width: 3px;
     box-shadow:
-      -5px 4px 12px hsla(0, 0%, 0%, 0.56),
+      -6px 4px 14px hsla(0, 0%, 0%, 0.68),
+      inset 1px 0 0 hsla(40, 32%, 82%, 0.14),
       var(--shadow-card);
-  }
-
-  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='attack'] {
-    border-left-color: hsl(8, 78%, 54%);
-  }
-
-  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='skill'] {
-    border-left-color: hsl(200, 78%, 56%);
-  }
-
-  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='power'] {
-    border-left-color: hsl(42, 88%, 56%);
-  }
-
-  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='status'] {
-    border-left-color: hsl(24, 14%, 46%);
-  }
-
-  .hand-tray[data-hand-layout='fan'] .game-card[data-card-type='curse'] {
-    border-left-color: hsl(282, 70%, 58%);
   }
 
   .hand-tray[data-hand-layout='fan'] .game-card + .game-card {

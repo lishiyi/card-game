@@ -184,6 +184,23 @@
   flex-shrink: 0;
 }
 
+/* Type silhouette on cost emblem (Shape = Type, Color = Rarity) */
+.game-card[data-card-type='attack'] .card-cost {
+  border-radius: 5px;
+}
+
+.game-card[data-card-type='power'] .card-cost {
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 2px hsla(40, 26%, 88%, 0.24),
+    0 0 0 1.5px hsla(40, 26%, 88%, 0.14);
+}
+
+.game-card[data-card-type='status'] .card-cost,
+.game-card[data-card-type='curse'] .card-cost {
+  border-radius: 5px;
+}
+
 .game-card.rarity-common .card-cost {
   border-color: hsl(214, 22%, 52%);
 }
@@ -281,16 +298,19 @@
 .card-banner.type-attack {
   background: var(--crimson-deep);
   color: hsl(12, 80%, 84%);
+  border-radius: 2px;
 }
 
 .card-banner.type-skill {
   background: var(--steel-deep);
   color: hsl(198, 80%, 85%);
+  border-radius: 5px;
 }
 
 .card-banner.type-power {
   background: var(--amber-power);
   color: hsl(42, 90%, 88%);
+  border-radius: 999px;
 }
 
 .card-banner.type-status {
@@ -354,6 +374,19 @@
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.56);
   background: hsl(24, 14%, 11%);
   flex-shrink: 0;
+}
+
+/* Type silhouette on art portrait (Attack: crisp angular, Skill: rounded rect, Power: medallion oval) */
+.card-art-frame.type-attack {
+  border-radius: 2px;
+}
+
+.card-art-frame.type-skill {
+  border-radius: 8px;
+}
+
+.card-art-frame.type-power {
+  border-radius: 999px;
 }
 
 .card-showcase .card-art-frame {
