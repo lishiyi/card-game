@@ -857,6 +857,12 @@ body.spire-dragging {
   color: hsl(196, 96%, 86%);
 }
 
+.character-hud-pill.char-hermit {
+  background: hsla(28, 56%, 20%, 0.92);
+  border: 1px solid hsla(36, 86%, 56%, 0.8);
+  color: hsl(40, 96%, 85%);
+}
+
 .spire-shell[data-character='silent'] .energy-orb {
   background: radial-gradient(circle at 34% 30%, hsl(146, 72%, 44%), hsl(160, 58%, 19%));
   border-color: hsl(146, 78%, 58%);
@@ -873,6 +879,12 @@ body.spire-dragging {
   background: radial-gradient(circle at 34% 30%, hsl(196, 86%, 52%), hsl(214, 68%, 22%));
   border-color: hsl(192, 92%, 68%);
   box-shadow: 0 0 22px hsla(198, 88%, 52%, 0.5), inset 0 1px 0 hsla(190, 100%, 88%, 0.45);
+}
+
+.spire-shell[data-character='hermit'] .energy-orb {
+  background: radial-gradient(circle at 34% 30%, hsl(34, 86%, 50%), hsl(22, 64%, 20%));
+  border-color: hsl(42, 92%, 64%);
+  box-shadow: 0 0 22px hsla(34, 88%, 48%, 0.48), inset 0 1px 0 hsla(46, 100%, 86%, 0.44);
 }
 
 /* === Defect Adaptive Orb Rail (Desktop Side Rail + Mobile Inline Rail) === */

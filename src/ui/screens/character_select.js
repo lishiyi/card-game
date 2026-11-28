@@ -9,7 +9,13 @@
  */
 
 import { CARD_LIBRARY, formatCardDescription } from '../../data/cards.js';
-import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
+import {
+  CHARACTER_LIBRARY,
+  EXPANSION_CHARACTER_IDS,
+  getCharacterDef,
+  getEnabledCharacterIds,
+  normalizeEnabledCharacterId,
+} from '../../data/characters.js';
 import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
 import { getDailyChallengeSpec } from '../../engine/daily.js';
 import {
@@ -84,7 +90,8 @@ export function renderCharacterSelectHeader({ menuView = 'home' } = {}) {
   `;
 }
 
-function renderMainMenuScreen({ state, meta, ui, hasActiveRun }) {
+function renderMainMenuScreen({ state, meta, settings, ui, hasActiveRun }) {
+  const enabledCharIds = getEnabledCharacterIds(settings);
   const dailySpec = getDailyChallengeSpec();
   const dailyBest = meta.dailyRecords?.[dailySpec.dateKey] || null;
   const activeCharDef = hasActiveRun && state ? getCharacterDef(state.characterId) : null;
@@ -95,20 +102,26 @@ function renderMainMenuScreen({ state, meta, ui, hasActiveRun }) {
     activeRunMetaParts.push(`金币 ${state.player.gold}`);
   }
 
-  const trioCrestHtml = CHARACTER_IDS.map((charId) => {
-    const def = CHARACTER_LIBRARY[charId];
-    return `
+  const trioCrestHtml = enabledCharIds
+    .map((charId) => {
+      const def = CHARACTER_LIBRARY[charId];
+      return `
       <div class="main-menu-crest-avatar theme-${escapeHtml(def.accentTheme)}" aria-hidden="true">
         ${getCharacterSvg(def.artKey, 'normal', 'tab')}
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
-  const careerAscParts = CHARACTER_IDS.map((charId) => {
-    const def = CHARACTER_LIBRARY[charId];
-    const maxA = getMaxAscensionForCharacter(meta, def.id);
-    return `${def.name} A${maxA}`;
-  }).join(' · ');
+  const careerAscParts = enabledCharIds
+    .map((charId) => {
+      const def = CHARACTER_LIBRARY[charId];
+      const maxA = getMaxAscensionForCharacter(meta, def.id);
+      return `${def.name} A${maxA}`;
+    })
+    .join(' · ');
+
+  const heroCountLabel = enabledCharIds.length === 4 ? '四' : String(enabledCharIds.length);
 
   return `
     <section class="panel-stage main-menu-stage" id="main-menu-screen" aria-labelledby="main-menu-heading">
@@ -164,7 +177,7 @@ function renderMainMenuScreen({ state, meta, ui, hasActiveRun }) {
               <span class="menu-card-title">开始攀登</span>
               <span class="menu-card-tag">标准模式</span>
             </span>
-            <span class="menu-card-desc">四职业自由选择 · 进阶 A0–A10 · 鲸鱼赐福开局</span>
+            <span class="menu-card-desc">${escapeHtml(heroCountLabel)}职业自由选择 · 进阶 A0–A10 · 鲸鱼赐福开局</span>
           </span>
           <span class="menu-card-arrow" aria-hidden="true">→</span>
         </button>
@@ -217,34 +230,41 @@ function renderMainMenuScreen({ state, meta, ui, hasActiveRun }) {
   `;
 }
 
-function renderStandardCharacterSelectScreen({ meta, ui }) {
-  const selectedId = ui.selectedCharacterId || meta.selectedCharacterId || 'ironclad';
+function renderStandardCharacterSelectScreen({ meta, settings, ui }) {
+  const enabledCharIds = getEnabledCharacterIds(settings);
+  const selectedId = normalizeEnabledCharacterId(
+    ui.selectedCharacterId || meta.selectedCharacterId,
+    settings
+  );
   const selectedDef = getCharacterDef(selectedId);
   const maxAscAllowed = getMaxAscensionForCharacter(meta, selectedDef.id);
   const selectedAsc = Math.min(maxAscAllowed, meta.selectedAscension ?? 0);
+  const expansionEnabled = Boolean(settings?.enableExpansionCharacters);
+  const expansionCount = EXPANSION_CHARACTER_IDS.length;
 
-  const cardsHtml = CHARACTER_IDS.map((charId) => {
-    const def = CHARACTER_LIBRARY[charId];
-    const isSelected = def.id === selectedDef.id;
-    const starterRelic = RELIC_LIBRARY[def.starterRelic];
-    const starterPotion = POTION_LIBRARY[def.starterPotion];
-    const charProg = getCharacterProgress(meta, def.id);
-    const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
-    const winRate =
-      charProg.runsPlayed > 0
-        ? Math.round((charProg.victories / charProg.runsPlayed) * 100)
-        : 0;
-    const hpVal = selectedAsc >= 4 ? def.asc4MaxHp : def.maxHp;
-    const startHp = selectedAsc >= 6 ? Math.max(1, hpVal - Math.floor(hpVal * 0.1)) : hpVal;
-    const deckSummary = summarizeStarterDeck(def.starterDeck);
+  const cardsHtml = enabledCharIds
+    .map((charId) => {
+      const def = CHARACTER_LIBRARY[charId];
+      const isSelected = def.id === selectedDef.id;
+      const starterRelic = RELIC_LIBRARY[def.starterRelic];
+      const starterPotion = POTION_LIBRARY[def.starterPotion];
+      const charProg = getCharacterProgress(meta, def.id);
+      const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
+      const winRate =
+        charProg.runsPlayed > 0
+          ? Math.round((charProg.victories / charProg.runsPlayed) * 100)
+          : 0;
+      const hpVal = selectedAsc >= 4 ? def.asc4MaxHp : def.maxHp;
+      const startHp = selectedAsc >= 6 ? Math.max(1, hpVal - Math.floor(hpVal * 0.1)) : hpVal;
+      const deckSummary = summarizeStarterDeck(def.starterDeck);
 
-    const archetypeHtml = def.archetypes
-      .map((tag) => `<span class="char-archetype-chip theme-${escapeHtml(def.accentTheme)}">${escapeHtml(tag)}</span>`)
-      .join('');
+      const archetypeHtml = def.archetypes
+        .map((tag) => `<span class="char-archetype-chip theme-${escapeHtml(def.accentTheme)}">${escapeHtml(tag)}</span>`)
+        .join('');
 
-    const deckChipsHtml = deckSummary
-      .map(
-        (item) => `
+      const deckChipsHtml = deckSummary
+        .map(
+          (item) => `
           <span
             class="char-deck-chip"
             tabindex="0"
@@ -253,10 +273,15 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
             data-tooltip-desc="${escapeHtml(item.desc)}"
           >${escapeHtml(item.name)} ×${escapeHtml(item.qty)}</span>
         `
-      )
-      .join('');
+        )
+        .join('');
 
-    return `
+      const expansionBadgeHtml =
+        def.origin === 'expansion'
+          ? `<span class="char-expansion-badge">${escapeHtml(def.expansionSource ? `✨ ${def.expansionSource}` : '✨ 拓展')}</span>`
+          : '';
+
+      return `
       <article
         id="char-card-${escapeHtml(def.id)}"
         class="character-card theme-${escapeHtml(def.accentTheme)} ${isSelected ? 'selected' : ''}"
@@ -274,6 +299,7 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
             <div class="character-name-row">
               <h2 class="character-name">${escapeHtml(def.name)}</h2>
               <span class="character-en-tag">${escapeHtml(def.englishName)}</span>
+              ${expansionBadgeHtml}
               ${isSelected ? '<span class="character-selected-badge">已选择</span>' : ''}
             </div>
             <p class="character-title-line">${escapeHtml(def.title)}</p>
@@ -337,7 +363,8 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
         </div>
       </article>
     `;
-  }).join('');
+    })
+    .join('');
 
   const ascPillsHtml = ASCENSION_DEFS.map((def) => {
     const unlocked = def.level <= maxAscAllowed;
@@ -384,11 +411,12 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
 
   const ascDef = ASCENSION_DEFS[selectedAsc] || ASCENSION_DEFS[0];
 
-  const mobileTabsHtml = CHARACTER_IDS.map((charId) => {
-    const def = CHARACTER_LIBRARY[charId];
-    const isSelected = def.id === selectedDef.id;
-    const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
-    return `
+  const mobileTabsHtml = enabledCharIds
+    .map((charId) => {
+      const def = CHARACTER_LIBRARY[charId];
+      const isSelected = def.id === selectedDef.id;
+      const charMaxAsc = getMaxAscensionForCharacter(meta, def.id);
+      return `
       <button
         type="button"
         id="mobile-char-tab-${escapeHtml(def.id)}"
@@ -403,7 +431,27 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
         <span class="mobile-char-tab-meta">A${escapeHtml(charMaxAsc)}</span>
       </button>
     `;
-  }).join('');
+    })
+    .join('');
+
+  const expansionQuickToggleHtml =
+    expansionCount > 0
+      ? `
+        <button
+          type="button"
+          id="btn-char-select-toggle-expansion"
+          class="char-expansion-toggle-btn ${expansionEnabled ? 'active' : ''}"
+          data-action="toggle-expansion-characters"
+          aria-pressed="${expansionEnabled ? 'true' : 'false'}"
+        >
+          ${
+            expansionEnabled
+              ? `✨ 拓展角色：已开启 (+${expansionCount})`
+              : `✨ 开启拓展角色 (+${expansionCount} 新英雄)`
+          }
+        </button>
+      `
+      : '';
 
   const seedTrimmed = (ui.seedInput || '').trim();
   const seedDrawerOpen = Boolean(ui.seedDrawerOpen);
@@ -415,15 +463,16 @@ function renderStandardCharacterSelectScreen({ meta, ui }) {
           <h2 id="char-select-heading" class="stage-heading">选择你的尖塔攀登者</h2>
           <p class="stage-subtitle">每位角色拥有专属牌库、初始遗物与核心流派，开局进入第 0 层涅奥鲸鱼赐福。</p>
         </div>
+        ${expansionQuickToggleHtml}
       </div>
 
       ${ui.notice ? `<div class="toast-banner ${ui.noticeTone === 'warn' ? 'warn' : ''}" style="margin-bottom:12px;">${escapeHtml(ui.notice)}</div>` : ''}
 
-      <div class="mobile-char-tabs" id="mobile-char-tabs" role="tablist" aria-label="切换攀登角色">
+      <div class="mobile-char-tabs" id="mobile-char-tabs" data-hero-count="${enabledCharIds.length}" role="tablist" aria-label="切换攀登角色">
         ${mobileTabsHtml}
       </div>
 
-      <div class="character-select-grid">
+      <div class="character-select-grid" data-hero-count="${enabledCharIds.length}">
         ${cardsHtml}
       </div>
 
@@ -598,13 +647,13 @@ function renderDailyChallengeScreen({ meta, ui }) {
   `;
 }
 
-export function renderCharacterSelectScreen({ state, meta, ui, hasActiveRun }) {
+export function renderCharacterSelectScreen({ state, meta, settings, ui, hasActiveRun }) {
   const menuView = ui.menuView || 'home';
   if (menuView === 'standard') {
-    return renderStandardCharacterSelectScreen({ meta, ui });
+    return renderStandardCharacterSelectScreen({ meta, settings, ui });
   }
   if (menuView === 'daily') {
     return renderDailyChallengeScreen({ meta, ui });
   }
-  return renderMainMenuScreen({ state, meta, ui, hasActiveRun });
+  return renderMainMenuScreen({ state, meta, settings, ui, hasActiveRun });
 }

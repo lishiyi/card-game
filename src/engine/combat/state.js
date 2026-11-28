@@ -10,6 +10,7 @@ import {
   getCardStats,
   isGeneratableCombatCard,
 } from '../../data/cards.js';
+import { isExpansionCharacter } from '../../data/characters.js';
 import { ENEMY_TEMPLATES, GREMLIN_POOL, rollEnemyIntent } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STATUS_METADATA } from '../../data/relics.js';
 import { pickDistinct, shuffled } from '../rng.js';
@@ -780,13 +781,15 @@ export function requestDiscoverCardChoice(state, cfg = {}, sourceName = '发现'
   const masterUp = (state.player?.statuses?.masterReality ?? 0) > 0;
   let eligibleIds = [];
   if (poolKind === 'any_attack') {
+    const allowExpansionPool = isExpansionCharacter(charId);
     eligibleIds = Object.values(CARD_LIBRARY)
       .filter(
         (c) =>
           c.type === 'attack' &&
           !c.shopOnly &&
           c.id !== 'strike' &&
-          isGeneratableCombatCard(c)
+          isGeneratableCombatCard(c) &&
+          (allowExpansionPool || !isExpansionCharacter(getCardCharacter(c)))
       )
       .map((c) => c.id);
   } else {

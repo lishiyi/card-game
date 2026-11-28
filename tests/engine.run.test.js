@@ -15,6 +15,14 @@ import {
   getCardCharacter,
   getCardStats,
 } from '../src/data/cards.js';
+import {
+  CHARACTER_IDS,
+  EXPANSION_CHARACTER_IDS,
+  getEnabledCharacterIds,
+  isExpansionCharacter,
+  normalizeEnabledCharacterId,
+  VANILLA_CHARACTER_IDS,
+} from '../src/data/characters.js';
 import { createEnemyInstance, ENCOUNTERS, ENEMY_TEMPLATES, predictNextTurnIntents } from '../src/data/enemies.js';
 import { AUDIO_CUES, createSoundEngine } from '../src/ui/audio.js';
 import {
@@ -3850,4 +3858,60 @@ test('Part A Features & STS1 Run/Meta/Event Fidelity: 50-run history + cardStats
     rarityCounts[rar] = (rarityCounts[rar] ?? 0) + 1;
   }
   assert.ok(rarityCounts.common > rarityCounts.uncommon && rarityCounts.uncommon > rarityCounts.rare, `Expected common > uncommon > rare, got ${JSON.stringify(rarityCounts)}`);
+});
+
+test('Phase 0 expansion character decoupling: default-off vanilla isolation, settings backup round-trip, and vanilla-locked Daily rotation', () => {
+  // 1. Default settings keep enableExpansionCharacters = false for pure vanilla experience
+  const defaults = createDefaultSettings();
+  assert.equal(defaults.enableExpansionCharacters, false);
+  assert.deepEqual([...VANILLA_CHARACTER_IDS], ['ironclad', 'silent', 'watcher', 'defect']);
+  for (const vid of VANILLA_CHARACTER_IDS) {
+    assert.equal(isExpansionCharacter(vid), false);
+  }
+  assert.deepEqual([...getEnabledCharacterIds(defaults)], [...VANILLA_CHARACTER_IDS]);
+  assert.deepEqual(
+    [...getEnabledCharacterIds({ ...defaults, enableExpansionCharacters: true })],
+    [...CHARACTER_IDS]
+  );
+  assert.equal(
+    normalizeEnabledCharacterId('unknown_hero', defaults),
+    'ironclad'
+  );
+
+  // 2. Save backup export/import preserves enableExpansionCharacters and mobileHandLayout cleanly
+  const meta = createDefaultMeta();
+  const customSettings = {
+    ...defaults,
+    enableExpansionCharacters: true,
+    mobileHandLayout: 'spread',
+  };
+  const backupJson = exportSaveBackup({ meta, settings: customSettings, activeRun: null });
+  const parsed = validateSaveBackup(backupJson, TOTAL_FLOORS);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.backup.settings.enableExpansionCharacters, true);
+  assert.equal(parsed.backup.settings.mobileHandLayout, 'spread');
+
+  // Older backup without enableExpansionCharacters safely defaults to false
+  const legacyObj = JSON.parse(backupJson);
+  delete legacyObj.settings.enableExpansionCharacters;
+  const parsedLegacy = validateSaveBackup(JSON.stringify(legacyObj), TOTAL_FLOORS);
+  assert.equal(parsedLegacy.ok, true);
+  assert.equal(parsedLegacy.backup.settings.enableExpansionCharacters, false);
+
+  // 3. Daily Challenge character rotation stays strictly locked to VANILLA_CHARACTER_IDS
+  for (let day = 1; day <= 28; day += 1) {
+    const key = `2026-12-${String(day).padStart(2, '0')}`;
+    const spec = getDailyChallengeSpec(key);
+    assert.equal(
+      VANILLA_CHARACTER_IDS.includes(spec.characterId),
+      true,
+      `Daily ${key} must pick a vanilla hero, got ${spec.characterId}`
+    );
+  }
+
+  // 4. Expansion registry consistency
+  assert.equal(
+    VANILLA_CHARACTER_IDS.length + EXPANSION_CHARACTER_IDS.length,
+    CHARACTER_IDS.length
+  );
 });

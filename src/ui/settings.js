@@ -21,6 +21,7 @@ export function createDefaultSettings() {
     mobileHandLayout: 'fan',
     showMechanicTips: true,
     seenMechanicTips: [],
+    enableExpansionCharacters: false,
   };
 }
 
@@ -61,6 +62,10 @@ export function loadSettings(storage = globalThis?.window?.localStorage) {
           ? parsed.showMechanicTips
           : base.showMechanicTips,
       seenMechanicTips,
+      enableExpansionCharacters:
+        typeof parsed.enableExpansionCharacters === 'boolean'
+          ? parsed.enableExpansionCharacters
+          : base.enableExpansionCharacters,
     };
   } catch {
     return base;

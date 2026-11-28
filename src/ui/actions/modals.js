@@ -3,6 +3,7 @@
  * HUD menu, deck sorting, and save backup click action handlers.
  */
 
+import { normalizeEnabledCharacterId } from '../../data/characters.js';
 import { getLocalDateKey } from '../../engine/daily.js';
 import { exportSaveBackup } from '../../engine/meta.js';
 import { saveSettings } from '../settings.js';
@@ -161,6 +162,45 @@ export const MODAL_ACTIONS = {
     const { settings, soundEngine } = ctx;
     settings.showMechanicTips = settings.showMechanicTips === false;
     saveSettings(settings);
+    soundEngine.play('ui_click');
+    if (!ctx.syncSettingsModalDom?.()) ctx.render();
+  },
+
+  'toggle-expansion-characters'(ctx) {
+    const { ui, meta, settings, soundEngine } = ctx;
+    settings.enableExpansionCharacters = !settings.enableExpansionCharacters;
+    saveSettings(settings);
+    if (!settings.enableExpansionCharacters) {
+      const safeChar = normalizeEnabledCharacterId(
+        ui.selectedCharacterId || meta.selectedCharacterId,
+        settings
+      );
+      ui.selectedCharacterId = safeChar;
+      if (
+        ui.compendiumCharFilter &&
+        ui.compendiumCharFilter !== 'all' &&
+        ui.compendiumCharFilter !== 'colorless' &&
+        ui.compendiumCharFilter !== 'special' &&
+        normalizeEnabledCharacterId(ui.compendiumCharFilter, settings) !== ui.compendiumCharFilter
+      ) {
+        ui.compendiumCharFilter = 'all';
+      }
+      if (
+        ui.historyCharFilter &&
+        ui.historyCharFilter !== 'all' &&
+        normalizeEnabledCharacterId(ui.historyCharFilter, settings) !== ui.historyCharFilter
+      ) {
+        ui.historyCharFilter = 'all';
+      }
+      if (
+        ui.cardStatsCharFilter &&
+        ui.cardStatsCharFilter !== 'all' &&
+        ui.cardStatsCharFilter !== 'colorless' &&
+        normalizeEnabledCharacterId(ui.cardStatsCharFilter, settings) !== ui.cardStatsCharFilter
+      ) {
+        ui.cardStatsCharFilter = 'all';
+      }
+    }
     soundEngine.play('ui_click');
     if (!ctx.syncSettingsModalDom?.()) ctx.render();
   },

@@ -18,6 +18,7 @@ export const DEFAULT_CHARACTER_ID = 'ironclad';
 export const CHARACTER_LIBRARY = deepFreeze({
   ironclad: {
     id: 'ironclad',
+    origin: 'vanilla',
     name: '铁甲战士',
     englishName: 'The Ironclad',
     title: '血火重甲的尖塔征服者',
@@ -48,6 +49,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
   },
   silent: {
     id: 'silent',
+    origin: 'vanilla',
     name: '静默猎手',
     englishName: 'The Silent',
     title: '剧毒、飞刀与灵动过牌的暗影刺客',
@@ -80,6 +82,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
   },
   watcher: {
     id: 'watcher',
+    origin: 'vanilla',
     name: '观者',
     englishName: 'The Watcher',
     title: '掌控姿态、真言与预见的盲眼圣僧',
@@ -110,6 +113,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
   },
   defect: {
     id: 'defect',
+    origin: 'vanilla',
     name: '故障机器人',
     englishName: 'The Defect',
     title: '驾驭充能球、集中与机械协议的觉醒构装体',
@@ -142,12 +146,36 @@ export const CHARACTER_LIBRARY = deepFreeze({
 
 export const CHARACTER_IDS = deepFreeze(Object.keys(CHARACTER_LIBRARY));
 
+export const VANILLA_CHARACTER_IDS = deepFreeze(
+  CHARACTER_IDS.filter((id) => CHARACTER_LIBRARY[id].origin !== 'expansion')
+);
+
+export const EXPANSION_CHARACTER_IDS = deepFreeze(
+  CHARACTER_IDS.filter((id) => CHARACTER_LIBRARY[id].origin === 'expansion')
+);
+
+export function isExpansionCharacter(characterId) {
+  if (typeof characterId !== 'string') return false;
+  const key = characterId.trim().toLowerCase();
+  return CHARACTER_LIBRARY[key]?.origin === 'expansion';
+}
+
+export function getEnabledCharacterIds(settings) {
+  return settings?.enableExpansionCharacters ? CHARACTER_IDS : VANILLA_CHARACTER_IDS;
+}
+
 export function normalizeCharacterId(characterId) {
   if (typeof characterId === 'string') {
     const key = characterId.trim().toLowerCase();
     if (CHARACTER_LIBRARY[key]) return key;
   }
   return DEFAULT_CHARACTER_ID;
+}
+
+export function normalizeEnabledCharacterId(characterId, settings) {
+  const normalized = normalizeCharacterId(characterId);
+  const enabled = getEnabledCharacterIds(settings);
+  return enabled.includes(normalized) ? normalized : enabled[0] || DEFAULT_CHARACTER_ID;
 }
 
 export function getCharacterDef(characterId) {

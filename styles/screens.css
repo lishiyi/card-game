@@ -1298,10 +1298,64 @@ button.loot-reward-card.loot-kind-potion:hover {
   gap: 18px;
 }
 
+.character-select-header {
+  align-items: center;
+}
+
+.char-expansion-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid hsla(38, 80%, 56%, 0.65);
+  background: linear-gradient(180deg, hsla(34, 42%, 22%, 0.94), hsla(26, 36%, 13%, 0.98));
+  color: hsl(42, 96%, 84%);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 14px hsla(28, 70%, 10%, 0.45);
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+
+.char-expansion-toggle-btn:hover {
+  transform: translateY(-1px);
+  border-color: hsl(42, 94%, 66%);
+  box-shadow: 0 6px 18px hsla(34, 82%, 28%, 0.42);
+}
+
+.char-expansion-toggle-btn.active {
+  background: linear-gradient(180deg, hsla(36, 72%, 34%, 0.96), hsla(28, 62%, 21%, 0.98));
+  border-color: hsl(42, 96%, 68%);
+  color: hsl(48, 100%, 95%);
+  box-shadow: 0 0 18px hsla(38, 92%, 52%, 0.34);
+}
+
+.char-expansion-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: hsla(34, 68%, 24%, 0.9);
+  border: 1px solid hsla(38, 86%, 58%, 0.72);
+  color: hsl(42, 98%, 86%);
+  white-space: nowrap;
+}
+
 .character-select-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.character-select-grid[data-hero-count='5'],
+.character-select-grid[data-hero-count='6'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .character-card {
@@ -1358,6 +1412,15 @@ button.loot-reward-card.loot-kind-potion:hover {
     0 0 28px hsla(202, 88%, 50%, 0.32);
 }
 
+.character-card.theme-amber.selected {
+  border-color: hsl(36, 90%, 56%);
+  background: linear-gradient(160deg, hsla(30, 44%, 19%, 0.96), hsla(22, 30%, 10%, 0.98));
+  box-shadow:
+    0 16px 34px hsla(0, 0%, 0%, 0.65),
+    0 0 0 1px hsla(42, 96%, 64%, 0.46),
+    0 0 28px hsla(34, 88%, 46%, 0.32);
+}
+
 .character-card-head {
   display: flex;
   align-items: center;
@@ -1394,6 +1457,11 @@ button.loot-reward-card.loot-kind-potion:hover {
 .character-portrait-stage.theme-azure {
   background: radial-gradient(circle at 50% 62%, hsla(204, 72%, 36%, 0.6), hsla(216, 34%, 10%, 0.95));
   border-color: hsla(200, 78%, 56%, 0.62);
+}
+
+.character-portrait-stage.theme-amber {
+  background: radial-gradient(circle at 50% 62%, hsla(32, 76%, 34%, 0.6), hsla(22, 34%, 10%, 0.95));
+  border-color: hsla(38, 86%, 56%, 0.65);
 }
 
 .character-portrait-stage .unit-svg {
@@ -1457,6 +1525,12 @@ button.loot-reward-card.loot-kind-potion:hover {
   color: hsl(196, 98%, 84%);
 }
 
+.character-card.theme-amber.selected .character-selected-badge {
+  background: hsla(34, 84%, 44%, 0.26);
+  border-color: hsl(40, 92%, 62%);
+  color: hsl(44, 100%, 86%);
+}
+
 .character-title-line {
   margin: 4px 0 8px;
   font-size: 0.84rem;
@@ -1498,6 +1572,12 @@ button.loot-reward-card.loot-kind-potion:hover {
   background: hsla(208, 54%, 20%, 0.9);
   border: 1px solid hsla(200, 78%, 56%, 0.62);
   color: hsl(196, 96%, 84%);
+}
+
+.char-archetype-chip.theme-amber {
+  background: hsla(30, 56%, 20%, 0.9);
+  border: 1px solid hsla(38, 84%, 56%, 0.64);
+  color: hsl(42, 96%, 85%);
 }
 
 .character-summary {
@@ -1669,6 +1749,10 @@ button.loot-reward-card.loot-kind-potion:hover {
   border-color: hsla(200, 82%, 58%, 0.7);
 }
 
+.character-launch-dock.theme-amber {
+  border-color: hsla(36, 86%, 56%, 0.72);
+}
+
 .launch-config-col {
   display: flex;
   flex-direction: column;
@@ -1795,6 +1879,17 @@ button.loot-reward-card.loot-kind-potion:hover {
 
 .btn-launch-hero.theme-azure:hover {
   background: linear-gradient(180deg, hsl(200, 78%, 50%), hsl(214, 72%, 29%));
+}
+
+.btn-launch-hero.theme-amber {
+  background: linear-gradient(180deg, hsl(34, 82%, 44%), hsl(22, 72%, 25%));
+  border-color: hsl(42, 94%, 64%);
+  color: hsl(46, 100%, 95%);
+  box-shadow: 0 8px 22px hsla(28, 84%, 22%, 0.6);
+}
+
+.btn-launch-hero.theme-amber:hover {
+  background: linear-gradient(180deg, hsl(36, 86%, 50%), hsl(24, 74%, 29%));
 }
 
 /* === Daily Challenge Banner, Pills & Modifier Chips === */
@@ -2559,6 +2654,11 @@ button.loot-reward-card.loot-kind-potion:hover {
 .main-menu-crest-avatar.theme-azure {
   border-color: hsla(200, 82%, 58%, 0.72);
   box-shadow: 0 8px 18px hsla(206, 78%, 24%, 0.36), inset 0 1px 0 hsla(196, 94%, 84%, 0.18);
+}
+
+.main-menu-crest-avatar.theme-amber {
+  border-color: hsla(36, 86%, 56%, 0.74);
+  box-shadow: 0 8px 18px hsla(30, 78%, 24%, 0.36), inset 0 1px 0 hsla(44, 96%, 84%, 0.2);
 }
 
 .main-menu-crest-avatar .unit-svg {

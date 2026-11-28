@@ -4,7 +4,12 @@
  */
 
 import { formatCardDescription, getCardStats } from '../data/cards.js';
-import { getCharacterDef, normalizeCharacterId } from '../data/characters.js';
+import {
+  getCharacterDef,
+  isExpansionCharacter,
+  normalizeCharacterId,
+  normalizeEnabledCharacterId,
+} from '../data/characters.js';
 import { ACT4_TOTAL_FLOORS, TOTAL_FLOORS } from '../data/events.js';
 import { POTION_LIBRARY } from '../data/relics.js';
 import {
@@ -222,6 +227,10 @@ export function mountSpireApp(rootEl) {
     } else {
       const chChar = normalizeCharacterId(incomingChallenge.characterId);
       const chCharDef = getCharacterDef(chChar);
+      if (isExpansionCharacter(chChar) && !settings.enableExpansionCharacters) {
+        settings.enableExpansionCharacters = true;
+        saveSettings(settings);
+      }
       state = createNewRun(
         buildNewRunOptions({
           characterId: chChar,
@@ -726,12 +735,15 @@ export function mountSpireApp(rootEl) {
       fxManager.clearPendingFx();
       fxLayerEl.innerHTML = '';
       const hasActiveRun = Boolean(state && state.screen !== 'game_over');
-      const previewCharId = normalizeCharacterId(ui.selectedCharacterId || meta.selectedCharacterId);
+      const previewCharId = normalizeEnabledCharacterId(
+        ui.selectedCharacterId || meta.selectedCharacterId,
+        settings
+      );
       stageRoot.innerHTML = `
         <div class="spire-shell" data-character="${escapeHtml(previewCharId)}">
           ${renderCharacterSelectHeader({ hasActiveRun, menuView })}
           <main class="stage-viewport">
-            ${renderCharacterSelectScreen({ state, meta, ui, hasActiveRun })}
+            ${renderCharacterSelectScreen({ state, meta, settings, ui, hasActiveRun })}
           </main>
         </div>
         ${renderModal({ state, meta, settings, ui, animateEnter: animateModalEnter })}
@@ -1291,6 +1303,12 @@ export function mountSpireApp(rootEl) {
       spec?.characterId || ui.selectedCharacterId || meta.selectedCharacterId
     );
     const targetCharDef = getCharacterDef(targetChar);
+    let autoEnabledExpansion = false;
+    if (isExpansionCharacter(targetChar) && !settings.enableExpansionCharacters) {
+      settings.enableExpansionCharacters = true;
+      saveSettings(settings);
+      autoEnabledExpansion = true;
+    }
     launchRunForCharacter(targetChar, {
       seed: spec.seed,
       ascension: targetAsc,
@@ -1299,7 +1317,7 @@ export function mountSpireApp(rootEl) {
     });
     soundEngine.play('upgrade');
     setNotice(
-      `已进入好友种子挑战【${targetCharDef.name} · ${formatSeedCode(state.seed)} · 进阶 ${state.ascension}】（全图鉴临时对齐，不修改生涯解锁进度）！`
+      `已进入好友种子挑战【${targetCharDef.name} · ${formatSeedCode(state.seed)} · 进阶 ${state.ascension}】（全图鉴临时对齐，不修改生涯解锁进度${autoEnabledExpansion ? '；已自动开启拓展角色' : ''}）！`
     );
     render();
   }
@@ -1419,7 +1437,11 @@ export function mountSpireApp(rootEl) {
       startSeededRunFromInput('#char-seed-input');
       return;
     }
-    launchRunForCharacter(ui.selectedCharacterId);
+    const safeChar = normalizeEnabledCharacterId(
+      ui.selectedCharacterId || meta.selectedCharacterId,
+      settings
+    );
+    launchRunForCharacter(safeChar);
     soundEngine.play('upgrade');
     setNotice('');
     render();
@@ -1534,6 +1556,12 @@ export function mountSpireApp(rootEl) {
       settings.mobileHandLayout !== 'spread',
       '手牌排布：扇形堆叠',
       '手牌排布：平铺横滑'
+    );
+    syncToggleBtn(
+      'btn-toggle-expansion-characters',
+      Boolean(settings.enableExpansionCharacters),
+      '拓展角色：已开启',
+      '拓展角色：未开启'
     );
     syncToggleBtn('btn-toggle-mechanic-tips', settings.showMechanicTips !== false, '机制提示：已开启', '机制提示：已关闭');
 

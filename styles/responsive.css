@@ -1,7 +1,9 @@
 /* === Consolidated Responsive Breakpoints === */
 
 @media (max-width: 1120px) {
-  .character-select-grid {
+  .character-select-grid,
+  .character-select-grid[data-hero-count='5'],
+  .character-select-grid[data-hero-count='6'] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -135,6 +137,29 @@
     margin-bottom: 10px;
   }
 
+  .mobile-char-tabs[data-hero-count='5'] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab {
+    padding: 5px 2px 4px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-portrait {
+    width: 28px;
+    height: 28px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-portrait .unit-svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-name {
+    font-size: 0.64rem;
+  }
+
   .mobile-char-tab {
     display: flex;
     flex-direction: column;
@@ -204,6 +229,13 @@
     box-shadow: 0 0 12px hsla(200, 88%, 54%, 0.3);
   }
 
+  .mobile-char-tab.active.theme-amber {
+    border-color: hsl(36, 90%, 56%);
+    background: linear-gradient(180deg, hsla(32, 58%, 22%, 0.94), hsla(22, 46%, 12%, 0.97));
+    color: var(--text-ivory);
+    box-shadow: 0 0 12px hsla(34, 90%, 50%, 0.32);
+  }
+
   /* Adaptive Mobile Orb Rail: swap out turn badge inside .intent-stack for +0px vertical bloat */
   .orb-rail-side {
     display: none;
@@ -258,8 +290,16 @@
     line-height: 11px;
   }
 
-  .character-select-grid {
+  .character-select-grid,
+  .character-select-grid[data-hero-count='5'],
+  .character-select-grid[data-hero-count='6'] {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .char-expansion-toggle-btn {
+    min-height: 32px;
+    padding: 5px 11px;
+    font-size: 0.74rem;
   }
 
   .character-select-grid .character-card:not(.selected) {
@@ -2499,6 +2539,29 @@
 @media (max-width: 375px) {
   .mobile-char-tabs {
     gap: 4px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] {
+    gap: 3px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab {
+    padding: 4px 1px 3px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-portrait {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-portrait .unit-svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-char-tabs[data-hero-count='5'] .mobile-char-tab-name {
+    font-size: 0.59rem;
+    letter-spacing: -0.02em;
   }
 
   .mobile-char-tab {

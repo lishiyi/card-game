@@ -7,7 +7,13 @@
  */
 
 import { canRemoveCard, canUpgradeCard, CARD_LIBRARY, getCardCharacter, getCardStats } from '../../data/cards.js';
-import { CHARACTER_IDS, CHARACTER_LIBRARY, getCharacterDef } from '../../data/characters.js';
+import {
+  CHARACTER_LIBRARY,
+  EXPANSION_CHARACTER_IDS,
+  getCharacterDef,
+  getEnabledCharacterIds,
+  isExpansionCharacter,
+} from '../../data/characters.js';
 import { ENEMY_TEMPLATES } from '../../data/enemies.js';
 import { TOTAL_FLOORS } from '../../data/events.js';
 import { getRelicIcon, POTION_LIBRARY, RELIC_LIBRARY, RELIC_TIER_LABELS } from '../../data/relics.js';
@@ -107,7 +113,9 @@ function getRankCssClass(grade) {
   return 'rank-c';
 }
 
-function renderMetaModal({ state, meta, ui }) {
+function renderMetaModal({ state, meta, settings, ui }) {
+  const showExpansion = Boolean(settings?.enableExpansionCharacters);
+  const enabledCharIds = getEnabledCharacterIds(settings);
   const maxTierXp = UNLOCK_TIERS[UNLOCK_TIERS.length - 1].xpRequired;
   const effectiveTier = meta.unlockAllOverride ? UNLOCK_TIERS.length : meta.unlockedTier ?? 0;
   const xpPct = meta.unlockAllOverride
@@ -118,8 +126,12 @@ function renderMetaModal({ state, meta, ui }) {
   const activeCharDef = getCharacterDef(activeCharId);
   const maxAscAllowed = getMaxAscensionForCharacter(meta, activeCharId);
   const effectiveSelectedAsc = Math.min(maxAscAllowed, meta.selectedAscension ?? 0);
+  const archiveCharIds =
+    state?.characterId && !enabledCharIds.includes(state.characterId)
+      ? [...enabledCharIds, state.characterId]
+      : enabledCharIds;
 
-  const charArchiveHtml = CHARACTER_IDS.map((cid) => {
+  const charArchiveHtml = archiveCharIds.map((cid) => {
     const cDef = CHARACTER_LIBRARY[cid];
     const prog = getCharacterProgress(meta, cid);
     const cMaxAsc = getMaxAscensionForCharacter(meta, cid);
@@ -198,7 +210,11 @@ function renderMetaModal({ state, meta, ui }) {
   }).join('');
 
   const historyList = Array.isArray(meta.runHistory) ? meta.runHistory : [];
-  const histCharFilter = ui.historyCharFilter || 'all';
+  const rawHistCharFilter = ui.historyCharFilter || 'all';
+  const histCharFilter =
+    rawHistCharFilter === 'all' || enabledCharIds.includes(rawHistCharFilter)
+      ? rawHistCharFilter
+      : 'all';
   const histOutcomeFilter = ui.historyOutcomeFilter || 'all';
   const indexedHistory = historyList
     .map((rec, idx) => ({ rec, idx }))
@@ -211,7 +227,7 @@ function renderMetaModal({ state, meta, ui }) {
 
   const historyCharFiltersHtml = [
     { id: 'all', label: '全部职业' },
-    ...CHARACTER_IDS.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
+    ...enabledCharIds.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
   ]
     .map(
       (opt) => `
@@ -309,17 +325,24 @@ function renderMetaModal({ state, meta, ui }) {
             .join('')}
         </div>`;
 
-  const cardStatsCharFilter = ui.cardStatsCharFilter || 'all';
+  const rawCardStatsCharFilter = ui.cardStatsCharFilter || 'all';
+  const cardStatsCharFilter =
+    rawCardStatsCharFilter === 'all' ||
+    rawCardStatsCharFilter === 'colorless' ||
+    enabledCharIds.includes(rawCardStatsCharFilter)
+      ? rawCardStatsCharFilter
+      : 'all';
   const cardStatsSort = ui.cardStatsSort || 'winRate';
   const cardStatsIncludeStarters = Boolean(ui.cardStatsIncludeStarters);
   const cardStatsRows = computeCardWinRateRows(meta, {
     characterFilter: cardStatsCharFilter,
     sortBy: cardStatsSort,
     includeStarters: cardStatsIncludeStarters,
+    includeExpansion: showExpansion,
   });
   const cardStatsCharFiltersHtml = [
     { id: 'all', label: '全部' },
-    ...CHARACTER_IDS.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
+    ...enabledCharIds.map((cid) => ({ id: cid, label: CHARACTER_LIBRARY[cid].name })),
     { id: 'colorless', label: '无色' },
   ]
     .map(
@@ -538,11 +561,11 @@ function renderMetaModal({ state, meta, ui }) {
   `;
 }
 
-function renderHistoryDetailModal({ meta, ui }) {
+function renderHistoryDetailModal({ meta, settings, ui }) {
   const idx = Number(ui.inspectedHistoryIdx);
   const rec = Array.isArray(meta.runHistory) ? meta.runHistory[idx] : null;
   if (!rec) {
-    return renderMetaModal({ state: null, meta, ui });
+    return renderMetaModal({ state: null, meta, settings, ui });
   }
 
   const isWin = rec.outcome === 'victory';
@@ -899,6 +922,26 @@ function renderSettingsModal({ settings, ui, state }) {
                 aria-pressed="${settings.mobileHandLayout !== 'spread' ? 'true' : 'false'}"
               >
                 ${settings.mobileHandLayout !== 'spread' ? '手牌排布：扇形堆叠' : '手牌排布：平铺横滑'}
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div>
+                <div class="settings-label">✨ 拓展角色（经典 Mod 英雄）</div>
+                <div class="settings-desc">${
+                  EXPANSION_CHARACTER_IDS.length > 0
+                    ? `开启后在选角、图鉴与生涯中解锁来自热门社区 Mod 的拓展英雄（当前含 ${EXPANSION_CHARACTER_IDS.map((id) => `【${CHARACTER_LIBRARY[id]?.name || id}】`).join('、')}）；关闭后回归原版四职业纯净体验，已保存进度与战绩不会丢失。`
+                    : '开启后将在选角、图鉴与生涯中解锁精选社区 Mod 拓展英雄；关闭后保持原版四职业纯净体验，已有进度与战绩不会丢失。'
+                }</div>
+              </div>
+              <button
+                type="button"
+                id="btn-toggle-expansion-characters"
+                class="${settings.enableExpansionCharacters ? 'btn-brass' : 'btn-stone'} btn-toggle"
+                data-action="toggle-expansion-characters"
+                aria-pressed="${settings.enableExpansionCharacters ? 'true' : 'false'}"
+              >
+                ${settings.enableExpansionCharacters ? '拓展角色：已开启' : '拓展角色：未开启'}
               </button>
             </div>
 
@@ -1299,7 +1342,9 @@ function renderDiscardPileChoiceModal({ state }) {
   `;
 }
 
-function renderCompendiumModal({ meta, ui }) {
+function renderCompendiumModal({ meta, settings, ui }) {
+  const showExpansion = Boolean(settings?.enableExpansionCharacters);
+  const enabledCharIds = getEnabledCharacterIds(settings);
   const comp = ensureCompendium(meta);
   const revealAll = Boolean(meta?.unlockAllOverride);
   const discoveredCards = new Set(comp.cards);
@@ -1308,13 +1353,31 @@ function renderCompendiumModal({ meta, ui }) {
   const discoveredEnemies = new Set(comp.enemies);
 
   const tab = ui.compendiumTab || 'cards';
-  const charFilter = ui.compendiumCharFilter || 'all';
+  const rawCharFilter = ui.compendiumCharFilter || 'all';
+  const charFilter =
+    rawCharFilter === 'all' ||
+    rawCharFilter === 'colorless' ||
+    rawCharFilter === 'special' ||
+    enabledCharIds.includes(rawCharFilter)
+      ? rawCharFilter
+      : 'all';
   const relicTierFilter = ui.compendiumRelicTier || 'all';
   const showUpgraded = Boolean(ui.compendiumShowUpgraded);
 
-  const allCardIds = Object.keys(CARD_LIBRARY);
-  const allRelicIds = Object.keys(RELIC_LIBRARY);
-  const allPotionIds = Object.keys(POTION_LIBRARY);
+  const allCardIds = Object.keys(CARD_LIBRARY).filter((id) => {
+    if (showExpansion) return true;
+    const def = CARD_LIBRARY[id];
+    if (!def) return false;
+    if (def.origin === 'expansion') return false;
+    const owner = def.character || null;
+    return !owner || !isExpansionCharacter(owner);
+  });
+  const allRelicIds = Object.keys(RELIC_LIBRARY).filter(
+    (id) => showExpansion || !isExpansionCharacter(RELIC_LIBRARY[id]?.character)
+  );
+  const allPotionIds = Object.keys(POTION_LIBRARY).filter(
+    (id) => showExpansion || !isExpansionCharacter(POTION_LIBRARY[id]?.character)
+  );
   const allEnemyIds = Object.keys(ENEMY_TEMPLATES);
 
   const countSeen = (ids, set) => (revealAll ? ids.length : ids.filter((id) => set.has(id)).length);
@@ -1333,10 +1396,9 @@ function renderCompendiumModal({ meta, ui }) {
     curse: '诅咒',
   };
   const CLASS_LABELS = {
-    ironclad: '铁甲战士',
-    silent: '静默猎手',
-    watcher: '观者',
-    defect: '故障机器人',
+    ...Object.fromEntries(
+      Object.values(CHARACTER_LIBRARY).map((def) => [def.id, def.name])
+    ),
     colorless: '无色',
     any: '通用',
   };
@@ -1351,7 +1413,9 @@ function renderCompendiumModal({ meta, ui }) {
   let contentHtml = '';
 
   if (tab === 'cards') {
-    const classOrder = { ironclad: 0, silent: 1, watcher: 2, defect: 3, colorless: 4, special: 5 };
+    const classOrder = Object.fromEntries(enabledCharIds.map((id, idx) => [id, idx]));
+    classOrder.colorless = enabledCharIds.length;
+    classOrder.special = enabledCharIds.length + 1;
     const rarityOrder = { starter: 0, common: 1, uncommon: 2, rare: 3, special: 4, status: 5, curse: 6 };
     const getCardGroup = (def) => {
       if (def.type === 'curse' || def.type === 'status' || def.rarity === 'special') return 'special';
@@ -1371,10 +1435,7 @@ function renderCompendiumModal({ meta, ui }) {
 
     const charChips = [
       ['all', '全部'],
-      ['ironclad', '铁甲战士'],
-      ['silent', '静默猎手'],
-      ['watcher', '观者'],
-      ['defect', '故障机器人'],
+      ...enabledCharIds.map((id) => [id, CHARACTER_LIBRARY[id].name]),
       ['colorless', '无色'],
       ['special', '衍生/状态/诅咒'],
     ]
@@ -1648,15 +1709,15 @@ function renderModalContent({ state, meta, settings, ui }) {
   }
 
   if (ui.modal === 'meta') {
-    return renderMetaModal({ state, meta, ui });
+    return renderMetaModal({ state, meta, settings, ui });
   }
 
   if (ui.modal === 'compendium') {
-    return renderCompendiumModal({ meta, ui });
+    return renderCompendiumModal({ meta, settings, ui });
   }
 
   if (ui.modal === 'history_detail') {
-    return renderHistoryDetailModal({ meta, ui });
+    return renderHistoryDetailModal({ meta, settings, ui });
   }
 
   if (ui.modal === 'settings') {
@@ -1688,7 +1749,11 @@ function renderModalContent({ state, meta, settings, ui }) {
     } else {
       const ascLabel = `进阶 ${req.ascension ?? 0}`;
       const reqCharDef = getCharacterDef(req.characterId);
-      descHtml = `挑战角色：<strong>${escapeHtml(reqCharDef.name)}</strong> · 目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong> · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度）。`;
+      const expansionAutoNote =
+        isExpansionCharacter(req.characterId) && !settings?.enableExpansionCharacters
+          ? '；接受后将自动为你开启「✨ 拓展角色」以便游玩该英雄'
+          : '';
+      descHtml = `挑战角色：<strong>${escapeHtml(reqCharDef.name)}</strong> · 目标种子：<strong style="font-family:var(--font-mono);color:var(--accent-brass);">${escapeHtml(req.seedCode)}</strong> · 难度：<strong>${escapeHtml(ascLabel)}</strong>（本局将临时对齐全图鉴卡池与目标进阶，不修改你的本地生涯解锁进度${expansionAutoNote}）。`;
     }
 
     return `

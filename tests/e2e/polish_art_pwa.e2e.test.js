@@ -2926,6 +2926,7 @@ test('E2E toggle buttons keep identical dimensions and preserve modal scroll on 
           'btn-toggle-damage-numbers',
           'btn-toggle-mobile-tap-confirm',
           'btn-toggle-mobile-hand-layout',
+          'btn-toggle-expansion-characters',
           'btn-toggle-mechanic-tips',
         ];
 

@@ -5,7 +5,12 @@
  */
 
 import { CARD_LIBRARY, getCardCharacter, getCardStats } from '../data/cards.js';
-import { CHARACTER_IDS, getCharacterDef, normalizeCharacterId } from '../data/characters.js';
+import {
+  CHARACTER_IDS,
+  getCharacterDef,
+  isExpansionCharacter,
+  normalizeCharacterId,
+} from '../data/characters.js';
 import { ENEMY_TEMPLATES } from '../data/enemies.js';
 import { POTION_LIBRARY, RELIC_LIBRARY } from '../data/relics.js';
 import { getDailyModifierDefs, hasDailyModifier } from './daily.js';
@@ -378,7 +383,7 @@ export function accumulateCardStatsFromDeckSummary(cardStats, deckSummary, isVic
 
 export function computeCardWinRateRows(
   meta,
-  { characterFilter = 'all', sortBy = 'winRate', includeStarters = false } = {}
+  { characterFilter = 'all', sortBy = 'winRate', includeStarters = false, includeExpansion = true } = {}
 ) {
   const statsMap = ensureCardStats(meta);
   const rows = [];
@@ -388,6 +393,7 @@ export function computeCardWinRateRows(
     if (def.type === 'status' || def.type === 'curse') continue;
     if (!includeStarters && (cardId === 'strike' || cardId === 'defend')) continue;
     const cardChar = getCardCharacter(def);
+    if (!includeExpansion && (isExpansionCharacter(cardChar) || def.origin === 'expansion')) continue;
     if (characterFilter !== 'all' && cardChar !== characterFilter) continue;
     const runs = Math.max(1, Math.floor(entry.runs));
     const wins = Math.max(0, Math.min(runs, Math.floor(entry.wins ?? 0)));
@@ -1209,10 +1215,12 @@ export function validateSaveBackup(rawInput, expectedFloors = 16) {
       showDamageNumbers: typeof s.showDamageNumbers === 'boolean' ? s.showDamageNumbers : true,
       tutorialDismissed: Boolean(s.tutorialDismissed),
       mobileTapConfirm: Boolean(s.mobileTapConfirm),
+      mobileHandLayout: s.mobileHandLayout === 'spread' ? 'spread' : 'fan',
       showMechanicTips: typeof s.showMechanicTips === 'boolean' ? s.showMechanicTips : true,
       seenMechanicTips: Array.isArray(s.seenMechanicTips)
         ? [...new Set(s.seenMechanicTips.filter((id) => typeof id === 'string' && id.length > 0))]
         : [],
+      enableExpansionCharacters: Boolean(s.enableExpansionCharacters),
     };
   }
 

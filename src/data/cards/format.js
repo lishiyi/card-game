@@ -1,4 +1,5 @@
 import { calculateAttackDamage, calculateCardBlock } from '../../engine/math.js';
+import { CHARACTER_LIBRARY } from '../characters.js';
 import { CARD_LIBRARY, getCardCharacter } from './library.js';
 
 export function createCardInstance(state, cardId, upgraded = false) {
@@ -924,16 +925,7 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.addRandomCardToHand) {
     const cfg = stats.addRandomCardToHand;
     const typeLabel = cfg.type === 'attack' ? '攻击牌' : cfg.type === 'skill' ? '技能牌' : '卡牌';
-    const charLabel =
-      cfg.character === 'ironclad'
-        ? '铁甲战士'
-        : cfg.character === 'silent'
-          ? '静默猎手'
-          : cfg.character === 'watcher'
-            ? '观者'
-            : cfg.character === 'defect'
-              ? '故障机器人'
-              : '';
+    const charLabel = (cfg.character && CHARACTER_LIBRARY[cfg.character]?.name) || '';
     parts.push(
       `随机将 1 张${charLabel}${typeLabel}加入手牌${cfg.tempZeroCostTurn ? '，本回合费用变为 0' : ''}。`
     );
