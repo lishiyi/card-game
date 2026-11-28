@@ -101,6 +101,8 @@ const LAZY_PRECACHE_URLS = [
   './src/ui/card_art/exp_iron_silent.js',
   './src/ui/card_art/exp_watcher_colorless.js',
   './src/ui/card_art/hermit_a.js',
+  './src/ui/card_art/hermit_b.js',
+  './src/ui/card_art/hermit_c.js',
   './src/ui/card_art/hermit.js',
   './src/ui/card_art/ironclad.js',
   './src/ui/card_art/silent.js',

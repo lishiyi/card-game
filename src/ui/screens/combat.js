@@ -218,7 +218,8 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
   const isHandMultiSelectMode =
     pendingMode === 'retain' ||
     pendingMode === 'exhaust_multi' ||
-    pendingMode === 'hand_to_draw_bottom_multi';
+    pendingMode === 'hand_to_draw_bottom_multi' ||
+    pendingMode === 'magnum';
   const isHandChoiceMode =
     pendingMode === 'discard' ||
     pendingMode === 'exhaust' ||
@@ -229,6 +230,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     pendingMode === 'hand_to_draw_bottom_multi' ||
     pendingMode === 'dual_wield' ||
     pendingMode === 'nightmare' ||
+    pendingMode === 'lone_wolf' ||
+    pendingMode === 'malice' ||
+    pendingMode === 'magnum' ||
     pendingMode === 'retain';
   const multiSelectedSet = isHandMultiSelectMode ? new Set(pendingChoice.selectedIds || []) : null;
   const multiEligibleSet = isHandMultiSelectMode
@@ -265,6 +269,8 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             exhaustMultiSelected: pendingMode === 'exhaust_multi' && isPicked,
             drawBottomMultiSelectable: pendingMode === 'hand_to_draw_bottom_multi' && eligible,
             drawBottomMultiSelected: pendingMode === 'hand_to_draw_bottom_multi' && isPicked,
+            magnumSelectable: pendingMode === 'magnum' && eligible,
+            magnumSelected: pendingMode === 'magnum' && isPicked,
             hotkey: eligible && idx < 9 ? idx + 1 : undefined,
             combatContext: {
               player: state.player,
@@ -293,7 +299,7 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             },
           });
         }
-        if (pendingMode === 'exhaust') {
+        if (pendingMode === 'exhaust' || pendingMode === 'malice') {
           return renderCardHtml(card, {
             ...fanProps,
             idPrefix: 'hand-card',
@@ -302,6 +308,23 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
             selected: false,
             dimmed: false,
             exhaustSelectable: true,
+            hotkey: idx < 9 ? idx + 1 : undefined,
+            combatContext: {
+              player: state.player,
+              targetEnemy: previewTarget,
+              combat,
+            },
+          });
+        }
+        if (pendingMode === 'lone_wolf') {
+          return renderCardHtml(card, {
+            ...fanProps,
+            idPrefix: 'hand-card',
+            action: 'resolve-card-choice',
+            playable: true,
+            selected: false,
+            dimmed: false,
+            loneWolfSelectable: true,
             hotkey: idx < 9 ? idx + 1 : undefined,
             combatContext: {
               player: state.player,
@@ -439,9 +462,18 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerClass = 'retain-prompt';
   } else if (pendingMode === 'exhaust_multi') {
     const pickedLen = (pendingChoice.selectedIds || []).length;
-    bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌消耗（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认消耗」`;
+    const blkNote =
+      (pendingChoice.blockPerExhaust ?? 0) > 0
+        ? `（每消耗 1 张获得 ${pendingChoice.blockPerExhaust} 点格挡）`
+        : '';
+    bannerText = `【${pendingChoice.sourceName}】请选择最多 ${pendingChoice.count} 张手牌消耗${blkNote}（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认消耗」`;
     bannerDesktopHint = '（数字键 1–9 选择，Enter 确认）';
     bannerClass = 'exhaust-prompt';
+  } else if (pendingMode === 'magnum') {
+    const pickedLen = (pendingChoice.selectedIds || []).length;
+    bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.count} 张手牌弃置并连射（已选 ${pickedLen}/${pendingChoice.count}），完成后点击「确认射击」`;
+    bannerDesktopHint = '（数字键 1–9 选择，Enter 确认）';
+    bannerClass = 'discard-prompt';
   } else if (pendingMode === 'hand_to_draw_bottom_multi') {
     const pickedLen = (pendingChoice.selectedIds || []).length;
     bannerText = `【${pendingChoice.sourceName}】请选择任意张手牌置于抽牌堆底（已选 ${pickedLen} 张），完成后点击「确认置底」`;
@@ -455,6 +487,14 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌消耗`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
     bannerClass = 'exhaust-prompt';
+  } else if (pendingMode === 'malice') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 1 张手牌消耗（若消耗诅咒牌则改为全体伤害！）`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'exhaust-prompt';
+  } else if (pendingMode === 'lone_wolf') {
+    bannerText = `【${pendingChoice.sourceName}】请选择 1 张手牌保留并变为本回合 0 费（其余手牌将全部弃置）`;
+    bannerDesktopHint = '（点击手牌或按数字键 1–9）';
+    bannerClass = 'upgrade-prompt';
   } else if (pendingMode === 'upgrade') {
     bannerText = `【${pendingChoice.sourceName}】请选择 ${pendingChoice.remaining} 张手牌本场战斗升级`;
     bannerDesktopHint = '（点击手牌或按数字键 1–9）';
@@ -488,13 +528,16 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从弃牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
     bannerClass = 'scry-prompt';
   } else if (pendingMode === 'retrieve_exhaust_to_hand') {
-    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从消耗堆发掘 ${pendingChoice.remaining} 张牌加入手牌……`;
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从消耗堆取回 ${pendingChoice.remaining} 张牌加入手牌……`;
     bannerClass = 'scry-prompt';
   } else if (pendingMode === 'pick_from_draw') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆选择 ${pendingChoice.remaining} 张牌加入手牌……`;
     bannerClass = 'scry-prompt';
   } else if (pendingMode === 'omniscience') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆选择 1 张牌免费连续打出 2 次……`;
+    bannerClass = 'scry-prompt';
+  } else if (pendingMode === 'cheat') {
+    bannerText = `【${pendingChoice.sourceName}】请在弹窗中从抽牌堆顶选择 1 张牌免费打出……`;
     bannerClass = 'scry-prompt';
   } else if (pendingMode === 'discover_card') {
     bannerText = `【${pendingChoice.sourceName}】请在弹窗中从 3 张候选卡牌选择 1 张加入手牌……`;
@@ -668,50 +711,56 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
       ? `点选保留牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
       : pendingMode === 'exhaust_multi'
         ? `点选消耗牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认`
-        : pendingMode === 'hand_to_draw_bottom_multi'
-          ? `点选置底牌 (${(pendingChoice.selectedIds || []).length}) 后确认`
-          : pendingMode === 'discard'
-            ? '点击下方手牌弃置'
-            : pendingMode === 'exhaust'
-              ? '点击下方手牌消耗'
-              : pendingMode === 'upgrade'
-                ? '点击下方手牌升级'
-                : pendingMode === 'hand_to_draw'
-                  ? '点击下方手牌置于抽牌堆顶'
-                  : pendingMode === 'hand_to_draw_bottom'
-                    ? '点击下方手牌置于抽牌堆底'
-                    : pendingMode === 'dual_wield'
-                      ? '点击下方攻击/能力牌复制'
-                      : pendingMode === 'nightmare'
-                        ? '点击下方手牌下回合复制×3'
-                        : pendingMode === 'scry'
-                          ? '请在弹窗完成预见'
-                          : pendingMode === 'discard_to_draw' ||
-                              pendingMode === 'retrieve_discard_retain' ||
-                              pendingMode === 'retrieve_discard_to_hand'
-                            ? '请在弹窗从弃牌堆选牌'
-                            : pendingMode === 'retrieve_exhaust_to_hand'
-                              ? '请在弹窗从消耗堆发掘'
-                              : pendingMode === 'pick_from_draw' || pendingMode === 'omniscience'
-                                ? '请在弹窗从抽牌堆选牌'
-                                : pendingMode === 'discover_card'
-                                  ? '请在弹窗 3 选 1 入手'
-                                  : pendingMode === 'wish'
-                                    ? '请在弹窗选择愿望'
-                                    : handLayout === 'fan' && handCount >= 4
-                                      ? '点选/横滑预览 · 再点/上滑出牌'
-                                      : settings?.mobileTapConfirm
-                                        ? '点选预览 · 再点/上滑出牌'
-                                        : '左右滑选牌 · 上滑拖出牌';
+        : pendingMode === 'magnum'
+          ? `点选弃置牌 (${(pendingChoice.selectedIds || []).length}/${pendingChoice.count}) 后确认射击`
+          : pendingMode === 'hand_to_draw_bottom_multi'
+            ? `点选置底牌 (${(pendingChoice.selectedIds || []).length}) 后确认`
+            : pendingMode === 'discard'
+              ? '点击下方手牌弃置'
+              : pendingMode === 'exhaust' || pendingMode === 'malice'
+                ? '点击下方手牌消耗'
+                : pendingMode === 'lone_wolf'
+                  ? '点击保留并变为 0 费的牌'
+                  : pendingMode === 'upgrade'
+                    ? '点击下方手牌升级'
+                    : pendingMode === 'hand_to_draw'
+                      ? '点击下方手牌置于抽牌堆顶'
+                      : pendingMode === 'hand_to_draw_bottom'
+                        ? '点击下方手牌置于抽牌堆底'
+                        : pendingMode === 'dual_wield'
+                          ? '点击下方攻击/能力牌复制'
+                          : pendingMode === 'nightmare'
+                            ? '点击下方手牌下回合复制×3'
+                            : pendingMode === 'scry'
+                              ? '请在弹窗完成预见'
+                              : pendingMode === 'discard_to_draw' ||
+                                  pendingMode === 'retrieve_discard_retain' ||
+                                  pendingMode === 'retrieve_discard_to_hand'
+                                ? '请在弹窗从弃牌堆选牌'
+                                : pendingMode === 'retrieve_exhaust_to_hand'
+                                  ? '请在弹窗从消耗堆取回'
+                                  : pendingMode === 'pick_from_draw' ||
+                                      pendingMode === 'omniscience' ||
+                                      pendingMode === 'cheat'
+                                    ? '请在弹窗从抽牌堆选牌'
+                                    : pendingMode === 'discover_card'
+                                      ? '请在弹窗 3 选 1 入手'
+                                      : pendingMode === 'wish'
+                                        ? '请在弹窗选择愿望'
+                                        : handLayout === 'fan' && handCount >= 4
+                                          ? '点选/横滑预览 · 再点/上滑出牌'
+                                          : settings?.mobileTapConfirm
+                                            ? '点选预览 · 再点/上滑出牌'
+                                            : '左右滑选牌 · 上滑拖出牌';
 
   const handTrayChoiceClass =
     pendingMode === 'retain'
       ? 'retain-selecting'
-      : pendingMode === 'discard'
+      : pendingMode === 'discard' || pendingMode === 'magnum'
         ? 'discard-selecting'
-        : pendingMode === 'exhaust' || pendingMode === 'exhaust_multi'
+        : pendingMode === 'exhaust' || pendingMode === 'exhaust_multi' || pendingMode === 'malice'
           ? 'exhaust-selecting'
-          : pendingMode === 'upgrade' || pendingMode === 'dual_wield'
+          : pendingMode === 'upgrade' || pendingMode === 'dual_wield' || pendingMode === 'lone_wolf'
             ? 'upgrade-selecting'
             : pendingMode === 'hand_to_draw' ||
                 pendingMode === 'hand_to_draw_bottom' ||
@@ -869,7 +918,9 @@ export function renderCombatScreen({ state, ui, settings, getPreviewTargetEnemy 
                       ? `确认保留 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)}) 并结束回合`
                       : pendingMode === 'exhaust_multi'
                         ? `确认消耗 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)})`
-                        : `确认置底 (${escapeHtml((pendingChoice.selectedIds || []).length)})`
+                        : pendingMode === 'magnum'
+                          ? `确认射击 (${escapeHtml((pendingChoice.selectedIds || []).length)}/${escapeHtml(pendingChoice.count)})`
+                          : `确认置底 (${escapeHtml((pendingChoice.selectedIds || []).length)})`
                   }
                 </button>`
               : `<button

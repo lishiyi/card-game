@@ -1208,6 +1208,127 @@ export const RELIC_SVG_ART = Object.freeze({
      <circle cx="18" cy="20.6" r="1.4" fill="hsl(48, 100%, 92%)"/>
      <path d="M12.6 20.6 H14.4 M21.6 20.6 H23.4" stroke="hsl(46, 96%, 72%)" stroke-width="1.5" stroke-linecap="round"/>`
   ),
+  black_powder: wrapRelicSvg(
+    'black_powder',
+    'hsl(18, 62%, 22%)',
+    'hsl(220, 32%, 10%)',
+    'hsl(36, 96%, 64%)',
+    `<ellipse cx="18" cy="21" rx="8.4" ry="7.4" fill="hsl(220, 22%, 18%)" stroke="hsl(36, 72%, 58%)" stroke-width="1.5"/>
+     <path d="M12 16 Q18 13 24 16 L22 12 H14 Z" fill="hsl(26, 44%, 28%)" stroke="hsl(42, 82%, 64%)" stroke-width="1.2"/>
+     <path d="M18 12 Q22 7 26 9" fill="none" stroke="hsl(44, 92%, 72%)" stroke-width="1.6" stroke-linecap="round"/>
+     <polygon points="27,7 28.5,10 31,9.5 29,12 30.5,14.5 27.5,13 25.5,15 26,12 24,10.5 26.5,10" fill="hsl(44, 100%, 70%)"/>
+     <circle cx="15" cy="21" r="1.4" fill="hsl(32, 92%, 64%)"/><circle cx="20.5" cy="22.5" r="1.2" fill="hsl(22, 96%, 60%)"/>`
+  ),
+  brass_tacks: wrapRelicSvg(
+    'brass_tacks',
+    'hsl(38, 62%, 22%)',
+    'hsl(22, 54%, 10%)',
+    'hsl(46, 96%, 68%)',
+    `<circle cx="14" cy="14" r="4.6" fill="hsl(40, 86%, 54%)" stroke="hsl(50, 100%, 82%)" stroke-width="1.3"/>
+     <path d="M14 18.6 L14 27" stroke="hsl(214, 24%, 72%)" stroke-width="2" stroke-linecap="round"/>
+     <circle cx="22.8" cy="17.5" r="4.2" fill="hsl(36, 82%, 48%)" stroke="hsl(48, 100%, 80%)" stroke-width="1.3"/>
+     <path d="M22.8 21.8 L22.8 28.5" stroke="hsl(214, 24%, 72%)" stroke-width="1.9" stroke-linecap="round"/>
+     <circle cx="13" cy="13" r="1.2" fill="hsl(54, 100%, 92%)"/><circle cx="22" cy="16.5" r="1" fill="hsl(54, 100%, 92%)"/>`
+  ),
+  bloody_tooth: wrapRelicSvg(
+    'bloody_tooth',
+    'hsl(354, 60%, 22%)',
+    'hsl(24, 52%, 10%)',
+    'hsl(42, 92%, 68%)',
+    `<path d="M10.5 9.5 C10.5 9.5 18 7.5 22.5 11.5 C25 14 25.5 22 21 28.5 C19 25 18 20.5 15.5 19.5 C13 18.5 10.5 14.5 10.5 9.5 Z" fill="hsl(42, 46%, 88%)" stroke="hsl(32, 48%, 54%)" stroke-width="1.4" stroke-linejoin="round"/>
+     <path d="M18.5 21 C20.8 21.5 22.4 24.5 21 28.5 C19.5 26 18.8 23.2 18.5 21 Z" fill="hsl(354, 88%, 50%)"/>
+     <path d="M12.5 11.5 Q17 10.5 20.5 13.5" fill="none" stroke="hsl(38, 72%, 62%)" stroke-width="1.4" stroke-linecap="round"/>
+     <circle cx="25.5" cy="11.5" r="2.2" fill="hsl(46, 98%, 66%)" stroke="hsl(28, 66%, 26%)" stroke-width="0.9"/>`
+  ),
+  spyglass: wrapRelicSvg(
+    'spyglass',
+    'hsl(42, 62%, 22%)',
+    'hsl(204, 52%, 10%)',
+    'hsl(46, 98%, 70%)',
+    `<path d="M8.5 23.5 L24 9 L28 13 L12.5 27.5 Z" fill="hsl(38, 76%, 48%)" stroke="hsl(48, 98%, 76%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <line x1="14.5" y1="17.8" x2="18.2" y2="21.5" stroke="hsl(24, 52%, 22%)" stroke-width="1.5"/>
+     <line x1="19.5" y1="13" x2="23.2" y2="16.7" stroke="hsl(24, 52%, 22%)" stroke-width="1.5"/>
+     <ellipse cx="26.2" cy="10.8" rx="3.2" ry="1.8" transform="rotate(45 26.2 10.8)" fill="hsl(194, 96%, 72%)" stroke="hsl(52, 100%, 90%)" stroke-width="1"/>`
+  ),
+  straight_razor: wrapRelicSvg(
+    'straight_razor',
+    'hsl(214, 34%, 22%)',
+    'hsl(354, 48%, 10%)',
+    'hsl(40, 86%, 68%)',
+    `<path d="M8.5 24 L20.5 10.5 L27.5 13 L15 26.5 Z" fill="hsl(212, 26%, 80%)" stroke="hsl(214, 30%, 42%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M9.5 24.5 L25.5 26.5 C27 26.8 27.8 24.2 26 23.2 L12.5 20.8 Z" fill="hsl(20, 48%, 26%)" stroke="hsl(38, 76%, 58%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <circle cx="11.5" cy="23.5" r="1.7" fill="hsl(46, 98%, 72%)"/>
+     <path d="M16 17.5 L23 12.2" stroke="hsl(0, 0%, 100%)" stroke-width="1.1" opacity="0.8"/>`
+  ),
+  charred_glove: wrapRelicSvg(
+    'charred_glove',
+    'hsl(18, 62%, 20%)',
+    'hsl(276, 48%, 10%)',
+    'hsl(32, 98%, 62%)',
+    `<path d="M12.5 28 V17.5 L11 11.5 C11 10.2 12.8 10 13.4 11.4 L14.4 15 V9.5 C14.4 8.2 16.4 8.2 16.6 9.5 L17 14.5 V8.8 C17 7.5 19.2 7.5 19.4 8.8 L19.8 14.5 L21.4 10.5 C22 9.4 23.8 10 23.4 11.4 L22.2 18.5 L24.5 16.5 C25.6 15.8 26.8 17.2 25.8 18.4 L22.5 23.8 V28 Z" fill="hsl(20, 32%, 18%)" stroke="hsl(30, 96%, 60%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <path d="M14.5 22 Q18 19 21.5 22" fill="none" stroke="hsl(24, 100%, 66%)" stroke-width="1.4" stroke-linecap="round"/>
+     <circle cx="18" cy="17.5" r="1.5" fill="hsl(44, 100%, 74%)"/>`
+  ),
+  horseshoe: wrapRelicSvg(
+    'horseshoe',
+    'hsl(36, 56%, 22%)',
+    'hsl(214, 42%, 10%)',
+    'hsl(44, 96%, 68%)',
+    `<path d="M11 10.5 V18.5 A7 7 0 0 0 25 18.5 V10.5" fill="none" stroke="hsl(214, 24%, 64%)" stroke-width="4.4" stroke-linecap="round"/>
+     <path d="M11 10.5 V18.5 A7 7 0 0 0 25 18.5 V10.5" fill="none" stroke="hsl(44, 96%, 72%)" stroke-width="1.5" stroke-linecap="round"/>
+     <circle cx="11" cy="14" r="1" fill="hsl(24, 50%, 16%)"/><circle cx="25" cy="14" r="1" fill="hsl(24, 50%, 16%)"/>
+     <circle cx="13.2" cy="23.2" r="1" fill="hsl(24, 50%, 16%)"/><circle cx="22.8" cy="23.2" r="1" fill="hsl(24, 50%, 16%)"/>`
+  ),
+  red_scarf: wrapRelicSvg(
+    'red_scarf',
+    'hsl(354, 62%, 22%)',
+    'hsl(18, 54%, 10%)',
+    'hsl(6, 94%, 64%)',
+    `<path d="M9.5 13.5 Q18 9.5 26.5 13.5 Q24.5 19.5 18 20.5 Q11.5 19.5 9.5 13.5 Z" fill="hsl(354, 72%, 44%)" stroke="hsl(38, 86%, 68%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <path d="M16 19.5 L12.5 28.5 L17.5 26.5 L20.5 29 L21.5 19.5 Z" fill="hsl(350, 68%, 36%)" stroke="hsl(12, 92%, 64%)" stroke-width="1.2" stroke-linejoin="round"/>
+     <path d="M13 15 Q18 17 23 15" fill="none" stroke="hsl(46, 96%, 76%)" stroke-width="1.2" stroke-linecap="round"/>`
+  ),
+  rye_stalk: wrapRelicSvg(
+    'rye_stalk',
+    'hsl(42, 62%, 22%)',
+    'hsl(28, 54%, 10%)',
+    'hsl(48, 96%, 68%)',
+    `<path d="M11 28 Q16 20 24.5 9.5" fill="none" stroke="hsl(44, 90%, 62%)" stroke-width="1.8" stroke-linecap="round"/>
+     <ellipse cx="18.5" cy="13.5" rx="2.8" ry="1.4" transform="rotate(-35 18.5 13.5)" fill="hsl(46, 96%, 68%)"/>
+     <ellipse cx="22.5" cy="15.5" rx="2.8" ry="1.4" transform="rotate(35 22.5 15.5)" fill="hsl(40, 92%, 58%)"/>
+     <ellipse cx="15.5" cy="17.5" rx="2.8" ry="1.4" transform="rotate(-35 15.5 17.5)" fill="hsl(46, 96%, 68%)"/>
+     <ellipse cx="19.5" cy="19.5" rx="2.8" ry="1.4" transform="rotate(35 19.5 19.5)" fill="hsl(40, 92%, 58%)"/>
+     <ellipse cx="22.2" cy="10.2" rx="2.4" ry="1.2" transform="rotate(-48 22.2 10.2)" fill="hsl(52, 100%, 82%)"/>`
+  ),
+  pet_ghost: wrapRelicSvg(
+    'pet_ghost',
+    'hsl(192, 56%, 22%)',
+    'hsl(264, 54%, 10%)',
+    'hsl(188, 96%, 74%)',
+    `<path d="M11.5 19 C11.5 12 14.2 8.5 18 8.5 C21.8 8.5 24.5 12 24.5 19 V27 L22 24.8 L19.5 27.2 L18 25 L16.5 27.2 L14 24.8 L11.5 27 Z" fill="hsla(190, 94%, 84%, 0.88)" stroke="hsl(188, 100%, 74%)" stroke-width="1.3" stroke-linejoin="round"/>
+     <circle cx="15.5" cy="16.2" r="1.6" fill="hsl(258, 52%, 14%)"/><circle cx="20.5" cy="16.2" r="1.6" fill="hsl(258, 52%, 14%)"/>
+     <path d="M16.2 20 Q18 21.8 19.8 20" fill="none" stroke="hsl(258, 48%, 22%)" stroke-width="1.2" stroke-linecap="round"/>`
+  ),
+  bartender_glass: wrapRelicSvg(
+    'bartender_glass',
+    'hsl(34, 68%, 22%)',
+    'hsl(18, 56%, 10%)',
+    'hsl(44, 98%, 68%)',
+    `<path d="M11 9.5 H25 L23.2 27 H12.8 Z" fill="hsla(42, 40%, 86%, 0.22)" stroke="hsl(44, 88%, 76%)" stroke-width="1.5" stroke-linejoin="round"/>
+     <path d="M12.2 16.5 H23.8 L22.6 25.8 H13.4 Z" fill="hsl(32, 92%, 50%)"/>
+     <path d="M13 16.5 H23" stroke="hsl(48, 100%, 86%)" stroke-width="1.4"/>
+     <rect x="15.2" y="19" width="4.4" height="4.4" rx="0.8" transform="rotate(14 17.4 21.2)" fill="hsla(48, 100%, 92%, 0.65)" stroke="hsl(44, 96%, 80%)" stroke-width="0.8"/>`
+  ),
+  dented_plate: wrapRelicSvg(
+    'dented_plate',
+    'hsl(214, 36%, 22%)',
+    'hsl(18, 48%, 10%)',
+    'hsl(38, 90%, 66%)',
+    `<path d="M10 10.5 L26 10.5 L27 25.5 L18 28.5 L9 25.5 Z" fill="hsl(214, 24%, 44%)" stroke="hsl(42, 86%, 66%)" stroke-width="1.5" stroke-linejoin="round"/>
+     <circle cx="18.5" cy="18.5" r="4.2" fill="hsl(218, 26%, 24%)" stroke="hsl(36, 94%, 64%)" stroke-width="1.2"/>
+     <path d="M15.5 15.5 L21.5 21.5 M21.5 15.5 L15.5 21.5" stroke="hsl(44, 100%, 78%)" stroke-width="1.2" stroke-linecap="round"/>
+     <circle cx="12.5" cy="13" r="1" fill="hsl(46, 92%, 74%)"/><circle cx="23.5" cy="13" r="1" fill="hsl(46, 92%, 74%)"/>`
+  ),
 });
 
 const FALLBACK_RELIC_SVG = wrapRelicSvg(

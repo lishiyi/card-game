@@ -157,7 +157,7 @@ export const CHARACTER_LIBRARY = deepFreeze({
     maxEnergy: 3,
     starterRelic: 'memento',
     bossStarterUpgrade: 'clasped_locket',
-    starterPotion: 'fire_potion',
+    starterPotion: 'tonic',
     archetypes: ['精准瞄准', '瘀伤爆发', '诅咒驭暗'],
     summary:
       '来自经典社区拓展 Downfall 的独行枪手。围绕手牌正中触发【精准】奇效、叠高【瘀伤】放大多段火力，或拥抱【诅咒】将其化为防御与爆发资源。',

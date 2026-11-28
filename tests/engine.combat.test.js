@@ -566,27 +566,32 @@ test('Upgrade preview and getCardStats explicitly surface cost reductions (Seein
 });
 
 test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concrete non-empty descriptions', () => {
-  assert.equal(Object.keys(RELIC_LIBRARY).length, 115);
+  assert.equal(Object.keys(RELIC_LIBRARY).length, 127);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.character !== 'hermit').length,
     113,
     'Vanilla relic count must remain 113'
   );
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'starter').length, 5);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 27);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 25);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 24);
-  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 10);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'common').length, 29);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'uncommon').length, 28);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'rare').length, 28);
+  assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'shop').length, 11);
   assert.equal(Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'event').length, 4);
   assert.equal(
     Object.values(RELIC_LIBRARY).filter((r) => r.tier === 'boss').length,
-    20
+    22
   );
   for (const id of Object.keys(RELIC_LIBRARY)) {
     assert.ok(RELIC_ICONS[id] && getRelicIcon(id).length > 0, `Relic ${id} must have a dedicated icon`);
   }
-  assert.equal(Object.keys(POTION_LIBRARY).length, 32);
-  assert.equal(Object.keys(CARD_LIBRARY).length, 384);
+  assert.equal(Object.keys(POTION_LIBRARY).length, 35);
+  assert.equal(
+    Object.values(POTION_LIBRARY).filter((p) => p.character !== 'hermit').length,
+    32,
+    'Vanilla potion count must remain 32'
+  );
+  assert.equal(Object.keys(CARD_LIBRARY).length, 436);
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) !== 'hermit').length,
     361,
@@ -610,7 +615,7 @@ test('Relics, Potions, and all player/enemy Buff & Debuff metadata provide concr
   );
   assert.equal(
     Object.values(CARD_LIBRARY).filter((c) => getCardCharacter(c) === 'hermit').length,
-    23
+    75
   );
   assert.equal(ENCOUNTERS.act2Boss.length, 3);
   assert.equal(ENCOUNTERS.act3Boss.length, 3);
@@ -6254,4 +6259,618 @@ test('The Hermit (Phase 1): Dead On odd/even, Concentration, Snipe, Bruise/Horro
   t5Enemy.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
   endPlayerTurn(comRun);
   assert.equal(comRun.combat.hand.length, 4, 'Quickdraw drawReduction causes 1 fewer card drawn next turn');
+});
+
+test('Phase 2 The Hermit Full Roster: 34 Uncommon, 17 Rare, Impending Doom, 10 Combat Relics, 3 Class Potions & Generation Blacklist', () => {
+  // 1. Non-generatable Hermit cards in blacklist
+  const forbiddenSet = new Set(NON_GENERATABLE_COMBAT_CARD_IDS);
+  for (const id of ['dead_or_alive', 'reprieve', 'scavenge', 'cursed_weapon', 'golden_bullet']) {
+    assert.equal(forbiddenSet.has(id), true, `${id} must be in NON_GENERATABLE_COMBAT_CARD_IDS`);
+    assert.equal(isGeneratableCombatCard(CARD_LIBRARY[id]), false, `${id} must fail isGeneratableCombatCard`);
+  }
+
+  // 2. Uncommon Hermit Cards
+  const uRun = createNewRun({ seed: 97101, characterId: 'hermit', skipNeow: true, unlockAllOverride: true });
+  startCombat(
+    uRun,
+    { id: 'hermit_p2_u', name: '双敌测试', enemies: [{ templateId: 'jaw_worm' }, { templateId: 'cultist' }] },
+    'normal'
+  );
+  const [e0, e1] = uRun.combat.enemies;
+  e0.hp = 300;
+  e0.maxHp = 300;
+  e1.hp = 300;
+  e1.maxHp = 300;
+  e0.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  e1.intent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 8, hits: 1 };
+  uRun.player.energy = 30;
+  uRun.player.hp = 60;
+  uRun.player.maxHp = 75;
+
+  // Big Shot (Smoking Barrel) + Deadeye + Enervate + Ghostly Presence + Scavenge + Ricochet
+  const bigShot = createCardInstance(uRun, 'big_shot', false);
+  const deadeye = createCardInstance(uRun, 'deadeye', false);
+  const enervate = createCardInstance(uRun, 'enervate', false);
+  const ghostly = createCardInstance(uRun, 'ghostly_presence', false);
+  const scavenge = createCardInstance(uRun, 'scavenge', false);
+  const ricochet = createCardInstance(uRun, 'ricochet', false);
+  uRun.combat.hand = [bigShot];
+  assert.equal(playCard(uRun, bigShot.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.smokingBarrel, 3);
+
+  // Deadeye (single card in hand -> Dead On -> +2 Strength + 3 Vigor from Smoking Barrel!)
+  uRun.combat.hand = [deadeye];
+  assert.equal(playCard(uRun, deadeye.instanceId, e0.id).ok, true);
+  assert.equal(uRun.player.statuses.strength, 2, 'Dead On Deadeye grants +2 Strength');
+  assert.equal(uRun.player.statuses.vigor, 3, 'Smoking Barrel grants +3 Vigor on Dead On trigger');
+
+  // Enervate (single card -> Dead On -> +1 Energy & Draw 1)
+  uRun.combat.drawPile = [createCardInstance(uRun, 'defend', false)];
+  uRun.combat.hand = [enervate];
+  const energyBeforeEnervate = uRun.player.energy;
+  assert.equal(playCard(uRun, enervate.instanceId, e0.id).ok, true);
+  assert.equal(uRun.player.energy, energyBeforeEnervate - 1 + 1, 'Dead On Enervate refunds +1 Energy');
+  assert.equal(uRun.combat.hand.length, 1, 'Dead On Enervate draws 1 card');
+
+  // Ghostly Presence (single card -> 8 Block + 1 Weak to all enemies)
+  uRun.player.block = 0;
+  uRun.combat.hand = [ghostly];
+  assert.equal(playCard(uRun, ghostly.instanceId).ok, true);
+  assert.equal(uRun.player.block, 8);
+  assert.equal(e0.statuses.weak, 1);
+  assert.equal(e1.statuses.weak, 1);
+
+  // Scavenge (single card -> 4 Plated Armor + 5 Gold + Exhaust)
+  const goldBeforeScav = uRun.player.gold;
+  uRun.combat.hand = [scavenge];
+  assert.equal(playCard(uRun, scavenge.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.platedArmor, 4);
+  assert.equal(uRun.player.gold, goldBeforeScav + 5);
+  assert.ok(uRun.combat.exhaustPile.some((c) => c.instanceId === scavenge.instanceId));
+
+  // Ricochet: 4 Dead On triggers so far this turn -> 1 targeted hit + 4 random hits = 5 total hits!
+  assert.equal(uRun.combat.deadOnTriggeredThisTurn, 4);
+  uRun.player.statuses.strength = 0;
+  uRun.player.statuses.vigor = 0;
+  const totalHpBeforeRic = e0.hp + e1.hp;
+  uRun.combat.hand = [ricochet];
+  assert.equal(playCard(uRun, ricochet.instanceId, e0.id).ok, true);
+  assert.equal(totalHpBeforeRic - (e0.hp + e1.hp), 7 * 5, 'Ricochet hits target + 4 random hits (35 dmg)');
+
+  // Cheat: Dead On forces picked card's Dead On effect to trigger!
+  const cheatCard = createCardInstance(uRun, 'cheat', false);
+  const topDeadeye = createCardInstance(uRun, 'deadeye', false);
+  const fillerA = createCardInstance(uRun, 'strike', false);
+  const fillerB = createCardInstance(uRun, 'defend', false);
+  uRun.combat.hand = [cheatCard]; // center -> Cheat itself triggers Dead On!
+  uRun.combat.drawPile = [topDeadeye, fillerA, fillerB];
+  uRun.player.statuses.strength = 0;
+  assert.equal(playCard(uRun, cheatCard.instanceId).ok, true);
+  assert.equal(uRun.combat.pendingCardChoice?.mode, 'cheat');
+  assert.equal(uRun.combat.pendingCardChoice.candidates.length, 3);
+  assert.equal(resolveCardChoice(uRun, topDeadeye.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.strength, 2, 'Dead On Cheat forced picked Deadeye to trigger Dead On (+2 Str)');
+
+  // Combo: returns first Dead On card played each turn to hand
+  const comboCard = createCardInstance(uRun, 'combo', false);
+  const snapCombo = createCardInstance(uRun, 'snapshot', false);
+  uRun.combat.hand = [comboCard];
+  assert.equal(playCard(uRun, comboCard.instanceId).ok, true);
+  uRun.combat.hand = [snapCombo];
+  assert.equal(playCard(uRun, snapCombo.instanceId, e0.id).ok, true);
+  assert.ok(uRun.combat.hand.some((c) => c.instanceId === snapCombo.instanceId), 'Combo returned Dead On Snapshot to hand');
+  uRun.player.statuses.combo = 0;
+  uRun.player.statuses.smokingBarrel = 0;
+  uRun.player.statuses.strength = 0;
+  uRun.player.statuses.vigor = 0;
+
+  // Cursed Weapon: loses 2 HP, deals 10 + bonus, increments permanent player.cursedWeaponBonus, exhausts
+  const cw1 = createCardInstance(uRun, 'cursed_weapon', false);
+  const cw2 = createCardInstance(uRun, 'cursed_weapon', false);
+  const hpBeforeCw = uRun.player.hp;
+  const e0BeforeCw = e0.hp;
+  uRun.combat.hand = [cw1, cw2];
+  assert.equal(playCard(uRun, cw1.instanceId, e0.id).ok, true);
+  assert.equal(uRun.player.hp, hpBeforeCw - 2, 'Cursed Weapon loses 2 HP');
+  assert.equal(e0BeforeCw - e0.hp, 10, 'First Cursed Weapon deals 10 damage');
+  assert.equal(uRun.player.cursedWeaponBonus, 1, 'Cursed Weapon permanently increments cursedWeaponBonus');
+  const e0BeforeCw2 = e0.hp;
+  assert.equal(playCard(uRun, cw2.instanceId, e0.id).ok, true);
+  assert.equal(e0BeforeCw2 - e0.hp, 11, 'Second Cursed Weapon deals 10 + 1 = 11 damage');
+
+  // Dead Man's Hand: discards hand and draws 3 rarest cards (Rare > Uncommon > Common > Basic)
+  const dmh = createCardInstance(uRun, 'dead_mans_hand', false);
+  const rarePurg = createCardInstance(uRun, 'purgatory', false);
+  const uncHorror = createCardInstance(uRun, 'horror', false);
+  const comDive = createCardInstance(uRun, 'dive', false);
+  const basStrike = createCardInstance(uRun, 'strike', false);
+  uRun.combat.hand = [dmh, createCardInstance(uRun, 'defend', false)];
+  uRun.combat.drawPile = [basStrike, comDive, uncHorror, rarePurg];
+  assert.equal(playCard(uRun, dmh.instanceId).ok, true);
+  assert.equal(uRun.combat.hand.length, 3);
+  assert.ok(uRun.combat.hand.some((c) => c.cardId === 'purgatory'), 'Dead Mans Hand prioritized Rare card');
+  assert.ok(uRun.combat.hand.some((c) => c.cardId === 'horror'), 'Dead Mans Hand prioritized Uncommon card');
+  assert.equal(uRun.combat.hand.some((c) => c.cardId === 'strike'), false, 'Basic Strike left in draw pile');
+
+  // Desperado: doubles combat damage and increases combat cost by +1
+  const desp = createCardInstance(uRun, 'desperado', false);
+  uRun.combat.hand = [desp];
+  const e0BeforeDesp = e0.hp;
+  assert.equal(playCard(uRun, desp.instanceId, e0.id).ok, true);
+  assert.equal(e0BeforeDesp - e0.hp, 10);
+  assert.equal(desp.combatDamageMod, 10, 'Desperado doubles its damage (+10 -> 20)');
+  assert.equal(getEffectiveCardCost(getCardStats(desp), uRun.player, uRun.combat), 2, 'Desperado increases cost by +1');
+
+  // Determination: grants +1 Strength when player receives a debuff
+  const det = createCardInstance(uRun, 'determination', false);
+  uRun.combat.hand = [det];
+  assert.equal(playCard(uRun, det.instanceId).ok, true);
+  const strBeforeDet = uRun.player.statuses.strength ?? 0;
+  applyStatus(uRun.player, 'weak', 1, uRun.combat);
+  assert.equal(uRun.player.statuses.strength, strBeforeDet + 1, 'Determination grants +1 Strength on debuff');
+  delete uRun.player.statuses.weak;
+  uRun.player.statuses.strength = 0;
+
+  // Eye of the Storm: Concentration + refill Energy to maxEnergy + Exhaust
+  const eots = createCardInstance(uRun, 'eye_of_the_storm', true);
+  uRun.player.energy = 0;
+  uRun.player.maxEnergy = 4;
+  uRun.combat.hand = [eots];
+  assert.equal(playCard(uRun, eots.instanceId).ok, true);
+  assert.equal(uRun.player.energy, 4, 'Eye of the Storm refills energy to maxEnergy');
+  assert.equal(uRun.player.statuses.concentration, 1);
+  uRun.player.energy = 30;
+  delete uRun.player.statuses.concentration;
+
+  // Flash Powder (-1 Str AoE + 5 Block), Gestalt (2 Rugged + 2 Vuln), Virtue (-1 all debuffs)
+  const fp = createCardInstance(uRun, 'flash_powder', false);
+  const gest = createCardInstance(uRun, 'gestalt', false);
+  const virt = createCardInstance(uRun, 'virtue', false);
+  uRun.player.block = 0;
+  uRun.combat.hand = [fp, gest, virt];
+  assert.equal(playCard(uRun, fp.instanceId).ok, true);
+  assert.equal(e0.statuses.strength, -1);
+  assert.equal(e1.statuses.strength, -1);
+  assert.equal(playCard(uRun, gest.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.rugged, 2);
+  assert.equal(uRun.player.statuses.vulnerable, 2);
+  assert.equal(playCard(uRun, virt.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.vulnerable, 1, 'Virtue reduced Vulnerable from 2 to 1');
+  delete uRun.player.statuses.vulnerable;
+  delete uRun.player.statuses.rugged;
+  delete uRun.player.statuses.determination;
+  uRun.player.statuses.strength = 0;
+
+  // Fully Loaded + Shortfuse + Maintenance + Showdown
+  const fl = createCardInstance(uRun, 'fully_loaded', false);
+  const maint = createCardInstance(uRun, 'maintenance', false);
+  const sf = createCardInstance(uRun, 'shortfuse', false);
+  const sd = createCardInstance(uRun, 'showdown', false);
+  const sA = createCardInstance(uRun, 'strike', false);
+  const dA = createCardInstance(uRun, 'defend', false);
+  uRun.combat.hand = [fl, maint];
+  uRun.combat.drawPile = [sA, dA, createCardInstance(uRun, 'headshot', false)];
+  uRun.combat.discardPile = [];
+  assert.equal(playCard(uRun, fl.instanceId).ok, true);
+  assert.ok(uRun.combat.hand.some((c) => c.instanceId === sA.instanceId));
+  assert.ok(uRun.combat.hand.some((c) => c.instanceId === dA.instanceId));
+  assert.equal(uRun.combat.hand.some((c) => c.cardId === 'headshot'), false, 'Fully Loaded only fetches Strike/Defend');
+  assert.equal(playCard(uRun, maint.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.maintenanceStrike, 3);
+  assert.equal(uRun.player.statuses.dexterity, 1);
+  assert.equal(getEffectiveCardCost(getCardStats(maint), uRun.player, uRun.combat), 2, 'Maintenance increases own cost by +1');
+
+  // Play 1 Strike + 1 Defend -> Shortfuse cost drops from 3 to 1!
+  uRun.combat.strikesDefendsPlayedThisTurn = 0;
+  uRun.combat.hand = [sA, dA, sf];
+  assert.equal(getEffectiveCardCost(getCardStats(sf), uRun.player, uRun.combat), 3);
+  const e0PreMaintStrike = e0.hp;
+  assert.equal(playCard(uRun, sA.instanceId, e0.id).ok, true);
+  assert.equal(e0PreMaintStrike - e0.hp, 6 + 3, 'Maintenance adds +3 flat damage to Strike');
+  assert.equal(playCard(uRun, dA.instanceId).ok, true);
+  assert.equal(getEffectiveCardCost(getCardStats(sf), uRun.player, uRun.combat), 1, 'Shortfuse discounted by 2 after 1 Strike + 1 Defend');
+  assert.equal(playCard(uRun, sf.instanceId, e0.id).ok, true);
+
+  // Showdown plays all Strikes in hand against random enemies
+  const sdS1 = createCardInstance(uRun, 'strike', false);
+  const sdS2 = createCardInstance(uRun, 'strike', false);
+  uRun.combat.hand = [sd, sdS1, sdS2];
+  const totalHpPreSd = e0.hp + e1.hp;
+  assert.equal(playCard(uRun, sd.instanceId, e0.id).ok, true);
+  assert.equal(totalHpPreSd - (e0.hp + e1.hp), 9 + 9 + 9, 'Showdown (9) + 2 hand Strikes (6+3 each) = 27 damage');
+  assert.equal(uRun.combat.hand.length, 0, 'Showdown played all hand Strikes');
+  uRun.player.statuses.maintenanceStrike = 0;
+  uRun.player.statuses.dexterity = 0;
+
+  // Golden Bullet Fatal: permanently lowers cost of both combat & master copy by 1
+  const gbMaster = createCardInstance(uRun, 'golden_bullet', false);
+  uRun.player.deck.push(gbMaster);
+  const gbCombat = { ...gbMaster };
+  e1.hp = 10;
+  uRun.combat.hand = [gbCombat];
+  assert.equal(playCard(uRun, gbCombat.instanceId, e1.id).ok, true);
+  assert.equal(gbMaster.permanentCostMod, -1, 'Golden Bullet Fatal permanently lowers master card cost by 1');
+  assert.equal(getEffectiveCardCost(getCardStats(gbMaster), uRun.player, uRun.combat), 2);
+  e1.hp = 250; // Revive for multi-enemy AoE tests
+  e1._deathHandled = false;
+  if (!uRun.combat.enemies.includes(e1)) uRun.combat.enemies.push(e1);
+
+  // Grudge (9 + 2/Curse across draw+hand+discard) & Horror (3 Bruise + 1 Horror AoE)
+  const grudge = createCardInstance(uRun, 'grudge', false);
+  const horror = createCardInstance(uRun, 'horror', false);
+  uRun.combat.hand = [grudge, createCardInstance(uRun, 'injury', false)];
+  uRun.combat.drawPile = [createCardInstance(uRun, 'decay', false)];
+  uRun.combat.discardPile = [createCardInstance(uRun, 'doubt', false)];
+  const totalPreGrudge = e0.hp + e1.hp;
+  assert.equal(playCard(uRun, grudge.instanceId).ok, true);
+  assert.equal(totalPreGrudge - (e0.hp + e1.hp), (9 + 6) * 2, 'Grudge deals 9 + 2×3 curses = 15 AoE to both enemies');
+  uRun.combat.hand = [horror];
+  assert.equal(playCard(uRun, horror.instanceId).ok, true);
+  assert.equal(e0.statuses.bruise, 3);
+  assert.equal(e0.statuses.horror, 1);
+  assert.equal(e1.statuses.bruise, 3);
+  assert.equal(e1.statuses.horror, 1);
+  delete e0.statuses.bruise;
+  delete e1.statuses.bruise;
+  delete e0.statuses.horror;
+  delete e1.statuses.horror;
+
+  // Lone Wolf: chosen card becomes 0-cost this turn, rest of hand discarded
+  const lw = createCardInstance(uRun, 'lone_wolf', false);
+  const lwKeep = createCardInstance(uRun, 'purgatory', false);
+  const lwDrop = createCardInstance(uRun, 'strike', false);
+  uRun.combat.hand = [lw, lwKeep, lwDrop];
+  assert.equal(playCard(uRun, lw.instanceId).ok, true);
+  assert.equal(uRun.combat.pendingCardChoice?.mode, 'lone_wolf');
+  assert.equal(resolveCardChoice(uRun, lwKeep.instanceId).ok, true);
+  assert.equal(uRun.combat.hand.length, 1);
+  assert.equal(uRun.combat.hand[0].instanceId, lwKeep.instanceId);
+  assert.equal(getEffectiveCardCost(getCardStats(lwKeep), uRun.player, uRun.combat), 0);
+
+  // Luck of the Draw: draws until total cost >= 3
+  const lotd = createCardInstance(uRun, 'luck_of_the_draw', false);
+  uRun.combat.hand = [lotd];
+  uRun.combat.discardPile = [];
+  uRun.combat.drawPile = [
+    createCardInstance(uRun, 'strike', false), // 1
+    createCardInstance(uRun, 'bash', false),   // 2 -> total 3, stop!
+    createCardInstance(uRun, 'defend', false), // should stay in drawPile
+  ];
+  assert.equal(playCard(uRun, lotd.instanceId).ok, true);
+  assert.equal(uRun.combat.hand.length, 2, 'Luck of the Draw stopped once cumulative cost hit 3');
+  assert.equal(uRun.combat.drawPile.length, 1);
+
+  // Malice: exhausting a Curse deals AoE damage; exhausting a non-Curse deals single-target damage
+  const mal1 = createCardInstance(uRun, 'malice', false);
+  const malCurse = createCardInstance(uRun, 'injury', false);
+  const malNorm = createCardInstance(uRun, 'strike', false);
+  uRun.combat.hand = [mal1, malCurse, malNorm];
+  const preMalAoe = e0.hp + e1.hp;
+  assert.equal(playCard(uRun, mal1.instanceId, e0.id).ok, true);
+  assert.equal(uRun.combat.pendingCardChoice?.mode, 'malice');
+  assert.equal(resolveCardChoice(uRun, malCurse.instanceId).ok, true);
+  assert.equal(preMalAoe - (e0.hp + e1.hp), 16 * 2, 'Malice exhausting Curse deals 16 AoE to both enemies');
+
+  const mal2 = createCardInstance(uRun, 'malice', false);
+  const malNorm2 = createCardInstance(uRun, 'defend', false);
+  uRun.combat.hand = [mal2, malNorm, malNorm2];
+  const e0PreMalSingle = e0.hp;
+  const e1PreMalSingle = e1.hp;
+  assert.equal(playCard(uRun, mal2.instanceId, e0.id).ok, true);
+  assert.equal(resolveCardChoice(uRun, malNorm2.instanceId).ok, true);
+  assert.equal(e0PreMalSingle - e0.hp, 16, 'Malice exhausting non-Curse hits primary target');
+  assert.equal(e1.hp, e1PreMalSingle, 'Malice exhausting non-Curse does NOT hit secondary enemy');
+
+  // Shadow Cloak (+4 Block on draw/exhaust Curse) & Spite (exhaust all unplayable, +8 Block, draw 3)
+  const sc = createCardInstance(uRun, 'shadow_cloak', false);
+  const spite = createCardInstance(uRun, 'spite', false);
+  const spCurse = createCardInstance(uRun, 'injury', false);
+  const spStatus = createCardInstance(uRun, 'wound', false);
+  uRun.combat.hand = [sc];
+  assert.equal(playCard(uRun, sc.instanceId).ok, true);
+  uRun.player.block = 0;
+  uRun.combat.hand = [spite, spCurse, spStatus];
+  uRun.combat.drawPile = [
+    createCardInstance(uRun, 'strike', false),
+    createCardInstance(uRun, 'defend', false),
+    createCardInstance(uRun, 'strike', false),
+  ];
+  assert.equal(playCard(uRun, spite.instanceId).ok, true);
+  assert.equal(uRun.player.block, 8 + 4, 'Spite gained 8 Block + Shadow Cloak +4 Block from exhausting Injury');
+  assert.equal(uRun.combat.hand.length, 3, 'Spite exhausted both unplayable cards and drew 3');
+  uRun.player.statuses.shadowCloak = 0;
+
+  // Take Cover: X-cost adds 0-cost Defend+X to hand
+  const tc = createCardInstance(uRun, 'take_cover', true); // +1 upgrade bonus
+  uRun.player.energy = 2;
+  uRun.combat.hand = [tc];
+  assert.equal(playCard(uRun, tc.instanceId).ok, true);
+  const tcDef = uRun.combat.hand.find((c) => c.cardId === 'defend');
+  assert.ok(tcDef, 'Take Cover added Defend to hand');
+  assert.equal(tcDef.combatCost, 0, 'Take Cover Defend costs 0');
+  assert.equal(tcDef.displayUpgradePlus, 3, 'Take Cover+ at X=2 creates Defend+3');
+  assert.equal(getCardStats(tcDef).name, '防御+3');
+  assert.equal(getCardStats(tcDef).block, 5 + 3 * 3, 'Defend+3 grants 14 Block');
+
+  // Midnight + Impending Doom end-of-turn Dead On 13 AoE, Brawl, Take Aim, No Holds Barred + Drained
+  uRun.player.energy = 20;
+  const mid = createCardInstance(uRun, 'midnight', false);
+  const brawl = createCardInstance(uRun, 'brawl', false);
+  const takeAim = createCardInstance(uRun, 'take_aim', false);
+  const nhb = createCardInstance(uRun, 'no_holds_barred', false);
+  uRun.combat.hand = [brawl, takeAim, nhb, mid];
+  assert.equal(playCard(uRun, brawl.instanceId).ok, true);
+  assert.equal(playCard(uRun, takeAim.instanceId).ok, true);
+  assert.equal(playCard(uRun, nhb.instanceId).ok, true);
+  assert.equal(uRun.player.statuses.drained, 1);
+  assert.equal(playCard(uRun, mid.instanceId).ok, true);
+  const doomCard = uRun.combat.hand.find((c) => c.cardId === 'impending_doom');
+  assert.ok(doomCard, 'Midnight added Impending Doom to hand');
+  // Keep only Impending Doom in hand -> Dead On at end of turn -> deals 13 AoE to all enemies!
+  uRun.combat.hand = [doomCard];
+  uRun.combat.drawPile = Array.from({ length: 6 }, () => createCardInstance(uRun, 'strike', false));
+  const totalPreDoom = e0.hp + e1.hp;
+  e0.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  e1.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(uRun);
+  assert.equal(totalPreDoom - (e0.hp + e1.hp), 26, 'Dead On Impending Doom dealt 13 AoE to both enemies');
+  assert.equal(uRun.player.statuses.concentration, 1, 'Take Aim granted Concentration at turn start');
+  assert.equal(e0.statuses.bruise, 3, 'Brawl applied 3 Bruise to all enemies at turn start');
+  assert.equal(uRun.player.energy, uRun.player.maxEnergy - 1, 'Drained reduced next turn energy by 1');
+
+  // 3. Rare Hermit Cards
+  const rRun = createNewRun({ seed: 97102, characterId: 'hermit', skipNeow: true, unlockAllOverride: true });
+  startCombat(
+    rRun,
+    { id: 'hermit_p2_r', name: '稀有测试', enemies: [{ templateId: 'jaw_worm' }, { templateId: 'cultist' }] },
+    'elite'
+  );
+  const [re0, re1] = rRun.combat.enemies;
+  re0.hp = 300;
+  re0.maxHp = 300;
+  re1.hp = 300;
+  re1.maxHp = 300;
+  re0.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 }; // non-attacking -> stunned!
+  re1.intent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 10, hits: 1 }; // attacking -> NOT stunned!
+  rRun.player.energy = 30;
+  rRun.player.hp = 50;
+  rRun.player.maxHp = 75;
+
+  // Black Wind (missing HP = 25), Final Canter (hits = hand curses), From Beyond (direct HP loss ignoring Block)
+  const bw = createCardInstance(rRun, 'black_wind', false);
+  rRun.combat.hand = [bw];
+  const preBw = re0.hp;
+  assert.equal(playCard(rRun, bw.instanceId, re0.id).ok, true);
+  assert.equal(preBw - re0.hp, 25, 'Black Wind deals damage equal to player missing HP (75 - 50 = 25)');
+
+  const fc = createCardInstance(rRun, 'final_canter', false);
+  rRun.combat.hand = [fc, createCardInstance(rRun, 'injury', false), createCardInstance(rRun, 'decay', false)];
+  const preFc = re0.hp;
+  assert.equal(playCard(rRun, fc.instanceId, re0.id).ok, true);
+  assert.equal(preFc - re0.hp, 20, 'Final Canter hits 10 × 2 Curses in hand = 20 damage');
+
+  // Exhaust pile currently has Black Wind + Final Canter = 2 cards -> From Beyond deals 5 × 2 = 10 direct HP loss ignoring Block!
+  re0.block = 50;
+  re1.block = 50;
+  const preFb = re0.hp + re1.hp;
+  const fb = createCardInstance(rRun, 'from_beyond', false);
+  rRun.combat.hand = [fb];
+  assert.equal(playCard(rRun, fb.instanceId).ok, true);
+  assert.equal(preFb - (re0.hp + re1.hp), 10, 'From Beyond deals 5×exhaustPile (10) direct HP loss to random enemies bypassing Block');
+  re0.block = 0;
+  re1.block = 0;
+
+  // Dissolve (+18 Block, 2 Blur), Reprieve (heal 10 HP), Roughhouse (24 dmg + Dead On 20 Block), Heroic Bravado (+1 Rugged, +2 cost)
+  const diss = createCardInstance(rRun, 'dissolve', false);
+  const repr = createCardInstance(rRun, 'reprieve', false);
+  const rough = createCardInstance(rRun, 'roughhouse', false);
+  const brav = createCardInstance(rRun, 'heroic_bravado', false);
+  rRun.player.block = 0;
+  rRun.combat.hand = [diss];
+  assert.equal(playCard(rRun, diss.instanceId).ok, true);
+  assert.equal(rRun.player.block, 18);
+  assert.equal(rRun.player.statuses.blur, 2);
+  rRun.combat.hand = [repr];
+  assert.equal(playCard(rRun, repr.instanceId).ok, true);
+  assert.equal(rRun.player.hp, 60);
+  rRun.player.block = 0;
+  rRun.combat.hand = [rough];
+  assert.equal(playCard(rRun, rough.instanceId, re0.id).ok, true);
+  assert.equal(rRun.player.block, 20, 'Dead On Roughhouse grants 20 Block');
+  rRun.combat.hand = [brav];
+  assert.equal(playCard(rRun, brav.instanceId).ok, true);
+  assert.equal(rRun.player.statuses.rugged, 1);
+  assert.equal(getEffectiveCardCost(getCardStats(brav), rRun.player, rRun.combat), 3, 'Heroic Bravado increases cost by +2');
+  delete rRun.player.statuses.rugged;
+  delete rRun.player.statuses.blur;
+
+  // Gambit: retrieves 2 random Attacks from discard and discounts cost by 1 this turn
+  const gamb = createCardInstance(rRun, 'gambit', false);
+  const discAtk1 = createCardInstance(rRun, 'bash', false); // 2-cost -> 1-cost
+  const discAtk2 = createCardInstance(rRun, 'purgatory', false); // 3-cost -> 2-cost
+  rRun.combat.discardPile = [discAtk1, discAtk2, createCardInstance(rRun, 'defend', false)];
+  rRun.combat.hand = [gamb];
+  assert.equal(playCard(rRun, gamb.instanceId).ok, true);
+  assert.equal(rRun.combat.hand.length, 2);
+  assert.equal(getEffectiveCardCost(getCardStats(discAtk1), rRun.player, rRun.combat), 1);
+  assert.equal(getEffectiveCardCost(getCardStats(discAtk2), rRun.player, rRun.combat), 2);
+
+  // Magnum: exact-count 6-card discard (auto-discards all when <= 6, interactive multi-select when > 6)
+  const mag = createCardInstance(rRun, 'magnum', false);
+  const fillers = Array.from({ length: 7 }, () => createCardInstance(rRun, 'defend', false));
+  rRun.combat.hand = [mag, ...fillers];
+  const preMag = re0.hp;
+  assert.equal(playCard(rRun, mag.instanceId, re0.id).ok, true);
+  assert.equal(rRun.combat.pendingCardChoice?.mode, 'magnum');
+  assert.equal(rRun.combat.pendingCardChoice.count, 6);
+  // Reject wrong count (5), accept exact count (6)
+  assert.equal(confirmPendingCardChoice(rRun, fillers.slice(0, 5).map((c) => c.instanceId)).ok, false);
+  assert.equal(confirmPendingCardChoice(rRun, fillers.slice(0, 6).map((c) => c.instanceId)).ok, true);
+  assert.equal(preMag - re0.hp, 6 * 6, 'Magnum dealt 6 × 6 = 36 damage for 6 discarded cards');
+  assert.equal(rRun.combat.hand.length, 1);
+
+  // Roundhouse Kick: 13 AoE + Stun-Keep-Intent ONLY on non-attacking enemy re0, NOT attacking re1
+  const rhk = createCardInstance(rRun, 'roundhouse_kick', false);
+  rRun.combat.hand = [rhk];
+  assert.equal(playCard(rRun, rhk.instanceId).ok, true);
+  assert.equal(re0.intent.id, 'stunned_keep_intent', 'Roundhouse Kick stunned non-attacking enemy');
+  assert.equal(re1.intent.id, 'chomp', 'Roundhouse Kick did NOT stun attacking enemy');
+
+  // High Noon (+1 draw on Strike/Defend), Overwhelming Power (+3E, +3 draw, lose 4 HP if end turn at 0E)
+  const hn = createCardInstance(rRun, 'high_noon', false);
+  const op = createCardInstance(rRun, 'overwhelming_power', false);
+  const hnDef = createCardInstance(rRun, 'defend', false);
+  rRun.combat.hand = [hn, hnDef];
+  rRun.combat.drawPile = [createCardInstance(rRun, 'strike', false), createCardInstance(rRun, 'strike', false)];
+  assert.equal(playCard(rRun, hn.instanceId).ok, true);
+  assert.equal(playCard(rRun, hnDef.instanceId).ok, true);
+  assert.equal(rRun.combat.hand.length, 1, 'High Noon drew 1 card on playing Defend');
+
+  rRun.player.energy = 1;
+  rRun.combat.hand = [op];
+  rRun.combat.drawPile = Array.from({ length: 5 }, () => createCardInstance(rRun, 'defend', false));
+  assert.equal(playCard(rRun, op.instanceId).ok, true);
+  assert.equal(rRun.player.energy, 3, 'Overwhelming Power spent 1 and gained 3 energy');
+  assert.equal(rRun.combat.hand.length, 3, 'Overwhelming Power drew 3 cards');
+  // Spend down to 0 energy -> end turn triggers Overwhelming Power 4 HP loss!
+  rRun.player.energy = 0;
+  const hpPreOpLoss = rRun.player.hp;
+  re1.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(rRun);
+  assert.equal(rRun.player.hp, hpPreOpLoss - 4, 'Overwhelming Power caused 4 HP loss when ending turn at 0 energy');
+
+  // Adapt (post-draw optional exhaust_multi +8 Block each), Eternal Form (first 4 turn-start draws -1 cost), Fatal Desire (+2 draw, +1 Injury)
+  const adaptCard = createCardInstance(rRun, 'adapt', false);
+  const efCard = createCardInstance(rRun, 'eternal_form', false);
+  const fdCard = createCardInstance(rRun, 'fatal_desire', false);
+  rRun.player.energy = 10;
+  rRun.player.statuses.overwhelmingPower = 0;
+  rRun.combat.hand = [adaptCard, efCard, fdCard];
+  assert.equal(playCard(rRun, adaptCard.instanceId).ok, true);
+  assert.equal(playCard(rRun, efCard.instanceId).ok, true);
+  assert.equal(playCard(rRun, fdCard.instanceId).ok, true);
+  rRun.combat.drawPile = [
+    createCardInstance(rRun, 'bash', false),      // 2 -> 1
+    createCardInstance(rRun, 'purgatory', false), // 3 -> 2
+    createCardInstance(rRun, 'roughhouse', false),// 3 -> 2
+    createCardInstance(rRun, 'dissolve', false),  // 2 -> 1
+    createCardInstance(rRun, 'bash', false),      // 5th draw -> stays 2
+    createCardInstance(rRun, 'defend', false),
+    createCardInstance(rRun, 'defend', false),
+  ];
+  rRun.player.block = 0;
+  re0.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  re1.intent = { id: 'bellow', name: '咆哮', type: 'defend_buff', block: 0, strength: 0 };
+  endPlayerTurn(rRun);
+  assert.equal(rRun.combat.pendingCardChoice?.mode, 'exhaust_multi', 'Adapt opens optional exhaust_multi after turn-start draw');
+  assert.ok(rRun.combat.hand.some((c) => c.cardId === 'injury'), 'Fatal Desire added Injury to hand');
+  const discountedCards = rRun.combat.hand.filter(
+    (c) => c.tempZeroCostTurn && getEffectiveCardCost(getCardStats(c), rRun.player, rRun.combat) < getCardStats(c).baseCost
+  );
+  assert.equal(discountedCards.length, 4, 'Eternal Form discounted exactly the first 4 playable turn-start draws');
+  const adaptPick = rRun.combat.hand.find((c) => c.cardId === 'injury');
+  assert.equal(confirmPendingCardChoice(rRun, [adaptPick.instanceId]).ok, true);
+  assert.equal(rRun.player.block, 8, 'Adapt granted +8 Block per exhausted card');
+
+  // Dead or Alive Fatal bounty gold in Elite combat (+40g)
+  const doa = createCardInstance(rRun, 'dead_or_alive', false);
+  re1.hp = 15;
+  rRun.player.energy = 2;
+  const goldPreDoa = rRun.player.gold;
+  rRun.combat.hand = [doa];
+  assert.equal(playCard(rRun, doa.instanceId, re1.id).ok, true);
+  assert.equal(rRun.player.gold, goldPreDoa + 40, 'Dead or Alive Fatal in Elite combat grants +40 Bounty Gold');
+
+  // 4. All 10 Combat Hermit Relics & All 3 Hermit Potions
+  const relRun = createNewRun({ seed: 97103, characterId: 'hermit', skipNeow: true, unlockAllOverride: true });
+  relRun.player.relics = [
+    'black_powder',
+    'brass_tacks',
+    'spyglass',
+    'charred_glove',
+    'horseshoe',
+    'red_scarf',
+    'rye_stalk',
+    'pet_ghost',
+    'bartender_glass',
+    'dented_plate',
+  ];
+  relRun.player.maxHp = 80;
+  relRun.player.hp = 30; // <= 50% -> activates Dented Plate!
+  startCombat(relRun, { id: 'hermit_p2_rel', name: '遗物测试', enemies: [{ templateId: 'jaw_worm' }] }, 'normal');
+  const relEnemy = relRun.combat.enemies[0];
+  relEnemy.hp = 200;
+  relEnemy.maxHp = 200;
+
+  // Dented Plate triggered at Turn 1 start (+1 Energy, +1 Draw)
+  assert.equal(relRun.player.energy, relRun.player.maxEnergy + 1, 'Dented Plate grants +1 Energy at <=50% HP');
+  assert.equal(relRun.combat.hand.length, 6, 'Dented Plate draws +1 card at <=50% HP');
+
+  // Horseshoe reduces incoming Weak/Frail/Vulnerable by 1
+  applyStatus(relRun.player, 'weak', 2, relRun.combat);
+  assert.equal(relRun.player.statuses.weak, 1, 'Horseshoe reduced 2 Weak to 1');
+  applyStatus(relRun.player, 'frail', 1, relRun.combat);
+  assert.equal(relRun.player.statuses.frail ?? 0, 0, 'Horseshoe completely negated 1 Frail');
+  delete relRun.player.statuses.weak;
+
+  // Charred Glove grants +3 Vigor when drawing a Curse
+  relRun.combat.hand = [];
+  relRun.combat.drawPile = [createCardInstance(relRun, 'injury', false)];
+  drawCards(relRun, 1);
+  assert.equal(relRun.player.statuses.vigor, 3, 'Charred Glove grants +3 Vigor on drawing Curse');
+  delete relRun.player.statuses.vigor;
+
+  // Black Powder deals 2 AoE on Dead On trigger
+  const bpSnap = createCardInstance(relRun, 'snapshot', false);
+  relRun.combat.hand = [bpSnap];
+  const preBpHp = relEnemy.hp;
+  assert.equal(playCard(relRun, bpSnap.instanceId, relEnemy.id).ok, true);
+  assert.equal(preBpHp - relEnemy.hp, 6 + 2, 'Black Powder dealt +2 AoE damage on Dead On trigger');
+
+  // Red Scarf grants +3 Block on NEW enemy debuff, not re-applied existing debuff
+  relRun.player.block = 0;
+  relRun.player.potions = ['black_bile', 'tonic', 'liquid_void'];
+  assert.equal(usePotion(relRun, 0, relEnemy.id).ok, true); // Black Bile -> +6 Bruise (new!) -> Red Scarf +3 Block!
+  assert.equal(relEnemy.statuses.bruise, 6, 'Black Bile applied 6 Bruise');
+  assert.equal(relRun.player.block, 3, 'Red Scarf granted +3 Block on applying new Bruise debuff');
+  assert.ok(relRun.player.potions[0], 'Bartender Glass refilled empty potion slot after use #1');
+
+  // Tonic grants 1 Rugged; Bartender Glass caps at 2 potions per combat
+  assert.equal(usePotion(relRun, 1).ok, true); // Tonic use #2
+  assert.equal(relRun.player.statuses.rugged, 1, 'Tonic granted 1 Rugged');
+  assert.equal(relRun.combat.bartenderGlassUsed, 2);
+  assert.equal(usePotion(relRun, 2).ok, false, 'Bartender Glass prevents using a 3rd potion in the same combat');
+
+  // Liquid Void (without bartender cap) retrieves Exhaust card at 0 cost this turn
+  relRun.combat.bartenderGlassUsed = 0;
+  const exBig = createCardInstance(relRun, 'purgatory', false);
+  relRun.combat.exhaustPile = [exBig];
+  relRun.player.potions[2] = 'liquid_void';
+  assert.equal(usePotion(relRun, 2).ok, true);
+  assert.equal(relRun.combat.pendingCardChoice?.mode, 'retrieve_exhaust_to_hand');
+  assert.equal(resolveCardChoice(relRun, exBig.instanceId).ok, true);
+  assert.ok(relRun.combat.hand.some((c) => c.instanceId === exBig.instanceId));
+  assert.equal(getEffectiveCardCost(getCardStats(exBig), relRun.player, relRun.combat), 0, 'Liquid Void sets retrieved card to 0 cost this turn');
+
+  // Brass Tacks (+2 Block EoT), Spyglass (+1 Energy next turn if Concentration at EoT), Rye Stalk (+1 draw on enemy turn HP loss), Pet Ghost (first lethal prevention)
+  relRun.player.statuses.rugged = 0;
+  relRun.player.statuses.concentration = 1;
+  relRun.player.block = 0;
+  relRun.player.hp = 10;
+  // Enemy deals 20 dmg -> Brass Tacks adds +2 block (so 18 unblocked -> lethal!), Pet Ghost saves at 10 HP!
+  // Let's test Rye Stalk first (non-lethal 5 unblocked dmg -> draws +1 next turn), then Pet Ghost on lethal hit.
+  relEnemy.intent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 7, hits: 1 }; // 7 - 2 Brass Tacks = 5 HP loss -> HP 10->5, Rye Stalk queues +1 draw!
+  relRun.combat.drawPile = Array.from({ length: 10 }, () => createCardInstance(relRun, 'strike', false));
+  endPlayerTurn(relRun);
+  assert.equal(relRun.player.hp, 5, 'Brass Tacks blocked 2 of 7 incoming damage (HP 10 -> 5)');
+  assert.equal(relRun.player.energy, relRun.player.maxEnergy + 1 + 1, 'Spyglass (+1) + Dented Plate (+1) granted +2 bonus energy');
+  assert.equal(relRun.combat.hand.length, 5 + 1 + 1, 'Dented Plate (+1) + Rye Stalk (+1) drew 7 cards');
+
+  // Now enemy deals lethal 25 damage -> Pet Ghost completely negates lethal loss once!
+  relRun.player.block = 0;
+  relEnemy.intent = { id: 'chomp', name: '撕咬', type: 'attack', damage: 25, hits: 1 };
+  endPlayerTurn(relRun);
+  assert.equal(relRun.combat.status, 'ongoing', 'Pet Ghost prevented lethal attack');
+  assert.equal(relRun.player.hp, 5, 'Pet Ghost kept HP intact on first lethal prevention');
+  assert.equal(relRun.combat.petGhostUsed, true);
 });

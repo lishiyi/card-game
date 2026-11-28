@@ -56,6 +56,7 @@ import {
 import {
   BOSS_RELIC_IDS,
   CAMPFIRE_RELIC_IDS,
+  getAvailablePotionIds,
   getRelicPoolsForCharacter,
   NON_STARTER_RELIC_IDS,
   POTION_LIBRARY,
@@ -937,7 +938,7 @@ test('P2: Automatic dependency-graph standalone bundler discovers all src/**/*.j
 });
 
 test('Floor 0 Neow Blessing: deterministic 4-choice panel, F1 lock/unlock, cancelable deck picker, remove-2 all-gold, Boss Swap (no Black Blood), and Coffee Dripper rest restriction', () => {
-  assert.equal(BOSS_RELIC_IDS.length, 20);
+  assert.equal(BOSS_RELIC_IDS.length, 22);
 
   // 1. Deterministic Neow options & Floor 1 lock until resolved
   const runA = createNewRun({ seed: 'S-777', ascension: 1, unlockAllOverride: true });
@@ -2161,7 +2162,7 @@ test('Stage 1.1 & Stage 2: The Watcher run setup (72/68 HP, 10 cards, Pure/Holy 
   assert.equal(mbRun.combat.encounterName.includes('首领：首领：'), false, 'Mind Bloom must not double-prefix 首领：');
 });
 
-test('Art Integrity: all 5 heroes, orbs & 64 enemies have unique hero-tier gradients & all 384 cards resolve valid, richly de-duplicated vector art', async () => {
+test('Art Integrity: all 5 heroes, orbs & 64 enemies have unique hero-tier gradients & all 436 cards resolve valid, richly de-duplicated vector art', async () => {
   const fallbackSvg = getCharacterSvg('__nonexistent_enemy_key__');
   const seenUnitGradIds = new Set();
 
@@ -2219,9 +2220,9 @@ test('Art Integrity: all 5 heroes, orbs & 64 enemies have unique hero-tier gradi
 
   await ensureAllCardArtLoaded();
   const cardEntries = Object.entries(CARD_LIBRARY);
-  assert.equal(cardEntries.length, 384);
+  assert.equal(cardEntries.length, 436);
   const sigKeys = Object.keys(SIGNATURE_CARD_ART);
-  assert.equal(sigKeys.length, 382, `Expected 100% bespoke signature art for all 382 non-shared cards, got ${sigKeys.length}`);
+  assert.equal(sigKeys.length, 434, `Expected 100% bespoke signature art for all 434 non-shared cards, got ${sigKeys.length}`);
   const themeKeys = Object.keys(CARD_THEME_ART);
   assert.equal(themeKeys.length, 33, `Expected 33 class/status/curse theme artworks, got ${themeKeys.length}`);
   const seenCardGradIds = new Set();
@@ -2580,12 +2581,12 @@ test('v2 Mechanics: Last-2 encounter dedup, Campfire Relics (Girya/Shovel/Peace 
   );
 });
 
-test('Official Simplified Chinese card names (384 unique: 361 vanilla + 23 Hermit) & concise card keyword descriptions/extraction', () => {
+test('Official Simplified Chinese card names (436 unique: 361 vanilla + 75 Hermit) & concise card keyword descriptions/extraction', () => {
   const allCards = Object.values(CARD_LIBRARY);
-  assert.equal(allCards.length, 384);
+  assert.equal(allCards.length, 436);
   assert.equal(allCards.filter((c) => c.character !== 'hermit').length, 361);
 
-  // Zero duplicate Chinese names across all 384 cards
+  // Zero duplicate Chinese names across all 436 cards
   const seenNames = new Map();
   for (const c of allCards) {
     assert.equal(
@@ -2806,12 +2807,12 @@ test('Official Simplified Chinese card names (384 unique: 361 vanilla + 23 Hermi
   assert.ok(html.includes('<span class="card-kw-inline">无实体</span>'));
 });
 
-test('Official Simplified Chinese relic names (115 unique: 113 vanilla + 2 Hermit) & War Paint / Whetstone upgrade tracking', () => {
+test('Official Simplified Chinese relic names (127 unique: 113 vanilla + 14 Hermit) & War Paint / Whetstone upgrade tracking', () => {
   const allRelics = Object.values(RELIC_LIBRARY);
-  assert.equal(allRelics.length, 115);
+  assert.equal(allRelics.length, 127);
   assert.equal(allRelics.filter((r) => r.character !== 'hermit').length, 113);
   const nameSet = new Set(allRelics.map((r) => r.name));
-  assert.equal(nameSet.size, 115, 'All 115 relics must have unique Simplified Chinese names');
+  assert.equal(nameSet.size, 127, 'All 127 relics must have unique Simplified Chinese names');
 
   const expectedOfficialRelicNames = {
     pure_water: '至纯之水',
@@ -3043,10 +3044,10 @@ test('Audio Engine: Web Audio dynamics compressor, stone-hall reverb send, and a
   }
 });
 
-test('Relic Art Integrity: all 115 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
+test('Relic Art Integrity: all 127 relics have bespoke hand-crafted inline SVGs with unique gradient IDs & safe scoping', () => {
   const libIds = Object.keys(RELIC_LIBRARY);
   const artIds = Object.keys(RELIC_SVG_ART);
-  assert.equal(libIds.length, 115, `Expected 115 relics in RELIC_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 127, `Expected 127 relics in RELIC_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'RELIC_SVG_ART must match RELIC_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();
@@ -3092,10 +3093,10 @@ test('Relic Art Integrity: all 115 relics have bespoke hand-crafted inline SVGs 
   assert.ok(swText.includes("'./src/ui/relic_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/relic_art.js');
 });
 
-test('Status Art Integrity: all 133 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
+test('Status Art Integrity: all 146 combat buffs/debuffs have bespoke inline SVGs + negative Strength/Dexterity/Focus variants & safe scoping', () => {
   const metaKeys = Object.keys(STATUS_METADATA);
   const artKeys = Object.keys(STATUS_SVG_ART);
-  assert.equal(metaKeys.length, 133, `Expected 133 statuses in STATUS_METADATA, got ${metaKeys.length}`);
+  assert.equal(metaKeys.length, 146, `Expected 146 statuses in STATUS_METADATA, got ${metaKeys.length}`);
   assert.equal(artKeys.length, metaKeys.length, 'STATUS_SVG_ART must match STATUS_METADATA count 1:1');
 
   const seenIds = new Map();
@@ -3145,10 +3146,10 @@ test('Status Art Integrity: all 133 combat buffs/debuffs have bespoke inline SVG
   assert.ok(swText.includes("'./src/ui/status_art.js'"), 'sw.js PRECACHE_URLS must include ./src/ui/status_art.js');
 });
 
-test('Potion Art Integrity: all 32 potions have distinct hand-crafted bottle SVGs, unique gradient IDs, safe scoping & sw.js precache', () => {
+test('Potion Art Integrity: all 35 potions have distinct hand-crafted bottle SVGs, unique gradient IDs, safe scoping & sw.js precache', () => {
   const libIds = Object.keys(POTION_LIBRARY);
   const artIds = Object.keys(POTION_SVG_ART);
-  assert.equal(libIds.length, 32, `Expected 32 potions in POTION_LIBRARY, got ${libIds.length}`);
+  assert.equal(libIds.length, 35, `Expected 35 potions in POTION_LIBRARY, got ${libIds.length}`);
   assert.equal(artIds.length, libIds.length, 'POTION_SVG_ART must match POTION_LIBRARY count 1:1');
 
   const seenGradientIds = new Map();
@@ -3178,7 +3179,7 @@ test('Potion Art Integrity: all 32 potions have distinct hand-crafted bottle SVG
       assert.ok(scoped.includes(`id="${gid}-hud_1"`) && scoped.includes(`url(#${gid}-hud_1)`));
     }
   }
-  assert.equal(distinctShapes.size, libIds.length, 'Every single one of the 32 potions must have a unique, non-repeated SVG illustration');
+  assert.equal(distinctShapes.size, libIds.length, 'Every single one of the 35 potions must have a unique, non-repeated SVG illustration');
 
   assert.ok(getPotionIconSvg(null).includes('data-potion-icon="empty"'));
   assert.ok(getUndiscoveredPotionSvg().includes('data-potion-icon="undiscovered"'));
@@ -3320,7 +3321,14 @@ test('Act 4 & Three Keys Full Lifecycle: Ruby Recall, Burning Elite Emerald Key,
 });
 
 test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inline highlights, trait chips & glossary', () => {
-  const expectedFatalIds = new Set(['feed', 'hand_of_greed', 'lesson_learned', 'ritual_dagger']);
+  const expectedFatalIds = new Set([
+    'feed',
+    'hand_of_greed',
+    'lesson_learned',
+    'ritual_dagger',
+    'golden_bullet',
+    'dead_or_alive',
+  ]);
 
   for (const card of Object.values(CARD_LIBRARY)) {
     const hasFatalFlag = Boolean(card.base?.fatal || card.upgraded?.fatal);
@@ -3328,7 +3336,9 @@ test('Fatal (斩杀) keyword consistency across CARD_LIBRARY, descriptions, inli
       card.base?.maxHpOnKill ||
         card.base?.goldOnKill ||
         card.base?.fatalPermanentUpgrade ||
-        card.base?.ritualDamageGrowth
+        card.base?.ritualDamageGrowth ||
+        card.base?.fatalPermanentCostReduction ||
+        card.base?.fatalBountyGold
     );
     assert.equal(
       hasFatalFlag,
@@ -3966,5 +3976,84 @@ test('Phase 1 The Hermit run setup (75/71 HP, 10 cards, Memento/Clasped Locket),
       false,
       `Vanilla hero ${vid} must never see Hermit relics in relic pools`
     );
+  }
+});
+
+test('Phase 2 The Hermit run integration: 75 cards (20C/34U/17R), Tonic starter potion, Bloody Tooth, Straight Razor, Potion vanilla isolation & 49 Audio Cues', () => {
+  // 1. Starter potion & reward card pool distribution
+  const hRun = createNewRun({ seed: 'HERMIT-P2-RUN', characterId: 'hermit', skipNeow: true, unlockAllOverride: true });
+  assert.equal(hRun.player.potions[0], 'tonic', 'Hermit starts with Tonic potion');
+
+  const hPools = getRewardCardPools('hermit');
+  assert.equal(hPools.common.length, 20, 'Hermit must have 20 Common cards');
+  assert.equal(hPools.uncommon.length, 34, 'Hermit must have 34 Uncommon cards');
+  assert.equal(hPools.rare.length, 17, 'Hermit must have 17 Rare cards');
+
+  const allHermitCards = Object.values(CARD_LIBRARY).filter((c) => c.character === 'hermit');
+  assert.equal(allHermitCards.length, 75, 'Hermit total roster must be 75 cards (2 starter + 1 memento_curse + 20C + 34U + 17R + 1 impending_doom)');
+
+  // 2. Vanilla potion pool isolation
+  const hermitPotions = getAvailablePotionIds('hermit');
+  assert.equal(hermitPotions.includes('tonic'), true);
+  assert.equal(hermitPotions.includes('black_bile'), true);
+  assert.equal(hermitPotions.includes('liquid_void'), true);
+  for (const vid of VANILLA_CHARACTER_IDS) {
+    const vp = getAvailablePotionIds(vid);
+    assert.equal(vp.includes('tonic'), false, `Vanilla hero ${vid} must never roll Tonic`);
+    assert.equal(vp.includes('black_bile'), false, `Vanilla hero ${vid} must never roll Black Bile`);
+    assert.equal(vp.includes('liquid_void'), false, `Vanilla hero ${vid} must never roll Liquid Void`);
+  }
+
+  // 3. Bloody Tooth: +7 HP & +35 Gold on Elite victory (not normal victory)
+  hRun.player.relics.push('bloody_tooth', 'straight_razor');
+  hRun.player.hp = 40;
+  hRun.player.gold = 100;
+  startCombat(hRun, ENCOUNTERS.floor1[0], 'normal');
+  transitionCombatVictory(hRun);
+  assert.equal(hRun.player.hp, 40, 'Bloody Tooth does not heal on normal combat victory');
+  assert.equal(hRun.player.gold, 100, 'Bloody Tooth does not grant gold on normal combat victory');
+
+  hRun.screen = 'map';
+  startCombat(hRun, ENCOUNTERS.elite[0], 'elite');
+  transitionCombatVictory(hRun);
+  assert.equal(hRun.player.hp, 47, 'Bloody Tooth heals +7 HP on Elite victory (40 -> 47)');
+  assert.equal(hRun.player.gold, 135, 'Bloody Tooth grants +35 Gold on Elite victory (100 -> 135)');
+
+  // 4. Straight Razor: +15 HP on card removal (shop purge) & card transform (Living Wall)
+  hRun.player.hp = 35;
+  hRun.player.gold = 200;
+  hRun.screen = 'shop';
+  hRun.shop = {
+    cards: [],
+    colorlessCards: [],
+    relicOffer: null,
+    shopRelicOffer: null,
+    potionOffer: null,
+    purgeCost: 75,
+    purgeUsed: false,
+  };
+  assert.equal(buyShopPurge(hRun, hRun.player.deck[0].instanceId).ok, true);
+  assert.equal(hRun.player.hp, 50, 'Straight Razor heals +15 HP on card removal (35 -> 50)');
+
+  hRun.screen = 'event';
+  hRun.eventState = {
+    eventId: 'living_wall',
+    resolved: false,
+    outcomeText: '',
+    pendingPurge: false,
+    purgeHpCost: 0,
+    purgeGoldCost: 0,
+    pendingCardAction: null,
+    cardActionHpCost: 0,
+    libraryChoices: null,
+  };
+  assert.equal(chooseEventOption(hRun, 'wall_change').ok, true);
+  assert.equal(completeEventCardAction(hRun, hRun.player.deck[0].instanceId).ok, true);
+  assert.equal(hRun.player.hp, 65, 'Straight Razor heals +15 HP on card transform (50 -> 65)');
+
+  // 5. All 49 Audio Cues including 4 Western cues
+  assert.equal(AUDIO_CUES.length, 49, `Expected 49 audio cues, got ${AUDIO_CUES.length}`);
+  for (const cue of ['gunshot', 'reload', 'dead_on_chime', 'bounty_coin']) {
+    assert.equal(AUDIO_CUES.includes(cue), true, `Missing Western audio cue "${cue}"`);
   }
 });

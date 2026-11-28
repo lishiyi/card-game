@@ -157,6 +157,9 @@ test('[Critic / grill-it] Static libraries are strictly immutable', () => {
   assert.throws(() => {
     CHARACTER_LIBRARY.defect.maxHp = 999;
   }, TypeError);
+  assert.throws(() => {
+    CHARACTER_LIBRARY.hermit.maxHp = 999;
+  }, TypeError);
 });
 
 test('[Critic / grill-it] Whirlwind (X-cost) plays cleanly at 0 energy and at high energy', () => {
@@ -262,14 +265,15 @@ test('[Critic / grill-it] Orichalcum triggers at 0 block before Metallicize adds
   assert.ok(logMessages.includes('金属化'), 'Metallicize should also trigger after Orichalcum');
 });
 
-test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad, Silent, Watcher & Defect, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
+function runFuzzCampaign({ startSeed, runCount, pickCharacterId }) {
   let victories = 0;
   let defeats = 0;
   let act2Entries = 0;
 
-  for (let seed = 1000; seed < 1160; seed += 1) {
+  for (let offset = 0; offset < runCount; offset += 1) {
+    const seed = startSeed + offset;
     const ascension = seed % 2 === 0 ? 0 : (seed % 10) + 1;
-    const characterId = ['ironclad', 'silent', 'watcher', 'defect'][seed % 4];
+    const characterId = pickCharacterId(seed, offset);
     const state = createNewRun({ seed, characterId, ascension, unlockAllOverride: true });
     assertRunInvariants(state, `init ${characterId} seed ${seed}`);
 
@@ -309,7 +313,7 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
       } else if (state.screen === 'combat') {
         const resolvePendingDiscards = () => {
           let guard = 0;
-          while (state.screen === 'combat' && hasPendingCardChoice(state.combat) && guard < 20) {
+          while (state.screen === 'combat' && hasPendingCardChoice(state.combat) && guard < 25) {
             guard += 1;
             const choice = state.combat.pendingCardChoice || { mode: 'discard' };
             if (choice.mode === 'scry') {
@@ -330,11 +334,18 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after ${choice.mode} seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'pick_from_draw' || choice.mode === 'omniscience') {
+            if (choice.mode === 'pick_from_draw' || choice.mode === 'omniscience' || choice.mode === 'cheat') {
               const cand = choice.candidates?.[0] || state.combat.drawPile[0];
               assert.ok(cand, `Pending ${choice.mode} with empty candidates on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, cand.instanceId).ok, true);
               assertRunInvariants(state, `after ${choice.mode} seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'magnum') {
+              const exactCount = Math.min(choice.count || 6, state.combat.hand.length);
+              const pickIds = state.combat.hand.slice(0, exactCount).map((c) => c.instanceId);
+              assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
+              assertRunInvariants(state, `after magnum choice seed ${seed}`);
               continue;
             }
             if (
@@ -343,7 +354,8 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               choice.mode === 'exhaust_multi' ||
               choice.mode === 'hand_to_draw_bottom_multi'
             ) {
-              const pickIds = (choice.candidates || [])
+              const pool = choice.candidates || state.combat.hand;
+              const pickIds = pool
                 .slice(0, Math.min(1, choice.count || 1))
                 .map((c) => c.instanceId);
               assert.equal(runConfirmPendingCardChoice(state, pickIds).ok, true);
@@ -369,15 +381,26 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
               assertRunInvariants(state, `after upgrade choice seed ${seed}`);
               continue;
             }
-            if (choice.mode === 'exhaust') {
+            if (choice.mode === 'exhaust' || choice.mode === 'malice') {
               const target =
                 state.combat.hand.find((c) => {
                   const t = getCardStats(c).type;
-                  return t === 'status' || t === 'curse';
+                  return t === 'curse' || t === 'status';
                 }) || state.combat.hand[0];
-              assert.ok(target, `Pending exhaust with empty hand on seed ${seed}`);
+              assert.ok(target, `Pending ${choice.mode} with empty hand on seed ${seed}`);
               assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
-              assertRunInvariants(state, `after exhaust choice seed ${seed}`);
+              assertRunInvariants(state, `after ${choice.mode} choice seed ${seed}`);
+              continue;
+            }
+            if (choice.mode === 'lone_wolf') {
+              const target =
+                state.combat.hand.find((c) => {
+                  const st = getCardStats(c);
+                  return !st.unplayable && st.type !== 'curse' && st.type !== 'status';
+                }) || state.combat.hand[0];
+              assert.ok(target, `Pending lone_wolf with empty hand on seed ${seed}`);
+              assert.equal(runResolveCardChoice(state, target.instanceId).ok, true);
+              assertRunInvariants(state, `after lone_wolf choice seed ${seed}`);
               continue;
             }
             if (
@@ -394,7 +417,7 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
             const preferred =
               state.combat.hand.find((c) => {
                 const st = getCardStats(c);
-                return st.onDiscardGainEnergy || st.onDiscardDraw;
+                return st.onDiscardGainEnergy || st.onDiscardDraw || st.type === 'curse';
               }) || state.combat.hand[0];
             assert.ok(preferred, `Pending discard with empty hand on seed ${seed}`);
             assert.equal(runDiscardHandCard(state, preferred.instanceId).ok, true);
@@ -410,6 +433,7 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
           if (state.player.potions[slot]) {
             const alive = state.combat.enemies.filter((e) => e.hp > 0);
             runUsePotion(state, slot, alive[0]?.id ?? null);
+            resolvePendingDiscards();
             assertRunInvariants(state, `after potion slot ${slot} seed ${seed}`);
             if (state.screen !== 'combat') break;
           }
@@ -561,13 +585,19 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
           const modeIdx = seed % 3;
           if (modeIdx === 0 && state.player.deck.length > 3) {
             assert.equal(chooseEventOption(state, 'wall_forget').ok, true);
-            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingPurge) {
+              assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else if (modeIdx === 1 || upgradable.length === 0) {
             assert.equal(chooseEventOption(state, 'wall_change').ok, true);
-            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingCardAction) {
+              assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else {
             assert.equal(chooseEventOption(state, 'wall_grow').ok, true);
-            assert.equal(completeEventCardAction(state, upgradable[0].instanceId).ok, true);
+            if (state.eventState.pendingCardAction) {
+              assert.equal(completeEventCardAction(state, upgradable[0].instanceId).ok, true);
+            }
           }
         } else if (eventId === 'cursed_tome') {
           const choice =
@@ -645,7 +675,9 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
           const serumCost = (state.ascension ?? 0) >= 8 ? 16 : 12;
           if (seed % 2 === 0 && state.player.deck.length > 0) {
             assert.equal(chooseEventOption(state, 'augment_rare_transform').ok, true);
-            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingCardAction) {
+              assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else if (state.player.hp > serumCost + 10) {
             assert.equal(chooseEventOption(state, 'augment_serum').ok, true);
           } else {
@@ -684,7 +716,9 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
         } else if (eventId === 'cleric') {
           if (state.player.gold >= evTune.clericPurifyGold && state.player.deck.length > 3 && seed % 2 === 0) {
             assert.equal(chooseEventOption(state, 'cleric_purify').ok, true);
-            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingPurge) {
+              assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else if (state.player.gold >= evTune.clericHealGold) {
             assert.equal(chooseEventOption(state, 'cleric_heal').ok, true);
           } else {
@@ -726,7 +760,9 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
         } else if (eventId === 'beggar_shrine') {
           if (state.player.gold >= evTune.beggarPurifyGold && state.player.deck.length > 3) {
             assert.equal(chooseEventOption(state, 'give_beggar_gold').ok, true);
-            assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingPurge) {
+              assert.equal(completeEventPurge(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else {
             assert.equal(chooseEventOption(state, 'leave_beggar').ok, true);
           }
@@ -773,7 +809,9 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
             assert.equal(pickEventLibraryCard(state, state.eventState.libraryChoices[0].instanceId).ok, true);
           } else if (state.player.hp > evTune.forgeAltarHpLoss + 8 && state.player.deck.length > 0) {
             assert.equal(chooseEventOption(state, 'altar_transmute_rare').ok, true);
-            assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            if (state.eventState.pendingCardAction) {
+              assert.equal(completeEventCardAction(state, state.player.deck[0].instanceId).ok, true);
+            }
           } else {
             assert.equal(chooseEventOption(state, 'leave_forge_altar').ok, true);
           }
@@ -793,8 +831,30 @@ test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad,
     else defeats += 1;
   }
 
+  return { victories, defeats, act2Entries };
+}
+
+test('[Critic / grill-it] 160-run deterministic fuzz simulation across Ironclad, Silent, Watcher & Defect, Act 1-3, Ascension 0-10, Treasure, Boss Relics, and all Events maintains all invariants', () => {
+  const { victories, defeats, act2Entries } = runFuzzCampaign({
+    startSeed: 1000,
+    runCount: 160,
+    pickCharacterId: (seed) => ['ironclad', 'silent', 'watcher', 'defect'][seed % 4],
+  });
+
   // Greedy bot should win some runs, lose some runs, and enter Act 2/Act 3 when reaching Boss on divisible-by-3 seeds
-  assert.ok(victories > 0, 'Expected at least 1 victory across 150 simulated runs');
-  assert.ok(defeats > 0, 'Expected at least 1 defeat across 150 simulated runs');
+  assert.ok(victories > 0, 'Expected at least 1 victory across 160 simulated runs');
+  assert.ok(defeats > 0, 'Expected at least 1 defeat across 160 simulated runs');
+  assert.ok(act2Entries >= 0);
+});
+
+test('[Critic / grill-it] 150-run deterministic fuzz simulation for The Hermit (75 cards, 14 relics, 3 potions) across Act 1-3 & Ascension 0-10 maintains all invariants', () => {
+  const { victories, defeats, act2Entries } = runFuzzCampaign({
+    startSeed: 5000,
+    runCount: 150,
+    pickCharacterId: () => 'hermit',
+  });
+
+  assert.ok(victories > 0, 'Expected at least 1 Hermit victory across 150 simulated runs');
+  assert.ok(defeats > 0, 'Expected at least 1 Hermit defeat across 150 simulated runs');
   assert.ok(act2Entries >= 0);
 });

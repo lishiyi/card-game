@@ -188,13 +188,19 @@ export function renderCardHtml(cardInstance, options = {}) {
     options.drawTopSelectable || options.drawBottomSelectable || options.nightmareSelectable
       ? 'draw-top-selectable'
       : '',
-    options.dualWieldSelectable ? 'upgrade-selectable' : '',
+    options.dualWieldSelectable || options.loneWolfSelectable ? 'upgrade-selectable' : '',
     options.scrySelectable ? 'scry-selectable' : '',
     options.scryMarkedDiscard ? 'scry-marked-discard' : '',
-    options.retainSelectable || options.exhaustMultiSelectable || options.drawBottomMultiSelectable
+    options.retainSelectable ||
+    options.exhaustMultiSelectable ||
+    options.drawBottomMultiSelectable ||
+    options.magnumSelectable
       ? 'retain-selectable'
       : '',
-    options.retainSelected || options.exhaustMultiSelected || options.drawBottomMultiSelected
+    options.retainSelected ||
+    options.exhaustMultiSelected ||
+    options.drawBottomMultiSelected ||
+    options.magnumSelected
       ? 'retain-selected'
       : '',
     options.discardPickSelectable ? 'discard-pick-selectable' : '',
@@ -280,30 +286,36 @@ export function renderCardHtml(cardInstance, options = {}) {
         ? options.exhaustMultiSelected
           ? '✕ 将消耗'
           : '点击选消'
-        : options.drawBottomMultiSelectable
-          ? options.drawBottomMultiSelected
-            ? '✦ 将置底'
-            : '点击置底'
-          : options.discardPickSelectable
-            ? options.discardPickSelected
-              ? '✦ 已选取回'
-              : options.discardPickLabel || '点击选择'
-            : options.exhaustSelectable
-              ? '点击消耗'
-              : options.upgradeSelectable
-                ? '点击升级'
-                : options.dualWieldSelectable
-                  ? '点击复制'
-                  : options.nightmareSelectable
-                    ? '下回合×3'
-                    : options.drawTopSelectable
-                      ? '置于牌堆顶'
-                      : options.drawBottomSelectable
-                        ? '置于牌堆底'
-                        : options.discardSelectable
-                          ? options.discardSynergy
-                            ? '✦ 弃置触发'
-                            : '点击弃置'
+        : options.magnumSelectable
+          ? options.magnumSelected
+            ? '✕ 将弃置'
+            : '点击选弃'
+          : options.drawBottomMultiSelectable
+            ? options.drawBottomMultiSelected
+              ? '✦ 将置底'
+              : '点击置底'
+            : options.discardPickSelectable
+              ? options.discardPickSelected
+                ? '✦ 已选取回'
+                : options.discardPickLabel || '点击选择'
+              : options.exhaustSelectable
+                ? '点击消耗'
+                : options.loneWolfSelectable
+                  ? '保留并 0 费'
+                  : options.upgradeSelectable
+                    ? '点击升级'
+                    : options.dualWieldSelectable
+                      ? '点击复制'
+                      : options.nightmareSelectable
+                        ? '下回合×3'
+                        : options.drawTopSelectable
+                          ? '置于牌堆顶'
+                          : options.drawBottomSelectable
+                            ? '置于牌堆底'
+                            : options.discardSelectable
+                              ? options.discardSynergy
+                                ? '✦ 弃置触发'
+                                : '点击弃置'
                           : medKitActive
                             ? '消耗打出'
                             : stats.unplayable

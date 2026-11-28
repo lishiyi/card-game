@@ -343,7 +343,7 @@ export async function createCdpClient(pageWsUrl) {
     }
   });
 
-  function sendRaw(method, params = {}, timeoutMs = 15000) {
+  function sendRaw(method, params = {}, timeoutMs = 25000) {
     const id = nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -386,10 +386,10 @@ export async function createCdpClient(pageWsUrl) {
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const navOutcomePromise = waitForAnyEvent(
           ['Page.loadEventFired', 'Inspector.targetCrashed'],
-          4000
+          6000
         );
         try {
-          lastRes = await sendRaw(method, params, 5000);
+          lastRes = await sendRaw(method, params, 6000);
         } catch {
           await new Promise((r) => setTimeout(r, 120));
           continue;
@@ -415,7 +415,7 @@ export async function createCdpClient(pageWsUrl) {
           continue;
         }
         let committed = false;
-        const readyDeadline = Date.now() + 4000;
+        const readyDeadline = Date.now() + 6500;
         while (Date.now() < readyDeadline) {
           try {
             const check = await sendRaw(
@@ -424,7 +424,7 @@ export async function createCdpClient(pageWsUrl) {
                 expression: `location.href.startsWith('http://127.0.0.1:') && Boolean(window.__SPIRE_APP__) && document.readyState === 'complete' && window.__CDP_NAV_TOKEN__ !== ${JSON.stringify(navToken)}`,
                 returnByValue: true,
               },
-              1500
+              2000
             );
             if (check?.result?.value === true) {
               committed = true;
@@ -436,6 +436,11 @@ export async function createCdpClient(pageWsUrl) {
           await new Promise((r) => setTimeout(r, 40));
         }
         if (committed) {
+          try {
+            await sendRaw('Page.bringToFront', {}, 2000);
+          } catch {
+            // Best-effort unthrottle for headless tabs.
+          }
           break;
         }
       }

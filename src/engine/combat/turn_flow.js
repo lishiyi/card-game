@@ -61,7 +61,9 @@ import {
   dealDamageToEnemy,
   dealDamageToPlayer,
   losePlayerHp,
+  requestHandCardChoice,
   requestManualDiscard,
+  executeMagnumDiscardsAndDamage,
   changeStance,
   gainMantra,
   initiateScry,
@@ -79,6 +81,7 @@ import {
   handleHermitEndOfTurnHooks,
   handleHermitTurn1StartHooks,
   handleHermitTurnStartHooks,
+  maybeTriggerRedScarfOnNewDebuff,
 } from './hermit_mechanics.js';
 
 export function confirmPendingCardChoice(state, explicitIds = null, onVictoryCallback = null) {
@@ -181,6 +184,7 @@ function confirmPendingCardChoiceInner(state, explicitIds = null, onVictoryCallb
 
   if (pending.mode === 'exhaust_multi') {
     const sourceName = pending.sourceName || '净化';
+    const blockPerExhaust = Math.max(0, pending.blockPerExhaust ?? 0);
     const pickedCards = [];
     for (const id of uniqueValidIds) {
       const hIdx = combat.hand.findIndex((c) => c.instanceId === id);
@@ -191,6 +195,20 @@ function confirmPendingCardChoiceInner(state, explicitIds = null, onVictoryCallb
     setPendingCardChoice(combat, null);
     if (pickedCards.length > 0) {
       exhaustCardsBatch(state, pickedCards);
+      if (
+        blockPerExhaust > 0 &&
+        state.player.hp > 0 &&
+        combat.status === 'ongoing'
+      ) {
+        const gain = addPlayerBlock(state, blockPerExhaust * pickedCards.length);
+        if (gain > 0) {
+          pushCombatLog(
+            combat,
+            `【${sourceName}】消耗 ${pickedCards.length} 张手牌，获得 ${gain} 点格挡！`,
+            'block'
+          );
+        }
+      }
       if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
         finalizeCombatVictory(state, onVictoryCallback);
       }
@@ -201,6 +219,42 @@ function confirmPendingCardChoiceInner(state, explicitIds = null, onVictoryCallb
       ok: true,
       mode: 'exhaust_multi',
       exhaustedCount: pickedCards.length,
+      outcome: state.combat?.status ?? combat.status,
+    };
+  }
+
+  if (pending.mode === 'magnum') {
+    const sourceName = pending.sourceName || '马格南';
+    if (uniqueValidIds.length < pending.count) {
+      return {
+        ok: false,
+        reason: `【${sourceName}】需要选择 ${pending.count} 张手牌弃置（当前已选 ${uniqueValidIds.length} 张）`,
+      };
+    }
+    const pickedCards = [];
+    for (const id of uniqueValidIds) {
+      const hIdx = combat.hand.findIndex((c) => c.instanceId === id);
+      if (hIdx === -1) continue;
+      const [card] = combat.hand.splice(hIdx, 1);
+      if (card) pickedCards.push(card);
+    }
+    const baseDamage = pending.baseDamage ?? 6;
+    const flatBonus = pending.flatBonus ?? 0;
+    const targetEnemyId = pending.targetEnemyId ?? null;
+    setPendingCardChoice(combat, null);
+    const hitCount = executeMagnumDiscardsAndDamage(
+      state,
+      pickedCards,
+      baseDamage,
+      flatBonus,
+      targetEnemyId,
+      sourceName,
+      onVictoryCallback
+    );
+    return {
+      ok: true,
+      mode: 'magnum',
+      discardedCount: hitCount,
       outcome: state.combat?.status ?? combat.status,
     };
   }
@@ -730,6 +784,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   const hermitTurnBonus = handleHermitTurnStartHooks(state, {
     addCardsToHandFn: addCardsToHand,
     triggerSadisticNatureFn: triggerSadisticNature,
+    addPlayerBlockFn: addPlayerBlock,
   });
   if (hermitTurnBonus.bonusEnergy !== 0) {
     state.player.energy = Math.max(0, state.player.energy + hermitTurnBonus.bonusEnergy);
@@ -793,7 +848,7 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
     if (foresightAmt > 0 && combat.drawPile.length === 0) {
       returnDiscardCardsByFlag(state, 'returnOnScry', '【先见之明】');
     }
-    drawCards(state, totalTurnDraw);
+    drawCards(state, totalTurnDraw, { isTurnStartDraw: true });
   }
 
   if (combat.turn === 1) {
@@ -961,6 +1016,19 @@ export function startPlayerTurn(state, onVictoryCallback = null) {
   ) {
     requestManualDiscard(state, toolsDraw, '必备工具', onVictoryCallback);
   }
+
+  const adaptAmt = state.player.statuses.adapt ?? 0;
+  if (
+    adaptAmt > 0 &&
+    !hasPendingCardChoice(combat) &&
+    combat.status === 'ongoing' &&
+    combat.hand.length > 0 &&
+    getAliveEnemies(combat).length > 0
+  ) {
+    requestHandCardChoice(state, 'exhaust_multi', adaptAmt, '适应', onVictoryCallback, {
+      blockPerExhaust: 8,
+    });
+  }
 }
 
 export function startCombat(state, encounter, encounterRole = 'normal', onVictoryCallback = null) {
@@ -980,6 +1048,7 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     ...(Number.isInteger(c.upgradeLevel) ? { upgradeLevel: c.upgradeLevel } : {}),
     ...(typeof c.miscBonus === 'number' ? { miscBonus: c.miscBonus } : {}),
     ...(typeof c.ritualBonus === 'number' ? { ritualBonus: c.ritualBonus } : {}),
+    ...(typeof c.permanentCostMod === 'number' ? { permanentCostMod: c.permanentCostMod } : {}),
   }));
 
   const shuffledDeck = shuffled(state, deckCopies);
@@ -1013,6 +1082,10 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
     hpLostThisCombat: 0,
     hpLossCountThisCombat: 0,
     centennialUsed: false,
+    bartenderGlassUsed: 0,
+    petGhostUsed: false,
+    strikesDefendsPlayedThisTurn: 0,
+    eternalFormDrawsLeft: 0,
     activeBombs: [],
     nightmareQueue: [],
     playedAttackLastTurn: false,
@@ -1203,8 +1276,10 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   if (hasRelic(state, 'bag_of_marbles')) {
     let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
+      const hadVuln = (enemy.statuses?.vulnerable ?? 0) > 0;
       if (applyStatus(enemy, 'vulnerable', 1)) {
         appliedCount += 1;
+        maybeTriggerRedScarfOnNewDebuff(state, enemy, 'vulnerable', hadVuln, addPlayerBlock, 1);
         triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', 1);
       } else {
         pushCombatLog(
@@ -1240,8 +1315,10 @@ export function startCombat(state, encounter, encounterRole = 'normal', onVictor
   if (hasRelic(state, 'red_mask')) {
     let appliedCount = 0;
     for (const enemy of getAliveEnemies(combat)) {
+      const hadWeak = (enemy.statuses?.weak ?? 0) > 0;
       if (applyStatus(enemy, 'weak', 1)) {
         appliedCount += 1;
+        maybeTriggerRedScarfOnNewDebuff(state, enemy, 'weak', hadWeak, addPlayerBlock, 1);
       } else {
         pushCombatLog(
           combat,

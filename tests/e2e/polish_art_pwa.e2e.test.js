@@ -1755,8 +1755,14 @@ test('E2E: Bespoke Relic SVGs across Character Select, 390px Mobile HUD, Reward,
       deviceScaleFactor: 1,
       mobile: false,
     });
+    await cdp.send('Page.bringToFront');
     await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/index.html` });
-    await new Promise((r) => setTimeout(r, 420));
+    const waitDeadline = Date.now() + 8000;
+    while (Date.now() < waitDeadline) {
+      const ready = await cdp.evaluate('Boolean(window.__SPIRE_APP__ && document.getElementById("btn-menu-standard"))');
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 80));
+    }
 
     // 1. Desktop: Character Select starter relic SVGs + Daily Challenge inline starter relic SVG
     const preRunAudit = await cdp.evaluate(`(() => {

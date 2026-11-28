@@ -69,6 +69,11 @@ export const NON_GENERATABLE_COMBAT_CARD_IDS = deepFreeze([
   'wish',
   'bandage_up',
   'hand_of_greed',
+  'dead_or_alive',
+  'reprieve',
+  'scavenge',
+  'cursed_weapon',
+  'golden_bullet',
 ]);
 
 const NON_GENERATABLE_COMBAT_CARD_SET = new Set(NON_GENERATABLE_COMBAT_CARD_IDS);

@@ -19,6 +19,7 @@ import {
   rollEnemyIntent,
 } from '../../data/enemies.js';
 import { RELIC_LIBRARY, STANCE_METADATA } from '../../data/relics.js';
+import { calculateAttackDamage } from '../math.js';
 import { pickRandom, randomInt } from '../rng.js';
 import {
   MAX_HAND_SIZE,
@@ -52,6 +53,7 @@ import {
 import {
   handleHermitCurseDrawn,
   handleHermitCurseExhausted,
+  maybeTriggerRedScarfOnNewDebuff,
 } from './hermit_mechanics.js';
 
 export function addPlayerBlock(state, amount) {
@@ -71,8 +73,10 @@ export function addPlayerBlock(state, amount) {
         let appliedCount = 0;
         for (const enemy of alive) {
           if (enemy.hp <= 0) continue;
+          const hadWeak = (enemy.statuses?.weak ?? 0) > 0;
           if (applyStatus(enemy, 'weak', waveWeak)) {
             appliedCount += 1;
+            maybeTriggerRedScarfOnNewDebuff(state, enemy, 'weak', hadWeak, addPlayerBlock, waveWeak);
             triggerSadisticNature(state, enemy);
           } else {
             pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【摆手】的【虚弱】！`, 'status');
@@ -125,12 +129,14 @@ export function triggerChampionBeltIfVulnerable(state, enemy, statusKey, delta) 
     enemy.hp > 0 &&
     hasRelic(state, 'champion_belt')
   ) {
+    const hadWeak = (enemy.statuses?.weak ?? 0) > 0;
     if (applyStatus(enemy, 'weak', 1)) {
       pushCombatLog(
         state.combat,
         `遗物【${RELIC_LIBRARY.champion_belt.name}】触发：【${enemy.name}】额外获得 1 层【虚弱】！`,
         'status'
       );
+      maybeTriggerRedScarfOnNewDebuff(state, enemy, 'weak', hadWeak, addPlayerBlock, 1);
       triggerSadisticNature(state, enemy);
     } else {
       pushCombatLog(
@@ -147,6 +153,7 @@ export function applyPoisonToEnemy(state, enemy, amount, options = {}) {
   if (!combat || !enemy || enemy.hp <= 0 || !Number.isFinite(amount) || amount <= 0) return 0;
   const skullBonus = !options.skipSneckoSkull && hasRelic(state, 'snecko_skull') ? 1 : 0;
   const total = Math.floor(amount) + skullBonus;
+  const hadPoison = (enemy.statuses?.poison ?? 0) > 0;
   if (!applyStatus(enemy, 'poison', total)) {
     pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了中毒！`, 'status');
     return 0;
@@ -156,6 +163,7 @@ export function applyPoisonToEnemy(state, enemy, amount, options = {}) {
     `【${enemy.name}】获得 ${total} 层【中毒】${skullBonus > 0 ? '（异蛇头骨 +1）' : ''}。`,
     'status'
   );
+  maybeTriggerRedScarfOnNewDebuff(state, enemy, 'poison', hadPoison, addPlayerBlock, total);
   triggerSadisticNature(state, enemy);
   return total;
 }
@@ -358,6 +366,28 @@ export function drawCards(state, count, options = {}) {
         nextCard.combatCost = randomInt(state, 0, 3);
         delete nextCard.tempZeroCostTurn;
         delete nextCard.prevCombatCost;
+      }
+    }
+    const eternalAmt = state.player.statuses?.eternalForm ?? 0;
+    if (
+      options.isTurnStartDraw &&
+      eternalAmt > 0 &&
+      (combat.eternalFormDrawsLeft ?? 0) > 0 &&
+      !drawnStats.unplayable
+    ) {
+      combat.eternalFormDrawsLeft -= 1;
+      if (!drawnStats.isXCost && typeof drawnStats.cost === 'number') {
+        const curEff =
+          typeof nextCard.combatCost === 'number'
+            ? Math.max(0, nextCard.combatCost)
+            : getEffectiveCardCost(drawnStats, state.player, combat);
+        if (typeof curEff === 'number' && curEff > 0) {
+          if (!nextCard.tempZeroCostTurn) {
+            nextCard.prevCombatCost = nextCard.combatCost ?? null;
+          }
+          nextCard.combatCost = Math.max(0, curEff - eternalAmt);
+          nextCard.tempZeroCostTurn = true;
+        }
       }
     }
     combat.hand.push(nextCard);
@@ -721,6 +751,15 @@ export function handlePlayerHpLostTriggers(state, { isAttack = false } = {}) {
       );
     }
   }
+
+  if (hasRelic(state, 'rye_stalk') && combat.phase !== 'player') {
+    applyStatus(state.player, 'drawCardNextTurn', 1);
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.rye_stalk.name}】触发：敌方回合损失生命，下回合额外抽 1 张牌！`,
+      'info'
+    );
+  }
 }
 
 export function dealDamageToPlayer(state, rawAmount, sourceLabel = '敌人', options = { isAttack: true }) {
@@ -765,6 +804,16 @@ export function dealDamageToPlayer(state, rawAmount, sourceLabel = '敌人', opt
       delete state.player.statuses.buffer;
     }
     pushCombatLog(combat, `【缓冲】生效：完全抵消了 ${hpLoss} 点生命损失！`, 'block');
+    hpLoss = 0;
+  }
+
+  if (hpLoss >= state.player.hp && hasRelic(state, 'pet_ghost') && !combat.petGhostUsed) {
+    combat.petGhostUsed = true;
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.pet_ghost.name}】显灵：完全抵消了本次致命伤害（每场战斗限 1 次）！`,
+      'victory'
+    );
     hpLoss = 0;
   }
 
@@ -822,6 +871,16 @@ export function losePlayerHp(state, amount, reasonLabel = '效果', options = {}
       delete state.player.statuses.buffer;
     }
     pushCombatLog(combat, `【缓冲】生效：完全抵消了【${reasonLabel}】造成的 ${loss} 点生命损失！`, 'block');
+    return 0;
+  }
+
+  if (loss >= state.player.hp && hasRelic(state, 'pet_ghost') && !combat.petGhostUsed) {
+    combat.petGhostUsed = true;
+    pushCombatLog(
+      combat,
+      `遗物【${RELIC_LIBRARY.pet_ghost.name}】显灵：完全抵消了【${reasonLabel}】的致命生命损失（每场战斗限 1 次）！`,
+      'victory'
+    );
     return 0;
   }
 
@@ -1061,6 +1120,103 @@ export function requestHandCardChoice(
       count: maxPick,
       remaining: maxPick,
       optional: true,
+      blockPerExhaust: Math.max(0, options.blockPerExhaust ?? 0),
+      candidates: [...combat.hand],
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'lone_wolf') {
+    if (combat.hand.length === 0) return;
+    if (combat.hand.length === 1) {
+      const kept = combat.hand[0];
+      const keptStats = getCardStats(kept);
+      if (!keptStats.unplayable && !keptStats.isXCost) {
+        if (!kept.tempZeroCostTurn) {
+          kept.prevCombatCost = kept.combatCost ?? null;
+        }
+        kept.combatCost = 0;
+        kept.tempZeroCostTurn = true;
+      }
+      pushCombatLog(combat, `【${sourceName}】保留【${keptStats.name}】（本回合 0 费）。`, 'info');
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'lone_wolf',
+      sourceName,
+      count: 1,
+      remaining: 1,
+      optional: false,
+      candidates: null,
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'malice') {
+    const baseDamage = options.baseDamage ?? 16;
+    const flatBonus = options.flatBonus ?? 0;
+    const targetEnemyId = options.targetEnemyId ?? null;
+    if (combat.hand.length === 0) {
+      executeMaliceAttack(state, false, baseDamage, flatBonus, targetEnemyId, sourceName, onVictoryCallback);
+      return;
+    }
+    if (combat.hand.length === 1) {
+      const [onlyCard] = combat.hand.splice(0, 1);
+      const isCurse = getCardStats(onlyCard).type === 'curse';
+      exhaustCardsBatch(state, [onlyCard]);
+      if (state.player.hp > 0 && combat.status === 'ongoing' && getAliveEnemies(combat).length > 0) {
+        executeMaliceAttack(state, isCurse, baseDamage, flatBonus, targetEnemyId, sourceName, onVictoryCallback);
+      } else if (getAliveEnemies(combat).length === 0 && state.player.hp > 0) {
+        finalizeCombatVictory(state, onVictoryCallback);
+      }
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'malice',
+      sourceName,
+      count: 1,
+      remaining: 1,
+      optional: false,
+      baseDamage,
+      flatBonus,
+      targetEnemyId,
+      candidates: null,
+      selectedIds: [],
+    });
+    return;
+  }
+
+  if (mode === 'magnum') {
+    const baseDamage = options.baseDamage ?? 6;
+    const flatBonus = options.flatBonus ?? 0;
+    const targetEnemyId = options.targetEnemyId ?? null;
+    if (combat.hand.length === 0) return;
+    if (combat.hand.length <= count) {
+      const allHand = [...combat.hand];
+      combat.hand = [];
+      executeMagnumDiscardsAndDamage(
+        state,
+        allHand,
+        baseDamage,
+        flatBonus,
+        targetEnemyId,
+        sourceName,
+        onVictoryCallback
+      );
+      return;
+    }
+    setPendingCardChoice(combat, {
+      mode: 'magnum',
+      sourceName,
+      count,
+      remaining: count,
+      exactCount: true,
+      optional: false,
+      baseDamage,
+      flatBonus,
+      targetEnemyId,
       candidates: [...combat.hand],
       selectedIds: [],
     });
@@ -1223,6 +1379,195 @@ export function requestHandCardChoice(
       selectedIds: [],
     });
   }
+}
+
+export function executeMaliceAttack(
+  state,
+  isCurse,
+  baseDamage,
+  flatBonus,
+  targetEnemyId,
+  sourceName = '歹念',
+  onVictoryCallback = null
+) {
+  const combat = state?.combat;
+  if (!combat || state.player.hp <= 0 || combat.status !== 'ongoing') return;
+  if (isCurse) {
+    const targets = getAliveEnemies(combat);
+    if (targets.length > 0) {
+      pushCombatLog(combat, `【${sourceName}】消耗诅咒牌，化为全体烈焰打击！`, 'attack');
+      for (const enemy of targets) {
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        const dmg = calculateAttackDamage(baseDamage, state.player, enemy, { flatBonus });
+        dealDamageToEnemy(state, enemy, dmg, { isAttack: true });
+      }
+    }
+  } else {
+    const alive = getAliveEnemies(combat);
+    const target =
+      alive.find((e) => e.id === targetEnemyId) || (alive.length > 0 ? alive[0] : null);
+    if (target) {
+      const dmg = calculateAttackDamage(baseDamage, state.player, target, { flatBonus });
+      dealDamageToEnemy(state, target, dmg, { isAttack: true });
+    }
+  }
+  if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+    setPendingCardChoice(combat, null);
+    finalizeCombatVictory(state, onVictoryCallback);
+  }
+}
+
+export function executeMagnumDiscardsAndDamage(
+  state,
+  discardedCards,
+  baseDamage,
+  flatBonus,
+  targetEnemyId,
+  sourceName = '马格南',
+  onVictoryCallback = null
+) {
+  const combat = state?.combat;
+  if (!combat || state.player.hp <= 0 || combat.status !== 'ongoing') return 0;
+  const hitCount = discardCardsBatch(state, discardedCards, { manual: true });
+  if (hitCount > 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+    const alive = getAliveEnemies(combat);
+    const target =
+      alive.find((e) => e.id === targetEnemyId) || (alive.length > 0 ? alive[0] : null);
+    if (target) {
+      pushCombatLog(
+        combat,
+        `【${sourceName}】弃置 ${hitCount} 张手牌，连续射击【${target.name}】${hitCount} 次！`,
+        'attack'
+      );
+      for (let h = 0; h < hitCount; h += 1) {
+        if (target.hp <= 0 || state.player.hp <= 0 || combat.status !== 'ongoing') break;
+        const dmg = calculateAttackDamage(baseDamage, state.player, target, { flatBonus });
+        dealDamageToEnemy(state, target, dmg, { isAttack: true });
+      }
+    }
+  }
+  if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+    setPendingCardChoice(combat, null);
+    finalizeCombatVictory(state, onVictoryCallback);
+  }
+  return hitCount;
+}
+
+export function executeCheatPickedCard(
+  state,
+  card,
+  sourceName = '出千',
+  forceDeadOn = false,
+  forceDeadOnTimes = 1,
+  onVictoryCallback = null
+) {
+  const combat = state?.combat;
+  if (!combat || !card || state.player.hp <= 0 || combat.status !== 'ongoing') return;
+  const cStats = getCardStats(card);
+  const medKitPlayable = Boolean(
+    cStats.unplayable && cStats.type === 'status' && hasRelic(state, 'medical_kit')
+  );
+  const blockedByVelvetChoker = Boolean(
+    hasRelic(state, 'velvet_choker') &&
+      (combat.cardsPlayedThisTurn ?? 0) >= VELVET_CHOKER_CARD_LIMIT
+  );
+  const blockedByEntangle =
+    cStats.type === 'attack' && (state.player.statuses?.entangled ?? 0) > 0;
+  const blockedByClash = Boolean(
+    cStats.requireAllHandAttacks && combat.hand.some((c) => getCardStats(c).type !== 'attack')
+  );
+  const blockedBySignature = Boolean(
+    cStats.requireOnlyAttackInHand && combat.hand.some((c) => getCardStats(c).type === 'attack')
+  );
+  const blockedByGrandFinale = Boolean(
+    cStats.requireEmptyDrawPile && combat.drawPile.length > 0
+  );
+  if (
+    (cStats.unplayable && !medKitPlayable) ||
+    blockedByVelvetChoker ||
+    blockedByEntangle ||
+    blockedByClash ||
+    blockedBySignature ||
+    blockedByGrandFinale
+  ) {
+    combat.discardPile.push(card);
+    pushCombatLog(
+      combat,
+      `【${sourceName}】选中的【${cStats.name}】当前无法打出，已置入弃牌堆。`,
+      'info'
+    );
+    return;
+  }
+  const alive = getAliveEnemies(combat);
+  const targetEnemy = cStats.target === 'enemy' ? pickRandom(state, alive) : null;
+  combat.hand.push(card);
+  pushCombatLog(
+    combat,
+    `【${sourceName}】免费打出【${cStats.name}】${forceDeadOn && cStats.deadOn ? '（强制触发【精准】！）' : ''}！`,
+    'card'
+  );
+  pushCardReveal(combat, {
+    sourceName,
+    kind: 'auto_play',
+    card,
+    targetName: targetEnemy?.name || null,
+    summary: `${sourceName}免费打出【${cStats.name}】`,
+  });
+  invokePlayCard(state, card.instanceId, targetEnemy?.id ?? null, onVictoryCallback, {
+    forceFree: true,
+    forceDeadOn: Boolean(forceDeadOn),
+    forceDeadOnTimes: forceDeadOn ? Math.max(1, forceDeadOnTimes) : 0,
+    fromHavoc: true,
+  });
+}
+
+export function requestCheatTopDrawChoice(
+  state,
+  topCount,
+  sourceName = '出千',
+  onVictoryCallback = null,
+  options = {}
+) {
+  const combat = state?.combat;
+  if (
+    !combat ||
+    combat.status !== 'ongoing' ||
+    combat.phase !== 'player' ||
+    topCount <= 0 ||
+    getAliveEnemies(combat).length === 0
+  ) {
+    return false;
+  }
+  if ((combat.drawPile?.length ?? 0) === 0) {
+    pushCombatLog(combat, `【${sourceName}】抽牌堆为空，没有可选卡牌。`, 'info');
+    return false;
+  }
+  const forceDeadOn = Boolean(options.forceDeadOn);
+  const forceDeadOnTimes = Math.max(1, options.forceDeadOnTimes ?? 1);
+  if (combat.drawPile.length === 1) {
+    const [onlyCard] = combat.drawPile.splice(0, 1);
+    executeCheatPickedCard(state, onlyCard, sourceName, forceDeadOn, forceDeadOnTimes, onVictoryCallback);
+    return true;
+  }
+  const count = Math.min(topCount, combat.drawPile.length);
+  const candidates = combat.drawPile.slice(0, count);
+  setPendingCardChoice(combat, {
+    mode: 'cheat',
+    sourceName,
+    count: 1,
+    remaining: 1,
+    optional: false,
+    forceDeadOn,
+    forceDeadOnTimes,
+    candidates,
+    selectedIds: [],
+  });
+  pushCombatLog(
+    combat,
+    `【${sourceName}】检视抽牌堆顶 ${count} 张牌，请选择 1 张免费打出${forceDeadOn ? '（将触发精准！）' : ''}。`,
+    'info'
+  );
+  return true;
 }
 
 export function requestManualDiscard(state, count, sourceName = '弃牌', onVictoryCallback = null) {
@@ -1485,7 +1830,8 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
     pending.mode === 'retrieve_discard_retain' ||
     pending.mode === 'retain' ||
     pending.mode === 'exhaust_multi' ||
-    pending.mode === 'hand_to_draw_bottom_multi'
+    pending.mode === 'hand_to_draw_bottom_multi' ||
+    pending.mode === 'magnum'
   ) {
     return togglePendingCardChoice(state, instanceId);
   }
@@ -1561,6 +1907,14 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
       return { ok: false, reason: '未在消耗堆中找到该卡牌' };
     }
     const [card] = combat.exhaustPile.splice(eIdx, 1);
+    const cStats = getCardStats(card);
+    if (pending.tempZeroCostTurn && !cStats.unplayable && !cStats.isXCost) {
+      if (!card.tempZeroCostTurn) {
+        card.prevCombatCost = card.combatCost ?? null;
+      }
+      card.combatCost = 0;
+      card.tempZeroCostTurn = true;
+    }
     if (combat.hand.length < MAX_HAND_SIZE) {
       combat.hand.push(card);
     }
@@ -1568,7 +1922,7 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
     pending.remaining = Math.max(0, (pending.remaining ?? 1) - 1);
     pushCombatLog(
       combat,
-      `【${pending.sourceName}】从消耗堆发掘【${getCardStats(card).name}】加入手牌！`,
+      `【${pending.sourceName}】从消耗堆取回【${cStats.name}】加入手牌${pending.tempZeroCostTurn ? '（本回合 0 费）' : ''}！`,
       'info'
     );
     if (
@@ -1583,6 +1937,27 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
       mode: 'retrieve_exhaust_to_hand',
       outcome: state.combat?.status ?? combat.status,
       remaining: combat.pendingCardChoice?.remaining ?? 0,
+    };
+  }
+
+  if (pending.mode === 'cheat') {
+    const valid = (pending.candidates || []).some((c) => c.instanceId === instanceId);
+    const dIdx = combat.drawPile.findIndex((c) => c.instanceId === instanceId);
+    if (!valid || dIdx === -1) {
+      return { ok: false, reason: '未在抽牌堆中找到该卡牌' };
+    }
+    const sourceName = pending.sourceName || '出千';
+    const forceDeadOn = Boolean(pending.forceDeadOn);
+    const forceDeadOnTimes = Math.max(1, pending.forceDeadOnTimes ?? 1);
+    const [card] = combat.drawPile.splice(dIdx, 1);
+    setPendingCardChoice(combat, null);
+    executeCheatPickedCard(state, card, sourceName, forceDeadOn, forceDeadOnTimes, onVictoryCallback);
+    return {
+      ok: true,
+      mode: 'cheat',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: combat.pendingCardChoice?.remaining ?? 0,
+      cardReveals: [...(combat.pendingCardReveals || [])],
     };
   }
 
@@ -1744,6 +2119,61 @@ function resolveCardChoiceInner(state, instanceId, onVictoryCallback = null) {
   const idx = combat.hand.findIndex((c) => c.instanceId === instanceId);
   if (idx === -1) {
     return { ok: false, reason: '未在手牌中找到该卡牌' };
+  }
+
+  if (pending.mode === 'lone_wolf') {
+    const kept = combat.hand[idx];
+    const keptStats = getCardStats(kept);
+    const others = combat.hand.filter((_, i) => i !== idx);
+    combat.hand = [kept];
+    const sourceName = pending.sourceName || '孤狼';
+    setPendingCardChoice(combat, null);
+    if (!keptStats.unplayable && !keptStats.isXCost) {
+      if (!kept.tempZeroCostTurn) {
+        kept.prevCombatCost = kept.combatCost ?? null;
+      }
+      kept.combatCost = 0;
+      kept.tempZeroCostTurn = true;
+    }
+    pushCombatLog(
+      combat,
+      `【${sourceName}】锁定【${keptStats.name}】（本回合 0 费），弃置其余 ${others.length} 张手牌！`,
+      'info'
+    );
+    if (others.length > 0) {
+      discardCardsBatch(state, others, { manual: true });
+    }
+    if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+      finalizeCombatVictory(state, onVictoryCallback);
+    }
+    return {
+      ok: true,
+      mode: 'lone_wolf',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
+  }
+
+  if (pending.mode === 'malice') {
+    const [picked] = combat.hand.splice(idx, 1);
+    const isCurse = getCardStats(picked).type === 'curse';
+    const sourceName = pending.sourceName || '歹念';
+    const baseDamage = pending.baseDamage ?? 16;
+    const flatBonus = pending.flatBonus ?? 0;
+    const targetEnemyId = pending.targetEnemyId ?? null;
+    setPendingCardChoice(combat, null);
+    exhaustCardsBatch(state, [picked]);
+    if (state.player.hp > 0 && combat.status === 'ongoing' && getAliveEnemies(combat).length > 0) {
+      executeMaliceAttack(state, isCurse, baseDamage, flatBonus, targetEnemyId, sourceName, onVictoryCallback);
+    } else if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {
+      finalizeCombatVictory(state, onVictoryCallback);
+    }
+    return {
+      ok: true,
+      mode: 'malice',
+      outcome: state.combat?.status ?? combat.status,
+      remaining: 0,
+    };
   }
 
   if (pending.mode === 'dual_wield') {

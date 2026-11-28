@@ -37,6 +37,9 @@ export const POTION_ACCENT_COLORS = Object.freeze({
   potion_of_capacity: 'hsl(208, 92%, 66%)',
   essence_of_darkness: 'hsl(282, 86%, 60%)',
   liquid_plasma: 'hsl(42, 98%, 64%)',
+  tonic: 'hsl(38, 92%, 60%)',
+  black_bile: 'hsl(312, 82%, 56%)',
+  liquid_void: 'hsl(272, 86%, 62%)',
 });
 
 function wrapPotionSvg(id, defs, body) {
@@ -391,6 +394,37 @@ export const POTION_SVG_ART = Object.freeze({
      <polygon points="8.4,15.4 14,10.2 19.6,15.4 17.2,22.4 10.8,22.4" fill="url(#pt-liquid_plasma-g)"/>
      <ellipse cx="14" cy="16.6" rx="5.2" ry="2.1" transform="rotate(-24 14 16.6)" fill="none" stroke="hsl(54, 100%, 96%)" stroke-width="1.1"/>
      <circle cx="14" cy="16.6" r="1.6" fill="hsl(54, 100%, 98%)"/>`
+  ),
+
+  // 33. Tonic — Western brass-strapped hip-flask canteen with amber rugged shield emblem
+  tonic: wrapPotionSvg(
+    'tonic',
+    `<linearGradient id="pt-tonic-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="hsl(46, 98%, 72%)"/><stop offset="100%" stop-color="hsl(28, 86%, 42%)"/></linearGradient>`,
+    `<rect x="11.5" y="2.2" width="5" height="2.6" rx="1" fill="hsl(34, 62%, 44%)" stroke="hsl(46, 94%, 76%)" stroke-width="0.9"/>
+     <rect x="7" y="7.4" width="14" height="16.8" rx="4.2" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3"/>
+     <path d="M12 4.8 H16 V7.4 H12 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.1"/>
+     <rect x="8.3" y="12.2" width="11.4" height="10.6" rx="3" fill="url(#pt-tonic-g)"/>
+     <path d="M14 13.8 L17.4 15.2 V18 C17.4 19.8 15.9 21 14 21.8 C12.1 21 10.6 19.8 10.6 18 V15.2 Z" fill="hsl(26, 52%, 18%)" stroke="hsl(50, 100%, 84%)" stroke-width="1"/>`
+  ),
+
+  // 34. Black Bile — Bulbous dark-magenta apothecary gourd with bruised impact star
+  black_bile: wrapPotionSvg(
+    'black_bile',
+    `<radialGradient id="pt-black_bile-g" cx="44%" cy="40%" r="64%"><stop offset="0%" stop-color="hsl(324, 92%, 62%)"/><stop offset="56%" stop-color="hsl(296, 76%, 30%)"/><stop offset="100%" stop-color="hsl(272, 68%, 11%)"/></radialGradient>`,
+    `<rect x="11.4" y="2.2" width="5.2" height="2.4" rx="1" fill="hsl(308, 44%, 34%)" stroke="hsl(326, 86%, 72%)" stroke-width="0.9"/>
+     <path d="M11.8 4.6 H16.2 V7.4 C19.8 8.2 21.6 10.6 20.6 13.8 C22.4 15.8 22.2 20 19.4 22.8 C16.6 25 11.4 25 8.6 22.8 C5.8 20 5.6 15.8 7.4 13.8 C6.4 10.6 8.2 8.2 11.8 7.4 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <circle cx="14" cy="17.8" r="5.6" fill="url(#pt-black_bile-g)"/>
+     <polygon points="14,13.6 15.2,16.2 18,16 16,18 17.6,20.6 14.8,19.8 14,22.2 13.2,19.8 10.4,20.6 12,18 10,16 12.8,16.2" fill="hsl(48, 100%, 86%)" opacity="0.9"/>`
+  ),
+
+  // 35. Liquid Void — Tall faceted crescent-eclipse bottle with swirling zero-cost violet void
+  liquid_void: wrapPotionSvg(
+    'liquid_void',
+    `<radialGradient id="pt-liquid_void-g" cx="50%" cy="46%" r="60%"><stop offset="0%" stop-color="hsl(278, 98%, 74%)"/><stop offset="52%" stop-color="hsl(258, 80%, 34%)"/><stop offset="100%" stop-color="hsl(240, 72%, 10%)"/></radialGradient>`,
+    `<polygon points="11.4,2 16.6,2 15.8,4.8 12.2,4.8" fill="hsl(268, 62%, 44%)" stroke="hsl(280, 96%, 80%)" stroke-width="0.9"/>
+     <path d="M12.2 4.8 H15.8 V8 L20.8 11.8 L19.4 23.6 L14 25.2 L8.6 23.6 L7.2 11.8 L12.2 8 Z" fill="${DARK_GLASS}" stroke="${GLASS}" stroke-width="1.3" stroke-linejoin="round"/>
+     <polygon points="9,13.4 19,13.4 18,22.4 14,23.8 10,22.4" fill="url(#pt-liquid_void-g)"/>
+     <path d="M15.8 15 A3.2 3.2 0 1 0 15.8 20.6 A2.4 2.4 0 1 1 15.8 15 Z" fill="hsl(48, 100%, 88%)"/>`
   ),
 });
 

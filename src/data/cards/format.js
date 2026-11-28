@@ -97,6 +97,9 @@ export function getCardStats(cardInstance) {
   if (rawStats.geneticBlockGrowth && typeof cardInstance.miscBonus === 'number' && typeof rawStats.block === 'number') {
     rawStats.block = Math.max(0, rawStats.block + cardInstance.miscBonus);
   }
+  if (typeof cardInstance.permanentCostMod === 'number' && typeof rawStats.cost === 'number') {
+    rawStats.cost = Math.max(0, rawStats.cost + cardInstance.permanentCostMod);
+  }
   const costReduced = Boolean(
     isUpgraded &&
       typeof def.base.cost === 'number' &&
@@ -178,11 +181,14 @@ export function getEffectiveCardCost(stats, player = null, combat = null) {
   if (stats.reduceCostPerPowerPlayed && combat) {
     base = Math.max(0, base - (combat.powersPlayedThisCombat ?? 0));
   }
+  if (stats.costReducePerStrikeDefendThisTurn && combat) {
+    base = Math.max(0, base - (combat.strikesDefendsPlayedThisTurn ?? 0));
+  }
   return base;
 }
 
 /**
- * Single source of truth for flat per-hit attack bonuses (Accuracy on Shivs, Wrist Blade on 0-cost attacks, Strike Dummy, Vigor, Blizzard frost scaling).
+ * Single source of truth for flat per-hit attack bonuses (Accuracy on Shivs, Wrist Blade on 0-cost attacks, Strike Dummy, Maintenance Strike, Vigor, Blizzard frost scaling).
  */
 export function getCardAttackFlatBonus(stats, player = null, combat = null, options = {}) {
   if (!stats || stats.type !== 'attack' || !player) return 0;
@@ -201,6 +207,9 @@ export function getCardAttackFlatBonus(stats, player = null, combat = null, opti
     if (frostCount > 0) {
       bonus += stats.damagePerFrostChanneled * frostCount;
     }
+  }
+  if ((player.statuses?.maintenanceStrike ?? 0) > 0 && isStrikeCard(stats.cardId)) {
+    bonus += player.statuses.maintenanceStrike;
   }
   if (Array.isArray(player.relics) && player.relics.includes('strike_dummy') && isStrikeCard(stats.cardId)) {
     bonus += 3;
@@ -240,6 +249,17 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     strikeBonusTotal = stats.bonusDamagePerStrike * countCombatStrikeCards(combat);
     rawDamageBase += strikeBonusTotal;
   }
+  if (typeof stats.damagePerDeckCurse === 'number' && combat && typeof rawDamageBase === 'number') {
+    const curseCount = [
+      ...(combat.hand || []),
+      ...(combat.drawPile || []),
+      ...(combat.discardPile || []),
+    ].filter((c) => getCardStats(c).type === 'curse').length;
+    rawDamageBase += stats.damagePerDeckCurse * curseCount;
+  }
+  if (stats.cursedWeaponScale && player && typeof rawDamageBase === 'number') {
+    rawDamageBase += Math.max(0, player.cursedWeaponBonus ?? 0);
+  }
   const flatBonus = getCardAttackFlatBonus(stats, player, combat);
   let displayDamage = rawDamageBase;
   let damageState = 'normal';
@@ -262,6 +282,13 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       : drawBase;
     if (player && displayDamage > drawBase) damageState = 'boosted';
     else if (player && displayDamage < drawBase) damageState = 'reduced';
+  } else if (stats.damageFromMissingHp) {
+    const missingBase = player ? Math.max(0, (player.maxHp ?? 0) - (player.hp ?? 0)) : 0;
+    displayDamage = player
+      ? calculateAttackDamage(missingBase, player, targetEnemy, { flatBonus })
+      : missingBase;
+    if (player && displayDamage > missingBase) damageState = 'boosted';
+    else if (player && displayDamage < missingBase) damageState = 'reduced';
   } else if (typeof rawDamageBase === 'number') {
     if (player) {
       displayDamage = calculateAttackDamage(rawDamageBase, player, targetEnemy, {
@@ -373,6 +400,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.endOfTurnFrail) {
     parts.push(`回合结束时若仍在手牌，获得 ${stats.endOfTurnFrail} 层脆弱。`);
   }
+  if (stats.impendingDoomDamage) {
+    parts.push(`【精准】：回合结束时，对所有单位（含自身）造成 ${stats.impendingDoomDamage} 点伤害。`);
+  }
   if (stats.endOfTurnCopyToDrawTop) {
     parts.push('回合结束时若仍在手牌，将 1 张【傲慢】置于抽牌堆顶。');
   }
@@ -394,6 +424,15 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   }
   if (stats.gainEnergy) {
     parts.push(`获得 ${stats.gainEnergy} 点能量。`);
+  }
+  if (stats.refillEnergyToMax) {
+    parts.push('回复能量直至达到你的最大能量上限。');
+  }
+  if (stats.exhaustAllUnplayableInHand) {
+    parts.push('消耗手牌中所有无法打出的卡牌。');
+  }
+  if (stats.discardAllHand && stats.drawRarestFromDraw) {
+    parts.push(`弃掉所有手牌，从抽牌堆抽取最多 ${stats.drawRarestFromDraw} 张最稀有的牌。`);
   }
   if (stats.addCardsToHand) {
     const tokenDef = CARD_LIBRARY[stats.addCardsToHand.cardId];
@@ -545,7 +584,16 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.removeEnemyBlockBeforeDamage) {
     parts.push('移除目标的所有格挡。');
   }
-  if (stats.exhaustAllHandDamageEach) {
+  if (stats.fromBeyondHpLossPerExhaust) {
+    const exCnt = combat ? (combat.exhaustPile?.length ?? 0) : null;
+    const note = exCnt !== null ? `（当前 ${exCnt} 张）` : '';
+    parts.push(`消耗堆中每有 1 张牌，使随机一名敌人无视格挡失去 ${stats.fromBeyondHpLossPerExhaust} 点生命${note}。`);
+  }
+  if (stats.maliceExhaustToAoeIfCurse) {
+    parts.push(`选择消耗 1 张手牌；若为诅咒牌，对所有敌人造成 ${displayDamage} 点伤害，否则对目标造成 ${displayDamage} 点伤害。`);
+  } else if (stats.magnumDiscardCount) {
+    parts.push(`弃置最多 ${stats.magnumDiscardCount} 张手牌，每弃置 1 张对目标造成 ${displayDamage} 点伤害。`);
+  } else if (stats.exhaustAllHandDamageEach) {
     parts.push(`消耗所有手牌，每张对目标造成 ${displayDamage} 点伤害。`);
   } else if (stats.useBlockAsDamage) {
     const suffix = player ? `（当前 ${displayDamage} 点）` : '';
@@ -553,6 +601,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   } else if (stats.damageFromDrawPileSize) {
     const suffix = combat ? `（当前 ${displayDamage} 点）` : '';
     parts.push(`造成等同于你抽牌堆牌数的伤害${suffix}。`);
+  } else if (stats.damageFromMissingHp) {
+    const suffix = player ? `（当前 ${displayDamage} 点）` : '';
+    parts.push(`造成等同于你已损失生命值的伤害${suffix}。`);
   } else if (stats.damagePerFrostChanneled) {
     const frostCnt = combat?.orbsChanneledByType?.frost ?? 0;
     const note = combat ? `（已充能 ${frostCnt} 冰，当前 ${displayDamage} 点）` : '';
@@ -578,6 +629,16 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       : null;
     const countNote = skillCount !== null ? `（当前 ${skillCount} 次）` : '';
     parts.push(`手牌中每有 1 张技能牌，对目标造成 ${displayDamage} 点伤害${countNote}。`);
+  } else if (stats.hitsPerHandCurse && typeof stats.damage === 'number') {
+    const curseCount = combat
+      ? combat.hand.filter((h) => h.instanceId !== stats.instanceId && getCardStats(h).type === 'curse').length
+      : null;
+    const countNote = curseCount !== null ? `（当前 ${curseCount} 次）` : '';
+    parts.push(`手牌中每有 1 张诅咒牌，对目标造成 ${displayDamage} 点伤害${countNote}。`);
+  } else if (stats.ricochetPerDeadOnThisTurn && typeof stats.damage === 'number') {
+    const extraCount = combat ? (combat.deadOnTriggeredThisTurn ?? 0) : null;
+    const countNote = extraCount !== null ? `（当前额外 ${extraCount} 次）` : '';
+    parts.push(`造成 ${displayDamage} 点伤害；本回合此前每触发 1 次【精准】，再随机对一名敌人造成 ${displayDamage} 点伤害${countNote}。`);
   } else if (stats.isExpunger && typeof stats.damage === 'number') {
     const hitCount = stats.hits ?? 1;
     parts.push(`造成 ${displayDamage} 点伤害 ${hitCount} 次。`);
@@ -594,6 +655,32 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     } else {
       parts.push(`${targetPhrase} ${displayDamage} 点伤害。`);
     }
+  }
+  if (stats.cursedWeaponScale) {
+    parts.push(`本局所有【诅咒之枪】的伤害永久 +${stats.cursedWeaponScale}。`);
+  }
+  if (stats.desperadoDoubleDamageAndCost) {
+    parts.push(`本场战斗中，本牌的基础伤害翻倍，费用 +${stats.desperadoDoubleDamageAndCost}。`);
+  }
+  if (stats.damagePerDeckCurse) {
+    parts.push(`战斗牌组中每有 1 张诅咒牌，本牌伤害额外 +${stats.damagePerDeckCurse}。`);
+  }
+  if (stats.fatalPermanentCostReduction) {
+    parts.push(`斩杀时，本牌的费用永久 -${stats.fatalPermanentCostReduction}（跨战斗保留）。`);
+  }
+  if (stats.fatalBountyGold) {
+    parts.push('斩杀时，获得赏金金币（普通 15 / 精英 40 / 首领 100）。');
+  }
+  if (stats.stunNonAttackingEnemies) {
+    parts.push('使当前意图不是攻击的敌人陷入【眩晕】（跳过行动并保留原意图）。');
+  }
+  if (stats.playAllStrikesInHand) {
+    parts.push('随后免费随机打出手中所有【打击】。');
+  }
+  if (stats.costReducePerStrikeDefendThisTurn) {
+    const playedSD = combat?.strikesDefendsPlayedThisTurn ?? 0;
+    const note = combat && playedSD > 0 ? `（本回合已减 ${playedSD} 费）` : '';
+    parts.push(`本回合每打出过 1 张【打击】或【防御】，本牌费用 -1${note}。`);
   }
   if (stats.combatDamageScaleOnPlay) {
     parts.push(`本场战斗每打出一次，本牌伤害 +${stats.combatDamageScaleOnPlay}。`);
@@ -891,11 +978,53 @@ export function formatCardDescription(cardInstance, combatContext = null) {
   if (stats.deadOnPlatedArmor) {
     parts.push(`【精准】：获得 ${stats.deadOnPlatedArmor} 层多层护甲。`);
   }
+  if (stats.deadOnStrength) {
+    parts.push(`【精准】：获得 ${stats.deadOnStrength} 点力量。`);
+  }
+  if (stats.deadOnEnergyAndDraw) {
+    parts.push(`【精准】：获得 ${stats.deadOnEnergyAndDraw} 点能量并抽 ${stats.deadOnEnergyAndDraw} 张牌。`);
+  }
+  if (stats.deadOnWeakAll) {
+    parts.push(`【精准】：给予所有敌人 ${stats.deadOnWeakAll} 层虚弱。`);
+  }
+  if (stats.deadOnGainGold) {
+    parts.push(`【精准】：获得 ${stats.deadOnGainGold} 枚金币。`);
+  }
+  if (stats.deadOnBlock) {
+    const deadOnBlkDisplay = player ? calculateCardBlock(stats.deadOnBlock, player) : stats.deadOnBlock;
+    parts.push(`【精准】：获得 ${deadOnBlkDisplay} 点格挡。`);
+  }
   if (stats.deadOnReduceRandomHandCost) {
     parts.push(`【精准】：随机使 1 张手牌本回合费用 -${stats.deadOnReduceRandomHandCost}。`);
   }
   if (stats.deadOnDrawAndUpgrade) {
     parts.push(`【精准】：抽 ${stats.deadOnDrawAndUpgrade} 张牌并将它们升级。`);
+  }
+  if (stats.cheatTopDraw) {
+    parts.push(
+      `检视抽牌堆顶 ${stats.cheatTopDraw} 张牌，选择 1 张免费打出。【精准】：若选中精准牌，必定触发其精准效果。`
+    );
+  }
+  if (stats.loneWolfChooseZeroDiscardRest) {
+    parts.push('选择 1 张手牌使其本回合费用变为 0，弃置其余所有手牌。');
+  }
+  if (stats.drawUntilTotalCost) {
+    parts.push(`持续抽牌，直到抽到卡牌的基础总费用达到 ${stats.drawUntilTotalCost} 点。`);
+  }
+  if (stats.fetchAllStrikesAndDefends) {
+    parts.push('从抽牌堆将所有【打击】与【防御】加入手牌。');
+  }
+  if (typeof stats.addUpgradedDefendXBonus === 'number') {
+    const xLabel = stats.addUpgradedDefendXBonus > 0 ? `X+${stats.addUpgradedDefendXBonus}` : 'X';
+    parts.push(`将 1 张 0 费【防御】加入手牌，并将其升级 ${xLabel} 次。`);
+  }
+  if (stats.reduceAllDebuffs) {
+    parts.push(`使你身上的所有负面状态减少 ${stats.reduceAllDebuffs} 层。`);
+  }
+  if (stats.retrieveRandomAttacksFromDiscard) {
+    parts.push(
+      `从弃牌堆随机将最多 ${stats.retrieveRandomAttacksFromDiscard} 张攻击牌加入手牌，它们本回合费用 -${stats.retrieveDiscount ?? 1}。`
+    );
   }
   if (stats.drawIfLastCardDeadOn) {
     const readyNote = combat?.lastCardTriggeredDeadOn ? '（已就绪！）' : '';
@@ -1082,7 +1211,11 @@ export function formatCardDescription(cardInstance, combatContext = null) {
       parts.push('你的格挡在回合开始时不再自动清零。');
     }
     if (stats.applySelfStatuses.blur) {
-      parts.push('你的格挡在下回合开始时不会自动清零。');
+      parts.push(
+        stats.applySelfStatuses.blur > 1
+          ? `接下来 ${stats.applySelfStatuses.blur} 个回合开始时，你的格挡不会自动清零。`
+          : '你的格挡在下回合开始时不会自动清零。'
+      );
     }
     if (stats.applySelfStatuses.energized) {
       parts.push(`下回合获得 ${stats.applySelfStatuses.energized} 点能量。`);
@@ -1294,6 +1427,9 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applySelfStatuses.drawReduction) {
       parts.push(`下回合抽牌数 -${stats.applySelfStatuses.drawReduction}。`);
     }
+    if (stats.applySelfStatuses.platedArmor) {
+      parts.push(`获得 ${stats.applySelfStatuses.platedArmor} 层【多层护甲】。`);
+    }
     if (stats.applySelfStatuses.rugged) {
       parts.push(`获得 ${stats.applySelfStatuses.rugged} 层【坚固】（下次受到的非格挡攻击伤害至多为 2）。`);
     }
@@ -1303,6 +1439,50 @@ export function formatCardDescription(cardInstance, combatContext = null) {
     if (stats.applySelfStatuses.bounty) {
       parts.push(`获得 ${stats.applySelfStatuses.bounty} 点【赏金】。`);
     }
+    if (stats.applySelfStatuses.smokingBarrel) {
+      parts.push(`每当你触发【精准】时，下一张攻击牌额外造成 ${stats.applySelfStatuses.smokingBarrel} 点伤害。`);
+    }
+    if (stats.applySelfStatuses.brawl) {
+      parts.push(`每回合开始时，给予所有敌人 ${stats.applySelfStatuses.brawl} 层【瘀伤】。`);
+    }
+    if (stats.applySelfStatuses.combo) {
+      parts.push(`每回合前 ${stats.applySelfStatuses.combo} 张触发【精准】的非消耗牌打出后返回手牌。`);
+    }
+    if (stats.applySelfStatuses.determination) {
+      parts.push(`每当你获得负面状态时，获得 ${stats.applySelfStatuses.determination} 点力量。`);
+    }
+    if (stats.applySelfStatuses.maintenanceStrike) {
+      parts.push(`本场战斗中，所有名称含“打击”的牌伤害 +${stats.applySelfStatuses.maintenanceStrike}。`);
+    }
+    if (stats.applySelfStatuses.shadowCloak) {
+      parts.push(`每当你抽到或消耗 1 张诅咒牌时，获得 ${stats.applySelfStatuses.shadowCloak} 点格挡。`);
+    }
+    if (stats.applySelfStatuses.takeAim) {
+      parts.push('每回合开始时，获得【专注】。');
+    }
+    if (stats.applySelfStatuses.adapt) {
+      parts.push(`每回合开始抽牌后，可选择消耗最多 ${stats.applySelfStatuses.adapt} 张手牌，每张获得 8 点格挡。`);
+    }
+    if (stats.applySelfStatuses.eternalForm) {
+      parts.push(`每回合开始抽到的前 4 张可打出卡牌，本回合费用 -${stats.applySelfStatuses.eternalForm}。`);
+    }
+    if (stats.applySelfStatuses.fatalDesire) {
+      parts.push(
+        `每回合开始时，额外抽 ${stats.applySelfStatuses.fatalDesire * 2} 张牌，并将 ${stats.applySelfStatuses.fatalDesire} 张【受伤】加入手牌。`
+      );
+    }
+    if (stats.applySelfStatuses.highNoon) {
+      parts.push(`每当你打出【打击】或【防御】时，抽 ${stats.applySelfStatuses.highNoon} 张牌。`);
+    }
+    if (stats.applySelfStatuses.overwhelmingPower) {
+      parts.push(`若在能量为 0 时结束回合，失去 ${stats.applySelfStatuses.overwhelmingPower} 点生命。`);
+    }
+    if (stats.applySelfStatuses.drained) {
+      parts.push(`下回合开始时减少 ${stats.applySelfStatuses.drained} 点能量。`);
+    }
+  }
+  if (stats.increaseSelfCostThisCombat) {
+    parts.push(`本场战斗中，本牌费用 +${stats.increaseSelfCostThisCombat}。`);
   }
   if (stats.applySelfStatusesAfter?.noDraw) {
     parts.push('本回合内不能再抽牌。');

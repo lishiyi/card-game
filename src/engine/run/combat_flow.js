@@ -142,6 +142,11 @@ export function transitionCombatVictory(state) {
   state.eventCombatReward = null;
 
   const isElite = role === 'elite';
+  if (isElite && hasRelic(state, 'bloody_tooth') && state.player.hp > 0) {
+    const healAmt = Math.min(7, Math.max(0, state.player.maxHp - state.player.hp));
+    state.player.hp += healAmt;
+    state.player.gold += 35;
+  }
   const effectiveFloor = ((state.act ?? 1) - 1) * TOTAL_FLOORS + Math.max(1, state.floor || 1);
   const baseGold = eventRewardSpec?.gold
     ? eventRewardSpec.gold

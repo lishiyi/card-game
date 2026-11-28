@@ -64,6 +64,7 @@ import {
   losePlayerHp,
   discardCardsBatch,
   requestHandCardChoice,
+  requestCheatTopDrawChoice,
   changeStance,
   gainMantra,
   initiateScry,
@@ -82,11 +83,14 @@ import {
 } from './orbs.js';
 import { endPlayerTurn } from './turn_flow.js';
 import {
+  applyStunKeepIntent,
   consumeConcentrationOnDeadOnCard,
   countEntityDebuffs,
   createHighCaliberStrikeInHand,
+  createTakeCoverDefendInHand,
   getDeadOnRepeatCount,
   isHandIndexDeadOn,
+  maybeTriggerRedScarfOnNewDebuff,
   onHermitDeadOnTriggered,
 } from './hermit_mechanics.js';
 
@@ -294,7 +298,8 @@ export function playCard(
   const prevCardTriggeredDeadOn = Boolean(combat.lastCardTriggeredDeadOn);
   const deadOnPosActive =
     Boolean(stats.deadOn) &&
-    (isHandIndexDeadOn(handIndex, combat.hand.length) ||
+    (Boolean(internalOpts.forceDeadOn) ||
+      isHandIndexDeadOn(handIndex, combat.hand.length) ||
       (state.player.statuses?.concentration ?? 0) > 0);
   if (!internalOpts.fromHavoc && !internalOpts.fromDup) {
     combat.lastCardTriggeredDeadOn = false;
@@ -368,6 +373,12 @@ export function playCard(
   let totalDrawAfterDiscard = 0;
   let manualDiscardBonusBlockIfNonAttack = 0;
   let returnToHandByCombo = false;
+  let pendingCheatTop = 0;
+  let pendingCheatDeadOn = false;
+  let pendingCheatDeadOnTimes = 1;
+  let pendingLoneWolf = false;
+  let pendingMaliceCfg = null;
+  let pendingMagnumCfg = null;
   let totalManualExhaust = 0;
   let totalDrawAfterExhaust = 0;
   let totalExhaustMulti = 0;
@@ -424,7 +435,7 @@ export function playCard(
       forceFree: Boolean(internalOpts.forceFree),
     });
 
-    // 2. Self HP cost & self heal (Bandage Up)
+    // 2. Self HP cost & self heal (Bandage Up / Cursed Weapon / Reprieve)
     if (stats.loseHp) {
       losePlayerHp(state, stats.loseHp, stats.name, { fromCard: true });
       if (combat.status !== 'ongoing') {
@@ -440,10 +451,17 @@ export function playCard(
       );
     }
 
-    // 3. Energy gain & Sneaky Strike discard refund
+    // 3. Energy gain, Eye of the Storm refill & Sneaky Strike discard refund
     if (stats.gainEnergy) {
       state.player.energy += stats.gainEnergy;
       pushCombatLog(combat, `获得 ${stats.gainEnergy} 点能量。`, 'info');
+    }
+    if (stats.refillEnergyToMax) {
+      const needed = Math.max(0, state.player.maxEnergy - state.player.energy);
+      if (needed > 0) {
+        state.player.energy += needed;
+        pushCombatLog(combat, `【${stats.name}】补满能量，获得 ${needed} 点能量！`, 'info');
+      }
     }
     if (stats.refundEnergyIfDiscarded && hadDiscardedBeforeThis) {
       state.player.energy += stats.refundEnergyIfDiscarded;
@@ -469,6 +487,19 @@ export function playCard(
         );
       } else {
         pushCombatLog(combat, `抽牌堆不足 ${stats.energyPerDrawCards} 张，【${stats.name}】未获得能量。`, 'info');
+      }
+    }
+
+    // 3a. Spite: exhaust all unplayable cards in hand before gaining Block & drawing
+    if (stats.exhaustAllUnplayableInHand) {
+      const unplayables = combat.hand.filter((hc) => getCardStats(hc).unplayable);
+      if (unplayables.length > 0) {
+        combat.hand = combat.hand.filter((hc) => !getCardStats(hc).unplayable);
+        exhaustCardsBatch(state, unplayables);
+        pushCombatLog(combat, `【${stats.name}】消耗了手牌中 ${unplayables.length} 张不可打出的卡牌！`, 'info');
+        if (state.player.hp <= 0 || combat.status !== 'ongoing') {
+          return buildPlayResult();
+        }
       }
     }
 
@@ -689,7 +720,7 @@ export function playCard(
       }
     }
 
-    // 4d. Discard-all hand cards (Calculated Gamble / Storm of Steel)
+    // 4d. Discard-all hand cards (Calculated Gamble / Storm of Steel / Dead Man's Hand)
     if (stats.gambleDiscardAll && combat.hand.length > 0) {
       const toDiscard = [...combat.hand];
       combat.hand = [];
@@ -704,9 +735,70 @@ export function playCard(
       if (getAliveEnemies(combat).length > 0 && state.player.hp > 0 && discardedCount > 0) {
         addCardsToHand(state, 'shiv', discardedCount, Boolean(stats.shivUpgraded));
       }
+    } else if (stats.discardAllHand) {
+      if (combat.hand.length > 0) {
+        const toDiscard = [...combat.hand];
+        combat.hand = [];
+        discardCardsBatch(state, toDiscard, { manual: true });
+      }
+      if (
+        stats.drawRarestFromDraw > 0 &&
+        getAliveEnemies(combat).length > 0 &&
+        state.player.hp > 0 &&
+        combat.status === 'ongoing'
+      ) {
+        const rarityRank = (c) => {
+          const s = getCardStats(c);
+          if (s.rarity === 'rare') return 0;
+          if (s.rarity === 'uncommon') return 1;
+          if (s.rarity === 'common') return 2;
+          if (s.rarity === 'special') return 3;
+          if (s.rarity === 'starter') return 4;
+          if (s.type === 'status') return 5;
+          return 6;
+        };
+        const movedNames = [];
+        for (let pickIdx = 0; pickIdx < stats.drawRarestFromDraw; pickIdx += 1) {
+          if (combat.hand.length >= MAX_HAND_SIZE || combat.drawPile.length === 0) break;
+          let bestRank = 99;
+          for (const dc of combat.drawPile) {
+            const r = rarityRank(dc);
+            if (r < bestRank) bestRank = r;
+          }
+          const topTierIndices = [];
+          for (let i = 0; i < combat.drawPile.length; i += 1) {
+            if (rarityRank(combat.drawPile[i]) === bestRank) topTierIndices.push(i);
+          }
+          if (topTierIndices.length === 0) break;
+          const chosenIdx = pickRandom(state, topTierIndices);
+          const [picked] = combat.drawPile.splice(chosenIdx, 1);
+          if (picked) {
+            const pStats = getCardStats(picked);
+            if (
+              (state.player.statuses?.confused ?? 0) > 0 &&
+              !pStats.unplayable &&
+              !pStats.isXCost &&
+              typeof pStats.cost === 'number'
+            ) {
+              picked.combatCost = randomInt(state, 0, 3);
+              delete picked.tempZeroCostTurn;
+              delete picked.prevCombatCost;
+            }
+            combat.hand.push(picked);
+            movedNames.push(`【${pStats.name}】`);
+          }
+        }
+        if (movedNames.length > 0) {
+          pushCombatLog(
+            combat,
+            `【${stats.name}】从抽牌堆抽取最稀有卡牌：${movedNames.join('、')}！`,
+            'info'
+          );
+        }
+      }
     }
 
-    // 4e. Judgment instant execute & Pressure Points Mark trigger
+    // 4e. Judgment instant execute, Pressure Points Mark trigger & From Beyond direct HP loss
     if (stats.judgmentThreshold && targetEnemy && targetEnemy.hp > 0) {
       if (targetEnemy.hp <= stats.judgmentThreshold) {
         const prevHp = targetEnemy.hp;
@@ -734,12 +826,14 @@ export function playCard(
     }
 
     if (stats.applyMarkAndTrigger && targetEnemy && targetEnemy.hp > 0) {
+      const hadMark = (targetEnemy.statuses?.mark ?? 0) > 0;
       if (applyStatus(targetEnemy, 'mark', stats.applyMarkAndTrigger)) {
         pushCombatLog(
           combat,
           `【${targetEnemy.name}】获得 ${stats.applyMarkAndTrigger} 层【印记】（当前 ${targetEnemy.statuses.mark} 层）。`,
           'status'
         );
+        maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, 'mark', hadMark, addPlayerBlock, stats.applyMarkAndTrigger);
         triggerSadisticNature(state, targetEnemy);
       } else {
         pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【印记】！`, 'status');
@@ -780,8 +874,64 @@ export function playCard(
       }
     }
 
-    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Bowling Bash, Wallop, Lesson Learned, Ragnarok, Mind Blast, Rampage, Ritual Dagger, Unload, etc.)
-    if (stats.exhaustAllHandDamageEach) {
+    if (stats.fromBeyondHpLossPerExhaust) {
+      const exhaustCount = combat.exhaustPile?.length ?? 0;
+      const lossPer = stats.fromBeyondHpLossPerExhaust;
+      if (exhaustCount > 0) {
+        pushCombatLog(
+          combat,
+          `【${stats.name}】召唤彼岸之力：消耗堆 ${exhaustCount} 张牌各令随机敌人无视格挡失去 ${lossPer} 点生命！`,
+          'attack'
+        );
+        for (let fb = 0; fb < exhaustCount; fb += 1) {
+          const alive = getAliveEnemies(combat);
+          if (alive.length === 0 || state.player.hp <= 0 || combat.status !== 'ongoing') break;
+          const enemy = pickRandom(state, alive);
+          if (!enemy) break;
+          const capped = applyEnemyInvincibleCap(combat, enemy, lossPer);
+          const actualLoss = Math.min(enemy.hp, capped);
+          enemy.hp = Math.max(0, enemy.hp - capped);
+          if (state.stats && actualLoss > 0) {
+            state.stats.totalDamageDealt = (state.stats.totalDamageDealt ?? 0) + actualLoss;
+            state.stats.highestSingleHit = Math.max(state.stats.highestSingleHit ?? 0, actualLoss);
+          }
+          if (capped > 0) {
+            pushCombatLog(combat, `【${enemy.name}】无视格挡失去 ${capped} 点生命！`, 'attack');
+          }
+          if (enemy.hp <= 0 && !handleEnemyZeroHp(state, enemy)) {
+            enemy.block = 0;
+            enemy.intent = null;
+            pushCombatLog(combat, `【${enemy.name}】被【${stats.name}】吞噬！`, 'victory');
+            handleEnemyDeathPassives(state, enemy);
+          } else if (actualLoss > 0 && enemy.hp > 0) {
+            if ((enemy.statuses?.shifting ?? 0) > 0) {
+              enemy.statuses.strength = (enemy.statuses.strength ?? 0) - actualLoss;
+              if (enemy.statuses.strength === 0) delete enemy.statuses.strength;
+              enemy.tempStrengthRestore = (enemy.tempStrengthRestore ?? 0) + actualLoss;
+            }
+            checkSlimeSplitTrigger(combat, enemy);
+          }
+        }
+      } else {
+        pushCombatLog(combat, `消耗堆为空，【${stats.name}】未造成伤害。`, 'info');
+      }
+    }
+
+    // 5. Attack hits (Fiend Fire, Reaper, Bane, Finisher, Bowling Bash, Wallop, Lesson Learned, Ragnarok, Mind Blast, Rampage, Ritual Dagger, Unload, Malice, Magnum, Ricochet, Grudge, Black Wind, Final Canter, Cursed Weapon, Desperado, Golden Bullet, Dead or Alive, Showdown, Roundhouse Kick)
+    if (stats.maliceExhaustToAoeIfCurse) {
+      pendingMaliceCfg = {
+        baseDamage: stats.damage,
+        flatBonus,
+        targetEnemyId: targetEnemy?.id ?? null,
+      };
+    } else if (stats.magnumDiscardCount) {
+      pendingMagnumCfg = {
+        count: stats.magnumDiscardCount,
+        baseDamage: stats.damage,
+        flatBonus,
+        targetEnemyId: targetEnemy?.id ?? null,
+      };
+    } else if (stats.exhaustAllHandDamageEach) {
       const toExhaust = [...combat.hand];
       combat.hand = [];
       const hitCount = toExhaust.length;
@@ -817,6 +967,8 @@ export function playCard(
         hits = Math.max(1, getAliveEnemies(combat).length);
       } else if (stats.hitsPerHandSkill) {
         hits = combat.hand.filter((hc) => getCardStats(hc).type === 'skill').length;
+      } else if (stats.hitsPerHandCurse) {
+        hits = combat.hand.filter((hc) => getCardStats(hc).type === 'curse').length;
       } else if (stats.isXCost) {
         hits = effectiveX;
       } else {
@@ -835,19 +987,33 @@ export function playCard(
       );
 
       if (
-        (typeof stats.damage === 'number' || stats.useBlockAsDamage || stats.damageFromDrawPileSize) &&
+        (typeof stats.damage === 'number' ||
+          stats.useBlockAsDamage ||
+          stats.damageFromDrawPileSize ||
+          stats.damageFromMissingHp) &&
         hits > 0
       ) {
         const strikeCountOffset = isStrikeCard(cardInstance.cardId) ? 1 : 0;
         const extraStrikeBonus = stats.bonusDamagePerStrike
           ? stats.bonusDamagePerStrike * (countCombatStrikeCards(combat) + strikeCountOffset)
           : 0;
+        const extraCurseBonus = stats.damagePerDeckCurse
+          ? stats.damagePerDeckCurse *
+            [...combat.hand, ...combat.drawPile, ...combat.discardPile].filter(
+              (c) => getCardStats(c).type === 'curse'
+            ).length
+          : 0;
+        const cursedWeaponExtra = stats.cursedWeaponScale
+          ? Math.max(0, state.player.cursedWeaponBonus ?? 0)
+          : 0;
         const rawBaseDmg = stats.useBlockAsDamage
           ? state.player.block
           : stats.damageFromDrawPileSize
             ? (combat.drawPile?.length ?? 0)
-            : stats.damage;
-        const baseDmg = rawBaseDmg + extraStrikeBonus;
+            : stats.damageFromMissingHp
+              ? Math.max(0, state.player.maxHp - state.player.hp)
+              : stats.damage;
+        const baseDmg = rawBaseDmg + extraStrikeBonus + extraCurseBonus + cursedWeaponExtra;
         const strMult = stats.strengthMultiplier ?? 1;
         const targetAliveBefore = Boolean(targetEnemy && targetEnemy.hp > 0);
         const targetUnawakenedBefore = Boolean(
@@ -855,7 +1021,11 @@ export function playCard(
         );
         let totalUnblocked = 0;
 
-        const deadOnTimesNow = deadOnPosActive ? getDeadOnRepeatCount(state.player) : 0;
+        const deadOnTimesNow = deadOnPosActive
+          ? internalOpts.forceDeadOn && (internalOpts.forceDeadOnTimes ?? 0) > 0
+            ? internalOpts.forceDeadOnTimes
+            : getDeadOnRepeatCount(state.player)
+          : 0;
         const deadOnMultiplier =
           deadOnPosActive && stats.deadOnDoubleDamage ? 1 + deadOnTimesNow : 1;
 
@@ -900,8 +1070,65 @@ export function playCard(
           }
         }
 
+        // Ricochet: extra random hits equal to Dead On triggers earlier this turn
+        if (stats.ricochetPerDeadOnThisTurn && state.player.hp > 0 && combat.status === 'ongoing') {
+          const extraRicochets = Math.max(0, combat.deadOnTriggeredThisTurn ?? 0);
+          if (extraRicochets > 0) {
+            pushCombatLog(
+              combat,
+              `【${stats.name}】跳弹连射：额外随机射击 ${extraRicochets} 次！`,
+              'attack'
+            );
+            for (let rc = 0; rc < extraRicochets; rc += 1) {
+              const alive = getAliveEnemies(combat);
+              if (alive.length === 0 || state.player.hp <= 0 || combat.status !== 'ongoing') break;
+              const recipient = pickRandom(state, alive);
+              if (!recipient) break;
+              const dmg = calculateAttackDamage(baseDmg, state.player, recipient, {
+                strengthMultiplier: strMult,
+                flatBonus,
+              });
+              totalUnblocked += dealDamageToEnemy(state, recipient, dmg, { isAttack: true });
+            }
+          }
+        }
+
         if (state.player.hp <= 0 || combat.status !== 'ongoing') {
           return buildPlayResult();
+        }
+
+        if (stats.cursedWeaponScale) {
+          state.player.cursedWeaponBonus =
+            (state.player.cursedWeaponBonus ?? 0) + stats.cursedWeaponScale;
+          pushCombatLog(
+            combat,
+            `【${stats.name}】噬魂成长：本局所有【诅咒之枪】基础伤害永久 +${stats.cursedWeaponScale}（当前额外 +${state.player.cursedWeaponBonus}）！`,
+            'attack'
+          );
+        }
+
+        if (stats.desperadoDoubleDamageAndCost) {
+          cardInstance.combatDamageMod = (cardInstance.combatDamageMod ?? 0) + stats.damage;
+          const prevCost =
+            typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : (stats.cost ?? 0);
+          cardInstance.combatCost = prevCost + stats.desperadoDoubleDamageAndCost;
+          pushCombatLog(
+            combat,
+            `【${stats.name}】狂徒暴走：本场战斗基础伤害翻倍至 ${stats.damage * 2}，费用提高至 ${cardInstance.combatCost}！`,
+            'attack'
+          );
+        }
+
+        if (stats.stunNonAttackingEnemies) {
+          for (const enemy of getAliveEnemies(combat)) {
+            const intendsAttack = Boolean(
+              enemy.intent &&
+                (enemy.intent.type?.startsWith('attack') || typeof enemy.intent.damage === 'number')
+            );
+            if (!intendsAttack) {
+              applyStunKeepIntent(state, enemy, stats.name);
+            }
+          }
         }
 
         if (deadOnPosActive && stats.deadOnBlockFromUnblockedDamage && totalUnblocked > 0) {
@@ -958,12 +1185,14 @@ export function playCard(
         }
 
         if (stats.weakIfEnemyAttacking && targetIntendsAttackBefore && targetEnemy && targetEnemy.hp > 0) {
+          const hadWeak = (targetEnemy.statuses?.weak ?? 0) > 0;
           if (applyStatus(targetEnemy, 'weak', stats.weakIfEnemyAttacking)) {
             pushCombatLog(
               combat,
               `【${stats.name}】打断攻势：给予【${targetEnemy.name}】${stats.weakIfEnemyAttacking} 层【虚弱】！`,
               'status'
             );
+            maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, 'weak', hadWeak, addPlayerBlock, stats.weakIfEnemyAttacking);
             triggerSadisticNature(state, targetEnemy);
           } else {
             pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【虚弱】！`, 'status');
@@ -994,7 +1223,9 @@ export function playCard(
             stats.goldOnKill ||
             stats.maxHpOnKill ||
             stats.fatalPermanentUpgrade ||
-            stats.ritualDamageGrowth
+            stats.ritualDamageGrowth ||
+            stats.fatalPermanentCostReduction ||
+            stats.fatalBountyGold
         );
         const fatalTriggered = isFatalEnemyKill(targetEnemy, targetAliveBefore);
 
@@ -1018,6 +1249,51 @@ export function playCard(
               );
             }
           }
+        }
+
+        if (stats.fatalBountyGold && fatalTriggered) {
+          const bountyGold =
+            combat.role === 'boss' ? 100 : combat.role === 'elite' ? 40 : 15;
+          state.player.gold += bountyGold;
+          if (state.stats) {
+            state.stats.goldEarned = (state.stats.goldEarned ?? 0) + bountyGold;
+          }
+          pushCombatLog(
+            combat,
+            `【${stats.name}】斩杀悬赏目标！获得 ${bountyGold} 枚赏金金币！`,
+            'victory'
+          );
+          if (hasRelic(state, 'bloody_idol') && state.player.hp > 0) {
+            const healed = healPlayerInCombat(state, 5);
+            if (healed > 0) {
+              pushCombatLog(
+                combat,
+                `遗物【${RELIC_LIBRARY.bloody_idol.name}】触发：获得金币并回复 ${healed} 点生命！`,
+                'victory'
+              );
+            }
+          }
+        }
+
+        if (stats.fatalPermanentCostReduction && fatalTriggered) {
+          const curMod = cardInstance.permanentCostMod ?? 0;
+          const baseC = CARD_LIBRARY[cardInstance.cardId]?.base?.cost ?? 3;
+          const nextMod = Math.max(-baseC, curMod - stats.fatalPermanentCostReduction);
+          cardInstance.permanentCostMod = nextMod;
+          const masterCard = (state.player.deck || []).find(
+            (c) => c.instanceId === cardInstance.instanceId
+          );
+          if (masterCard) {
+            masterCard.permanentCostMod = Math.max(
+              -baseC,
+              (masterCard.permanentCostMod ?? 0) - stats.fatalPermanentCostReduction
+            );
+          }
+          pushCombatLog(
+            combat,
+            `【${stats.name}】斩杀铸弹：费用永久 -${stats.fatalPermanentCostReduction}（当前费用 ${Math.max(0, baseC + nextMod)}）！`,
+            'victory'
+          );
         }
 
         if (stats.maxHpOnKill && fatalTriggered) {
@@ -1095,6 +1371,27 @@ export function playCard(
             pushCombatLog(combat, `【${stats.name}】吸取生命，回复了 ${healed} 点生命！`, 'victory');
           }
         }
+
+        if (stats.playAllStrikesInHand && state.player.hp > 0 && combat.status === 'ongoing') {
+          const handStrikes = combat.hand.filter((hc) => hc.cardId === 'strike');
+          for (const strikeCard of handStrikes) {
+            if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
+            if (!combat.hand.some((hc) => hc.instanceId === strikeCard.instanceId)) continue;
+            const aliveNow = getAliveEnemies(combat);
+            if (aliveNow.length === 0) break;
+            if (
+              hasRelic(state, 'velvet_choker') &&
+              (combat.cardsPlayedThisTurn ?? 0) >= VELVET_CHOKER_CARD_LIMIT
+            ) {
+              break;
+            }
+            const strikeTarget = pickRandom(state, aliveNow);
+            playCard(state, strikeCard.instanceId, strikeTarget?.id ?? null, onVictoryCallback, {
+              forceFree: true,
+              fromHavoc: true,
+            });
+          }
+        }
       }
 
       if (stats.discardNonAttacksHand && state.player.hp > 0 && combat.status === 'ongoing') {
@@ -1170,12 +1467,14 @@ export function playCard(
       if (stats.ifLastCardType.applyEnemyStatuses && targetEnemy && targetEnemy.hp > 0) {
         for (const [sKey, sVal] of Object.entries(stats.ifLastCardType.applyEnemyStatuses)) {
           const sMeta = STATUS_METADATA[sKey];
+          const hadBefore = (targetEnemy.statuses?.[sKey] ?? 0) > 0;
           if (applyStatus(targetEnemy, sKey, sVal)) {
             pushCombatLog(
               combat,
               `【${stats.name}】连携触发：【${targetEnemy.name}】获得 ${sVal} 层【${sMeta?.name ?? sKey}】！`,
               'status'
             );
+            maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, sKey, hadBefore, addPlayerBlock, sVal);
             triggerChampionBeltIfVulnerable(state, targetEnemy, sKey, sVal);
             if (sMeta?.polarity === 'debuff') {
               triggerSadisticNature(state, targetEnemy);
@@ -1216,6 +1515,10 @@ export function playCard(
           if (statusKey === 'poison') {
             applyPoisonToEnemy(state, enemy, val);
           } else {
+            const hadBefore =
+              statusKey === 'strength' && val < 0
+                ? (enemy.statuses?.strength ?? 0) < 0
+                : (enemy.statuses?.[statusKey] ?? 0) > 0;
             const applied = applyStatus(enemy, statusKey, val);
             const statusMeta = STATUS_METADATA[statusKey];
             const statusName = statusMeta?.name ?? statusKey;
@@ -1229,6 +1532,7 @@ export function playCard(
                   : `【${enemy.name}】获得 ${val} 层【${statusName}】。`,
                 'status'
               );
+              maybeTriggerRedScarfOnNewDebuff(state, enemy, statusKey, hadBefore, addPlayerBlock, val);
               triggerChampionBeltIfVulnerable(state, enemy, statusKey, val);
               if (statusMeta?.polarity === 'debuff' || (statusKey === 'strength' && val < 0)) {
                 triggerSadisticNature(state, enemy);
@@ -1243,8 +1547,10 @@ export function playCard(
       if (combat.stance === 'wrath') {
         const vulnAmt = stats.ifInWrathVulnAllElseWrath;
         for (const enemy of getAliveEnemies(combat)) {
+          const hadVuln = (enemy.statuses?.vulnerable ?? 0) > 0;
           if (applyStatus(enemy, 'vulnerable', vulnAmt)) {
             pushCombatLog(combat, `【${stats.name}】愤怒爆发：【${enemy.name}】获得 ${vulnAmt} 层【易伤】！`, 'status');
+            maybeTriggerRedScarfOnNewDebuff(state, enemy, 'vulnerable', hadVuln, addPlayerBlock, vulnAmt);
             triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', vulnAmt);
             triggerSadisticNature(state, enemy);
           } else {
@@ -1257,6 +1563,7 @@ export function playCard(
     }
 
     if (stats.tempSingleEnemyStrengthLoss && targetEnemy && targetEnemy.hp > 0) {
+      const hadNegStr = (targetEnemy.statuses?.strength ?? 0) < 0;
       if (applyStatus(targetEnemy, 'strength', -stats.tempSingleEnemyStrengthLoss)) {
         applyStatus(targetEnemy, 'gainStrengthEndTurn', stats.tempSingleEnemyStrengthLoss);
         pushCombatLog(
@@ -1264,6 +1571,7 @@ export function playCard(
           `【${targetEnemy.name}】本回合失去 ${stats.tempSingleEnemyStrengthLoss} 点力量（回合结束恢复）。`,
           'status'
         );
+        maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, 'strength', hadNegStr, addPlayerBlock, -stats.tempSingleEnemyStrengthLoss);
         triggerSadisticNature(state, targetEnemy);
       } else {
         pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了力量削减！`, 'status');
@@ -1279,6 +1587,7 @@ export function playCard(
             : [];
       for (const enemy of recipients) {
         if (enemy.hp <= 0) continue;
+        const hadNegStr = (enemy.statuses?.strength ?? 0) < 0;
         if (applyStatus(enemy, 'strength', -stats.tempEnemyStrengthLoss)) {
           applyStatus(enemy, 'gainStrengthEndTurn', stats.tempEnemyStrengthLoss);
           pushCombatLog(
@@ -1286,6 +1595,7 @@ export function playCard(
             `【${enemy.name}】本回合失去 ${stats.tempEnemyStrengthLoss} 点力量（回合结束恢复）。`,
             'status'
           );
+          maybeTriggerRedScarfOnNewDebuff(state, enemy, 'strength', hadNegStr, addPlayerBlock, -stats.tempEnemyStrengthLoss);
           triggerSadisticNature(state, enemy);
         } else {
           pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了力量削减！`, 'status');
@@ -1297,16 +1607,20 @@ export function playCard(
       const xVal = effectiveX + (stats.xBonus ?? 0);
       if (xVal > 0 && targetEnemy && targetEnemy.hp > 0) {
         if (stats.xEnemyStrengthLoss) {
+          const hadNegStr = (targetEnemy.statuses?.strength ?? 0) < 0;
           if (applyStatus(targetEnemy, 'strength', -xVal)) {
             pushCombatLog(combat, `【${targetEnemy.name}】永久失去 ${xVal} 点【力量】。`, 'status');
+            maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, 'strength', hadNegStr, addPlayerBlock, -xVal);
             triggerSadisticNature(state, targetEnemy);
           } else {
             pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了力量削减！`, 'status');
           }
         }
         if (stats.xEnemyWeak && targetEnemy.hp > 0) {
+          const hadWeak = (targetEnemy.statuses?.weak ?? 0) > 0;
           if (applyStatus(targetEnemy, 'weak', xVal)) {
             pushCombatLog(combat, `【${targetEnemy.name}】获得 ${xVal} 层【虚弱】。`, 'status');
+            maybeTriggerRedScarfOnNewDebuff(state, targetEnemy, 'weak', hadWeak, addPlayerBlock, xVal);
             triggerSadisticNature(state, targetEnemy);
           } else {
             pushCombatLog(combat, `【${targetEnemy.name}】的【人工制品】抵消了【虚弱】！`, 'status');
@@ -1645,12 +1959,14 @@ export function playCard(
       }
     }
 
-    // 7a. Downfall — The Hermit mechanics (Dead On triggers, Memento, Called Shot, High-Caliber, Roulette)
+    // 7a. Downfall — The Hermit mechanics (Dead On triggers, Memento, Called Shot, High-Caliber, Roulette, & Phase 2 utility cards)
     if (stats.applyAllEveryoneVulnerable) {
       const amt = stats.applyAllEveryoneVulnerable;
       for (const enemy of getAliveEnemies(combat)) {
+        const hadVuln = (enemy.statuses?.vulnerable ?? 0) > 0;
         if (applyStatus(enemy, 'vulnerable', amt)) {
           pushCombatLog(combat, `【${stats.name}】给予【${enemy.name}】${amt} 层【易伤】。`, 'status');
+          maybeTriggerRedScarfOnNewDebuff(state, enemy, 'vulnerable', hadVuln, addPlayerBlock, amt);
           triggerChampionBeltIfVulnerable(state, enemy, 'vulnerable', amt);
           triggerSadisticNature(state, enemy);
         } else {
@@ -1665,7 +1981,10 @@ export function playCard(
     }
 
     if (stats.deadOn && deadOnPosActive && state.player.hp > 0 && combat.status === 'ongoing') {
-      const deadOnTimes = getDeadOnRepeatCount(state.player);
+      const deadOnTimes =
+        internalOpts.forceDeadOn && (internalOpts.forceDeadOnTimes ?? 0) > 0
+          ? internalOpts.forceDeadOnTimes
+          : getDeadOnRepeatCount(state.player);
       const hookRes = onHermitDeadOnTriggered(state, cardInstance, stats, deadOnTimes, {
         dealDamageToEnemyFn: dealDamageToEnemy,
       });
@@ -1673,10 +1992,72 @@ export function playCard(
         returnToHandByCombo = true;
       }
 
+      if (stats.cheatTopDraw) {
+        pendingCheatDeadOn = true;
+        pendingCheatDeadOnTimes = deadOnTimes;
+      }
+
       if (stats.deadOnPlatedArmor && state.player.hp > 0) {
         const gain = stats.deadOnPlatedArmor * deadOnTimes;
         applyStatus(state.player, 'platedArmor', gain);
         pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${gain} 层【多层护甲】！`, 'block');
+      }
+
+      if (stats.deadOnStrength && state.player.hp > 0) {
+        const gain = stats.deadOnStrength * deadOnTimes;
+        applyStatus(state.player, 'strength', gain);
+        pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${gain} 点【力量】！`, 'status');
+      }
+
+      if (stats.deadOnEnergyAndDraw && state.player.hp > 0) {
+        const gain = stats.deadOnEnergyAndDraw * deadOnTimes;
+        state.player.energy += gain;
+        pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${gain} 点能量并抽 ${gain} 张牌！`, 'info');
+        if (getAliveEnemies(combat).length > 0) {
+          drawCards(state, gain);
+        }
+      }
+
+      if (stats.deadOnWeakAll && state.player.hp > 0) {
+        const amt = stats.deadOnWeakAll * deadOnTimes;
+        for (const enemy of getAliveEnemies(combat)) {
+          const hadWeak = (enemy.statuses?.weak ?? 0) > 0;
+          if (applyStatus(enemy, 'weak', amt)) {
+            pushCombatLog(combat, `【${stats.name}】触发【精准】：给予【${enemy.name}】${amt} 层【虚弱】！`, 'status');
+            maybeTriggerRedScarfOnNewDebuff(state, enemy, 'weak', hadWeak, addPlayerBlock, amt);
+            triggerSadisticNature(state, enemy);
+          } else {
+            pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【虚弱】！`, 'status');
+          }
+        }
+      }
+
+      if (stats.deadOnGainGold && state.player.hp > 0) {
+        const goldGain = stats.deadOnGainGold * deadOnTimes;
+        state.player.gold = (state.player.gold ?? 0) + goldGain;
+        if (state.stats) {
+          state.stats.goldEarned = (state.stats.goldEarned ?? 0) + goldGain;
+        }
+        pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${goldGain} 枚金币！`, 'victory');
+        if (hasRelic(state, 'bloody_idol') && goldGain > 0 && state.player.hp > 0) {
+          const healed = healPlayerInCombat(state, 5);
+          if (healed > 0) {
+            pushCombatLog(
+              combat,
+              `遗物【${RELIC_LIBRARY.bloody_idol.name}】触发：获得金币并回复 ${healed} 点生命！`,
+              'victory'
+            );
+          }
+        }
+      }
+
+      if (stats.deadOnBlock && state.player.hp > 0) {
+        const singleBlk = calculateCardBlock(stats.deadOnBlock, state.player);
+        const totalBlk = singleBlk * deadOnTimes;
+        addPlayerBlock(state, totalBlk);
+        if (totalBlk > 0) {
+          pushCombatLog(combat, `【${stats.name}】触发【精准】：获得 ${totalBlk} 点格挡！`, 'block');
+        }
       }
 
       if (stats.deadOnReduceRandomHandCost && state.player.hp > 0) {
@@ -1723,6 +2104,153 @@ export function playCard(
           );
         }
       }
+    }
+
+    if (stats.cheatTopDraw) {
+      pendingCheatTop = Math.max(pendingCheatTop, stats.cheatTopDraw);
+    }
+
+    if (stats.increaseSelfCostThisCombat) {
+      const curCost =
+        typeof cardInstance.combatCost === 'number' ? cardInstance.combatCost : (stats.cost ?? 0);
+      cardInstance.combatCost = curCost + stats.increaseSelfCostThisCombat;
+      pushCombatLog(
+        combat,
+        `【${stats.name}】本场战斗费用增加至 ${cardInstance.combatCost} 点。`,
+        'info'
+      );
+    }
+
+    if (stats.reduceAllDebuffs && state.player.hp > 0) {
+      const amt = stats.reduceAllDebuffs;
+      const reducedNames = [];
+      for (const sKey of Object.keys(state.player.statuses || {})) {
+        const meta = STATUS_METADATA[sKey];
+        if (meta?.unclearable) continue;
+        const val = state.player.statuses[sKey] ?? 0;
+        const isNegSigned = (sKey === 'strength' || sKey === 'dexterity' || sKey === 'focus') && val < 0;
+        if (isNegSigned) {
+          const nextVal = val + amt;
+          if (nextVal >= 0) {
+            delete state.player.statuses[sKey];
+          } else {
+            state.player.statuses[sKey] = nextVal;
+          }
+          reducedNames.push(`负${meta?.name ?? sKey}`);
+        } else if (meta?.polarity === 'debuff' || sKey === 'confused' || sKey === 'noDraw') {
+          const nextVal = val - amt;
+          if (nextVal <= 0) {
+            delete state.player.statuses[sKey];
+            if (state.player.skipStatusTick) delete state.player.skipStatusTick[sKey];
+          } else {
+            state.player.statuses[sKey] = nextVal;
+          }
+          reducedNames.push(meta?.name ?? sKey);
+        }
+      }
+      pushCombatLog(
+        combat,
+        reducedNames.length > 0
+          ? `【${stats.name}】净化心灵：所有负面状态减少 ${amt} 层（${reducedNames.join('、')}）！`
+          : `【${stats.name}】生效，当前没有任何负面状态。`,
+        'status'
+      );
+    }
+
+    if (stats.fetchAllStrikesAndDefends && state.player.hp > 0) {
+      const movedNames = [];
+      const keptDraw = [];
+      for (const dc of combat.drawPile) {
+        if ((dc.cardId === 'strike' || dc.cardId === 'defend') && combat.hand.length < MAX_HAND_SIZE) {
+          combat.hand.push(dc);
+          movedNames.push(`【${getCardStats(dc).name}】`);
+        } else {
+          keptDraw.push(dc);
+        }
+      }
+      combat.drawPile = keptDraw;
+      pushCombatLog(
+        combat,
+        movedNames.length > 0
+          ? `【${stats.name}】装填完毕：从抽牌堆取回 ${movedNames.length} 张打击/防御！`
+          : `【${stats.name}】生效，抽牌堆中没有剩余的打击或防御。`,
+        'info'
+      );
+    }
+
+    if (typeof stats.addUpgradedDefendXBonus === 'number' && state.player.hp > 0) {
+      createTakeCoverDefendInHand(state, effectiveX + stats.addUpgradedDefendXBonus);
+    }
+
+    if (stats.drawUntilTotalCost && state.player.hp > 0 && getAliveEnemies(combat).length > 0) {
+      let costAccum = 0;
+      let drawnTotal = 0;
+      while (
+        costAccum < stats.drawUntilTotalCost &&
+        combat.hand.length < MAX_HAND_SIZE &&
+        (state.player.statuses?.noDraw ?? 0) <= 0 &&
+        (combat.drawPile.length > 0 || combat.discardPile.length > 0) &&
+        state.player.hp > 0 &&
+        combat.status === 'ongoing' &&
+        getAliveEnemies(combat).length > 0
+      ) {
+        const drawnOne = [];
+        const didDraw = drawCards(state, 1, { outDrawnCards: drawnOne });
+        if (didDraw <= 0 || drawnOne.length === 0) break;
+        drawnTotal += 1;
+        const cStats = getCardStats(drawnOne[0]);
+        if (!cStats.unplayable && !cStats.isXCost && typeof cStats.cost === 'number' && cStats.cost > 0) {
+          costAccum += cStats.cost;
+        }
+      }
+      pushCombatLog(
+        combat,
+        `【${stats.name}】连续抽牌 ${drawnTotal} 张（累计基础费用 ${costAccum}/${stats.drawUntilTotalCost}）！`,
+        'info'
+      );
+    }
+
+    if (stats.retrieveRandomAttacksFromDiscard && state.player.hp > 0) {
+      const movedNames = [];
+      for (let g = 0; g < stats.retrieveRandomAttacksFromDiscard; g += 1) {
+        if (combat.hand.length >= MAX_HAND_SIZE) break;
+        const atkIndices = [];
+        for (let di = 0; di < combat.discardPile.length; di += 1) {
+          if (getCardStats(combat.discardPile[di]).type === 'attack') {
+            atkIndices.push(di);
+          }
+        }
+        if (atkIndices.length === 0) break;
+        const chosenIdx = pickRandom(state, atkIndices);
+        const [picked] = combat.discardPile.splice(chosenIdx, 1);
+        if (picked) {
+          const pStats = getCardStats(picked);
+          const discount = stats.retrieveDiscount ?? 1;
+          if (!pStats.unplayable && !pStats.isXCost) {
+            const curEff = getEffectiveCardCost(pStats, state.player, combat);
+            if (typeof curEff === 'number' && curEff > 0) {
+              if (!picked.tempZeroCostTurn) {
+                picked.prevCombatCost = picked.combatCost ?? null;
+              }
+              picked.combatCost = Math.max(0, curEff - discount);
+              picked.tempZeroCostTurn = true;
+            }
+          }
+          combat.hand.push(picked);
+          movedNames.push(`【${pStats.name}】`);
+        }
+      }
+      pushCombatLog(
+        combat,
+        movedNames.length > 0
+          ? `【${stats.name}】从弃牌堆取回攻击牌（本回合费用 -${stats.retrieveDiscount ?? 1}）：${movedNames.join('、')}！`
+          : `【${stats.name}】弃牌堆中没有可取回的攻击牌。`,
+        'info'
+      );
+    }
+
+    if (stats.loneWolfChooseZeroDiscardRest) {
+      pendingLoneWolf = true;
     }
 
     if (stats.drawIfLastCardDeadOn && prevCardTriggeredDeadOn && getAliveEnemies(combat).length > 0) {
@@ -2205,6 +2733,15 @@ export function playCard(
       }
     }
 
+    if (cardInstance.cardId === 'strike' || cardInstance.cardId === 'defend') {
+      combat.strikesDefendsPlayedThisTurn = (combat.strikesDefendsPlayedThisTurn ?? 0) + 1;
+      const highNoonAmt = state.player.statuses?.highNoon ?? 0;
+      if (highNoonAmt > 0 && getAliveEnemies(combat).length > 0 && state.player.hp > 0) {
+        drawCards(state, highNoonAmt);
+        pushCombatLog(combat, `【午时已到】触发：打出【${stats.name}】，抽 ${highNoonAmt} 张牌！`, 'info');
+      }
+    }
+
     if (stats.type === 'skill' && hasRelic(state, 'letter_opener')) {
       combat.skillsPlayedThisTurn = (combat.skillsPlayedThisTurn ?? 0) + 1;
       if (combat.skillsPlayedThisTurn % 3 === 0) {
@@ -2623,6 +3160,24 @@ export function playCard(
       requestDiscoverCardChoice(state, pendingDiscoverCfg, stats.name);
     } else if (pendingWishCfg) {
       requestWishChoice(state, pendingWishCfg, stats.name);
+    } else if (pendingMaliceCfg) {
+      requestHandCardChoice(state, 'malice', 1, stats.name, onVictoryCallback, pendingMaliceCfg);
+    } else if (pendingMagnumCfg) {
+      requestHandCardChoice(
+        state,
+        'magnum',
+        pendingMagnumCfg.count,
+        stats.name,
+        onVictoryCallback,
+        pendingMagnumCfg
+      );
+    } else if (pendingLoneWolf) {
+      requestHandCardChoice(state, 'lone_wolf', 1, stats.name, onVictoryCallback);
+    } else if (pendingCheatTop > 0) {
+      requestCheatTopDrawChoice(state, pendingCheatTop, stats.name, onVictoryCallback, {
+        forceDeadOn: pendingCheatDeadOn,
+        forceDeadOnTimes: pendingCheatDeadOnTimes,
+      });
     } else if (totalRetrieveDiscardRetain > 0) {
       requestDiscardPileChoice(
         state,
@@ -2685,6 +3240,9 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   if (hasPendingCardChoice(combat)) {
     return { ok: false, reason: getPendingChoiceBlockReason(combat) };
   }
+  if (hasRelic(state, 'bartender_glass') && (combat.bartenderGlassUsed ?? 0) >= 2) {
+    return { ok: false, reason: `受【${RELIC_LIBRARY.bartender_glass.name}】限制，每场战斗最多使用 2 瓶药水` };
+  }
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= state.player.potions.length) {
     return { ok: false, reason: '药水栏位无效' };
   }
@@ -2713,6 +3271,25 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
     `饮用【${potion.name}】${mult > 1 ? `（${RELIC_LIBRARY.sacred_bark.name}效果翻倍）` : ''}！`,
     'info'
   );
+
+  if (hasRelic(state, 'bartender_glass')) {
+    combat.bartenderGlassUsed = (combat.bartenderGlassUsed ?? 0) + 1;
+    const emptySlot = Array.isArray(state.player.potions)
+      ? state.player.potions.findIndex((p) => p === null)
+      : -1;
+    if (emptySlot !== -1) {
+      const charId = state.characterId ?? state.player.characterId ?? 'ironclad';
+      const newPotId = rollWeightedPotionId(charId, () => nextRandom(state));
+      if (newPotId) {
+        state.player.potions[emptySlot] = newPotId;
+        pushCombatLog(
+          combat,
+          `遗物【${RELIC_LIBRARY.bartender_glass.name}】触发（${combat.bartenderGlassUsed}/2）：随机调配出【${POTION_LIBRARY[newPotId]?.name ?? newPotId}】！`,
+          'victory'
+        );
+      }
+    }
+  }
 
   if (potion.target === 'enemy' && targetRes.enemy) {
     turnTowardTargetIfSurrounded(state, targetRes.enemy);
@@ -2792,6 +3369,11 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
     applyStatus(state.player, 'platedArmor', val);
     pushCombatLog(combat, `获得 ${val} 层【多层护甲】！`, 'block');
   }
+  if (potion.rugged && combatActive()) {
+    const val = potion.rugged * mult;
+    applyStatus(state.player, 'rugged', val);
+    pushCombatLog(combat, `获得 ${val} 层【坚固】（下次未格挡攻击伤害至多为 2）！`, 'block');
+  }
   if (potion.artifact && combatActive()) {
     const val = potion.artifact * mult;
     applyStatus(state.player, 'artifact', val);
@@ -2870,8 +3452,10 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
       } else {
         const sMeta = STATUS_METADATA[sKey];
         const sName = sMeta?.name ?? sKey;
+        const hadBefore = (targetRes.enemy.statuses?.[sKey] ?? 0) > 0;
         if (applyStatus(targetRes.enemy, sKey, val)) {
           pushCombatLog(combat, `【${targetRes.enemy.name}】获得 ${val} 层【${sName}】。`, 'status');
+          maybeTriggerRedScarfOnNewDebuff(state, targetRes.enemy, sKey, hadBefore, addPlayerBlock, val);
           triggerChampionBeltIfVulnerable(state, targetRes.enemy, sKey, val);
           if (sMeta?.polarity === 'debuff') {
             triggerSadisticNature(state, targetRes.enemy);
@@ -2909,6 +3493,12 @@ export function usePotion(state, slotIndex, targetEnemyId = null, onVictoryCallb
   }
   if (potion.scry && combatActive()) {
     initiateScry(state, potion.scry * mult, potion.name);
+  }
+  if (potion.retrieveExhaustZeroCost && combatActive()) {
+    requestExhaustPileChoice(state, potion.retrieveExhaustZeroCost * mult, potion.name, {
+      tempZeroCostTurn: true,
+      includeExhume: true,
+    });
   }
 
   if (getAliveEnemies(combat).length === 0 && state.player.hp > 0 && combat.status === 'ongoing') {

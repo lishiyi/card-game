@@ -947,6 +947,7 @@ export function mountSpireApp(rootEl) {
       fxManager.spawnCardFlyFx(cardEl, targetEl, stats);
     }
 
+    const prevGold = state.player?.gold ?? 0;
     const res = runPlayCard(state, instanceId, targetEnemyId);
     clearCombatSelection();
     const revealNotice = res.ok ? formatCardRevealNotice(res) : '';
@@ -954,9 +955,20 @@ export function mountSpireApp(rootEl) {
     render();
 
     if (res.ok) {
+      const gainedGoldNow = (state.player?.gold ?? 0) > prevGold;
+      const triggeredDeadOnNow = Boolean(stats?.deadOn && state.combat?.lastCardTriggeredDeadOn);
+      const isHermitReload =
+        card?.cardId === 'fully_loaded' ||
+        card?.cardId === 'maintenance' ||
+        card?.cardId === 'roulette' ||
+        card?.cardId === 'quickdraw';
       if (card?.cardId === 'apotheosis' || (card?.cardId === 'armaments' && card?.upgraded)) {
         soundEngine.play('smith');
       } else if (card?.cardId === 'shiv' || (stats?.addShivs ?? 0) > 0) soundEngine.play('shiv');
+      else if (gainedGoldNow && stats?.character === 'hermit') soundEngine.play('bounty_coin');
+      else if (triggeredDeadOnNow) soundEngine.play('dead_on_chime');
+      else if (isHermitReload) soundEngine.play('reload');
+      else if (stats?.character === 'hermit' && stats?.type === 'attack') soundEngine.play('gunshot');
       else if (
         stats?.type === 'skill' &&
         ((stats?.applyEnemyStatuses?.poison ?? 0) > 0 ||
@@ -1157,6 +1169,7 @@ export function mountSpireApp(rootEl) {
         pending?.mode === 'retrieve_exhaust_to_hand' ||
         pending?.mode === 'pick_from_draw' ||
         pending?.mode === 'omniscience' ||
+        pending?.mode === 'cheat' ||
         pending?.mode === 'discover_card' ||
         pending?.mode === 'wish'
       ) {
@@ -1165,7 +1178,8 @@ export function mountSpireApp(rootEl) {
       if (
         pending?.mode === 'retain' ||
         pending?.mode === 'exhaust_multi' ||
-        pending?.mode === 'hand_to_draw_bottom_multi'
+        pending?.mode === 'hand_to_draw_bottom_multi' ||
+        pending?.mode === 'magnum'
       ) {
         executeTogglePendingChoiceWithFx(instanceId);
         return;
@@ -2133,6 +2147,7 @@ export function mountSpireApp(rootEl) {
         activeChoice?.mode === 'retrieve_exhaust_to_hand' ||
         activeChoice?.mode === 'pick_from_draw' ||
         activeChoice?.mode === 'omniscience' ||
+        activeChoice?.mode === 'cheat' ||
         activeChoice?.mode === 'discover_card' ||
         activeChoice?.mode === 'wish'
       ) {
@@ -2165,7 +2180,8 @@ export function mountSpireApp(rootEl) {
       if (
         activeChoice?.mode === 'retain' ||
         activeChoice?.mode === 'exhaust_multi' ||
-        activeChoice?.mode === 'hand_to_draw_bottom_multi'
+        activeChoice?.mode === 'hand_to_draw_bottom_multi' ||
+        activeChoice?.mode === 'magnum'
       ) {
         if (event.key === 'Enter') {
           event.preventDefault();

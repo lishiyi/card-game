@@ -1222,6 +1222,7 @@ function renderDiscardPileChoiceModal({ state }) {
     'retrieve_exhaust_to_hand',
     'pick_from_draw',
     'omniscience',
+    'cheat',
     'discover_card',
     'wish',
   ]);
@@ -1235,6 +1236,7 @@ function renderDiscardPileChoiceModal({ state }) {
   const isDiscardToHand = pending.mode === 'retrieve_discard_to_hand';
   const isExhaustPick = pending.mode === 'retrieve_exhaust_to_hand';
   const isOmniscience = pending.mode === 'omniscience';
+  const isCheat = pending.mode === 'cheat';
   const isDiscover = pending.mode === 'discover_card';
   const isWish = pending.mode === 'wish';
 
@@ -1244,43 +1246,55 @@ function renderDiscardPileChoiceModal({ state }) {
       ? `${pending.sourceName} · 从抽牌堆检索`
       : isOmniscience
         ? `通晓万物 · 从抽牌堆连续打出 2 次`
-        : isExhaustPick
-          ? `发掘 · 从消耗堆取回（${pending.sourceName}）`
-          : isDiscover
-            ? `${pending.sourceName} · 3 选 1 加入手牌`
-            : isWish
-              ? `许愿 · 请选择一项愿望`
-              : isDiscardToHand
-                ? `全息取回 · 从弃牌堆加入手牌（${pending.sourceName}）`
-                : `弃牌置顶 · ${pending.sourceName}`;
+        : isCheat
+          ? `${pending.sourceName} · 抽牌堆顶免费打出${pending.forceDeadOn ? '（精准！）' : ''}`
+          : isExhaustPick
+            ? pending.tempZeroCostTurn
+              ? `${pending.sourceName} · 从消耗堆取回（0 费）`
+              : `发掘 · 从消耗堆取回（${pending.sourceName}）`
+            : isDiscover
+              ? `${pending.sourceName} · 3 选 1 加入手牌`
+              : isWish
+                ? `许愿 · 请选择一项愿望`
+                : isDiscardToHand
+                  ? `全息取回 · 从弃牌堆加入手牌（${pending.sourceName}）`
+                  : `弃牌置顶 · ${pending.sourceName}`;
   const subtitle = isMeditate
     ? `点击选择最多 ${pending.count} 张弃牌加入手牌并赋予本回合保留（已选 ${selectedSet.size}/${pending.count}），完成后点击确认。`
     : isDrawPick
       ? `点击选择 ${pending.remaining} 张抽牌堆中的卡牌直接加入手牌（已按费用与名称排序）。`
       : isOmniscience
         ? `从抽牌堆任选 1 张卡牌，免费连续打出 2 次并将其消耗（能力牌不会消耗）。`
-        : isExhaustPick
-          ? `点击选择 ${pending.remaining} 张已消耗卡牌发掘加入手牌。`
-          : isDiscover
-            ? `从下方 3 张随机候选卡牌中选择 1 张加入手牌${pending.tempZeroCostTurn ? '（本回合费用变为 0）' : ''}。`
-            : isWish
-              ? `从「活命」、「成名」、「暴富」中选择一项立即生效。`
-              : isDiscardToHand
-                ? `点击选择 ${pending.remaining} 张弃牌直接加入手牌。`
-                : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
+        : isCheat
+          ? `从抽牌堆顶 ${candidates.length} 张牌中选择 1 张免费打出${pending.forceDeadOn ? '；若选中【精准】牌，将强制触发精准效果' : ''}。`
+          : isExhaustPick
+            ? pending.tempZeroCostTurn
+              ? `点击选择 ${pending.remaining} 张已消耗卡牌加入手牌，本回合费用变为 0。`
+              : `点击选择 ${pending.remaining} 张已消耗卡牌发掘加入手牌。`
+            : isDiscover
+              ? `从下方 3 张随机候选卡牌中选择 1 张加入手牌${pending.tempZeroCostTurn ? '（本回合费用变为 0）' : ''}。`
+              : isWish
+                ? `从「活命」、「成名」、「暴富」中选择一项立即生效。`
+                : isDiscardToHand
+                  ? `点击选择 ${pending.remaining} 张弃牌直接加入手牌。`
+                  : `点击选择 ${pending.remaining} 张弃牌直接置于抽牌堆顶（下一张抽到）。`;
   const pickLabel = isMeditate
     ? '点击取回保留'
     : isDrawPick
       ? '点击检索入手'
       : isOmniscience
         ? '连续打出×2'
-        : isExhaustPick
-          ? '点击发掘入手'
-          : isDiscover
-            ? '点击收入手牌'
-            : isDiscardToHand
-              ? '点击取回入手'
-              : '点击置于牌堆顶';
+        : isCheat
+          ? '免费打出'
+          : isExhaustPick
+            ? pending.tempZeroCostTurn
+              ? '0 费入手'
+              : '点击发掘入手'
+            : isDiscover
+              ? '点击收入手牌'
+              : isDiscardToHand
+                ? '点击取回入手'
+                : '点击置于牌堆顶';
 
   const bodyContentHtml = isWish
     ? `<div class="choice-list" id="discard-choice-card-list" style="display:flex;flex-direction:column;gap:10px;max-width:480px;margin:0 auto;">${candidates
@@ -1699,6 +1713,7 @@ function renderModalContent({ state, meta, settings, ui }) {
         pendingMode === 'retrieve_exhaust_to_hand' ||
         pendingMode === 'pick_from_draw' ||
         pendingMode === 'omniscience' ||
+        pendingMode === 'cheat' ||
         pendingMode === 'discover_card' ||
         pendingMode === 'wish'
       ) {

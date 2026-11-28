@@ -604,15 +604,20 @@ export function getUpgradableDeckCards(state) {
 }
 
 export function applyCardRemovalSideEffects(state, removedCard) {
-  if (!removedCard || !state?.player) return { lostMaxHp: 0 };
+  if (!removedCard || !state?.player) return { lostMaxHp: 0, healedHp: 0 };
   const stats = getCardStats(removedCard);
+  let lostMaxHp = 0;
   if ((stats.onRemoveLoseMaxHp ?? 0) > 0) {
-    const loss = stats.onRemoveLoseMaxHp;
-    state.player.maxHp = Math.max(1, state.player.maxHp - loss);
+    lostMaxHp = stats.onRemoveLoseMaxHp;
+    state.player.maxHp = Math.max(1, state.player.maxHp - lostMaxHp);
     state.player.hp = Math.min(state.player.hp, state.player.maxHp);
-    return { lostMaxHp: loss };
   }
-  return { lostMaxHp: 0 };
+  let healedHp = 0;
+  if (hasRelic(state, 'straight_razor') && state.player.hp > 0) {
+    healedHp = Math.min(15, Math.max(0, state.player.maxHp - state.player.hp));
+    state.player.hp += healedHp;
+  }
+  return { lostMaxHp, healedHp };
 }
 
 /**

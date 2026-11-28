@@ -915,6 +915,115 @@ export const RELIC_LIBRARY = deepFreeze({
     price: 295,
     description: '每当你打出一张能力牌时，回复 2 点生命。',
   },
+  // === Downfall: The Hermit Class Relics (+12; total 14 with Memento & Clasped Locket) ===
+  black_powder: {
+    id: 'black_powder',
+    name: '黑火药',
+    tier: 'common',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 150,
+    description: '每当你触发【精准】效果时，对所有敌人造成 2 点伤害。',
+  },
+  brass_tacks: {
+    id: 'brass_tacks',
+    name: '破旧铜钉',
+    tier: 'common',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 150,
+    description: '每回合结束时，获得 2 点格挡。',
+  },
+  bloody_tooth: {
+    id: 'bloody_tooth',
+    name: '兽牙战利品',
+    tier: 'uncommon',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 250,
+    description: '每次击败精英敌人后，回复 7 点生命并获得 35 金币。',
+  },
+  spyglass: {
+    id: 'spyglass',
+    name: '望远镜',
+    tier: 'uncommon',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 250,
+    description: '若回合结束时你仍处于【专注】状态，下回合额外获得 1 点能量。',
+  },
+  straight_razor: {
+    id: 'straight_razor',
+    name: '刮胡刀',
+    tier: 'uncommon',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 250,
+    description: '每当你从牌组中移除或变化 1 张牌时，回复 15 点生命。',
+  },
+  charred_glove: {
+    id: 'charred_glove',
+    name: '烧焦的手套',
+    tier: 'rare',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 300,
+    description: '每当你抽到【诅咒】牌时，获得 3 层【活力】（下次攻击伤害 +3）。',
+  },
+  horseshoe: {
+    id: 'horseshoe',
+    name: '马蹄铁',
+    tier: 'rare',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 300,
+    description: '每当你获得【虚弱】、【脆弱】或【易伤】时，获得层数减少 1 层。',
+  },
+  red_scarf: {
+    id: 'red_scarf',
+    name: '红色围巾',
+    tier: 'rare',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 300,
+    description: '每当你对敌人施加其当前尚未拥有的负面状态时，获得 3 点格挡。',
+  },
+  rye_stalk: {
+    id: 'rye_stalk',
+    name: '黑麦茎',
+    tier: 'rare',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 300,
+    description: '每当你在敌方回合失去生命时，立即抽 1 张牌（保留至你的下回合）。',
+  },
+  pet_ghost: {
+    id: 'pet_ghost',
+    name: '宠物幽灵',
+    tier: 'shop',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 165,
+    description: '每场战斗首次即将承受致命生命值损失时，将其完全抵消并免于死亡！',
+  },
+  bartender_glass: {
+    id: 'bartender_glass',
+    name: '酒保玻璃杯',
+    tier: 'boss',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 350,
+    description: '每场战斗最多使用 2 瓶药水；每次在战斗中使用药水时，随机获得 1 瓶新药水。',
+  },
+  dented_plate: {
+    id: 'dented_plate',
+    name: '受损铁板',
+    tier: 'boss',
+    character: 'hermit',
+    origin: 'expansion',
+    price: 350,
+    description: '当你的生命值不高于最大生命的 50% 时，每回合开始额外获得 1 点能量并抽 1 张牌。',
+  },
 });
 
 export const CAMPFIRE_RELIC_IDS = deepFreeze(['girya', 'shovel', 'peace_pipe']);
@@ -927,6 +1036,19 @@ export const RELIC_ICONS = deepFreeze({
   cracked_core: '⚡',
   memento: '🪙',
   clasped_locket: '📿',
+  // Hermit Expansion Relics
+  black_powder: '💣',
+  brass_tacks: '📌',
+  bloody_tooth: '🦷',
+  spyglass: '🔭',
+  straight_razor: '🪒',
+  charred_glove: '🧤',
+  horseshoe: '🧲',
+  red_scarf: '🧣',
+  rye_stalk: '🌾',
+  pet_ghost: '👻',
+  bartender_glass: '🥃',
+  dented_plate: '🛡️',
   // Common
   vajra: '⚡',
   oddly_smooth_stone: '🪨',
@@ -1422,6 +1544,40 @@ export const POTION_LIBRARY = deepFreeze({
     evokeFront: 1,
     description: '充能 1 个【等离子球】，随后立即激发队首充能球 1 次。',
   },
+  // === Downfall: The Hermit Class Potions (3) ===
+  tonic: {
+    id: 'tonic',
+    name: '奎宁水',
+    rarity: 'common',
+    character: 'hermit',
+    origin: 'expansion',
+    target: 'self',
+    price: 50,
+    rugged: 1,
+    description: '获得 1 层【坚固】（下次未格挡攻击伤害降至 2 点）。',
+  },
+  black_bile: {
+    id: 'black_bile',
+    name: '黑胆汁',
+    rarity: 'uncommon',
+    character: 'hermit',
+    origin: 'expansion',
+    target: 'enemy',
+    price: 75,
+    applyEnemyStatuses: { bruise: 6 },
+    description: '给予目标敌人 6 层【瘀伤】。',
+  },
+  liquid_void: {
+    id: 'liquid_void',
+    name: '蚀刻药水',
+    rarity: 'rare',
+    character: 'hermit',
+    origin: 'expansion',
+    target: 'self',
+    price: 100,
+    retrieveExhaustZeroCost: 1,
+    description: '从【消耗堆】选择 1 张牌加入手牌，其本回合耗能变为 0。',
+  },
 });
 
 export const ALL_POTION_IDS = deepFreeze(Object.keys(POTION_LIBRARY));
@@ -1471,6 +1627,12 @@ export function getPotionEffectiveDescription(potionId, hasSacredBark = false) {
   }
   if (potionId === 'ancient_potion') {
     return '获得 2 层【人工制品】（免疫下 2 次负面状态 · 圣树皮翻倍）。';
+  }
+  if (potionId === 'tonic') {
+    return '获得 2 层【坚固】（下次未格挡攻击伤害降至 2 点 · 圣树皮翻倍）。';
+  }
+  if (potionId === 'liquid_void') {
+    return '从【消耗堆】选择 2 张牌加入手牌，其本回合耗能变为 0（圣树皮翻倍）。';
   }
   return `${doubled}（圣树皮生效）`;
 }
@@ -2298,6 +2460,84 @@ export const STATUS_METADATA = deepFreeze({
     name: '狙击',
     polarity: 'buff',
     describe: (v) => `本回合接下来 ${v} 次触发【精准】效果时，额外再触发一次。`,
+  },
+  smokingBarrel: {
+    id: 'smokingBarrel',
+    name: '冒烟枪管',
+    polarity: 'buff',
+    describe: (v) => `每当你触发【精准】效果时，获得 ${v} 层【活力】（下次攻击伤害 +${v}）。`,
+  },
+  brawl: {
+    id: 'brawl',
+    name: '斗殴',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，给予所有敌人 ${v} 层【瘀伤】。`,
+  },
+  combo: {
+    id: 'combo',
+    name: '连击',
+    polarity: 'buff',
+    describe: (v) => `每回合前 ${v} 张触发【精准】的牌在结算后返回手牌。`,
+  },
+  determination: {
+    id: 'determination',
+    name: '决心',
+    polarity: 'buff',
+    describe: (v) => `每当你被施加 1 个负面状态时，获得 ${v} 点【力量】。`,
+  },
+  maintenanceStrike: {
+    id: 'maintenanceStrike',
+    name: '保养',
+    polarity: 'buff',
+    describe: (v) => `本场战斗中你的【打击】牌伤害额外 +${v}。`,
+  },
+  shadowCloak: {
+    id: 'shadowCloak',
+    name: '暗影斗篷',
+    polarity: 'buff',
+    describe: (v) => `每当你抽到或消耗 1 张【诅咒】牌时，获得 ${v} 点格挡。`,
+  },
+  takeAim: {
+    id: 'takeAim',
+    name: '举枪瞄准',
+    polarity: 'buff',
+    describe: () => '每回合开始时自动获得【专注】。',
+  },
+  adapt: {
+    id: 'adapt',
+    name: '适应',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，可选择消耗至多 ${v} 张手牌，每张提供 8 点格挡。`,
+  },
+  eternalForm: {
+    id: 'eternalForm',
+    name: '永恒形态',
+    polarity: 'buff',
+    describe: (v) => `每回合抽到的前 4 张可打出牌本回合费用 -${v}。`,
+  },
+  fatalDesire: {
+    id: 'fatalDesire',
+    name: '自弑之欲',
+    polarity: 'buff',
+    describe: (v) => `每回合开始时，额外抽 ${v * 2} 张牌并将 ${v} 张【受伤】加入手牌。`,
+  },
+  highNoon: {
+    id: 'highNoon',
+    name: '午时已到',
+    polarity: 'buff',
+    describe: (v) => `每当你打出【打击】或【防御】时，抽 ${v} 张牌。`,
+  },
+  overwhelmingPower: {
+    id: 'overwhelmingPower',
+    name: '压倒性力量',
+    polarity: 'debuff',
+    describe: (v) => `若回合结束时你的能量为 0，失去 ${v} 点生命。`,
+  },
+  drained: {
+    id: 'drained',
+    name: '力尽',
+    polarity: 'debuff',
+    describe: (v) => `下回合开始时少获得 ${v} 点能量。`,
   },
 });
 

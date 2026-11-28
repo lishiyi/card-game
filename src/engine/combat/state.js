@@ -100,10 +100,23 @@ export function applyStatus(entity, statusKey, delta, options = {}) {
   if (!entity.statuses) entity.statuses = {};
   if (!entity.skipStatusTick) entity.skipStatusTick = {};
 
+  let effDelta = delta;
+  if (
+    effDelta > 0 &&
+    Array.isArray(entity.relics) &&
+    entity.relics.includes('horseshoe') &&
+    (statusKey === 'weak' || statusKey === 'frail' || statusKey === 'vulnerable')
+  ) {
+    effDelta = Math.max(0, effDelta - 1);
+    if (effDelta === 0) {
+      return false;
+    }
+  }
+
   const statusMeta = STATUS_METADATA[statusKey];
   const isNegativeDebuff =
-    (statusMeta?.polarity === 'debuff' && delta > 0) ||
-    (SIGNED_STATUSES.has(statusKey) && delta < 0);
+    (statusMeta?.polarity === 'debuff' && effDelta > 0) ||
+    (SIGNED_STATUSES.has(statusKey) && effDelta < 0);
 
   if (
     !options.bypassArtifact &&
@@ -119,7 +132,17 @@ export function applyStatus(entity, statusKey, delta, options = {}) {
   }
 
   const prev = entity.statuses[statusKey] ?? 0;
-  const next = prev + delta;
+  const next = prev + effDelta;
+
+  const triggerDetermination = () => {
+    if (isNegativeDebuff && (entity.statuses.determination ?? 0) > 0) {
+      const detGain = entity.statuses.determination;
+      entity.statuses.strength = (entity.statuses.strength ?? 0) + detGain;
+      if (entity.statuses.strength === 0) {
+        delete entity.statuses.strength;
+      }
+    }
+  };
 
   if (SIGNED_STATUSES.has(statusKey)) {
     if (next === 0) {
@@ -127,6 +150,7 @@ export function applyStatus(entity, statusKey, delta, options = {}) {
     } else {
       entity.statuses[statusKey] = next;
     }
+    triggerDetermination();
     return true;
   }
 
@@ -139,12 +163,13 @@ export function applyStatus(entity, statusKey, delta, options = {}) {
   entity.statuses[statusKey] = next;
   if (
     DECAYING_DEBUFFS.includes(statusKey) &&
-    delta > 0 &&
+    effDelta > 0 &&
     prev <= 0 &&
     options.appliedDuringEnemyTurn
   ) {
     entity.skipStatusTick[statusKey] = true;
   }
+  triggerDetermination();
   return true;
 }
 
@@ -560,6 +585,14 @@ export function getPendingChoiceBlockReason(combat) {
       return '请先选择要置于抽牌堆底的手牌';
     case 'hand_to_draw_bottom_multi':
       return '请先选择要置于抽牌堆底的手牌并确认';
+    case 'cheat':
+      return '请先从抽牌堆顶选择 1 张牌免费打出';
+    case 'lone_wolf':
+      return '请先选择 1 张要保留并变为 0 费的手牌';
+    case 'malice':
+      return '请先选择 1 张要消耗的手牌以发动【歹念】';
+    case 'magnum':
+      return '请先选择要弃置的手牌以发动【马格南】并确认';
     case 'retain':
       return '请先选择本回合要保留的手牌并确认结束回合';
     default:
@@ -733,7 +766,7 @@ export function flushQueuedOmniscience(state) {
   );
 }
 
-export function requestExhaustPileChoice(state, count, sourceName = '发掘') {
+export function requestExhaustPileChoice(state, count, sourceName = '发掘', options = {}) {
   const combat = state?.combat;
   if (
     !combat ||
@@ -744,9 +777,11 @@ export function requestExhaustPileChoice(state, count, sourceName = '发掘') {
   ) {
     return false;
   }
-  const eligible = (combat.exhaustPile || []).filter((c) => c.cardId !== 'exhume');
+  const eligible = options.includeExhume
+    ? [...(combat.exhaustPile || [])]
+    : (combat.exhaustPile || []).filter((c) => c.cardId !== 'exhume');
   if (eligible.length === 0) {
-    pushCombatLog(combat, `【${sourceName}】消耗堆中没有可发掘的卡牌。`, 'info');
+    pushCombatLog(combat, `【${sourceName}】消耗堆中没有可取回的卡牌。`, 'info');
     return false;
   }
   const handRoom = Math.max(0, MAX_HAND_SIZE - combat.hand.length);
@@ -761,6 +796,7 @@ export function requestExhaustPileChoice(state, count, sourceName = '发掘') {
     count: maxPick,
     remaining: maxPick,
     optional: false,
+    tempZeroCostTurn: Boolean(options.tempZeroCostTurn),
     candidates: [...eligible],
     selectedIds: [],
   });

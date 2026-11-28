@@ -25,10 +25,18 @@ export { countEntityDebuffs, getDeadOnRepeatCount, isCardDeadOnInHand, isHandInd
 /**
  * Triggers Red Scarf (+3 Block whenever applying a new debuff to an enemy) if equipped.
  */
-export function maybeTriggerRedScarfOnNewDebuff(state, enemy, statusKey, hadStatusBefore, addPlayerBlockFn) {
+export function maybeTriggerRedScarfOnNewDebuff(
+  state,
+  enemy,
+  statusKey,
+  hadStatusBefore,
+  addPlayerBlockFn,
+  delta = 1
+) {
   if (!state?.combat || !enemy || hadStatusBefore) return 0;
   const meta = STATUS_METADATA[statusKey];
-  if (meta?.polarity !== 'debuff') return 0;
+  const isDebuff = meta?.polarity === 'debuff' || (statusKey === 'strength' && delta < 0);
+  if (!isDebuff) return 0;
   if (!hasRelic(state, 'red_scarf') || typeof addPlayerBlockFn !== 'function') return 0;
   const gain = addPlayerBlockFn(state, 3);
   if (gain > 0) {
@@ -246,7 +254,7 @@ export function handleHermitTurn1StartHooks(state, { addCardsToHandFn = null } =
  */
 export function handleHermitTurnStartHooks(
   state,
-  { addCardsToHandFn = null, triggerSadisticNatureFn = null } = {}
+  { addCardsToHandFn = null, triggerSadisticNatureFn = null, addPlayerBlockFn = null } = {}
 ) {
   const combat = state?.combat;
   if (!combat) return { bonusEnergy: 0, bonusDraw: 0 };
@@ -255,6 +263,8 @@ export function handleHermitTurnStartHooks(
   combat.lastCardTriggeredDeadOn = false;
   combat.deadOnTriggeredThisTurn = 0;
   combat.comboUsedThisTurn = 0;
+  combat.strikesDefendsPlayedThisTurn = 0;
+  combat.eternalFormDrawsLeft = (state.player.statuses?.eternalForm ?? 0) > 0 ? 4 : 0;
 
   let bonusEnergy = 0;
   let bonusDraw = 0;
@@ -285,7 +295,9 @@ export function handleHermitTurnStartHooks(
   if (brawlAmt > 0) {
     const alive = getAliveEnemies(combat);
     for (const enemy of alive) {
+      const hadBruise = (enemy.statuses?.bruise ?? 0) > 0;
       if (applyStatus(enemy, 'bruise', brawlAmt)) {
+        maybeTriggerRedScarfOnNewDebuff(state, enemy, 'bruise', hadBruise, addPlayerBlockFn, brawlAmt);
         if (typeof triggerSadisticNatureFn === 'function') triggerSadisticNatureFn(state, enemy);
       } else {
         pushCombatLog(combat, `【${enemy.name}】的【人工制品】抵消了【斗殴】的【瘀伤】！`, 'status');
@@ -296,21 +308,22 @@ export function handleHermitTurnStartHooks(
     }
   }
 
-  // Fatal Desire: Draw N cards and add N Injury to hand
+  // Fatal Desire: Draw 2*N cards and add N Injury to hand
   const fatalDesireAmt = state.player.statuses?.fatalDesire ?? 0;
   if (fatalDesireAmt > 0) {
-    bonusDraw += fatalDesireAmt;
+    const fdDraw = fatalDesireAmt * 2;
+    bonusDraw += fdDraw;
     if (typeof addCardsToHandFn === 'function') {
       addCardsToHandFn(state, 'injury', fatalDesireAmt, false);
     }
     pushCombatLog(
       combat,
-      `【自弑之欲】触发：额外抽 ${fatalDesireAmt} 张牌，并将 ${fatalDesireAmt} 张【受伤】加入手牌！`,
+      `【自弑之欲】触发：额外抽 ${fdDraw} 张牌，并将 ${fatalDesireAmt} 张【受伤】加入手牌！`,
       'status'
     );
   }
 
-  // Drained: Lose Energy at start of turn (applied by some Hermit cards)
+  // Drained: Lose Energy at start of turn (applied by No Holds Barred)
   const drainedAmt = state.player.statuses?.drained ?? 0;
   if (drainedAmt > 0) {
     delete state.player.statuses.drained;
@@ -343,19 +356,19 @@ export function handleHermitEndOfTurnHooks(
     if (state.player.hp <= 0 || combat.status !== 'ongoing') break;
     const c = handSnapshot[i];
     const cStats = getCardStats(c);
-    if (cStats.endOfTurnDeadOnDamageAll && isHandIndexDeadOn(i, handSnapshot.length)) {
-      const dmg = cStats.endOfTurnDeadOnDamageAll;
+    const doomDmg = cStats.impendingDoomDamage || cStats.endOfTurnDeadOnDamageAll || 0;
+    if (doomDmg > 0 && isHandIndexDeadOn(i, handSnapshot.length)) {
       pushCombatLog(
         combat,
-        `手牌【${cStats.name}】位于【精准】位置：对所有单位造成 ${dmg} 点伤害！`,
+        `手牌【${cStats.name}】位于【精准】位置：对所有单位造成 ${doomDmg} 点伤害！`,
         'damage'
       );
       if (typeof dealDamageToPlayerFn === 'function') {
-        dealDamageToPlayerFn(state, dmg, `手牌【${cStats.name}】`, { isAttack: false, fromCard: true });
+        dealDamageToPlayerFn(state, doomDmg, `手牌【${cStats.name}】`, { isAttack: false, fromCard: true });
       }
       if (typeof dealDamageToEnemyFn === 'function' && state.player.hp > 0) {
         for (const enemy of getAliveEnemies(combat)) {
-          dealDamageToEnemyFn(state, enemy, dmg, { isAttack: false });
+          dealDamageToEnemyFn(state, enemy, doomDmg, { isAttack: false });
         }
       }
     }
@@ -452,4 +465,33 @@ export function createHighCaliberStrikeInHand(state, plusLevel = 2) {
     'info'
   );
   return strike;
+}
+
+/**
+ * Adds a 0-cost Take Cover Defend upgraded N times (5 + 3*N Block) to hand.
+ */
+export function createTakeCoverDefendInHand(state, upgradeCount = 0) {
+  const combat = state?.combat;
+  if (!combat || !CARD_LIBRARY.defend) return null;
+  const n = Math.max(0, Math.floor(upgradeCount));
+  const def = createCardInstance(state, 'defend', n > 0);
+  def.combatCost = 0;
+  if (n > 1) {
+    // Base Defend = 5, Defend+ = 8 (+3). Each upgrade above +1 adds +3 block.
+    def.combatBlockMod = (n - 1) * 3;
+    def.displayUpgradePlus = n;
+  }
+  if (combat.hand.length < MAX_HAND_SIZE) {
+    combat.hand.push(def);
+  } else {
+    combat.discardPile.push(def);
+  }
+  const blockVal = 5 + n * 3;
+  const label = n === 0 ? '防御' : n === 1 ? '防御+' : `防御+${n}`;
+  pushCombatLog(
+    combat,
+    `将 1 张 0 费【${label}】（${blockVal} 点格挡）加入${combat.hand.includes(def) ? '手牌' : '弃牌堆'}！`,
+    'info'
+  );
+  return def;
 }

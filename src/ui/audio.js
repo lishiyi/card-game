@@ -48,6 +48,10 @@ export const AUDIO_CUES = Object.freeze([
   'error',
   'victory',
   'defeat',
+  'gunshot',
+  'reload',
+  'dead_on_chime',
+  'bounty_coin',
   'test',
 ]);
 
@@ -1396,6 +1400,109 @@ export function createSoundEngine(getSettings) {
             duration: 0.18,
             gain: baseGain * 0.56,
             reverb: 0.3,
+          });
+          break;
+        }
+        case 'gunshot': {
+          playNoiseBurst(audioCtx, {
+            start: 0,
+            attack: 0.001,
+            duration: 0.16,
+            filterFreq: 2100,
+            endFilterFreq: 380,
+            filterType: 'bandpass',
+            q: 0.9,
+            gain: baseGain * 1.08,
+            reverb: 0.36,
+          });
+          playTone(audioCtx, {
+            type: 'sawtooth',
+            freq: 175,
+            endFreq: 46,
+            duration: 0.11,
+            attack: 0.002,
+            filterFreq: 720,
+            gain: baseGain * 0.85,
+            reverb: 0.24,
+          });
+          break;
+        }
+        case 'reload': {
+          playNoiseBurst(audioCtx, {
+            start: 0,
+            attack: 0.002,
+            duration: 0.04,
+            filterFreq: 3600,
+            filterType: 'highpass',
+            q: 2.2,
+            gain: baseGain * 0.48,
+            reverb: 0.14,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 620,
+            endFreq: 980,
+            start: 0.045,
+            duration: 0.06,
+            gain: baseGain * 0.42,
+            reverb: 0.16,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 840,
+            endFreq: 1240,
+            start: 0.105,
+            duration: 0.055,
+            gain: baseGain * 0.45,
+            reverb: 0.18,
+          });
+          break;
+        }
+        case 'dead_on_chime': {
+          playFmTone(audioCtx, {
+            carrierFreq: 880.0,
+            modFreq: 1760.0,
+            modDepth: 110,
+            duration: 0.24,
+            attack: 0.006,
+            gain: baseGain * 0.62,
+            reverb: 0.44,
+          });
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 1318.5,
+            start: 0.055,
+            attack: 0.008,
+            duration: 0.22,
+            gain: baseGain * 0.48,
+            reverb: 0.46,
+          });
+          break;
+        }
+        case 'bounty_coin': {
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 1046.5,
+            start: 0,
+            duration: 0.11,
+            gain: baseGain * 0.56,
+            reverb: 0.3,
+          });
+          playTone(audioCtx, {
+            type: 'sine',
+            freq: 1567.98,
+            start: 0.065,
+            duration: 0.18,
+            gain: baseGain * 0.62,
+            reverb: 0.38,
+          });
+          playTone(audioCtx, {
+            type: 'triangle',
+            freq: 2093.0,
+            start: 0.13,
+            duration: 0.16,
+            gain: baseGain * 0.44,
+            reverb: 0.42,
           });
           break;
         }
