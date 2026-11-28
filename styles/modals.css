@@ -753,6 +753,30 @@ body.spire-modal-open {
   box-shadow: 0 0 0 1px hsla(38, 70%, 54%, 0.45);
 }
 
+.filter-chip-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+#btn-compendium-toggle-upgrade {
+  min-width: 11em;
+}
+
+#btn-toggle-deck-stack {
+  min-width: 11.5em;
+}
+
+#btn-toggle-card-stats-starters {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-width: 9.8em;
+}
+
 .settings-backup-box {
   margin-top: 4px;
   padding: 12px 14px;

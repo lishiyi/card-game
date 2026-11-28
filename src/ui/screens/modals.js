@@ -778,7 +778,7 @@ function renderSettingsModal({ settings, ui, state }) {
               <button
                 type="button"
                 id="btn-settings-copy-seed"
-                class="btn-stone"
+                class="btn-stone btn-toggle"
                 data-action="copy-seed"
                 data-seed-code="${escapeHtml(seedCode)}"
                 data-ascension="${escapeHtml(asc)}"
@@ -810,16 +810,17 @@ function renderSettingsModal({ settings, ui, state }) {
                 <div class="settings-label">战斗与界面音效</div>
                 <div class="settings-desc">启用零外部依赖 Web Audio 实时合成音效（斩击、叠盾、破盾、铁砧锻造等）。</div>
               </div>
-              <div style="display:flex;gap:8px;align-items:center;">
+              <div class="settings-row-actions">
                 <button
                   type="button"
                   id="btn-toggle-sound"
-                  class="${settings.soundEnabled ? 'btn-brass' : 'btn-stone'}"
+                  class="${settings.soundEnabled ? 'btn-brass' : 'btn-stone'} btn-toggle"
                   data-action="toggle-sound"
+                  aria-pressed="${settings.soundEnabled ? 'true' : 'false'}"
                 >
                   ${settings.soundEnabled ? '音效：已开启' : '音效：已静音'}
                 </button>
-                <button type="button" id="btn-test-sound" class="btn-stone" data-action="test-sound" ${settings.soundEnabled ? '' : 'disabled'}>
+                <button type="button" id="btn-test-sound" class="btn-stone btn-toggle" data-action="test-sound" ${settings.soundEnabled ? '' : 'disabled'}>
                   试听
                 </button>
               </div>
@@ -861,8 +862,9 @@ function renderSettingsModal({ settings, ui, state }) {
               <button
                 type="button"
                 id="btn-toggle-damage-numbers"
-                class="${settings.showDamageNumbers ? 'btn-brass' : 'btn-stone'}"
+                class="${settings.showDamageNumbers ? 'btn-brass' : 'btn-stone'} btn-toggle"
                 data-action="toggle-damage-numbers"
+                aria-pressed="${settings.showDamageNumbers ? 'true' : 'false'}"
               >
                 ${settings.showDamageNumbers ? '飘字：显示' : '飘字：隐藏'}
               </button>
@@ -876,8 +878,9 @@ function renderSettingsModal({ settings, ui, state }) {
               <button
                 type="button"
                 id="btn-toggle-mobile-tap-confirm"
-                class="${settings.mobileTapConfirm ? 'btn-brass' : 'btn-stone'}"
+                class="${settings.mobileTapConfirm ? 'btn-brass' : 'btn-stone'} btn-toggle"
                 data-action="toggle-mobile-tap-confirm"
+                aria-pressed="${settings.mobileTapConfirm ? 'true' : 'false'}"
               >
                 ${settings.mobileTapConfirm ? '二段确认：已开启' : '二段确认：已关闭'}
               </button>
@@ -891,8 +894,9 @@ function renderSettingsModal({ settings, ui, state }) {
               <button
                 type="button"
                 id="btn-toggle-mobile-hand-layout"
-                class="${settings.mobileHandLayout !== 'spread' ? 'btn-brass' : 'btn-stone'}"
+                class="${settings.mobileHandLayout !== 'spread' ? 'btn-brass' : 'btn-stone'} btn-toggle"
                 data-action="toggle-mobile-hand-layout"
+                aria-pressed="${settings.mobileHandLayout !== 'spread' ? 'true' : 'false'}"
               >
                 ${settings.mobileHandLayout !== 'spread' ? '手牌排布：扇形堆叠' : '手牌排布：平铺横滑'}
               </button>
@@ -906,8 +910,9 @@ function renderSettingsModal({ settings, ui, state }) {
               <button
                 type="button"
                 id="btn-toggle-mechanic-tips"
-                class="${settings.showMechanicTips !== false ? 'btn-brass' : 'btn-stone'}"
+                class="${settings.showMechanicTips !== false ? 'btn-brass' : 'btn-stone'} btn-toggle"
                 data-action="toggle-mechanic-tips"
+                aria-pressed="${settings.showMechanicTips !== false ? 'true' : 'false'}"
               >
                 ${settings.showMechanicTips !== false ? '机制提示：已开启' : '机制提示：已关闭'}
               </button>
@@ -918,7 +923,7 @@ function renderSettingsModal({ settings, ui, state }) {
                 <div class="settings-label">新手引导与机制提示重置</div>
                 <div class="settings-desc">恢复第 1 层地图新手提示条，并重置所有首次机制浮动提示。</div>
               </div>
-              <button type="button" id="btn-reset-tutorial" class="btn-stone" data-action="reset-tutorial">
+              <button type="button" id="btn-reset-tutorial" class="btn-stone btn-toggle" data-action="reset-tutorial">
                 重新开启新手提示
               </button>
             </div>
@@ -1421,8 +1426,9 @@ function renderCompendiumModal({ meta, ui }) {
         <button
           type="button"
           id="btn-compendium-toggle-upgrade"
-          class="filter-chip ${showUpgraded ? 'active' : ''}"
+          class="filter-chip filter-chip-toggle ${showUpgraded ? 'active' : ''}"
           data-action="toggle-compendium-upgrade"
+          aria-pressed="${showUpgraded ? 'true' : 'false'}"
         >
           ${showUpgraded ? '✓ 升级预览 (+)' : '查看升级 (+)'}
         </button>
@@ -2065,8 +2071,9 @@ export function renderModal({ state, meta, settings, ui }) {
             <button
               type="button"
               id="btn-toggle-deck-stack"
-              class="filter-chip ${stackCopies ? 'active' : ''}"
+              class="filter-chip filter-chip-toggle ${stackCopies ? 'active' : ''}"
               data-action="toggle-deck-stack"
+              aria-pressed="${stackCopies ? 'true' : 'false'}"
             >${stackCopies ? '✓ 合并同名 (×N)' : '展开全部单张'}</button>
           </div>
         </div>

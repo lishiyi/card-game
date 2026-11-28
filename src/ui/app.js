@@ -442,6 +442,7 @@ export function mountSpireApp(rootEl) {
 
   let lastRenderedScreen = null;
   let lastRenderedModal = null;
+  let lastRenderedModalScrollKey = '';
   let hoveredMapNodeId = null;
   let hoveredMapTypeFilter = null;
 
@@ -676,6 +677,29 @@ export function mountSpireApp(rootEl) {
     sanitizeUiState();
     fxManager.applyAnimSpeedAttr();
     const prevModal = lastRenderedModal;
+    const nextModalScrollKey = !ui.modal
+      ? ''
+      : ui.modal === 'compendium'
+        ? `compendium:${ui.compendiumTab || 'cards'}`
+        : ui.modal === 'help'
+          ? `help:${ui.helpTab || 'glossary'}`
+          : String(ui.modal);
+    const prevModalBody =
+      nextModalScrollKey && lastRenderedModalScrollKey === nextModalScrollKey
+        ? rootEl.querySelector('#modal-backdrop .modal-body')
+        : null;
+    const savedModalScrollTop = prevModalBody ? prevModalBody.scrollTop : 0;
+
+    function restoreModalBodyScroll() {
+      lastRenderedModalScrollKey = nextModalScrollKey;
+      if (savedModalScrollTop > 0) {
+        const nextModalBody = rootEl.querySelector('#modal-backdrop .modal-body');
+        if (nextModalBody) {
+          const maxScroll = Math.max(0, nextModalBody.scrollHeight - nextModalBody.clientHeight);
+          nextModalBody.scrollTop = Math.min(savedModalScrollTop, maxScroll);
+        }
+      }
+    }
 
     const artCharTarget = normalizeCharacterId(
       state?.characterId || ui.selectedCharacterId || meta.selectedCharacterId
@@ -708,6 +732,7 @@ export function mountSpireApp(rootEl) {
       syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
         restoreScroll: !screenChanged,
       });
+      restoreModalBodyScroll();
       clearCombatTacticsUI(rootEl);
       if (screenChanged && !ui.modal && typeof window.scrollTo === 'function') {
         window.scrollTo(0, 0);
@@ -806,6 +831,7 @@ export function mountSpireApp(rootEl) {
     syncModalScrollLock(Boolean(rootEl.querySelector('#modal-backdrop')), {
       restoreScroll: !screenChanged,
     });
+    restoreModalBodyScroll();
 
     if (ui.modal === 'map' && prevModal !== 'map' && state.currentNodeId) {
       const modalBodyEl = rootEl.querySelector('#map-inspector-modal .modal-body');

@@ -111,7 +111,7 @@ export function renderTreasureScreen({ state }) {
               : '机括轻响，沉睡的远古秘宝已归你所有。'
           }</p>
         </div>
-        <button type="button" id="btn-leave-treasure" class="${awaitingKeyChoice ? 'btn-stone' : 'btn-brass'}" data-action="leave-treasure">
+        <button type="button" id="btn-leave-treasure" class="${awaitingKeyChoice ? 'btn-stone' : 'btn-brass'} btn-toggle" data-action="leave-treasure">
           ${awaitingKeyChoice ? '放弃拿取，直接离开 →' : '继续前进 →'}
         </button>
       </div>

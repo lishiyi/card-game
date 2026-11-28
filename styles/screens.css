@@ -908,6 +908,8 @@ button.loot-reward-card.loot-kind-potion:hover {
 .btn-compact {
   padding: 5px 10px;
   font-size: 0.78rem;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
 }
 
 .btn-active-choice {
@@ -1107,6 +1109,19 @@ button.loot-reward-card.loot-kind-potion:hover {
   flex-wrap: wrap;
 }
 
+.settings-row > div:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.settings-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
 .settings-label {
   font-weight: 700;
   font-size: 0.92rem;
@@ -1135,6 +1150,21 @@ button.loot-reward-card.loot-kind-potion:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.settings-row .segmented-group {
+  flex-shrink: 0;
+}
+
+.settings-row .segmented-group .btn-stone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .help-tab-bar {

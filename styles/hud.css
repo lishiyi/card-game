@@ -298,6 +298,21 @@
   filter: brightness(1.1);
 }
 
+.btn-stone.btn-toggle,
+.btn-brass.btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* === HUD Containers & Mobile Helper Bars (Desktop Defaults) === */
 
 .vitals-numbers-row,

@@ -2865,3 +2865,247 @@ test('E2E Plan 2: Mobile portrait stacked fan hand (5-6 cards 1-screen, opaque d
     await session?.close();
   }
 });
+
+test('E2E toggle buttons keep identical dimensions and preserve modal scroll on desktop & mobile', { timeout: 60000 }, async (t) => {
+  if (!resolveBrowserBinary()) {
+    t.skip('Chromium/Chrome binary not available');
+    return;
+  }
+
+  let session = null;
+  try {
+    session = await suite.openIsolatedPage();
+    const { cdp, port } = session;
+    await cdp.send('Runtime.enable');
+    await cdp.send('Page.enable');
+    await cdp.send('Page.navigate', { url: `http://127.0.0.1:${port}/` });
+    await new Promise((r) => setTimeout(r, 400));
+    await launchHeroFromCharacterSelect(cdp, 'ironclad');
+
+    async function runToggleStabilityAudit(viewport) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: viewport.width,
+        height: viewport.height,
+        deviceScaleFactor: viewport.mobile ? 2 : 1,
+        mobile: viewport.mobile,
+      });
+      await new Promise((r) => setTimeout(r, 100));
+
+      return await cdp.evaluate(`(async () => {
+        document.getElementById('btn-open-settings')?.click();
+
+        const settingsToggleIds = [
+          'btn-toggle-sound',
+          'btn-toggle-damage-numbers',
+          'btn-toggle-mobile-tap-confirm',
+          'btn-toggle-mobile-hand-layout',
+          'btn-toggle-mechanic-tips',
+        ];
+
+        const measureRowTops = () =>
+          Array.from(document.querySelectorAll('#settings-modal .settings-row')).map((row) =>
+            Math.round(row.getBoundingClientRect().top * 10) / 10
+          );
+
+        const settingsResults = [];
+        for (const id of settingsToggleIds) {
+          const btnBefore = document.getElementById(id);
+          const rectBefore = btnBefore.getBoundingClientRect();
+          const topsBefore = measureRowTops();
+          const testSoundBefore = document.getElementById('btn-test-sound')?.getBoundingClientRect();
+
+          btnBefore.click();
+
+          const btnAfter = document.getElementById(id);
+          const rectAfter = btnAfter.getBoundingClientRect();
+          const topsAfter = measureRowTops();
+          const testSoundAfter = document.getElementById('btn-test-sound')?.getBoundingClientRect();
+
+          // Toggle back to verify reverse transition too
+          btnAfter.click();
+          const btnBack = document.getElementById(id);
+          const rectBack = btnBack.getBoundingClientRect();
+          const topsBack = measureRowTops();
+
+          const maxRowShift1 = Math.max(
+            0,
+            ...topsBefore.map((t, i) => Math.abs((topsAfter[i] ?? t) - t))
+          );
+          const maxRowShift2 = Math.max(
+            0,
+            ...topsBefore.map((t, i) => Math.abs((topsBack[i] ?? t) - t))
+          );
+
+          settingsResults.push({
+            id,
+            wBefore: rectBefore.width,
+            wAfter: rectAfter.width,
+            wBack: rectBack.width,
+            hBefore: rectBefore.height,
+            hAfter: rectAfter.height,
+            hBack: rectBack.height,
+            maxRowShift: Math.max(maxRowShift1, maxRowShift2),
+            soundPairHeightDiff:
+              id === 'btn-toggle-sound' && testSoundBefore
+                ? Math.max(
+                    Math.abs(rectBefore.height - testSoundBefore.height),
+                    Math.abs(rectAfter.height - testSoundAfter.height)
+                  )
+                : 0,
+            testSoundShiftX:
+              id === 'btn-toggle-sound' && testSoundBefore && testSoundAfter
+                ? Math.abs(testSoundAfter.left - testSoundBefore.left)
+                : 0,
+          });
+        }
+
+        // Scroll down inside Settings modal and toggle a lower switch: scrollTop must be preserved
+        const settingsBody = document.querySelector('#settings-modal .modal-body');
+        const maxScroll = Math.max(0, settingsBody.scrollHeight - settingsBody.clientHeight);
+        const targetScroll = Math.min(180, maxScroll);
+        settingsBody.scrollTop = targetScroll;
+        const scrollBeforeToggle = settingsBody.scrollTop;
+        document.getElementById('btn-toggle-mechanic-tips')?.click();
+        const scrollAfterToggle = document.querySelector('#settings-modal .modal-body').scrollTop;
+        document.getElementById('btn-toggle-mechanic-tips')?.click();
+
+        // Test animation speed buttons too
+        const speedBefore = document.getElementById('btn-anim-speed-fast').getBoundingClientRect();
+        const topsSpeedBefore = measureRowTops();
+        document.getElementById('btn-anim-speed-fast')?.click();
+        const speedAfter = document.getElementById('btn-anim-speed-fast').getBoundingClientRect();
+        const topsSpeedAfter = measureRowTops();
+        document.getElementById('btn-anim-speed-normal')?.click();
+        const speedShift = Math.max(
+          Math.abs(speedAfter.width - speedBefore.width),
+          Math.abs(speedAfter.height - speedBefore.height),
+          ...topsSpeedBefore.map((t, i) => Math.abs((topsSpeedAfter[i] ?? t) - t))
+        );
+
+        document.getElementById('btn-close-modal')?.click();
+
+        // Compendium upgrade toggle stability + scroll preservation
+        document.getElementById('btn-open-compendium')?.click();
+        const compBody = document.querySelector('#compendium-modal .modal-body');
+        compBody.scrollTop = Math.min(120, Math.max(0, compBody.scrollHeight - compBody.clientHeight));
+        const compScrollBefore = compBody.scrollTop;
+        const compBtnBefore = document.getElementById('btn-compendium-toggle-upgrade').getBoundingClientRect();
+        document.getElementById('btn-compendium-toggle-upgrade')?.click();
+        const compBtnAfter = document.getElementById('btn-compendium-toggle-upgrade').getBoundingClientRect();
+        const compScrollAfter = document.querySelector('#compendium-modal .modal-body').scrollTop;
+        document.getElementById('btn-close-modal')?.click();
+
+        // Deck stack toggle stability
+        document.getElementById('btn-open-deck')?.click();
+        const deckBtnBefore = document.getElementById('btn-toggle-deck-stack').getBoundingClientRect();
+        document.getElementById('btn-toggle-deck-stack')?.click();
+        const deckBtnAfter = document.getElementById('btn-toggle-deck-stack').getBoundingClientRect();
+        document.getElementById('btn-close-modal')?.click();
+
+        // Meta card-stats starter toggle stability + scroll preservation
+        document.getElementById('btn-open-meta')?.click();
+        const metaBody = document.querySelector('#meta-progression-modal .modal-body');
+        metaBody.scrollTop = Math.min(200, Math.max(0, metaBody.scrollHeight - metaBody.clientHeight));
+        const metaScrollBefore = metaBody.scrollTop;
+        const metaBtnBefore = document.getElementById('btn-toggle-card-stats-starters').getBoundingClientRect();
+        document.getElementById('btn-toggle-card-stats-starters')?.click();
+        const metaBtnAfter = document.getElementById('btn-toggle-card-stats-starters').getBoundingClientRect();
+        const metaScrollAfter = document.querySelector('#meta-progression-modal .modal-body').scrollTop;
+        document.getElementById('btn-close-modal')?.click();
+
+        return {
+          settingsResults,
+          maxScroll,
+          scrollBeforeToggle,
+          scrollAfterToggle,
+          speedShift,
+          compDelta: {
+            w: Math.abs(compBtnAfter.width - compBtnBefore.width),
+            h: Math.abs(compBtnAfter.height - compBtnBefore.height),
+            scrollDiff: Math.abs(compScrollAfter - compScrollBefore),
+            scrollBefore: compScrollBefore,
+          },
+          deckDelta: {
+            w: Math.abs(deckBtnAfter.width - deckBtnBefore.width),
+            h: Math.abs(deckBtnAfter.height - deckBtnBefore.height),
+          },
+          metaDelta: {
+            w: Math.abs(metaBtnAfter.width - metaBtnBefore.width),
+            h: Math.abs(metaBtnAfter.height - metaBtnBefore.height),
+            scrollDiff: Math.abs(metaScrollAfter - metaScrollBefore),
+            scrollBefore: metaScrollBefore,
+          },
+        };
+      })()`);
+    }
+
+    for (const vp of [
+      { label: 'desktop 1280x800', width: 1280, height: 800, mobile: false },
+      { label: 'mobile 390x844', width: 390, height: 844, mobile: true },
+    ]) {
+      const audit = await runToggleStabilityAudit(vp);
+      for (const r of audit.settingsResults) {
+        assert.ok(
+          Math.abs(r.hAfter - r.hBefore) <= 0.5 && Math.abs(r.hBack - r.hBefore) <= 0.5,
+          `[${vp.label}] ${r.id} height shifted: ${r.hBefore} -> ${r.hAfter} -> ${r.hBack}`
+        );
+        assert.ok(
+          Math.abs(r.wAfter - r.wBefore) <= 1.5 && Math.abs(r.wBack - r.wBefore) <= 1.5,
+          `[${vp.label}] ${r.id} width shifted: ${r.wBefore} -> ${r.wAfter} -> ${r.wBack}`
+        );
+        assert.ok(
+          r.maxRowShift <= 0.5,
+          `[${vp.label}] toggling ${r.id} shifted settings rows vertically by ${r.maxRowShift}px`
+        );
+        assert.ok(
+          r.soundPairHeightDiff <= 0.5,
+          `[${vp.label}] #btn-toggle-sound and #btn-test-sound height mismatch: ${r.soundPairHeightDiff}px`
+        );
+        assert.ok(
+          r.testSoundShiftX <= 1.5,
+          `[${vp.label}] toggling sound shifted #btn-test-sound horizontally by ${r.testSoundShiftX}px`
+        );
+      }
+      assert.ok(audit.speedShift <= 0.5, `[${vp.label}] anim speed toggle shifted layout by ${audit.speedShift}px`);
+      if (audit.scrollBeforeToggle > 0) {
+        assert.ok(
+          Math.abs(audit.scrollAfterToggle - audit.scrollBeforeToggle) <= 1,
+          `[${vp.label}] Settings modal scrollTop jumped from ${audit.scrollBeforeToggle} to ${audit.scrollAfterToggle}`
+        );
+      }
+      assert.ok(
+        audit.compDelta.w <= 1.5 && audit.compDelta.h <= 0.5,
+        `[${vp.label}] Compendium upgrade toggle shifted size: w=${audit.compDelta.w}, h=${audit.compDelta.h}`
+      );
+      if (audit.compDelta.scrollBefore > 0) {
+        assert.ok(
+          audit.compDelta.scrollDiff <= 1,
+          `[${vp.label}] Compendium modal scrollTop jumped by ${audit.compDelta.scrollDiff}px`
+        );
+      }
+      assert.ok(
+        audit.deckDelta.w <= 1.5 && audit.deckDelta.h <= 0.5,
+        `[${vp.label}] Deck stack toggle shifted size: w=${audit.deckDelta.w}, h=${audit.deckDelta.h}`
+      );
+      assert.ok(
+        audit.metaDelta.w <= 1.5 && audit.metaDelta.h <= 0.5,
+        `[${vp.label}] Meta starter toggle shifted size: w=${audit.metaDelta.w}, h=${audit.metaDelta.h}`
+      );
+      if (audit.metaDelta.scrollBefore > 0) {
+        assert.ok(
+          audit.metaDelta.scrollDiff <= 1,
+          `[${vp.label}] Meta modal scrollTop jumped by ${audit.metaDelta.scrollDiff}px`
+        );
+      }
+    }
+
+    const exceptions = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');
+    const consoleErrors = cdp.events.filter(
+      (e) => e.method === 'Runtime.consoleAPICalled' && e.params?.type === 'error'
+    );
+    assert.equal(exceptions.length, 0, `Uncaught exceptions: ${JSON.stringify(exceptions)}`);
+    assert.equal(consoleErrors.length, 0, `Console errors: ${JSON.stringify(consoleErrors)}`);
+  } finally {
+    await session?.close();
+  }
+});
